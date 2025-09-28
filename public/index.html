@@ -90,6 +90,46 @@
         </div>
     </template>
     <div id="modal-container"></div>
+
+    <script type="module">
+        // Import všech potřebných modulů z Firebase SDK
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, collection, getDocs, query, orderBy, doc, getDoc, setDoc, addDoc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+        import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+        import { initializeUpload } from './js/upload-handler.js';
+        
+        let app;
+        try {
+            const response = await fetch('/__/firebase/init.json');
+            const firebaseConfig = await response.json();
+            app = initializeApp(firebaseConfig);
+        } catch (e) {
+            console.warn("Nepodařilo se načíst automatickou Firebase konfiguraci, používá se lokální fallback.");
+            const firebaseConfig = {
+                apiKey: "AIzaSyB3mUbw9cC8U6UzUNvPadrwdhjXFcu3aeA",
+                authDomain: "ai-sensei-czu-pilot.firebaseapp.com",
+                projectId: "ai-sensei-czu-pilot",
+                storageBucket: "ai-sensei-czu-pilot.appspot.com",
+                messagingSenderId: "413145704611",
+                appId: "1:413145704611:web:75f8e571995276f99af716",
+                measurementId: "G-4QDC0F2Q6Q"
+            };
+            app = initializeApp(firebaseConfig);
+        }
+
+        // Inicializace všech služeb
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+        const functions = getFunctions(app);
+
+        // Zbytek vašeho skriptu pro `main.js` by měl následovat zde
+        // Ujistěte se, že máte definované všechny funkce (renderLogin, renderProfessorDashboard, atd.)
+        // a že váš router reaguje na onAuthStateChanged, jak bylo ukázáno dříve.
+
+    </script>
     <script type="module" src="/js/main.js"></script>
 </body>
 </html>
