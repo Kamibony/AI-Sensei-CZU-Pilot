@@ -57,6 +57,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // <-- ZDE JE PŘIDANÁ ÚPRAVA -->
+    // Zpřístupnění funkcí pro ostatní skripty (např. editor-handler.js)
+    window.callGeminiApi = callGeminiApi;
+    window.callGeminiForJson = callGeminiForJson;
+    // <-- KONEC ÚPRAVY -->
+
     // --- DATA A STAV APLIKACE ---
     let lessonsData = [
         { id: "1", title: 'Úvod do Kvantové Fyziky', subtitle: 'Základní principy', number: '101', creationDate: '2025-09-20', status: 'Aktivní', icon: '⚛️', content: 'Vítejte ve fascinujícím světě kvantové mechaniky! Na rozdíl od klasické fyziky, která popisuje pohyb velkých objektů jako jsou planety nebo míče, kvantová mechanika se zabývá chováním hmoty a energie na atomární a subatomární úrovni. Jedním z klíčových a nejvíce matoucích principů je vlnově-korpuskulární dualismus, který říká, že částice jako elektrony se mohou chovat jednou jako částice a jindy jako vlny. Dalším stěžejním konceptem je princip superpozice. Představte si minci, která se točí ve vzduchu. Dokud nedopadne, není ani panna, ani orel - je v jakémsi stavu obou možností najednou. Podobně může být kvantová částice ve více stavech současně, dokud ji nezačneme měřit. Teprve měřením "donutíme" částici vybrat si jeden konkrétní stav.' },
