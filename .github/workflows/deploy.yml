@@ -3,7 +3,7 @@ name: Deploy to Firebase Hosting
 on:
   push:
     branches:
-      - main  # Spustí se při každém pushi do větve 'main'
+      - main # Spouští se při každém pushi do větve 'main'
 
 jobs:
   build_and_deploy:
@@ -11,10 +11,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
-      - name: Setup Node.js
-  uses: actions/setup-node@v4
-  with:
-    node-version: '22'
+
+      - name: Setup Node.js v22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Install dependencies and build
         run: |
           npm install
