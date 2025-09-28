@@ -5,7 +5,9 @@ import {
 } from './firebase-init.js';
 import { initializeUpload } from './upload-handler.js';
 
+fix-auth-cors-errors
 const generateTextFunction = httpsCallable(functions, 'generateText');
+ main
     const generateJsonFunction = httpsCallable(functions, 'generateJson');
 
     // --- API Volání ---
@@ -679,4 +681,6 @@ const generateTextFunction = httpsCallable(functions, 'generateText');
 
     function renderAnalytics(container) {
         container.innerHTML = `<div class="p-8"><h2>Analýza studentů</h2><p>Tato sekce se připravuje.</p></div>`;
+ fix-auth-cors-errors
     }
+ main
