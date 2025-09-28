@@ -1,37 +1,11 @@
-﻿// --- HLAVNÍ SKRIPT APLIKACE ---
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+// --- HLAVNÍ SKRIPT APLIKACE ---
+import {
+    auth, db, storage, functions, httpsCallable,
+    onAuthStateChanged, signOut, signInAnonymously
+} from './firebase-init.js';
 import { initializeUpload } from './upload-handler.js';
 
-document.addEventListener('DOMContentLoaded', async () => {
-
-    // --- Firebase a Functions Inicializace (připraveno pro deploy) ---
-    let app;
-    try {
-        const response = await fetch('/__/firebase/init.json');
-        const firebaseConfig = await response.json();
-        app = initializeApp(firebaseConfig);
-    } catch (e) {
-        console.warn("Nepodařilo se načíst automatickou Firebase konfiguraci, používá se lokální fallback.");
-        const firebaseConfig = {
-            apiKey: "AIzaSyB3mUbw9cC8U6UzUNvPadrwdhjXFcu3aeA",
-            authDomain: "ai-sensei-czu-pilot.firebaseapp.com",
-            projectId: "ai-sensei-czu-pilot",
-            storageBucket: "ai-sensei-czu-pilot.appspot.com",
-            messagingSenderId: "413145704611",
-            appId: "1:413145704611:web:75f8e571995276f99af716",
-            measurementId: "G-4QDC0F2Q6Q"
-        };
-        app = initializeApp(firebaseConfig);
-    }
-
-    const functions = getFunctions(app);
-    const db = getFirestore(app);
-    const storage = getStorage(app);
-
-    const generateTextFunction = httpsCallable(functions, 'generateText');
+const generateTextFunction = httpsCallable(functions, 'generateText');
     const generateJsonFunction = httpsCallable(functions, 'generateJson');
 
     // --- API Volání ---
@@ -42,7 +16,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             return result.data;
         } catch (error) {
             console.error("Chyba při volání Firebase funkce 'generateText':", error);
-            return { error: `Chyba backendu: ${error.message}` };
+            const details = error.details || {};
+            return { error: `Chyba backendu: ${error.message} (kód: ${error.code}, detaily: ${JSON.stringify(details)})` };
         }
     }
 
@@ -53,15 +28,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             return result.data;
         } catch (error) {
             console.error("Chyba při volání Firebase funkce 'generateJson':", error);
-            return { error: `Chyba backendu při generování JSON: ${error.message}` };
+            const details = error.details || {};
+            return { error: `Chyba backendu při generování JSON: ${error.message} (kód: ${error.code}, detaily: ${JSON.stringify(details)})` };
         }
     }
 
-    // <-- ZDE JE PŘIDANÁ ÚPRAVA -->
     // Zpřístupnění funkcí pro ostatní skripty (např. editor-handler.js)
     window.callGeminiApi = callGeminiApi;
     window.callGeminiForJson = callGeminiForJson;
-    // <-- KONEC ÚPRAVY -->
 
     // --- DATA A STAV APLIKACE ---
     let lessonsData = [
@@ -80,14 +54,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentLesson = null;
     const appContainer = document.getElementById('app-container');
     
-    // --- HLAVNÍ LOGIKA APLIKACE ---
-    function init() { renderLogin(); }
+    // --- HLAVNÍ LOGIKA APLIKACE (ROUTER) ---
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            const role = sessionStorage.getItem('userRole');
+            if (role) {
+                login(role);
+            } else {
+                renderLogin();
+            }
+        } else {
+            renderLogin();
+        }
+    });
 
     function renderLogin() {
         appContainer.innerHTML = document.getElementById('login-template').innerHTML;
         document.getElementById('ai-assistant-btn').style.display = 'none';
-        document.getElementById('login-professor').addEventListener('click', () => login('professor'));
-        document.getElementById('login-student').addEventListener('click', () => login('student'));
+
+        const handleLogin = async (role) => {
+            try {
+                if (!auth.currentUser) {
+                    await signInAnonymously(auth);
+                }
+                sessionStorage.setItem('userRole', role);
+                login(role);
+            } catch (error) {
+                console.error("Anonymous sign-in failed:", error);
+                alert("Přihlášení selhalo. Zkuste to prosím znovu.");
+            }
+        };
+
+        document.getElementById('login-professor').addEventListener('click', () => handleLogin('professor'));
+        document.getElementById('login-student').addEventListener('click', () => handleLogin('student'));
+    }
+
+    async function logout() {
+        try {
+            await signOut(auth);
+            sessionStorage.removeItem('userRole');
+            currentUserRole = null;
+            currentLesson = null;
+        } catch (error) {
+            console.error("Sign-out failed:", error);
+        }
     }
 
     function login(role) {
@@ -108,12 +118,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         document.getElementById('logout-btn').addEventListener('click', logout);
         document.getElementById('ai-assistant-btn').addEventListener('click', showAiAssistant);
-    }
-
-    function logout() {
-        currentUserRole = null;
-        currentLesson = null;
-        renderLogin();
     }
     
     // --- LOGIKA PRO DASHBOARD PROFESORA ---
@@ -263,11 +267,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const originalDay = e.dataTransfer.getData('original_day') ? e.dataTransfer.getData('original_day') : null;
 
                 if (originalDay && timelineData[originalDay]) {
-                    timelineData[originalDay] = timelineData[originalDay].filter(id => id !== lessonId);
+                    timelineData[originalDay] = timelineData[originalDay].filter(id => id != lessonId);
                 }
                 if (!timelineData[newDay]) timelineData[newDay] = [];
-                if (!timelineData[newDay].includes(lessonId)) {
-                    timelineData[newDay].push(lessonId);
+                if (!timelineData[newDay].includes(parseInt(lessonId))) {
+                    timelineData[newDay].push(parseInt(lessonId));
                 }
                 
                 localStorage.setItem('ai-sensei-timeline-v8', JSON.stringify(timelineData));
@@ -342,7 +346,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 setTimeout(() => {
                     if (typeof initializeUpload === 'function') {
-                        initializeUpload(currentLesson, db, storage); 
+                        // The function now imports db and storage, so we don't pass them.
+                        initializeUpload(currentLesson);
                     }
                 }, 0);
                 break;
@@ -675,6 +680,3 @@ document.addEventListener('DOMContentLoaded', async () => {
     function renderAnalytics(container) {
         container.innerHTML = `<div class="p-8"><h2>Analýza studentů</h2><p>Tato sekce se připravuje.</p></div>`;
     }
-
-    init();
-});
