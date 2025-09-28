@@ -107,7 +107,7 @@ export const generateFromDocument = onCall(functionOptions, async (request) => {
 
   try {
     // 1. Stáhneme soubor z Firebase Storage
-    const fileBuffer = await storage.bucket().file(storagePath).download();
+    const [fileBuffer] = await storage.bucket().file(storagePath).download();
     const documentContent = fileBuffer.toString("utf8");
 
     logger.info("Soubor načten, obsah odesílám do Gemini.");
