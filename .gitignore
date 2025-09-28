@@ -1,0 +1,29 @@
+# Závislosti
+/node_modules
+/functions/node_modules
+
+# Firebase lokální soubory
+.firebase/
+firebase-debug.log
+firebase-debug.*.log*
+
+# Lokální konfigurační soubory (volitelné)
+# Pokud všichni v týmu používají stejný projekt, .firebaserc můžete nechat sdílený.
+# .firebaserc 
+
+# Soubory lokálního prostředí
+.env
+
+# Zkompilované soubory
+/functions/lib
+
+# Systémové soubory
+.DS_Store
+Thumbs.db
+
+# Logy
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+serviceAccountKey.json

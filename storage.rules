@@ -1,0 +1,11 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Povolit komukoliv nahrávat soubory.
+    // POZOR: Toto je pouze pro vývoj. Před nasazením do produkce
+    // je nutné zabezpečit pravidla!
+    match /{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}
