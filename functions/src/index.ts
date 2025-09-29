@@ -1,149 +1,151 @@
-/**
- * Importy potřebných modulů
- */
-import { initializeApp } from "firebase-admin/app";
-import { getStorage } from "firebase-admin/storage";
-import * as logger from "firebase-functions/logger";
-import { HttpsOptions, onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
-import { VertexAI } from "@google-cloud/vertexai";
+import {initializeApp} from "firebase-admin/app";
+// ZMĚNA: Odebrali jsme setGlobalOptions
+import {onCall, onRequest} from "firebase-functions/v2/https";
+import {VertexAI, HarmCategory, HarmBlockThreshold} from "@google-cloud/vertexai";
+import {getStorage} from "firebase-admin/storage";
+import {Response} from "firebase-functions/v1";
 
-// Inicializace Firebase se provádí jednou při startu.
 initializeApp();
 
-// --- Globální proměnné ---
-// Tyto proměnné se inicializují až v momentě potřeby, ne hned.
-let vertexAI: VertexAI | undefined;
-let storage: ReturnType<typeof getStorage> | undefined;
+// --- AI Funkce pro aplikaci ---
 
-// Globální nastavení pro všechny funkce
-const functionOptions: HttpsOptions = {
-  region: "europe-west1",
-  cors: true
-};
+// OPRAVA: Přidáváme .region("europe-west1") ke každé funkci
+export const generateText = onCall({region: "europe-west1"}, async (request) => {
+  const vertex_ai = new VertexAI({
+    project: "ai-sensei-czu-pilot",
+    location: "europe-west1",
+  });
 
-/**
- * Funkce pro "línou" inicializaci služeb.
- * Zajistí, že se služby inicializují jen jednou a až když jsou poprvé potřeba.
- */
-function ensureVertexAI() {
-  if (!vertexAI) {
-    logger.info("Initializing VertexAI...");
-    vertexAI = new VertexAI({ project: "ai-sensei-czu-pilot", location: "europe-west1" });
-  }
-  return vertexAI;
-}
+  const model = "gemini-1.5-flash-001";
+  const generativeModel = vertex_ai.preview.getGenerativeModel({
+    model: model,
+    generationConfig: {
+      "maxOutputTokens": 8192,
+      "temperature": 1,
+      "topP": 0.95,
+    },
+    safetySettings: [
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+    ],
+  });
 
-function ensureStorage() {
-    if (!storage) {
-        logger.info("Initializing Firebase Storage...");
-        storage = getStorage();
-    }
-    return storage;
-}
-
-// --- FUNKCE PRO GEMINI API ---
-export const generateText = onCall(functionOptions, async (request) => {
-  const vertex = ensureVertexAI();
-  const generativeModel = vertex.getGenerativeModel({ model: "gemini-1.5-flash-preview-0514" });
-  
-  const { prompt, systemInstruction } = request.data;
-  logger.info("Generating text with prompt:", { prompt });
-
-  if (!prompt) {
-    throw new HttpsError("invalid-argument", "Prompt is required.");
-  }
+  const textPart = {
+    text: request.data.prompt,
+  };
 
   try {
-    const chat = generativeModel.startChat({
-      history: systemInstruction ? [{ role: "user", parts: [{ text: systemInstruction }] }, { role: "model", parts: [{ text: "Rozumím. Jsem připraven." }] }] : [],
+    const result = await generativeModel.generateContent({
+      contents: [{role: "user", parts: [textPart]}],
     });
-    const result = await chat.sendMessage(prompt);
-    const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    return { text: responseText };
+    return result.response;
   } catch (error) {
-    logger.error("Error generating text from Gemini:", error);
-    throw new HttpsError("internal", "Failed to generate text from AI.");
+    console.error("Error generating text:", error);
+    throw new Error("Backend error: " + error);
   }
 });
 
-export const generateJson = onCall(functionOptions, async (request) => {
-    const vertex = ensureVertexAI();
-    const { prompt, schema } = request.data;
-    logger.info("Generating JSON with prompt:", { prompt });
+// OPRAVA: Přidáváme .region("europe-west1") ke každé funkci
+export const generateJson = onCall({region: "europe-west1"}, async (request) => {
+  const vertex_ai = new VertexAI({
+    project: "ai-sensei-czu-pilot",
+    location: "europe-west1",
+  });
 
-    if (!prompt || !schema) {
-        throw new HttpsError("invalid-argument", "Prompt and schema are required.");
-    }
-    
-    const generativeModelWithJson = vertex.getGenerativeModel({
-        model: "gemini-1.5-flash-preview-0514",
-        generationConfig: { responseMimeType: "application/json" },
-    });
+  const model = "gemini-1.5-flash-001";
+  const generativeModel = vertex_ai.preview.getGenerativeModel({
+    model: model,
+    generationConfig: {
+      "responseMimeType": "application/json",
+      "maxOutputTokens": 8192,
+      "temperature": 1,
+      "topP": 0.95,
+    },
+    safetySettings: [],
+  });
 
-    try {
-        const fullPrompt = `Na základě následujícího zadání vygeneruj JSON objekt, který přesně odpovídá tomuto schématu: ${JSON.stringify(schema)}. Zadání: "${prompt}"`;
-        const result = await generativeModelWithJson.generateContent(fullPrompt);
-        const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-        
-        return JSON.parse(responseText);
-    } catch (error) {
-        logger.error("Error generating JSON from Gemini:", error);
-        throw new HttpsError("internal", "Failed to generate JSON from AI.");
-    }
-});
-
-// --- FUNKCE PRO PRÁCI SE SOUBORY ---
-export const generateFromDocument = onCall(functionOptions, async (request) => {
-  const { storagePath, userPrompt } = request.data;
-  
-  if (!storagePath || !userPrompt) {
-    throw new HttpsError("invalid-argument", "Chybí 'storagePath' nebo 'userPrompt'.");
-  }
-
-  logger.info("Načítám soubor ze Storage:", { path: storagePath });
+  const textPart = {
+    text: request.data.prompt,
+  };
 
   try {
-    const appStorage = ensureStorage();
-    const vertex = ensureVertexAI();
-    
-    // 1. Stáhneme soubor z Firebase Storage
-    const [fileBuffer] = await appStorage.bucket().file(storagePath).download();
-    const documentContent = fileBuffer.toString("utf8");
-
-    logger.info("Soubor načten, obsah odesílám do Gemini.");
-
-    // 2. Sestavíme finální prompt pro Gemini
-    const finalPrompt = `Jako expertní asistent vytvoř požadovaný obsah na základě následujícího dokumentu.
-    
-    --- OBSAH DOKUMENTU ---
-    ${documentContent}
-    --- KONEC DOKUMENTU ---
-
-    Požadavek uživatele: "${userPrompt}"
-    `;
-
-    // 3. Zavoláme Gemini
-    const generativeModel = vertex.getGenerativeModel({ model: "gemini-1.5-flash-preview-0514" });
-    
-    const result = await generativeModel.generateContent(finalPrompt);
-    const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    return { text: responseText };
-
+    const result = await generativeModel.generateContent({
+      contents: [{role: "user", parts: [textPart]}],
+    });
+    return result.response;
   } catch (error) {
-    logger.error("Chyba při zpracování souboru a volání Gemini:", error);
-    throw new HttpsError("internal", "Nepodařilo se vygenerovat obsah ze souboru.");
+    console.error("Error generating JSON:", error);
+    throw new Error("Backend error: " + error);
   }
 });
 
-// Zjednodušené funkce pro Telegram, aby prošel deploy.
-export const telegramWebhook = onRequest(functionOptions, (_, response) => {
-    logger.info("Telegram webhook called!");
-    response.status(200).send("OK - Simplified for deploy");
+// OPRAVA: Přidáváme .region("europe-west1") ke každé funkci
+export const generateFromDocument = onCall({region: "europe-west1"}, async (request) => {
+  const vertex_ai = new VertexAI({
+    project: "ai-sensei-czu-pilot",
+    location: "europe-west1",
+  });
+
+  const model = "gemini-1.5-flash-001";
+  const generativeModel = vertex_ai.preview.getGenerativeModel({
+    model: model,
+  });
+
+  const bucketName = "ai-sensei-czu-pilot.appspot.com";
+  const filePath = request.data.filePath;
+  const prompt = request.data.prompt;
+
+  const filePart = {
+    fileData: {
+      mimeType: "application/pdf",
+      fileUri: `gs://${bucketName}/${filePath}`,
+    },
+  };
+
+  try {
+    const bucket = getStorage().bucket(bucketName);
+    const file = bucket.file(filePath);
+    const [exists] = await file.exists();
+    if (!exists) {
+      throw new Error(`File not found at gs://${bucketName}/${filePath}`);
+    }
+
+    const result = await generativeModel.generateContent({
+      contents: [{role: "user", parts: [filePart, {text: prompt}]}],
+    });
+    return result.response;
+  } catch (error) {
+    console.error("Error generating from document:", error);
+    throw new Error("Backend error: " + error);
+  }
 });
 
-export const sendMessageToStudent = onCall(functionOptions, (request) => {
-    logger.info("sendMessageToStudent called!", { data: request.data });
-    return { success: true, message: "Simplified for deploy." };
+// --- Placeholder funkce pro Telegram ---
+
+// OPRAVA: Přidáváme .region("europe-west1") ke každé funkci
+export const telegramWebhook = onRequest({region: "europe-west1"}, (req, res: Response) => {
+  console.log("Telegram webhook called with:", req.body);
+  res.status(200).send("Webhook received!");
+});
+
+// OPRAVA: Přidáváme .region("europe-west1") ke každé funkci
+export const sendMessageToStudent = onCall({region: "europe-west1"}, async (request) => {
+  const studentId = request.data.studentId;
+  const message = request.data.message;
+  console.log(`Pretending to send message to student ${studentId}: ${message}`);
+  return {status: "Message sent successfully (simulation)"};
 });
