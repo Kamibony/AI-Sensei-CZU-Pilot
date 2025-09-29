@@ -1,23 +1,20 @@
 import {initializeApp} from "firebase-admin/app";
-// ZMĚNA: Odebrali jsme setGlobalOptions
 import {onCall, onRequest} from "firebase-functions/v2/https";
-import {VertexAI, HarmCategory, HarmBlockThreshold} from "@google-cloud/vertexai";
+import {GoogleGenAI, HarmCategory, HarmBlockThreshold} from "@google/genai";
 import {getStorage} from "firebase-admin/storage";
 import {Response} from "firebase-functions/v1";
 
 initializeApp();
 
+// Initialize the new SDK. It should automatically use the project's
+// default credentials and location when deployed on Cloud Functions.
+const genAI = new GoogleGenAI();
+
 // --- AI Funkce pro aplikaci ---
 
-// OPRAVA: Přidáváme .region("europe-west1") ke každé funkci
 export const generateText = onCall({region: "europe-west1"}, async (request) => {
-  const vertex_ai = new VertexAI({
-    project: "ai-sensei-czu-pilot",
-    location: "europe-west1",
-  });
-
   const model = "gemini-1.5-flash-001";
-  const generativeModel = vertex_ai.preview.getGenerativeModel({
+  const generativeModel = genAI.getGenerativeModel({
     model: model,
     generationConfig: {
       "maxOutputTokens": 8192,
@@ -59,15 +56,9 @@ export const generateText = onCall({region: "europe-west1"}, async (request) => 
   }
 });
 
-// OPRAVA: Přidáváme .region("europe-west1") ke každé funkci
 export const generateJson = onCall({region: "europe-west1"}, async (request) => {
-  const vertex_ai = new VertexAI({
-    project: "ai-sensei-czu-pilot",
-    location: "europe-west1",
-  });
-
   const model = "gemini-1.5-flash-001";
-  const generativeModel = vertex_ai.preview.getGenerativeModel({
+  const generativeModel = genAI.getGenerativeModel({
     model: model,
     generationConfig: {
       "responseMimeType": "application/json",
@@ -93,15 +84,9 @@ export const generateJson = onCall({region: "europe-west1"}, async (request) => 
   }
 });
 
-// OPRAVA: Přidáváme .region("europe-west1") ke každé funkci
 export const generateFromDocument = onCall({region: "europe-west1"}, async (request) => {
-  const vertex_ai = new VertexAI({
-    project: "ai-sensei-czu-pilot",
-    location: "europe-west1",
-  });
-
   const model = "gemini-1.5-flash-001";
-  const generativeModel = vertex_ai.preview.getGenerativeModel({
+  const generativeModel = genAI.getGenerativeModel({
     model: model,
   });
 
@@ -136,13 +121,11 @@ export const generateFromDocument = onCall({region: "europe-west1"}, async (requ
 
 // --- Placeholder funkce pro Telegram ---
 
-// OPRAVA: Přidáváme .region("europe-west1") ke každé funkci
 export const telegramWebhook = onRequest({region: "europe-west1"}, (req, res: Response) => {
   console.log("Telegram webhook called with:", req.body);
   res.status(200).send("Webhook received!");
 });
 
-// OPRAVA: Přidáváme .region("europe-west1") ke každé funkci
 export const sendMessageToStudent = onCall({region: "europe-west1"}, async (request) => {
   const studentId = request.data.studentId;
   const message = request.data.message;
