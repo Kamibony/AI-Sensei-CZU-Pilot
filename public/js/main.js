@@ -191,7 +191,12 @@ import { initializeUpload } from './upload-handler.js';
         container.innerHTML = `
             <header class="p-4 border-b border-slate-200 flex justify-between items-center flex-shrink-0">
                 <h2 class="text-xl font-bold text-slate-800">Knihovna lekcí</h2>
-                <button id="create-new-lesson-btn" class="px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 transition transform hover:scale-105">+ Nová lekce</button>
+                <div class="flex items-center space-x-2">
+                    <button id="open-media-library-btn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                        Knihovna médií
+                    </button>
+                    <button id="create-new-lesson-btn" class="px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 transition transform hover:scale-105">+ Nová lekce</button>
+                </div>
             </header>
             <div class="flex-grow overflow-y-auto p-2">
                 <div id="lesson-library-list"></div>
@@ -248,6 +253,15 @@ import { initializeUpload } from './upload-handler.js';
                 e.currentTarget.closest('.lesson-bubble-in-library').classList.remove('dragging');
             });
         });
+
+        // Initialize Sortable.js on the lesson library list
+        const lessonListEl = container.querySelector('#lesson-library-list');
+        if (lessonListEl) {
+            new Sortable(lessonListEl, {
+                animation: 150,
+                ghostClass: 'blue-background-class',
+            });
+        }
     }
     
     function renderTimeline(container) {
@@ -383,6 +397,24 @@ import { initializeUpload } from './upload-handler.js';
                             <div><label class="block font-medium text-slate-600">Číslo lekce</label><input type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.number || ''}" placeholder="Např. 101"></div>
                             <div><label class="block font-medium text-slate-600">Datum vytvoření</label><input type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1 bg-slate-100" value="${currentLesson ? new Date(currentLesson.creationDate).toLocaleDateString('cs-CZ') : new Date().toLocaleDateString('cs-CZ')}" disabled></div>
                         </div>
+
+                        <div class="mt-6 border-t pt-6">
+                            <h4 class="text-lg font-semibold text-slate-800 mb-2">Interakce</h4>
+                            <div class="flex items-center space-x-4 bg-slate-50 p-4 rounded-lg">
+                                <select id="interaction-type" class="bg-white text-slate-900 rounded-md border-slate-300 shadow-sm w-full">
+                                    <option value="quiz">Kvíz</option>
+                                    <option value="question">Otevřená otázka</option>
+                                    <option value="poll">Anketa</option>
+                                </select>
+                                <button id="add-interaction-btn" class="bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded whitespace-nowrap">
+                                    Přidat interakci
+                                </button>
+                            </div>
+                            <div id="interactions-container" class="mt-4 space-y-4">
+                                <!-- Dynamically added interactions will appear here -->
+                            </div>
+                        </div>
+
                         <div class="text-right pt-4"><button id="save-lesson-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105">Uložit změny</button></div>
                     </div>`);
                 break;
@@ -815,3 +847,29 @@ import { initializeUpload } from './upload-handler.js';
     function renderAnalytics(container) {
         container.innerHTML = `<div class="p-8"><h2>Analýza studentů</h2><p>Tato sekce se připravuje.</p></div>`;
     }
+
+    function initMediaLibrary() {
+        const modal = document.getElementById('media-library-modal');
+        const closeBtn = document.getElementById('close-media-library-btn');
+        const uploadArea = document.getElementById('course-media-upload-area');
+        const fileInput = document.getElementById('course-media-file-input');
+
+        // Use event delegation for the open button since it's loaded dynamically
+        document.body.addEventListener('click', (event) => {
+            if (event.target.id === 'open-media-library-btn') {
+                if (modal) modal.classList.remove('hidden');
+            }
+        });
+
+        if (closeBtn) closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+
+        if (uploadArea) {
+          uploadArea.addEventListener('click', () => fileInput.click());
+          // The actual upload handling will be in upload-handler.js
+        }
+    }
+
+    // Call this new function when the app initializes
+    document.addEventListener('DOMContentLoaded', () => {
+        initMediaLibrary();
+    });
