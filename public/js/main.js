@@ -84,26 +84,14 @@ import { initializeUpload } from './upload-handler.js';
     
     // --- HLAVNÍ LOGIKA APLIKACE (ROUTER) ---
 
-    // Prioritize role from URL parameter to fix race condition
-    const urlParams = new URLSearchParams(window.location.search);
-    const roleFromUrl = urlParams.get('role');
-    if (roleFromUrl === 'student' || roleFromUrl === 'professor') {
-        sessionStorage.setItem('userRole', roleFromUrl);
-        // Clean the URL to avoid confusion on reload
-        history.replaceState(null, '', window.location.pathname);
-    }
-
-    onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            const role = sessionStorage.getItem('userRole');
-            if (role) {
-                await login(role);
-            } else {
-                renderLogin();
-            }
-        } else {
-            renderLogin();
-        }
+    // The application always starts at the role selection page.
+    // The user's role is stored in sessionStorage only after they click a button.
+    onAuthStateChanged(auth, (user) => {
+        // Clear session storage on auth state change to ensure clean login.
+        sessionStorage.removeItem('userRole');
+        currentUserRole = null;
+        currentLesson = null;
+        renderLogin();
     });
 
     function renderLogin() {
@@ -672,15 +660,24 @@ import { initializeUpload } from './upload-handler.js';
 
     function initStudentDashboard() {
         const sidebar = document.querySelector('#dashboard-student aside');
-        // BUGFIX: Use the first lesson from the available data instead of a hardcoded ID.
-        // This prevents an error if the lesson with a specific ID is not present.
-        currentLesson = lessonsData.length > 0 ? lessonsData[0] : null;
+        const mainContent = document.getElementById('student-content-area');
 
-        if (!currentLesson) {
-            sidebar.innerHTML = `<div class="p-4"><p class="text-slate-500">Žádné lekce nebyly nalezeny.</p></div>`;
-            document.getElementById('student-content-area').innerHTML = `<div class="p-8"><h1 class="text-2xl font-bold">Vítejte!</h1><p>Momentálně nejsou k dispozici žádné lekce.</p></div>`;
+        // Defensively check if UI elements are ready
+        if (!sidebar || !mainContent) {
+            console.error("Student dashboard elements not found. Cannot initialize.");
             return;
         }
+
+        // If there are no lessons, display a friendly message and stop.
+        if (!lessonsData || lessonsData.length === 0) {
+            currentLesson = null;
+            sidebar.innerHTML = `<div class="p-4"><p class="text-slate-500">Žádné lekce nebyly nalezeny.</p></div>`;
+            mainContent.innerHTML = `<div class="p-8 bg-white rounded-2xl shadow-xl"><h1 class="text-2xl font-bold">Vítejte!</h1><p class="mt-2 text-slate-600">Momentálně pro vás nejsou k dispozici žádné lekce. Zkuste to prosím později.</p></div>`;
+            return;
+        }
+
+        // Proceed with the first lesson if data is available
+        currentLesson = lessonsData[0];
 
         sidebar.innerHTML = `
             <h2 class="text-xl font-bold text-slate-800 mb-2">${currentLesson.title}</h2>
