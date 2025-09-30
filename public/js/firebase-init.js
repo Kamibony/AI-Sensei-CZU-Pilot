@@ -35,5 +35,5 @@ export const storage = getStorage(app);
 export const functions = getFunctions(app, 'europe-west1');
 // Export commonly used functions for convenience
 export { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-export { collection, getDocs, query, orderBy, doc, getDoc, setDoc, addDoc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+export { collection, getDocs, query, orderBy, doc, getDoc, setDoc, addDoc, serverTimestamp, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 export { onAuthStateChanged, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
