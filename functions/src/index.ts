@@ -1,42 +1,67 @@
 import { initializeApp } from "firebase-admin/app";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { VertexAI } from "@google-cloud/vertexai";
 
 initializeApp();
 
 // --- AI Functions for the Application ---
 
+// Initialize the Vertex AI client
+const vertexAI = new VertexAI({
+    project: process.env.GCLOUD_PROJECT!,
+    location: "europe-west1",
+});
+
+const generativeModel = vertexAI.getGenerativeModel({
+    model: "gemini-1.0-pro",
+});
+
+
 export const generateText = onCall({ region: "europe-west1" }, async (request) => {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
     const prompt = request.data.prompt;
 
     try {
-        const result = await model.generateContent(prompt);
+        const result = await generativeModel.generateContent(prompt);
         const response = await result.response;
-        return { text: response.text() };
+
+        // Defensive check for response structure
+        if (!response.candidates || !response.candidates[0] || !response.candidates[0].content || !response.candidates[0].content.parts || !response.candidates[0].content.parts[0].text) {
+            throw new HttpsError("internal", "Invalid response structure from model.");
+        }
+
+        return { text: response.candidates[0].content.parts[0].text };
     } catch (error) {
         console.error("Error generating text:", error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
         const errorMessage = (error instanceof Error) ? error.message : "Unknown error";
         throw new HttpsError("internal", "Error generating text: " + errorMessage);
     }
 });
 
 export const generateJson = onCall({ region: "europe-west1" }, async (request) => {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
     const prompt = request.data.prompt;
 
     // Instruct the model to return JSON.
     const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
 
     try {
-        const result = await model.generateContent(jsonPrompt);
+        const result = await generativeModel.generateContent(jsonPrompt);
         const response = await result.response;
-        const text = response.text();
+
+        // Defensive check for response structure
+        if (!response.candidates || !response.candidates[0] || !response.candidates[0].content || !response.candidates[0].content.parts || !response.candidates[0].content.parts[0].text) {
+            throw new HttpsError("internal", "Invalid response structure from model.");
+        }
+
+        const text = response.candidates[0].content.parts[0].text;
         return JSON.parse(text);
     } catch (error) {
         console.error("Error generating JSON:", error);
+         if (error instanceof HttpsError) {
+            throw error;
+        }
         const errorMessage = (error instanceof Error) ? error.message : "Unknown error";
         if (error instanceof SyntaxError) {
              throw new HttpsError("internal", "Failed to parse JSON response from model.");
