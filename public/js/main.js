@@ -48,9 +48,7 @@ import { initializeUpload } from './upload-handler.js';
             const querySnapshot = await getDocs(lessonsCollection);
             if (querySnapshot.empty) {
                 console.log("Databáze lekcí je prázdná, nahrávám počáteční data...");
- feat/lesson-crud
                 const initialLessons = [
- main
                     { title: 'Úvod do Kvantové Fyziky', subtitle: 'Základní principy', number: '101', creationDate: '2025-09-20', status: 'Aktivní', icon: '⚛️', content: 'Vítejte ve fascinujícím světě kvantové mechaniky! Na rozdíl od klasické fyziky, která popisuje pohyb velkých objektů jako jsou planety nebo míče, kvantová mechanika se zabývá chováním hmoty a energie na atomární a subatomární úrovni. Jedním z klíčových a nejvíce matoucích principů je vlnově-korpuskulární dualismus, který říká, že částice jako elektrony se mohou chovat jednou jako částice a jindy jako vlny. Dalším stěžejním konceptem je princip superpozice. Představte si minci, která se točí ve vzduchu. Dokud nedopadne, není ani panna, ani orel - je v jakémsi stavu obou možností najednou. Podobně může být kvantová částice ve více stavech současně, dokud ji nezačneme měřit. Teprve měřením "donutíme" částici vybrat si jeden konkrétní stav.' },
                     { title: 'Historie Starověkého Říma', subtitle: 'Od republiky k císařství', number: '203', creationDate: '2025-09-18', status: 'Aktivní', icon: '🏛️', content: 'Dějiny starověkého Říma jsou příběhem o vzestupu malé městské osady na Apeninském poloostrově v globální impérium. Počátky se datují do 8. století př. n. l. a končí pádem Západořímské říše v roce 476 n. l. Římská republika, založená kolem roku 509 př. n. l., byla charakteristická systémem volených magistrátů a silným senátem.' },
                     { title: 'Základy botaniky', subtitle: 'Fotosyntéza a růst', number: 'B05', creationDate: '2025-09-15', status: 'Naplánováno', icon: '🌱', content: 'Botanika je věda o rostlinách. Klíčovým procesem pro život na Zemi je fotosyntéza, při které zelené rostliny využívají sluneční světlo, vodu a oxid uhličitý k výrobě glukózy (energie) a kyslíku. Tento proces probíhá v chloroplastech, které obsahují zelené barvivo chlorofyl.' },
@@ -58,9 +56,7 @@ import { initializeUpload } from './upload-handler.js';
                     { title: 'Neuronové sítě', subtitle: 'Úvod do hlubokého učení', number: 'AI-5', creationDate: '2025-09-21', status: 'Naplánováno', icon: '🧠', content: 'Neuronové sítě jsou základním stavebním kamenem moderní umělé inteligence a hlubokého učení. Jsou inspirovány strukturou lidského mozku a skládají se z propojených uzlů neboli "neuronů", které zpracovávají a přenášejí informace. Učí se na základě velkých objemů dat tím, že upravují váhy spojení mezi neurony.' },
                 ];
                 for (const lesson of initialLessons) {
- feat/lesson-crud
                     await addDoc(lessonsCollection, { ...lesson, createdAt: serverTimestamp() });
- main
                 }
                 // After seeding, fetch the data again to get the generated IDs
                 const newQuerySnapshot = await getDocs(lessonsCollection);
@@ -69,8 +65,6 @@ import { initializeUpload } from './upload-handler.js';
             } else {
                  lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             }
- feat/lesson-crud
- main
             console.log("Lekce úspěšně načteny z Firestore:", lessonsData);
         } catch (error) {
             console.error("Chyba při načítání lekcí z Firestore: ", error);
@@ -210,11 +204,9 @@ import { initializeUpload } from './upload-handler.js';
         listEl.innerHTML = statuses.map(status => `
             <div class="p-2">
                 <h3 class="px-2 text-sm font-semibold text-slate-500 mb-2">${status}</h3>
- feat/lesson-crud
                 ${lessonsData.filter(l => l.status === status).map(lesson => `
                     <div class="lesson-bubble-in-library p-3 mb-2 rounded-lg flex items-center justify-between bg-white border border-slate-200 hover:shadow-md hover:border-green-500 transition-all" data-id="${lesson.id}">
                         <div class="flex items-center space-x-3 cursor-pointer flex-grow" draggable="true">
- main
                             <span class="text-2xl">${lesson.icon}</span>
                             <div>
                                 <span class="font-semibold text-sm text-slate-700">${lesson.title}</span>
@@ -230,15 +222,11 @@ import { initializeUpload } from './upload-handler.js';
         `).join('');
         
         container.querySelector('#create-new-lesson-btn').addEventListener('click', () => showProfessorContent('editor', null));
- feat/lesson-crud
         container.querySelectorAll('.lesson-bubble-in-library').forEach(el => {
- main
             const draggablePart = el.querySelector('[draggable="true"]');
 
             // Attach click listener to the content part for editing
             draggablePart.addEventListener('click', () => {
- feat/lesson-crud
- main
                 const lesson = lessonsData.find(l => l.id == el.dataset.id);
                 showProfessorContent('editor', lesson);
             });
@@ -251,10 +239,8 @@ import { initializeUpload } from './upload-handler.js';
                     const lessonId = e.currentTarget.dataset.id;
                     handleDeleteLesson(lessonId);
                 });
- feat/lesson-crud
             }
 
- main
             // Attach drag-and-drop listeners
             draggablePart.addEventListener('dragstart', (e) => {
                 e.currentTarget.closest('.lesson-bubble-in-library').classList.add('dragging');
@@ -262,8 +248,6 @@ import { initializeUpload } from './upload-handler.js';
             });
             draggablePart.addEventListener('dragend', (e) => {
                 e.currentTarget.closest('.lesson-bubble-in-library').classList.remove('dragging');
- feat/lesson-crud
- main
             });
         });
     }
@@ -611,9 +595,7 @@ import { initializeUpload } from './upload-handler.js';
     }
 
     async function handleSaveLesson() {
- feat/lesson-crud
         const form = document.getElementById('lesson-details-form');
- main
         const titleInput = form.querySelector('input[placeholder="Např. Úvod do organické chemie"]');
         const subtitleInput = form.querySelector('input[placeholder="Základní pojmy a principy"]');
         const numberInput = form.querySelector('input[placeholder="Např. 101"]');
@@ -621,8 +603,6 @@ import { initializeUpload } from './upload-handler.js';
         const title = titleInput.value;
         const subtitle = subtitleInput.value;
         const number = numberInput.value;
- feat/lesson-crud
- main
 
         if (!title || !subtitle || !number) {
             alert('Vyplňte prosím všechna pole.');
@@ -653,9 +633,7 @@ import { initializeUpload } from './upload-handler.js';
                 });
                 alert('Lekce byla úspěšně vytvořena.');
             }
- feat/lesson-crud
             await login(currentUserRole); // Re-login to refresh all data and UI
- main
         } catch (error) {
             console.error("Chyba při ukládání lekce: ", error);
             alert("Při ukládání lekce došlo k chybě.");
@@ -668,9 +646,7 @@ import { initializeUpload } from './upload-handler.js';
                 const lessonRef = doc(db, 'lessons', lessonId);
                 await deleteDoc(lessonRef);
                 alert('Lekce byla úspěšně smazána.');
- feat/lesson-crud
                 await login(currentUserRole); // Re-login to refresh all data and UI
- main
             } catch (error) {
                 console.error("Chyba při mazání lekce: ", error);
                 alert("Při mazání lekce došlo k chybě.");
