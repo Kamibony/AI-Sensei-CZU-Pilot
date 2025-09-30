@@ -1,20 +1,17 @@
 import { initializeApp } from "firebase-admin/app";
-import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
-import { VertexAI } from "@google-cloud/vertexai";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getStorage } from "firebase-admin/storage";
+import { getFirestore } from 'firebase-admin/firestore';
+import axios from 'axios';
 
 initializeApp();
 
 // --- AI Functions for the Application ---
 
-// Initialize the Vertex AI client
-const vertexAI = new VertexAI({
-    project: process.env.GCLOUD_PROJECT!,
-    location: "europe-west1",
-});
-
-const generativeModel = vertexAI.getGenerativeModel({
-    model: "gemini-1.0-pro-001",
-});
+// Initialize the single, shared Generative AI client
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
 
 
 export const generateText = onCall({ region: "europe-west1" }, async (request) => {
@@ -22,19 +19,12 @@ export const generateText = onCall({ region: "europe-west1" }, async (request) =
 
     try {
         const result = await generativeModel.generateContent(prompt);
-        const response = await result.response;
+        const response = result.response;
+        const text = response.text();
 
-        // Defensive check for response structure
-        if (!response.candidates || !response.candidates[0] || !response.candidates[0].content || !response.candidates[0].content.parts || !response.candidates[0].content.parts[0].text) {
-            throw new HttpsError("internal", "Invalid response structure from model.");
-        }
-
-        return { text: response.candidates[0].content.parts[0].text };
+        return { text };
     } catch (error) {
         console.error("Error generating text:", error);
-        if (error instanceof HttpsError) {
-            throw error;
-        }
         const errorMessage = (error instanceof Error) ? error.message : "Unknown error";
         throw new HttpsError("internal", "Error generating text: " + errorMessage);
     }
@@ -48,20 +38,12 @@ export const generateJson = onCall({ region: "europe-west1" }, async (request) =
 
     try {
         const result = await generativeModel.generateContent(jsonPrompt);
-        const response = await result.response;
+        const response = result.response;
+        const text = response.text().replace(/^```json\n|```$/g, "").trim(); // Strip markdown
 
-        // Defensive check for response structure
-        if (!response.candidates || !response.candidates[0] || !response.candidates[0].content || !response.candidates[0].content.parts || !response.candidates[0].content.parts[0].text) {
-            throw new HttpsError("internal", "Invalid response structure from model.");
-        }
-
-        const text = response.candidates[0].content.parts[0].text;
         return JSON.parse(text);
     } catch (error) {
         console.error("Error generating JSON:", error);
-         if (error instanceof HttpsError) {
-            throw error;
-        }
         const errorMessage = (error instanceof Error) ? error.message : "Unknown error";
         if (error instanceof SyntaxError) {
              throw new HttpsError("internal", "Failed to parse JSON response from model.");
@@ -72,26 +54,109 @@ export const generateJson = onCall({ region: "europe-west1" }, async (request) =
 
 
 export const generateFromDocument = onCall({ region: "europe-west1" }, async (request) => {
-    // NOTE: The original implementation of this function relied on a feature
-    // of the newer `@google/genai` SDK that allowed passing a Google Cloud Storage
-    // URI directly to the model. The older `@google/generative-ai` SDK does not
-    // support this. To restore this functionality, the file would need to be
-    // downloaded from Storage and its content (e.g., text from a PDF) extracted
-    // before being sent to the model, which is beyond the scope of the current fix.
-    console.error("generateFromDocument is not implemented for this SDK version.");
-    throw new HttpsError("unimplemented", "Generating content from a document is not currently supported.");
+    const { filePath, prompt } = request.data;
+    if (!filePath || !prompt) {
+        throw new HttpsError("invalid-argument", "The function must be called with 'filePath' and 'prompt' arguments.");
+    }
+
+    const bucketName = "ai-sensei-czu-pilot.appspot.com"; // Or use process.env.GCLOUD_STORAGE_BUCKET
+    const filePart = {
+        fileData: {
+            mimeType: "application/pdf", // This should be dynamic based on the file type if possible
+            fileUri: `gs://${bucketName}/${filePath}`
+        }
+    };
+
+    try {
+        const file = getStorage().bucket(bucketName).file(filePath);
+        const [exists] = await file.exists();
+        if (!exists) {
+            throw new HttpsError("not-found", `File not found at path: ${filePath}`);
+        }
+
+        const result = await generativeModel.generateContent({
+            contents: [{ role: "user", parts: [filePart, { text: prompt }] }],
+        });
+
+        return { text: result.response.text() };
+
+    } catch (e) {
+        const error = e as Error;
+        console.error("Error generating content from document:", error);
+        throw new HttpsError("internal", "An unexpected error occurred while generating content.", error.message);
+    }
 });
 
-// --- Placeholder funkce pro Telegram ---
+// --- Telegram Bot Functions ---
 
-export const telegramWebhook = onRequest({region: "europe-west1"}, (req, res) => {
-  console.log("Telegram webhook called with:", req.body);
-  res.status(200).send("Webhook received!");
+export const telegramWebhook = onCall({ region: "europe-west1" }, async (request) => {
+    const message = request.data.message;
+    if (!message) {
+        console.log("Not a message, skipping.");
+        return { status: "ok" };
+    }
+
+    const chatId = message.chat.id;
+    const studentId = message.text.split(' ')[1]; // Example: /start <studentId>
+
+    if (!studentId) {
+        console.warn("Student ID not provided with /start command.");
+        return { status: "error", message: "Student ID missing." };
+    }
+
+    // Save the chat_id to the student's document in Firestore
+    try {
+        await getFirestore().collection('students').doc(studentId).set({
+            telegramChatId: chatId
+        }, { merge: true });
+
+        // Respond to the user
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+        await axios.post(url, {
+            chat_id: chatId,
+            text: "Hello! You have been successfully connected to AI Sensei."
+        });
+
+        return { status: "success" };
+
+    } catch (error) {
+        console.error("Error saving chat ID:", error);
+        throw new HttpsError("internal", "Could not save chat ID.");
+    }
 });
 
-export const sendMessageToStudent = onCall({region: "europe-west1"}, async (request) => {
-  const studentId = request.data.studentId;
-  const message = request.data.message;
-  console.log(`Pretending to send message to student ${studentId}: ${message}`);
-  return {status: "Message sent successfully (simulation)"};
+export const sendMessageToStudent = onCall({ region: "europe-west1" }, async (request) => {
+    const { studentId, text } = request.data;
+    if (!studentId || !text) {
+        throw new HttpsError("invalid-argument", "The function must be called with 'studentId' and 'text'.");
+    }
+
+    try {
+        // Retrieve the student's chat_id from Firestore
+        const studentDoc = await getFirestore().collection('students').doc(studentId).get();
+        if (!studentDoc.exists) {
+            throw new HttpsError("not-found", "Student not found.");
+        }
+
+        const chatId = studentDoc.data()?.telegramChatId;
+        if (!chatId) {
+            throw new HttpsError("failed-precondition", "Student has not connected their Telegram account.");
+        }
+
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+
+        await axios.post(url, {
+            chat_id: chatId,
+            text: text,
+            parse_mode: "Markdown"
+        });
+
+        return { status: "success" };
+
+    } catch (error) {
+        console.error("Error sending message:", error);
+        throw new HttpsError("internal", "Failed to send message.", error);
+    }
 });
