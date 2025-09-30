@@ -83,6 +83,16 @@ import { initializeUpload } from './upload-handler.js';
     const appContainer = document.getElementById('app-container');
     
     // --- HLAVNÍ LOGIKA APLIKACE (ROUTER) ---
+
+    // Prioritize role from URL parameter to fix race condition
+    const urlParams = new URLSearchParams(window.location.search);
+    const roleFromUrl = urlParams.get('role');
+    if (roleFromUrl === 'student' || roleFromUrl === 'professor') {
+        sessionStorage.setItem('userRole', roleFromUrl);
+        // Clean the URL to avoid confusion on reload
+        history.replaceState(null, '', window.location.pathname);
+    }
+
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             const role = sessionStorage.getItem('userRole');
@@ -662,7 +672,15 @@ import { initializeUpload } from './upload-handler.js';
 
     function initStudentDashboard() {
         const sidebar = document.querySelector('#dashboard-student aside');
-        currentLesson = lessonsData.find(l => l.id === "1"); 
+        // BUGFIX: Use the first lesson from the available data instead of a hardcoded ID.
+        // This prevents an error if the lesson with a specific ID is not present.
+        currentLesson = lessonsData.length > 0 ? lessonsData[0] : null;
+
+        if (!currentLesson) {
+            sidebar.innerHTML = `<div class="p-4"><p class="text-slate-500">Žádné lekce nebyly nalezeny.</p></div>`;
+            document.getElementById('student-content-area').innerHTML = `<div class="p-8"><h1 class="text-2xl font-bold">Vítejte!</h1><p>Momentálně nejsou k dispozici žádné lekce.</p></div>`;
+            return;
+        }
 
         sidebar.innerHTML = `
             <h2 class="text-xl font-bold text-slate-800 mb-2">${currentLesson.title}</h2>
@@ -695,7 +713,10 @@ import { initializeUpload } from './upload-handler.js';
         
         switch(viewId) {
             case 'overview':
-                contentHTML = `<div class="bg-white p-8 rounded-2xl shadow-xl mb-8"><h1 class="text-4xl font-extrabold text-slate-800">${currentLesson.title}</h1><p class="text-slate-500 mt-2">Lekce ${currentLesson.number} | Odhadovaný čas: 45 minut</p><div class="mt-8 border-t border-slate-200 pt-6"><h3 class="font-semibold text-lg text-slate-700 mb-3">Co se v této lekci naučíte:</h3><ul class="list-disc list-inside space-y-2 text-slate-600"><li>Pochopit základní principy kvantového světa.</li><li>Rozlišovat mezi klasickou a kvantovou fyzikou.</li><li>Seznámit se s pojmy jako superpozice a dualismus.</li></ul></div></div><div class="bg-white p-8 rounded-2xl shadow-xl"><h2 class="text-2xl font-bold mb-4 text-slate-800">Váš Osobní Studijní Plán od AI Sensei</h2><div class="relative pl-6 border-l-2 border-green-500"><div class="mb-8 relative"><div class="absolute -left-[34px] top-1 w-4 h-4 bg-green-500 rounded-full border-4 border-white"></div><p class="font-bold text-green-600">Právě studujete</p><p class="text-lg">${currentLesson.title}</p></div><div class="mb-8 relative"><div class="absolute -left-[34px] top-1 w-4 h-4 bg-amber-500 rounded-full border-4 border-white"></div><p class="font-bold text-amber-600">Doporučené zaměření</p><p class="text-lg">Zopakovat si 'Princip Superpozice'</p><p class="text-sm text-slate-500">Na základě vašeho posledního kvízu vám AI doporučuje věnovat více času tomuto tématu.</p></div><div class="relative"><div class="absolute -left-[34px] top-1 w-4 h-4 bg-slate-400 rounded-full border-4 border-white"></div><p class="font-bold text-slate-500">Další na řadě</p><p class="text-lg">${lessonsData.find(l=>l.id==="2").title}</p></div></div></div>`;
+                const currentIndex = lessonsData.findIndex(l => l.id === currentLesson.id);
+                const nextLesson = (currentIndex !== -1 && currentIndex < lessonsData.length - 1) ? lessonsData[currentIndex + 1] : null;
+
+                contentHTML = `<div class="bg-white p-8 rounded-2xl shadow-xl mb-8"><h1 class="text-4xl font-extrabold text-slate-800">${currentLesson.title}</h1><p class="text-slate-500 mt-2">Lekce ${currentLesson.number} | Odhadovaný čas: 45 minut</p><div class="mt-8 border-t border-slate-200 pt-6"><h3 class="font-semibold text-lg text-slate-700 mb-3">Co se v této lekci naučíte:</h3><ul class="list-disc list-inside space-y-2 text-slate-600"><li>Pochopit základní principy kvantového světa.</li><li>Rozlišovat mezi klasickou a kvantovou fyzikou.</li><li>Seznámit se s pojmy jako superpozice a dualismus.</li></ul></div></div><div class="bg-white p-8 rounded-2xl shadow-xl"><h2 class="text-2xl font-bold mb-4 text-slate-800">Váš Osobní Studijní Plán od AI Sensei</h2><div class="relative pl-6 border-l-2 border-green-500"><div class="mb-8 relative"><div class="absolute -left-[34px] top-1 w-4 h-4 bg-green-500 rounded-full border-4 border-white"></div><p class="font-bold text-green-600">Právě studujete</p><p class="text-lg">${currentLesson.title}</p></div><div class="mb-8 relative"><div class="absolute -left-[34px] top-1 w-4 h-4 bg-amber-500 rounded-full border-4 border-white"></div><p class="font-bold text-amber-600">Doporučené zaměření</p><p class="text-lg">Zopakovat si 'Princip Superpozice'</p><p class="text-sm text-slate-500">Na základě vašeho posledního kvízu vám AI doporučuje věnovat více času tomuto tématu.</p></div><div class="relative"><div class="absolute -left-[34px] top-1 w-4 h-4 bg-slate-400 rounded-full border-4 border-white"></div><p class="font-bold text-slate-500">Další na řadě</p><p class="text-lg">${nextLesson ? nextLesson.title : 'Všechny lekce dokončeny!'}</p></div></div></div>`;
                 break;
             case 'text_video':
                 contentHTML = `<div class="space-y-8"><div class="bg-white p-8 rounded-2xl shadow-xl"><h2 class="text-3xl font-bold mb-4">Studijní text</h2><div class="prose max-w-none text-slate-700 leading-relaxed">${currentLesson.content.replace(/\n/g, '<br>')}</div></div><div class="bg-white p-8 rounded-2xl shadow-xl"><h2 class="text-3xl font-bold mb-4">Video k lekci</h2><div class="rounded-xl overflow-hidden aspect-video shadow-lg"><iframe src="https://www.youtube.com/embed/i-z_I1_Z2lY" frameborder="0" allowfullscreen class="w-full h-full"></iframe></div></div></div>`;
