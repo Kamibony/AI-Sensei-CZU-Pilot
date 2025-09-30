@@ -9,15 +9,11 @@ initializeApp();
 
 // --- AI Functions for the Application ---
 
-// Helper function to initialize the Generative AI client
-const getGenAIClient = () => {
-    // Make sure to have GOOGLE_API_KEY set in your environment
-    const apiKey = process.env.GOOGLE_API_KEY;
-    if (!apiKey) {
-        throw new HttpsError("internal", "Google API Key is not set.");
-    }
-    return new GoogleGenerativeAI(apiKey);
-};
+feature/update-firebase-functions
+// Initialize the single, shared Generative AI client
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
+ main
 
 
 export const generateText = onCall({ region: "europe-west1" }, async (request) => {
@@ -25,19 +21,12 @@ export const generateText = onCall({ region: "europe-west1" }, async (request) =
 
     try {
         const result = await generativeModel.generateContent(prompt);
-        const response = await result.response;
+        const response = result.response;
+        const text = response.text();
 
-        // Defensive check for response structure
-        if (!response.candidates || !response.candidates[0] || !response.candidates[0].content || !response.candidates[0].content.parts || !response.candidates[0].content.parts[0].text) {
-            throw new HttpsError("internal", "Invalid response structure from model.");
-        }
-
-        return { text: response.candidates[0].content.parts[0].text };
+        return { text };
     } catch (error) {
         console.error("Error generating text:", error);
-        if (error instanceof HttpsError) {
-            throw error;
-        }
         const errorMessage = (error instanceof Error) ? error.message : "Unknown error";
         throw new HttpsError("internal", "Error generating text: " + errorMessage);
     }
@@ -51,20 +40,12 @@ export const generateJson = onCall({ region: "europe-west1" }, async (request) =
 
     try {
         const result = await generativeModel.generateContent(jsonPrompt);
-        const response = await result.response;
+        const response = result.response;
+        const text = response.text().replace(/^```json\n|```$/g, "").trim(); // Strip markdown
 
-        // Defensive check for response structure
-        if (!response.candidates || !response.candidates[0] || !response.candidates[0].content || !response.candidates[0].content.parts || !response.candidates[0].content.parts[0].text) {
-            throw new HttpsError("internal", "Invalid response structure from model.");
-        }
-
-        const text = response.candidates[0].content.parts[0].text;
         return JSON.parse(text);
     } catch (error) {
         console.error("Error generating JSON:", error);
-         if (error instanceof HttpsError) {
-            throw error;
-        }
         const errorMessage = (error instanceof Error) ? error.message : "Unknown error";
         if (error instanceof SyntaxError) {
              throw new HttpsError("internal", "Failed to parse JSON response from model.");
@@ -75,9 +56,8 @@ export const generateJson = onCall({ region: "europe-west1" }, async (request) =
 
 
 export const generateFromDocument = onCall({ region: "europe-west1" }, async (request) => {
-    const client = getGenAIClient();
-    const model = client.getGenerativeModel({ model: "gemini-1.5-flash-001" });
-
+ feature/update-firebase-functions
+ main
     const { filePath, prompt } = request.data;
     if (!filePath || !prompt) {
         throw new HttpsError("invalid-argument", "The function must be called with 'filePath' and 'prompt' arguments.");
@@ -98,7 +78,9 @@ export const generateFromDocument = onCall({ region: "europe-west1" }, async (re
             throw new HttpsError("not-found", `File not found at path: ${filePath}`);
         }
 
-        const result = await model.generateContent({
+ feature/update-firebase-functions
+        const result = await generativeModel.generateContent({
+ main
             contents: [{ role: "user", parts: [filePart, { text: prompt }] }],
         });
 
@@ -141,9 +123,11 @@ export const telegramWebhook = onCall({ region: "europe-west1" }, async (request
             chat_id: chatId,
             text: "Hello! You have been successfully connected to AI Sensei."
         });
+ feature/update-firebase-functions
 
         return { status: "success" };
 
+ main
     } catch (error) {
         console.error("Error saving chat ID:", error);
         throw new HttpsError("internal", "Could not save chat ID.");
