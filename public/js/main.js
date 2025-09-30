@@ -1,7 +1,8 @@
 // --- HLAVNÍ SKRIPT APLIKACE ---
 import {
     auth, db, storage, functions, httpsCallable,
-    onAuthStateChanged, signOut, signInAnonymously
+    onAuthStateChanged, signOut, signInAnonymously,
+    collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp
 } from './firebase-init.js';
 import { initializeUpload } from './upload-handler.js';
 
@@ -38,16 +39,43 @@ import { initializeUpload } from './upload-handler.js';
     window.callGeminiForJson = callGeminiForJson;
 
     // --- DATA A STAV APLIKACE ---
-    let lessonsData = [
-        { id: "1", title: 'Úvod do Kvantové Fyziky', subtitle: 'Základní principy', number: '101', creationDate: '2025-09-20', status: 'Aktivní', icon: '⚛️', content: 'Vítejte ve fascinujícím světě kvantové mechaniky! Na rozdíl od klasické fyziky, která popisuje pohyb velkých objektů jako jsou planety nebo míče, kvantová mechanika se zabývá chováním hmoty a energie na atomární a subatomární úrovni. Jedním z klíčových a nejvíce matoucích principů je vlnově-korpuskulární dualismus, který říká, že částice jako elektrony se mohou chovat jednou jako částice a jindy jako vlny. Dalším stěžejním konceptem je princip superpozice. Představte si minci, která se točí ve vzduchu. Dokud nedopadne, není ani panna, ani orel - je v jakémsi stavu obou možností najednou. Podobně může být kvantová částice ve více stavech současně, dokud ji nezačneme měřit. Teprve měřením "donutíme" částici vybrat si jeden konkrétní stav.' },
-        { id: "2", title: 'Historie Starověkého Říma', subtitle: 'Od republiky k císařství', number: '203', creationDate: '2025-09-18', status: 'Aktivní', icon: '🏛️', content: 'Dějiny starověkého Říma jsou příběhem o vzestupu malé městské osady na Apeninském poloostrově v globální impérium. Počátky se datují do 8. století př. n. l. a končí pádem Západořímské říše v roce 476 n. l. Římská republika, založená kolem roku 509 př. n. l., byla charakteristická systémem volených magistrátů a silným senátem.' },
-        { id: "3", title: 'Základy botaniky', subtitle: 'Fotosyntéza a růst', number: 'B05', creationDate: '2025-09-15', status: 'Naplánováno', icon: '🌱', content: 'Botanika je věda o rostlinách. Klíčovým procesem pro život na Zemi je fotosyntéza, při které zelené rostliny využívají sluneční světlo, vodu a oxid uhličitý k výrobě glukózy (energie) a kyslíku. Tento proces probíhá v chloroplastech, které obsahují zelené barvivo chlorofyl.' },
-        { id: "4", title: 'Shakespearova dramata', subtitle: 'Tragédie a komedie', number: 'LIT3', creationDate: '2025-09-12', status: 'Archivováno', icon: '🎭', content: 'William Shakespeare je považován za jednoho z největších dramatiků všech dob. Jeho hry se dělí na tragédie (Hamlet, Romeo a Julie), komedie (Sen noci svatojánské) a historické hry. Jeho dílo je charakteristické komplexními postavami, poetickým jazykem a nadčasovými tématy lásky, zrady, moci a smrti.'},
-        { id: "5", title: 'Neuronové sítě', subtitle: 'Úvod do hlubokého učení', number: 'AI-5', creationDate: '2025-09-21', status: 'Naplánováno', icon: '🧠', content: 'Neuronové sítě jsou základním stavebním kamenem moderní umělé inteligence a hlubokého učení. Jsou inspirovány strukturou lidského mozku a skládají se z propojených uzlů neboli "neuronů", které zpracovávají a přenášejí informace. Učí se na základě velkých objemů dat tím, že upravují váhy spojení mezi neurony.' },
-    ];
+    let lessonsData = [];
+    const lessonsCollection = collection(db, 'lessons');
+
+    // Funkce pro načtení a případné nasazení počátečních dat
+    async function fetchLessons() {
+        try {
+            const querySnapshot = await getDocs(lessonsCollection);
+            if (querySnapshot.empty) {
+                console.log("Databáze lekcí je prázdná, nahrávám počáteční data...");
+                const initialLessons = [
+                    { title: 'Úvod do Kvantové Fyziky', subtitle: 'Základní principy', number: '101', creationDate: '2025-09-20', status: 'Aktivní', icon: '⚛️', content: 'Vítejte ve fascinujícím světě kvantové mechaniky! Na rozdíl od klasické fyziky, která popisuje pohyb velkých objektů jako jsou planety nebo míče, kvantová mechanika se zabývá chováním hmoty a energie na atomární a subatomární úrovni. Jedním z klíčových a nejvíce matoucích principů je vlnově-korpuskulární dualismus, který říká, že částice jako elektrony se mohou chovat jednou jako částice a jindy jako vlny. Dalším stěžejním konceptem je princip superpozice. Představte si minci, která se točí ve vzduchu. Dokud nedopadne, není ani panna, ani orel - je v jakémsi stavu obou možností najednou. Podobně může být kvantová částice ve více stavech současně, dokud ji nezačneme měřit. Teprve měřením "donutíme" částici vybrat si jeden konkrétní stav.' },
+                    { title: 'Historie Starověkého Říma', subtitle: 'Od republiky k císařství', number: '203', creationDate: '2025-09-18', status: 'Aktivní', icon: '🏛️', content: 'Dějiny starověkého Říma jsou příběhem o vzestupu malé městské osady na Apeninském poloostrově v globální impérium. Počátky se datují do 8. století př. n. l. a končí pádem Západořímské říše v roce 476 n. l. Římská republika, založená kolem roku 509 př. n. l., byla charakteristická systémem volených magistrátů a silným senátem.' },
+                    { title: 'Základy botaniky', subtitle: 'Fotosyntéza a růst', number: 'B05', creationDate: '2025-09-15', status: 'Naplánováno', icon: '🌱', content: 'Botanika je věda o rostlinách. Klíčovým procesem pro život na Zemi je fotosyntéza, při které zelené rostliny využívají sluneční světlo, vodu a oxid uhličitý k výrobě glukózy (energie) a kyslíku. Tento proces probíhá v chloroplastech, které obsahují zelené barvivo chlorofyl.' },
+                    { title: 'Shakespearova dramata', subtitle: 'Tragédie a komedie', number: 'LIT3', creationDate: '2025-09-12', status: 'Archivováno', icon: '🎭', content: 'William Shakespeare je považován za jednoho z největších dramatiků všech dob. Jeho hry se dělí na tragédie (Hamlet, Romeo a Julie), komedie (Sen noci svatojánské) a historické hry. Jeho dílo je charakteristické komplexními postavami, poetickým jazykem a nadčasovými tématy lásky, zrady, moci a smrti.'},
+                    { title: 'Neuronové sítě', subtitle: 'Úvod do hlubokého učení', number: 'AI-5', creationDate: '2025-09-21', status: 'Naplánováno', icon: '🧠', content: 'Neuronové sítě jsou základním stavebním kamenem moderní umělé inteligence a hlubokého učení. Jsou inspirovány strukturou lidského mozku a skládají se z propojených uzlů neboli "neuronů", které zpracovávají a přenášejí informace. Učí se na základě velkých objemů dat tím, že upravují váhy spojení mezi neurony.' },
+                ];
+                for (const lesson of initialLessons) {
+                    await addDoc(lessonsCollection, { ...lesson, createdAt: serverTimestamp() });
+                }
+                // After seeding, fetch the data again to get the generated IDs
+                const newQuerySnapshot = await getDocs(lessonsCollection);
+                lessonsData = newQuerySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            } else {
+                 lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            }
+            console.log("Lekce úspěšně načteny z Firestore:", lessonsData);
+        } catch (error) {
+            console.error("Chyba při načítání lekcí z Firestore: ", error);
+            alert("Nepodařilo se načíst data lekcí. Zkuste prosím obnovit stránku.");
+        }
+    }
+
+
     let timelineData = JSON.parse(localStorage.getItem('ai-sensei-timeline-v8')) || {
-        "3": [1],
-        "5": [5]
+        "3": [],
+        "5": []
     };
     
     let currentUserRole = null;
@@ -55,11 +83,11 @@ import { initializeUpload } from './upload-handler.js';
     const appContainer = document.getElementById('app-container');
     
     // --- HLAVNÍ LOGIKA APLIKACE (ROUTER) ---
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
         if (user) {
             const role = sessionStorage.getItem('userRole');
             if (role) {
-                login(role);
+                await login(role);
             } else {
                 renderLogin();
             }
@@ -78,7 +106,7 @@ import { initializeUpload } from './upload-handler.js';
                     await signInAnonymously(auth);
                 }
                 sessionStorage.setItem('userRole', role);
-                login(role);
+                await login(role);
             } catch (error) {
                 console.error("Anonymous sign-in failed:", error);
                 alert("Přihlášení selhalo. Zkuste to prosím znovu.");
@@ -100,10 +128,12 @@ import { initializeUpload } from './upload-handler.js';
         }
     }
 
-    function login(role) {
+    async function login(role) {
         currentUserRole = role;
         appContainer.innerHTML = document.getElementById('main-app-template').innerHTML;
         document.getElementById('ai-assistant-btn').style.display = 'flex';
+
+        await fetchLessons(); // Fetch data before rendering role-specific UI
 
         if (role === 'professor') {
             setupProfessorNav();
@@ -174,12 +204,17 @@ import { initializeUpload } from './upload-handler.js';
             <div class="p-2">
                 <h3 class="px-2 text-sm font-semibold text-slate-500 mb-2">${status}</h3>
                 ${lessonsData.filter(l => l.status === status).map(lesson => `
-                    <div class="lesson-bubble-in-library p-3 mb-2 rounded-lg flex items-center space-x-3 cursor-pointer bg-white border border-slate-200 hover:shadow-md hover:border-green-500 transition-all" data-id="${lesson.id}" draggable="true">
-                        <span class="text-2xl">${lesson.icon}</span>
-                        <div>
-                            <span class="font-semibold text-sm text-slate-700">${lesson.title}</span>
-                            <p class="text-xs text-slate-500">${lesson.subtitle}</p>
+                    <div class="lesson-bubble-in-library p-3 mb-2 rounded-lg flex items-center justify-between bg-white border border-slate-200 hover:shadow-md hover:border-green-500 transition-all" data-id="${lesson.id}">
+                        <div class="flex items-center space-x-3 cursor-pointer flex-grow" draggable="true">
+                            <span class="text-2xl">${lesson.icon}</span>
+                            <div>
+                                <span class="font-semibold text-sm text-slate-700">${lesson.title}</span>
+                                <p class="text-xs text-slate-500">${lesson.subtitle}</p>
+                            </div>
                         </div>
+                        <button class="delete-lesson-btn p-2 rounded-full hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors" data-id="${lesson.id}" title="Smazat lekci">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
                     </div>
                 `).join('') || `<p class="px-2 text-xs text-slate-400">Žádné lekce.</p>`}
             </div>
@@ -187,15 +222,32 @@ import { initializeUpload } from './upload-handler.js';
         
         container.querySelector('#create-new-lesson-btn').addEventListener('click', () => showProfessorContent('editor', null));
         container.querySelectorAll('.lesson-bubble-in-library').forEach(el => {
-            el.addEventListener('click', () => {
+            const draggablePart = el.querySelector('[draggable="true"]');
+
+            // Attach click listener to the content part for editing
+            draggablePart.addEventListener('click', () => {
                 const lesson = lessonsData.find(l => l.id == el.dataset.id);
                 showProfessorContent('editor', lesson);
             });
-            el.addEventListener('dragstart', (e) => {
-                e.target.classList.add('dragging');
-                e.dataTransfer.setData('lesson_id', e.target.dataset.id);
+
+            // Attach listener for the delete button
+            const deleteBtn = el.querySelector('.delete-lesson-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent the edit listener from firing
+                    const lessonId = e.currentTarget.dataset.id;
+                    handleDeleteLesson(lessonId);
+                });
+            }
+
+            // Attach drag-and-drop listeners
+            draggablePart.addEventListener('dragstart', (e) => {
+                e.currentTarget.closest('.lesson-bubble-in-library').classList.add('dragging');
+                e.dataTransfer.setData('lesson_id', el.dataset.id);
             });
-            el.addEventListener('dragend', (e) => e.target.classList.remove('dragging'));
+            draggablePart.addEventListener('dragend', (e) => {
+                e.currentTarget.closest('.lesson-bubble-in-library').classList.remove('dragging');
+            });
         });
     }
     
@@ -332,7 +384,7 @@ import { initializeUpload } from './upload-handler.js';
                             <div><label class="block font-medium text-slate-600">Číslo lekce</label><input type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.number || ''}" placeholder="Např. 101"></div>
                             <div><label class="block font-medium text-slate-600">Datum vytvoření</label><input type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1 bg-slate-100" value="${currentLesson ? new Date(currentLesson.creationDate).toLocaleDateString('cs-CZ') : new Date().toLocaleDateString('cs-CZ')}" disabled></div>
                         </div>
-                        <div class="text-right pt-4"><button class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105">Uložit změny</button></div>
+                        <div class="text-right pt-4"><button id="save-lesson-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105">Uložit změny</button></div>
                     </div>`);
                 break;
             case 'docs':
@@ -455,6 +507,10 @@ import { initializeUpload } from './upload-handler.js';
                 contentHTML = renderWrapper(viewId, `<div class="text-center p-8 text-slate-400">Tato sekce se připravuje.</div>`);
         }
         container.innerHTML = contentHTML;
+
+        if (viewId === 'details') {
+            document.getElementById('save-lesson-btn').addEventListener('click', handleSaveLesson);
+        }
         
         if (viewId === 'video') {
             document.getElementById('embed-video-btn').addEventListener('click', () => {
@@ -534,6 +590,66 @@ import { initializeUpload } from './upload-handler.js';
                     if(promptInput) promptInput.disabled = false;
                 }
             });
+        }
+    }
+
+    async function handleSaveLesson() {
+        const form = document.getElementById('lesson-details-form');
+        const titleInput = form.querySelector('input[placeholder="Např. Úvod do organické chemie"]');
+        const subtitleInput = form.querySelector('input[placeholder="Základní pojmy a principy"]');
+        const numberInput = form.querySelector('input[placeholder="Např. 101"]');
+
+        const title = titleInput.value;
+        const subtitle = subtitleInput.value;
+        const number = numberInput.value;
+
+        if (!title || !subtitle || !number) {
+            alert('Vyplňte prosím všechna pole.');
+            return;
+        }
+
+        const lessonData = {
+            title,
+            subtitle,
+            number,
+            status: currentLesson?.status || 'Naplánováno', // Default status for new lessons
+            icon: currentLesson?.icon || '🆕',
+            content: currentLesson?.content || 'Tato lekce zatím nemá žádný obsah.',
+        };
+
+        try {
+            if (currentLesson && currentLesson.id) {
+                // Update existing lesson
+                const lessonRef = doc(db, 'lessons', currentLesson.id);
+                await updateDoc(lessonRef, lessonData);
+                alert('Lekce byla úspěšně aktualizována.');
+            } else {
+                // Create new lesson
+                await addDoc(lessonsCollection, {
+                    ...lessonData,
+                    creationDate: new Date().toISOString().split('T')[0], // Set creation date
+                    createdAt: serverTimestamp() // For ordering
+                });
+                alert('Lekce byla úspěšně vytvořena.');
+            }
+            await login(currentUserRole); // Re-login to refresh all data and UI
+        } catch (error) {
+            console.error("Chyba při ukládání lekce: ", error);
+            alert("Při ukládání lekce došlo k chybě.");
+        }
+    }
+
+    async function handleDeleteLesson(lessonId) {
+        if (confirm('Opravdu chcete smazat tuto lekci? Tato akce je nevratná.')) {
+            try {
+                const lessonRef = doc(db, 'lessons', lessonId);
+                await deleteDoc(lessonRef);
+                alert('Lekce byla úspěšně smazána.');
+                await login(currentUserRole); // Re-login to refresh all data and UI
+            } catch (error) {
+                console.error("Chyba při mazání lekce: ", error);
+                alert("Při mazání lekce došlo k chybě.");
+            }
         }
     }
     
