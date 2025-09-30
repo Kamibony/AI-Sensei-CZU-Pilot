@@ -13,7 +13,7 @@ const vertexAI = new VertexAI({
 });
 
 const generativeModel = vertexAI.getGenerativeModel({
-    model: "gemini-1.0-pro",
+    model: "gemini-1.0-pro-001",
 });
 
 
