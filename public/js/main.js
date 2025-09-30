@@ -2,9 +2,10 @@
 import {
     auth, db, storage, functions, httpsCallable,
     onAuthStateChanged, signOut, signInAnonymously,
-    collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp
+    createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, setDoc, writeBatch
 } from './firebase-init.js';
-import { initializeUpload } from './upload-handler.js';
+import { initializeUpload, initializeCourseMediaUpload } from './upload-handler.js';
 
     const generateTextFunction = httpsCallable(functions, 'generateText');
     const generateJsonFunction = httpsCallable(functions, 'generateJson');
@@ -98,21 +99,67 @@ import { initializeUpload } from './upload-handler.js';
         appContainer.innerHTML = document.getElementById('login-template').innerHTML;
         document.getElementById('ai-assistant-btn').style.display = 'none';
 
-        const handleLogin = async (role) => {
+        const handleProfessorLogin = async () => {
             try {
-                if (!auth.currentUser) {
-                    await signInAnonymously(auth);
+                // Professor login remains anonymous for simplicity
+                if (!auth.currentUser || auth.currentUser.isAnonymous) {
+                     await signInAnonymously(auth);
                 }
-                sessionStorage.setItem('userRole', role);
-                await login(role);
+                sessionStorage.setItem('userRole', 'professor');
+                await login('professor');
             } catch (error) {
-                console.error("Anonymous sign-in failed:", error);
-                alert("Přihlášení selhalo. Zkuste to prosím znovu.");
+                console.error("Professor anonymous sign-in failed:", error);
+                alert("Přihlášení pro profesora selhalo.");
             }
         };
 
-        document.getElementById('login-professor').addEventListener('click', () => handleLogin('professor'));
-        document.getElementById('login-student').addEventListener('click', () => handleLogin('student'));
+        const handleStudentLoginRegister = async () => {
+            const emailInput = document.getElementById('student-email');
+            const passwordInput = document.getElementById('student-password');
+            const email = emailInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            if (!email || !password) {
+                alert('Prosím, zadejte email a heslo.');
+                return;
+            }
+
+            try {
+                // 1. Try to sign in
+                await signInWithEmailAndPassword(auth, email, password);
+                console.log('Student signed in successfully.');
+                sessionStorage.setItem('userRole', 'student');
+                await login('student');
+            } catch (error) {
+                if (error.code === 'auth/user-not-found') {
+                    // 2. If user doesn't exist, try to create a new account
+                    try {
+                        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                        console.log('New student account created.');
+
+                        // 3. Create a corresponding document in 'students' collection
+                        await setDoc(doc(db, "students", userCredential.user.uid), {
+                            email: userCredential.user.email,
+                            createdAt: serverTimestamp()
+                        });
+                        console.log('Student document created in Firestore.');
+
+                        sessionStorage.setItem('userRole', 'student');
+                        await login('student');
+                    } catch (creationError) {
+                        console.error("Student account creation failed:", creationError);
+                        alert(`Registrace se nezdařila: ${creationError.message}`);
+                    }
+                } else {
+                    // Handle other sign-in errors (wrong password, etc.)
+                    console.error("Student sign-in failed:", error);
+                    alert(`Přihlášení selhalo: ${error.message}`);
+                }
+            }
+        };
+
+        document.getElementById('login-professor').addEventListener('click', handleProfessorLogin);
+        document.getElementById('login-register-student').addEventListener('click', handleStudentLoginRegister);
     }
 
     async function logout() {
@@ -158,7 +205,22 @@ import { initializeUpload } from './upload-handler.js';
             <li><button data-view="analytics" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white transition-colors" title="Analýza studentů"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6l6.1 2.4-4.2 6L2.5 22"/><path d="M21.5 2v6l-6.1 2.4 4.2 6L21.5 22"/><path d="M12 2v20"/></svg></button></li>
         `;
         nav.querySelector('[data-view="timeline"]').addEventListener('click', () => showProfessorContent('timeline'));
-        nav.querySelector('#media-library-btn').addEventListener('click', showMediaLibrary);
+        nav.querySelector('#media-library-btn').addEventListener('click', () => {
+            const modal = document.getElementById('media-library-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                // Assumes a single course context for now, as per the prompt
+                const currentCourseId = 'default-course'; // Placeholder
+                initializeCourseMediaUpload(currentCourseId);
+
+                // Add listener for the close button inside the modal
+                const closeBtn = document.getElementById('close-media-library-btn');
+                if(closeBtn) {
+                    // Use once: true to avoid adding multiple listeners if the modal is opened again
+                    closeBtn.addEventListener('click', () => modal.classList.add('hidden'), { once: true });
+                }
+            }
+        });
         // The querySelector for the interactions button
         const interactionsButton = nav.querySelector('[data-view="interactions"]');
         if (interactionsButton) {
@@ -169,25 +231,34 @@ import { initializeUpload } from './upload-handler.js';
                 renderTelegramInteractionView(currentCourseId);
             });
         }
-        nav.querySelector('[data-view="analytics"]').addEventListener('click', () => showProfessorContent('analytics'));
+        nav.querySelector('[data-view="analytics"]').addEventListener('click', (e) => {
+            e.preventDefault();
+            showProfessorContent('analytics');
+        });
     }
 
     async function showProfessorContent(view, lesson = null) {
-        // Ensure the Telegram view is hidden and the main dashboard is visible
         const telegramView = document.getElementById('telegram-interaction-view');
         const dashboardView = document.getElementById('dashboard-professor');
+        const analysisView = document.getElementById('student-analysis-view');
         const roleContentWrapper = document.getElementById('role-content-wrapper');
 
+        // Hide all major views first
         if (telegramView) telegramView.classList.add('hidden');
-        if (dashboardView) dashboardView.classList.remove('hidden');
+        if (dashboardView) dashboardView.classList.add('hidden');
+        if (analysisView) analysisView.classList.add('hidden');
         if (roleContentWrapper) roleContentWrapper.classList.remove('hidden');
 
 
         const sidebar = document.getElementById('professor-sidebar');
         const mainArea = document.getElementById('main-content-area');
-        mainArea.innerHTML = '';
-        sidebar.innerHTML = '';
-        mainArea.className = 'flex-grow bg-slate-100 flex flex-col h-screen view-transition';
+
+        if (view === 'timeline' || view === 'editor') {
+            if (dashboardView) dashboardView.classList.remove('hidden');
+            mainArea.innerHTML = '';
+            sidebar.innerHTML = '';
+            mainArea.className = 'flex-grow bg-slate-100 flex flex-col h-screen view-transition';
+        }
 
         if (view === 'timeline') {
             await fetchLessons();
@@ -198,11 +269,13 @@ import { initializeUpload } from './upload-handler.js';
             renderEditorMenu(sidebar);
             showEditorContent(lesson ? 'docs' : 'details');
         } else if (view === 'interactions') {
-            renderStudentInteractions(mainArea);
-            sidebar.innerHTML = `<div class="p-4"><h2 class="text-xl font-bold">Interakce</h2><p class="text-sm text-slate-500 mt-2">Zde spravujete komunikaci se svými studenty.</p></div>`;
+            // This case is handled by a separate function `renderTelegramInteractionView`
+            // which will hide the dashboard and show the telegram view.
         } else if (view === 'analytics') {
-            renderAnalytics(mainArea);
-            sidebar.innerHTML = `<div class="p-4"><h2 class="text-xl font-bold">Analýza Studentů</h2><p class="text-sm text-slate-500 mt-2">AI přehledy o pokroku a zapojení studentů.</p></div>`;
+            if (analysisView) analysisView.classList.remove('hidden');
+            if (dashboardView) dashboardView.classList.add('hidden'); // Ensure dashboard is hidden
+             if (telegramView) telegramView.classList.add('hidden'); // Ensure telegram is hidden
+            renderAnalytics(); // No longer passes mainArea
         }
     }
 
@@ -211,9 +284,6 @@ import { initializeUpload } from './upload-handler.js';
             <header class="p-4 border-b border-slate-200 flex justify-between items-center flex-shrink-0">
                 <h2 class="text-xl font-bold text-slate-800">Knihovna lekcí</h2>
                 <div class="flex items-center space-x-2">
-                    <button id="open-media-library-btn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                        Knihovna médií
-                    </button>
                     <button id="create-new-lesson-btn" class="px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 transition transform hover:scale-105">+ Nová lekce</button>
                 </div>
             </header>
@@ -223,9 +293,13 @@ import { initializeUpload } from './upload-handler.js';
 
         const listEl = container.querySelector('#lesson-library-list');
         const statuses = ['Aktivní', 'Naplánováno', 'Archivováno'];
+        // Sort lessons by orderIndex before rendering
+        lessonsData.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+
         listEl.innerHTML = statuses.map(status => `
             <div class="p-2">
                 <h3 class="px-2 text-sm font-semibold text-slate-500 mb-2">${status}</h3>
+                <div class="lesson-group" data-status="${status}">
                 ${lessonsData.filter(l => l.status === status).map(lesson => `
                     <div class="lesson-bubble-in-library p-3 mb-2 rounded-lg flex items-center justify-between bg-white border border-slate-200 hover:shadow-md hover:border-green-500 transition-all" data-id="${lesson.id}">
                         <div class="flex items-center space-x-3 cursor-pointer flex-grow" draggable="true">
@@ -240,6 +314,7 @@ import { initializeUpload } from './upload-handler.js';
                         </button>
                     </div>
                 `).join('') || `<p class="px-2 text-xs text-slate-400">Žádné lekce.</p>`}
+                </div>
             </div>
         `).join('');
         
@@ -263,7 +338,7 @@ import { initializeUpload } from './upload-handler.js';
                 });
             }
 
-            // Attach drag-and-drop listeners
+            // Attach drag-and-drop listeners for timeline
             draggablePart.addEventListener('dragstart', (e) => {
                 e.currentTarget.closest('.lesson-bubble-in-library').classList.add('dragging');
                 e.dataTransfer.setData('lesson_id', el.dataset.id);
@@ -273,14 +348,27 @@ import { initializeUpload } from './upload-handler.js';
             });
         });
 
-        // Initialize Sortable.js on the lesson library list
-        const lessonListEl = container.querySelector('#lesson-library-list');
-        if (lessonListEl) {
-            new Sortable(lessonListEl, {
+        // Initialize Sortable.js for each lesson group
+        container.querySelectorAll('.lesson-group').forEach(groupEl => {
+            new Sortable(groupEl, {
                 animation: 150,
                 ghostClass: 'blue-background-class',
+                onEnd: function (evt) {
+                    const lessonElements = evt.target.children;
+                    const batch = writeBatch(db);
+                    Array.from(lessonElements).forEach((el, index) => {
+                        const lessonId = el.dataset.id;
+                        if (lessonId) {
+                            const lessonRef = doc(db, 'lessons', lessonId);
+                            batch.update(lessonRef, { orderIndex: index });
+                        }
+                    });
+                    batch.commit().then(() => {
+                        console.log("New lesson order saved successfully.");
+                    }).catch(err => console.error("Error saving new lesson order:", err));
+                }
             });
-        }
+        });
     }
     
     function renderTimeline(container) {
@@ -418,24 +506,35 @@ import { initializeUpload } from './upload-handler.js';
                         </div>
 
                         <div class="mt-6 border-t pt-6">
-                            <h4 class="text-lg font-semibold text-slate-800 mb-2">Interakce</h4>
-                            <div class="flex items-center space-x-4 bg-slate-50 p-4 rounded-lg">
-                                <select id="interaction-type" class="bg-white text-slate-900 rounded-md border-slate-300 shadow-sm w-full">
-                                    <option value="quiz">Kvíz</option>
-                                    <option value="question">Otevřená otázka</option>
-                                    <option value="poll">Anketa</option>
-                                </select>
-                                <button id="add-interaction-btn" class="bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded whitespace-nowrap">
-                                    Přidat interakci
-                                </button>
-                            </div>
-                            <div id="interactions-container" class="mt-4 space-y-4">
-                                <!-- Dynamically added interactions will appear here -->
-                            </div>
+                            <h4 class="text-lg font-semibold text-slate-800 mb-2">Aktivační kód pro Telegram</h4>
+                            <p class="text-sm text-slate-500 mb-2">Studenti použijí tento kód v Telegramu k aktivaci lekce a možnosti komunikace.</p>
+                            <input type="text" id="lesson-activation-code" class="w-full border-slate-300 rounded-lg p-2 mt-1 bg-slate-100 font-mono" readonly value="Generuji...">
                         </div>
 
                         <div class="text-right pt-4"><button id="save-lesson-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105">Uložit změny</button></div>
                     </div>`);
+
+                // --- Logic for Activation Code ---
+                if (currentLesson && currentLesson.id) {
+                    const codeInput = document.getElementById('lesson-activation-code');
+                    if (currentLesson.activationCode) {
+                        codeInput.value = currentLesson.activationCode;
+                    } else {
+                        // Generate, save, and display the code
+                        const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+                        const lessonRef = doc(db, 'lessons', currentLesson.id);
+                        updateDoc(lessonRef, { activationCode: newCode }).then(() => {
+                            codeInput.value = newCode;
+                            // Update the local data to prevent re-generation on next view
+                            currentLesson.activationCode = newCode;
+                        }).catch(err => {
+                            console.error("Error saving activation code:", err);
+                            codeInput.value = "Chyba při generování kódu";
+                        });
+                    }
+                } else {
+                     document.getElementById('lesson-activation-code').value = "Uložte lekci pro vygenerování kódu.";
+                }
                 break;
             case 'docs':
                 contentHTML = renderWrapper('Dokumenty k lekci', `
@@ -840,24 +939,6 @@ import { initializeUpload } from './upload-handler.js';
         document.getElementById('close-modal-btn').addEventListener('click', () => modalContainer.innerHTML = '');
     }
 
-    function showMediaLibrary() {
-        const modalContainer = document.getElementById('modal-container');
-        modalContainer.innerHTML = `
-            <div class="fixed inset-0 bg-slate-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-                <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col modal-transition">
-                    <header class="p-4 border-b border-slate-200 flex justify-between items-center">
-                        <h3 class="text-xl font-semibold">Knihovna médií</h3>
-                        <button id="close-modal-btn" class="p-2 rounded-full hover:bg-slate-100">✖</button>
-                    </header>
-                    <main class="p-6 overflow-y-auto">
-                         <div class="upload-zone rounded-lg p-10 text-center mb-6"><p>Přetáhněte soubory sem</p></div>
-                         <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
-                         </div>
-                    </main>
-                </div>
-            </div>`;
-        document.getElementById('close-modal-btn').addEventListener('click', () => modalContainer.innerHTML = '');
-    }
 
     async function renderTelegramInteractionView(courseId) {
         // Hide the main dashboard and show the Telegram view
@@ -941,32 +1022,33 @@ import { initializeUpload } from './upload-handler.js';
         }
     }
 
-    function renderAnalytics(container) {
-        container.innerHTML = `<div class="p-8"><h2>Analýza studentů</h2><p>Tato sekce se připravuje.</p></div>`;
-    }
+    async function renderAnalytics() {
+        const studentListContainer = document.getElementById('analysis-student-list');
+        if (!studentListContainer) return;
 
-    function initMediaLibrary() {
-        const modal = document.getElementById('media-library-modal');
-        const closeBtn = document.getElementById('close-media-library-btn');
-        const uploadArea = document.getElementById('course-media-upload-area');
-        const fileInput = document.getElementById('course-media-file-input');
+        studentListContainer.innerHTML = '<p class="text-slate-500">Načítám studenty...</p>';
 
-        // Use event delegation for the open button since it's loaded dynamically
-        document.body.addEventListener('click', (event) => {
-            if (event.target.id === 'open-media-library-btn') {
-                if (modal) modal.classList.remove('hidden');
+        try {
+            const studentsSnapshot = await getDocs(collection(db, 'students'));
+
+            if (studentsSnapshot.empty) {
+                studentListContainer.innerHTML = '<p class="text-slate-500">Nebyly nalezeni žádní studenti.</p>';
+                return;
             }
-        });
 
-        if (closeBtn) closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+            studentListContainer.innerHTML = ''; // Clear loading message
 
-        if (uploadArea) {
-          uploadArea.addEventListener('click', () => fileInput.click());
-          // The actual upload handling will be in upload-handler.js
+            studentsSnapshot.forEach(doc => {
+                const student = doc.data();
+                const studentEl = document.createElement('div');
+                studentEl.className = 'p-4 border-b border-slate-200';
+                studentEl.textContent = student.email || doc.id; // Display email, fallback to ID
+                studentListContainer.appendChild(studentEl);
+            });
+
+        } catch (error) {
+            console.error("Error fetching students for analysis: ", error);
+            studentListContainer.innerHTML = '<p class="text-red-500">Chyba při načítání studentů.</p>';
         }
     }
 
-    // Call this new function when the app initializes
-    document.addEventListener('DOMContentLoaded', () => {
-        initMediaLibrary();
-    });
