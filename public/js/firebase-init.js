@@ -33,7 +33,3 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 // Ensure the function is initialized with the correct region
 export const functions = getFunctions(app, 'europe-west1');
-// Export commonly used functions for convenience
-export { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-export { collection, getDocs, query, orderBy, doc, getDoc, setDoc, addDoc, serverTimestamp, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-export { onAuthStateChanged, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";

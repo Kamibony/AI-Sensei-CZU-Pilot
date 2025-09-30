@@ -1,10 +1,24 @@
 // --- HLAVNÍ SKRIPT APLIKACE ---
+import { auth, db, storage, functions } from './firebase-init.js';
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import {
-    auth, db, storage, functions, httpsCallable,
-    onAuthStateChanged, signOut, signInAnonymously,
-    createUserWithEmailAndPassword, signInWithEmailAndPassword,
-    collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, setDoc, writeBatch
-} from './firebase-init.js';
+    onAuthStateChanged,
+    signOut,
+    signInAnonymously,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+    collection,
+    getDocs,
+    doc,
+    addDoc,
+    updateDoc,
+    deleteDoc,
+    serverTimestamp,
+    setDoc,
+    writeBatch
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeUpload, initializeCourseMediaUpload } from './upload-handler.js';
 
     const generateTextFunction = httpsCallable(functions, 'generateText');
