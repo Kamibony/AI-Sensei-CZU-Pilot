@@ -159,11 +159,30 @@ import { initializeUpload } from './upload-handler.js';
         `;
         nav.querySelector('[data-view="timeline"]').addEventListener('click', () => showProfessorContent('timeline'));
         nav.querySelector('#media-library-btn').addEventListener('click', showMediaLibrary);
-        nav.querySelector('[data-view="interactions"]').addEventListener('click', () => showProfessorContent('interactions'));
+        // The querySelector for the interactions button
+        const interactionsButton = nav.querySelector('[data-view="interactions"]');
+        if (interactionsButton) {
+            interactionsButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                // Assumes a single course context for now, as per the prompt
+                const currentCourseId = 'default-course'; // Placeholder
+                renderTelegramInteractionView(currentCourseId);
+            });
+        }
         nav.querySelector('[data-view="analytics"]').addEventListener('click', () => showProfessorContent('analytics'));
     }
 
     async function showProfessorContent(view, lesson = null) {
+        // Ensure the Telegram view is hidden and the main dashboard is visible
+        const telegramView = document.getElementById('telegram-interaction-view');
+        const dashboardView = document.getElementById('dashboard-professor');
+        const roleContentWrapper = document.getElementById('role-content-wrapper');
+
+        if (telegramView) telegramView.classList.add('hidden');
+        if (dashboardView) dashboardView.classList.remove('hidden');
+        if (roleContentWrapper) roleContentWrapper.classList.remove('hidden');
+
+
         const sidebar = document.getElementById('professor-sidebar');
         const mainArea = document.getElementById('main-content-area');
         mainArea.innerHTML = '';
@@ -840,8 +859,86 @@ import { initializeUpload } from './upload-handler.js';
         document.getElementById('close-modal-btn').addEventListener('click', () => modalContainer.innerHTML = '');
     }
 
-    function renderStudentInteractions(container) {
-         container.innerHTML = `<div class="p-8"><h2>Interakce se studenty</h2><p>Tato sekce se připravuje.</p></div>`;
+    async function renderTelegramInteractionView(courseId) {
+        // Hide the main dashboard and show the Telegram view
+        const dashboardView = document.getElementById('dashboard-professor');
+        const telegramView = document.getElementById('telegram-interaction-view');
+        const studentListContainer = document.getElementById('student-telegram-list');
+        const roleContentWrapper = document.getElementById('role-content-wrapper');
+
+        if (dashboardView) dashboardView.classList.add('hidden');
+        if (roleContentWrapper) roleContentWrapper.classList.add('hidden');
+        if (telegramView) {
+            telegramView.classList.remove('hidden');
+            telegramView.style.backgroundColor = '#1f2937'; // bg-gray-800
+            telegramView.style.height = '100%';
+            telegramView.style.flexGrow = '1';
+        }
+
+        studentListContainer.innerHTML = '<p class="text-white">Načítám studenty...</p>';
+
+        try {
+            // In a real app, you might query based on courseId.
+            // For now, we fetch all students as per the prompt's example.
+            const studentsSnapshot = await getDocs(collection(db, 'students'));
+
+            studentListContainer.innerHTML = ''; // Clear loading message
+
+            if (studentsSnapshot.empty) {
+                studentListContainer.innerHTML = '<p class="text-white">Nebyly nalezeni žádní studenti.</p>';
+                return;
+            }
+
+            const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
+
+            studentsSnapshot.forEach(doc => {
+                const student = doc.data();
+                const studentId = doc.id;
+
+                // Create the UI element for each student
+                const studentEl = document.createElement('div');
+                studentEl.className = 'bg-gray-800 p-4 rounded-lg flex flex-col md:flex-row items-center justify-between';
+                studentEl.innerHTML = `
+                    <span class="text-white font-medium mb-2 md:mb-0">${student.email || studentId}</span>
+                    <div class="w-full md:w-3/4 flex items-center space-x-2">
+                        <textarea class="w-full bg-gray-700 text-white rounded-md p-2" rows="1" placeholder="Napište zprávu..."></textarea>
+                        <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Odeslat</button>
+                    </div>
+                `;
+
+                // Add send message functionality
+                const sendButton = studentEl.querySelector('button');
+                const textArea = studentEl.querySelector('textarea');
+                sendButton.addEventListener('click', async () => {
+                    const messageText = textArea.value;
+                    if (!messageText.trim()) {
+                        alert('Zpráva nemůže být prázdná.');
+                        return;
+                    }
+
+                    sendButton.textContent = 'Odesílám...';
+                    sendButton.disabled = true;
+
+                    try {
+                        await sendMessageToStudent({ studentId: studentId, text: messageText });
+                        textArea.value = '';
+                        alert('Zpráva úspěšně odeslána!');
+                    } catch (error) {
+                        console.error('Error sending message:', error);
+                        alert('Nepodařilo se odeslat zprávu: ' + error.message);
+                    } finally {
+                        sendButton.textContent = 'Odeslat';
+                        sendButton.disabled = false;
+                    }
+                });
+
+                studentListContainer.appendChild(studentEl);
+            });
+
+        } catch (error) {
+            console.error("Error fetching students: ", error);
+            studentListContainer.innerHTML = '<p class="text-red-500">Chyba při načítání studentů.</p>';
+        }
     }
 
     function renderAnalytics(container) {
