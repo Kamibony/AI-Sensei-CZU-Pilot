@@ -110,3 +110,60 @@ async function deleteDocument(docId, storagePath, lesson) {
         alert("Nepodařilo se smazat soubor.");
     }
 }
+
+// --- NEW FUNCTION FOR GENERAL COURSE MEDIA ---
+export function initializeCourseMediaUpload(courseId) {
+    const uploadArea = document.getElementById('course-media-upload-area');
+    const fileInput = document.getElementById('course-media-file-input');
+    const mediaList = document.getElementById('course-media-list');
+
+    if (!uploadArea || !fileInput || !mediaList) {
+        console.error('Required elements for course media upload are missing.');
+        return;
+    }
+
+    const handleFiles = async (files) => {
+        for (const file of files) {
+            await uploadCourseFile(file, courseId);
+        }
+        // After upload, you would typically refresh the list of media.
+        // For now, we'll just log it.
+        console.log('Upload complete for all files.');
+    };
+
+    uploadArea.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => handleFiles(e.target.files);
+
+    uploadArea.ondragover = (e) => { e.preventDefault(); uploadArea.classList.add('drag-over-file'); };
+    uploadArea.ondragleave = () => uploadArea.classList.remove('drag-over-file');
+    uploadArea.ondrop = (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('drag-over-file');
+        handleFiles(e.dataTransfer.files);
+    };
+}
+
+async function uploadCourseFile(file, courseId) {
+    const mediaList = document.getElementById('course-media-list');
+    const tempId = `file-${Date.now()}`;
+    const listItem = document.createElement('li');
+    listItem.id = tempId;
+    listItem.textContent = `Nahrávám: ${file.name}...`;
+    listItem.className = 'text-sm text-slate-600';
+    mediaList.appendChild(listItem);
+
+    try {
+        const storageRef = ref(storage, `courses/${courseId}/media/${file.name}`);
+        await uploadBytes(storageRef, file);
+
+        // In a real app, you might save file metadata to Firestore here as well.
+        // For this task, just uploading to storage is sufficient.
+
+        document.getElementById(tempId).textContent = `✅ Nahráno: ${file.name}`;
+    } catch (error) {
+        console.error("Chyba při nahrávání souboru kurzu:", error);
+        const errorItem = document.getElementById(tempId);
+        errorItem.textContent = `Chyba při nahrávání ${file.name}.`;
+        errorItem.classList.add('text-red-600');
+    }
+}

@@ -88,75 +88,96 @@ export const generateFromDocument = onCall({ region: "europe-west1" }, async (re
 });
 
 // --- Telegram Bot Functions ---
+const db = getFirestore();
+const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
-export const telegramWebhook = onCall({ region: "europe-west1" }, async (request) => {
-    const message = request.data.message;
-    if (!message) {
-        console.log("Not a message, skipping.");
-        return { status: "ok" };
-    }
-
-    const chatId = message.chat.id;
-    const studentId = message.text.split(' ')[1]; // Example: /start <studentId>
-
-    if (!studentId) {
-        console.warn("Student ID not provided with /start command.");
-        return { status: "error", message: "Student ID missing." };
-    }
-
-    // Save the chat_id to the student's document in Firestore
+async function sendTelegramMessage(chatId: string, text: string) {
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
     try {
-        await getFirestore().collection('students').doc(studentId).set({
-            telegramChatId: chatId
-        }, { merge: true });
-
-        // Respond to the user
-        const botToken = process.env.TELEGRAM_BOT_TOKEN;
-        const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-        await axios.post(url, {
-            chat_id: chatId,
-            text: "Hello! You have been successfully connected to AI Sensei."
-        });
-
-        return { status: "success" };
-
-    } catch (error) {
-        console.error("Error saving chat ID:", error);
-        throw new HttpsError("internal", "Could not save chat ID.");
-    }
-});
-
-export const sendMessageToStudent = onCall({ region: "europe-west1" }, async (request) => {
-    const { studentId, text } = request.data;
-    if (!studentId || !text) {
-        throw new HttpsError("invalid-argument", "The function must be called with 'studentId' and 'text'.");
-    }
-
-    try {
-        // Retrieve the student's chat_id from Firestore
-        const studentDoc = await getFirestore().collection('students').doc(studentId).get();
-        if (!studentDoc.exists) {
-            throw new HttpsError("not-found", "Student not found.");
-        }
-
-        const chatId = studentDoc.data()?.telegramChatId;
-        if (!chatId) {
-            throw new HttpsError("failed-precondition", "Student has not connected their Telegram account.");
-        }
-
-        const botToken = process.env.TELEGRAM_BOT_TOKEN;
-        const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-
         await axios.post(url, {
             chat_id: chatId,
             text: text,
             parse_mode: "Markdown"
         });
-
-        return { status: "success" };
-
     } catch (error) {
-        console.error("Error sending message:", error);
-        throw new HttpsError("internal", "Failed to send message.", error);
+        console.error(`Failed to send message to chat_id ${chatId}:`, error);
+        // Don't re-throw, just log the error. The caller can decide how to handle it.
     }
+}
+
+export const telegramWebhook = onCall({ region: "europe-west1" }, async (request) => {
+    const message = request.data.message;
+    if (!message || !message.text) {
+        console.log("Webhook call without a message text, skipping.");
+        return { status: "ok", reason: "no_message_text" };
+    }
+
+    const chatId = message.chat.id;
+    const activationCode = message.text.trim().toUpperCase();
+    const studentId = message.from.id.toString(); // Use Telegram user ID as the student identifier
+
+    // 1. Find the lesson with the matching activation code
+    const lessonsRef = db.collection('lessons');
+    const lessonQuery = await lessonsRef.where('activationCode', '==', activationCode).limit(1).get();
+
+    if (lessonQuery.empty) {
+        await sendTelegramMessage(chatId, `❌ Neplatný aktivační kód. Zkontrolujte kód a zkuste to znovu.`);
+        throw new HttpsError("not-found", `Activation code ${activationCode} not found.`);
+    }
+
+    const lessonDoc = lessonQuery.docs[0];
+    const lessonId = lessonDoc.id;
+    const lessonTitle = lessonDoc.data().title;
+
+    // 2. Create or update the student document with their chat_id
+    const studentRef = db.collection('students').doc(studentId);
+    await studentRef.set({
+        telegramChatId: chatId,
+        telegramUsername: message.from.username || '',
+        lastSeen: new Date(),
+    }, { merge: true });
+
+    // 3. Create an activation record
+    const activationRef = db.collection('lessonActivations').doc(`${lessonId}_${studentId}`);
+    await activationRef.set({
+        lessonId: lessonId,
+        studentId: studentId,
+        activatedAt: new Date(),
+        isActive: true,
+    });
+
+    await sendTelegramMessage(chatId, `✅ Úspěšně jste aktivovali lekci "${lessonTitle}"! Nyní můžete komunikovat s profesorem.`);
+
+    return { status: "success", message: `Lesson ${lessonId} activated for student ${studentId}.` };
+});
+
+export const sendMessageToStudent = onCall({ region: "europe-west1" }, async (request) => {
+    const { studentId, lessonId, text } = request.data;
+    if (!studentId || !lessonId || !text) {
+        throw new HttpsError("invalid-argument", "The function must be called with 'studentId', 'lessonId', and 'text'.");
+    }
+
+    // 1. Check for active lesson activation
+    const activationRef = db.collection('lessonActivations').doc(`${lessonId}_${studentId}`);
+    const activationDoc = await activationRef.get();
+
+    if (!activationDoc.exists || !activationDoc.data()?.isActive) {
+        throw new HttpsError("failed-precondition", "Student does not have an active session for this lesson. They must activate it via the Telegram bot first.");
+    }
+
+    // 2. Get student's chat ID
+    const studentDoc = await db.collection('students').doc(studentId).get();
+    if (!studentDoc.exists) {
+        throw new HttpsError("not-found", "Student not found.");
+    }
+
+    const chatId = studentDoc.data()?.telegramChatId;
+    if (!chatId) {
+        throw new HttpsError("failed-precondition", "Student has not connected their Telegram account via the bot.");
+    }
+
+    // 3. Send the message
+    await sendTelegramMessage(chatId, text);
+
+    return { status: "success" };
 });
