@@ -1,127 +1,65 @@
-import {initializeApp} from "firebase-admin/app";
-import {onCall, onRequest} from "firebase-functions/v2/https";
-import {GoogleGenAI, HarmCategory, HarmBlockThreshold} from "@google/genai";
-import {getStorage} from "firebase-admin/storage";
-import {Response} from "firebase-functions/v1";
+import { initializeApp } from "firebase-admin/app";
+import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 initializeApp();
 
-// Initialize the new SDK. It should automatically use the project's
-// default credentials and location when deployed on Cloud Functions.
-const genAI = new GoogleGenAI();
+// --- AI Functions for the Application ---
 
-// --- AI Funkce pro aplikaci ---
+export const generateText = onCall({ region: "europe-west1" }, async (request) => {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const prompt = request.data.prompt;
 
-export const generateText = onCall({region: "europe-west1"}, async (request) => {
-  const model = "gemini-1.5-flash-001";
-  const generativeModel = genAI.getGenerativeModel({
-    model: model,
-    generationConfig: {
-      "maxOutputTokens": 8192,
-      "temperature": 1,
-      "topP": 0.95,
-    },
-    safetySettings: [
-      {
-        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-      },
-      {
-        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-      },
-      {
-        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-      },
-      {
-        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-      },
-    ],
-  });
-
-  const textPart = {
-    text: request.data.prompt,
-  };
-
-  try {
-    const result = await generativeModel.generateContent({
-      contents: [{role: "user", parts: [textPart]}],
-    });
-    return result.response;
-  } catch (error) {
-    console.error("Error generating text:", error);
-    throw new Error("Backend error: " + error);
-  }
-});
-
-export const generateJson = onCall({region: "europe-west1"}, async (request) => {
-  const model = "gemini-1.5-flash-001";
-  const generativeModel = genAI.getGenerativeModel({
-    model: model,
-    generationConfig: {
-      "responseMimeType": "application/json",
-      "maxOutputTokens": 8192,
-      "temperature": 1,
-      "topP": 0.95,
-    },
-    safetySettings: [],
-  });
-
-  const textPart = {
-    text: request.data.prompt,
-  };
-
-  try {
-    const result = await generativeModel.generateContent({
-      contents: [{role: "user", parts: [textPart]}],
-    });
-    return result.response;
-  } catch (error) {
-    console.error("Error generating JSON:", error);
-    throw new Error("Backend error: " + error);
-  }
-});
-
-export const generateFromDocument = onCall({region: "europe-west1"}, async (request) => {
-  const model = "gemini-1.5-flash-001";
-  const generativeModel = genAI.getGenerativeModel({
-    model: model,
-  });
-
-  const bucketName = "ai-sensei-czu-pilot.appspot.com";
-  const filePath = request.data.filePath;
-  const prompt = request.data.prompt;
-
-  const filePart = {
-    fileData: {
-      mimeType: "application/pdf",
-      fileUri: `gs://${bucketName}/${filePath}`,
-    },
-  };
-
-  try {
-    const bucket = getStorage().bucket(bucketName);
-    const file = bucket.file(filePath);
-    const [exists] = await file.exists();
-    if (!exists) {
-      throw new Error(`File not found at gs://${bucketName}/${filePath}`);
+    try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        return { text: response.text() };
+    } catch (error) {
+        console.error("Error generating text:", error);
+        const errorMessage = (error instanceof Error) ? error.message : "Unknown error";
+        throw new HttpsError("internal", "Error generating text: " + errorMessage);
     }
+});
 
-    const result = await generativeModel.generateContent({
-      contents: [{role: "user", parts: [filePart, {text: prompt}]}],
-    });
-    return result.response;
-  } catch (error) {
-    console.error("Error generating from document:", error);
-    throw new Error("Backend error: " + error);
-  }
+export const generateJson = onCall({ region: "europe-west1" }, async (request) => {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const prompt = request.data.prompt;
+
+    // Instruct the model to return JSON.
+    const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
+
+    try {
+        const result = await model.generateContent(jsonPrompt);
+        const response = await result.response;
+        const text = response.text();
+        return JSON.parse(text);
+    } catch (error) {
+        console.error("Error generating JSON:", error);
+        const errorMessage = (error instanceof Error) ? error.message : "Unknown error";
+        if (error instanceof SyntaxError) {
+             throw new HttpsError("internal", "Failed to parse JSON response from model.");
+        }
+        throw new HttpsError("internal", "Error generating JSON: " + errorMessage);
+    }
+});
+
+
+export const generateFromDocument = onCall({ region: "europe-west1" }, async (request) => {
+    // NOTE: The original implementation of this function relied on a feature
+    // of the newer `@google/genai` SDK that allowed passing a Google Cloud Storage
+    // URI directly to the model. The older `@google/generative-ai` SDK does not
+    // support this. To restore this functionality, the file would need to be
+    // downloaded from Storage and its content (e.g., text from a PDF) extracted
+    // before being sent to the model, which is beyond the scope of the current fix.
+    console.error("generateFromDocument is not implemented for this SDK version.");
+    throw new HttpsError("unimplemented", "Generating content from a document is not currently supported.");
 });
 
 // --- Placeholder funkce pro Telegram ---
 
-export const telegramWebhook = onRequest({region: "europe-west1"}, (req, res: Response) => {
+export const telegramWebhook = onRequest({region: "europe-west1"}, (req, res) => {
   console.log("Telegram webhook called with:", req.body);
   res.status(200).send("Webhook received!");
 });
