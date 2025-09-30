@@ -48,22 +48,26 @@ import { initializeUpload } from './upload-handler.js';
             const querySnapshot = await getDocs(lessonsCollection);
             if (querySnapshot.empty) {
                 console.log("Databáze lekcí je prázdná, nahrávám počáteční data...");
-                const initialLessons = [
-                    { title: 'Úvod do Kvantové Fyziky', subtitle: 'Základní principy', number: '101', creationDate: '2025-09-20', status: 'Aktivní', icon: '⚛️', content: 'Vítejte ve fascinujícím světě kvantové mechaniky!...' },
-                    { title: 'Historie Starověkého Říma', subtitle: 'Od republiky k císařství', number: '203', creationDate: '2025-09-18', status: 'Aktivní', icon: '🏛️', content: 'Dějiny starověkého Říma jsou příběhem...' },
-                    { title: 'Základy botaniky', subtitle: 'Fotosyntéza a růst', number: 'B05', creationDate: '2025-09-15', status: 'Naplánováno', icon: '🌱', content: 'Botanika je věda o rostlinách...' },
-                    { title: 'Shakespearova dramata', subtitle: 'Tragédie a komedie', number: 'LIT3', creationDate: '2025-09-12', status: 'Archivováno', icon: '🎭', content: 'William Shakespeare je považován za jednoho z největších dramatiků...'},
-                    { title: 'Neuronové sítě', subtitle: 'Úvod do hlubokého učení', number: 'AI-5', creationDate: '2025-09-21', status: 'Naplánováno', icon: '🧠', content: 'Neuronové sítě jsou základním stavebním kamenem moderní UI...' },
+                const initialLessons =  feat/lesson-crud
+                    { title: 'Úvod do Kvantové Fyziky', subtitle: 'Základní principy', number: '101', creationDate: '2025-09-20', status: 'Aktivní', icon: '⚛️', content: 'Vítejte ve fascinujícím světě kvantové mechaniky! Na rozdíl od klasické fyziky, která popisuje pohyb velkých objektů jako jsou planety nebo míče, kvantová mechanika se zabývá chováním hmoty a energie na atomární a subatomární úrovni. Jedním z klíčových a nejvíce matoucích principů je vlnově-korpuskulární dualismus, který říká, že částice jako elektrony se mohou chovat jednou jako částice a jindy jako vlny. Dalším stěžejním konceptem je princip superpozice. Představte si minci, která se točí ve vzduchu. Dokud nedopadne, není ani panna, ani orel - je v jakémsi stavu obou možností najednou. Podobně může být kvantová částice ve více stavech současně, dokud ji nezačneme měřit. Teprve měřením "donutíme" částici vybrat si jeden konkrétní stav.' },
+                    { title: 'Historie Starověkého Říma', subtitle: 'Od republiky k císařství', number: '203', creationDate: '2025-09-18', status: 'Aktivní', icon: '🏛️', content: 'Dějiny starověkého Říma jsou příběhem o vzestupu malé městské osady na Apeninském poloostrově v globální impérium. Počátky se datují do 8. století př. n. l. a končí pádem Západořímské říše v roce 476 n. l. Římská republika, založená kolem roku 509 př. n. l., byla charakteristická systémem volených magistrátů a silným senátem.' },
+                    { title: 'Základy botaniky', subtitle: 'Fotosyntéza a růst', number: 'B05', creationDate: '2025-09-15', status: 'Naplánováno', icon: '🌱', content: 'Botanika je věda o rostlinách. Klíčovým procesem pro život na Zemi je fotosyntéza, při které zelené rostliny využívají sluneční světlo, vodu a oxid uhličitý k výrobě glukózy (energie) a kyslíku. Tento proces probíhá v chloroplastech, které obsahují zelené barvivo chlorofyl.' },
+                    { title: 'Shakespearova dramata', subtitle: 'Tragédie a komedie', number: 'LIT3', creationDate: '2025-09-12', status: 'Archivováno', icon: '🎭', content: 'William Shakespeare je považován za jednoho z největších dramatiků všech dob. Jeho hry se dělí na tragédie (Hamlet, Romeo a Julie), komedie (Sen noci svatojánské) a historické hry. Jeho dílo je charakteristické komplexními postavami, poetickým jazykem a nadčasovými tématy lásky, zrady, moci a smrti.'},
+                    { title: 'Neuronové sítě', subtitle: 'Úvod do hlubokého učení', number: 'AI-5', creationDate: '2025-09-21', status: 'Naplánováno', icon: '🧠', content: 'Neuronové sítě jsou základním stavebním kamenem moderní umělé inteligence a hlubokého učení. Jsou inspirovány strukturou lidského mozku a skládají se z propojených uzlů neboli "neuronů", které zpracovávají a přenášejí informace. Učí se na základě velkých objemů dat tím, že upravují váhy spojení mezi neurony.' },
                 ];
                 for (const lesson of initialLessons) {
-                    await addDoc(lessonsCollection, { ...lesson, createdAt: serverTimestamp() });
+                    // We remove the 'id' field before adding, as Firestore will generate it.
+                    const { id, ...lessonData } = lesson;
+                    await addDoc(lessonsCollection, { ...lessonData, createdAt: serverTimestamp() });
                 }
-                // Po nahrání dat je znovu načteme
-                await fetchLessons();
-                return;
-            }
+                // After seeding, fetch the data again to get the generated IDs
+                const newQuerySnapshot = await getDocs(lessonsCollection);
+                lessonsData = newQuerySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-            lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } else {
+                 lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            }
+ main
             console.log("Lekce úspěšně načteny z Firestore:", lessonsData);
         } catch (error) {
             console.error("Chyba při načítání lekcí z Firestore: ", error);
@@ -82,11 +86,11 @@ import { initializeUpload } from './upload-handler.js';
     const appContainer = document.getElementById('app-container');
     
     // --- HLAVNÍ LOGIKA APLIKACE (ROUTER) ---
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
         if (user) {
             const role = sessionStorage.getItem('userRole');
             if (role) {
-                login(role);
+                await login(role);
             } else {
                 renderLogin();
             }
@@ -105,7 +109,7 @@ import { initializeUpload } from './upload-handler.js';
                     await signInAnonymously(auth);
                 }
                 sessionStorage.setItem('userRole', role);
-                login(role);
+                await login(role);
             } catch (error) {
                 console.error("Anonymous sign-in failed:", error);
                 alert("Přihlášení selhalo. Zkuste to prosím znovu.");
@@ -127,10 +131,12 @@ import { initializeUpload } from './upload-handler.js';
         }
     }
 
-    function login(role) {
+    async function login(role) {
         currentUserRole = role;
         appContainer.innerHTML = document.getElementById('main-app-template').innerHTML;
         document.getElementById('ai-assistant-btn').style.display = 'flex';
+
+        await fetchLessons(); // Fetch data before rendering role-specific UI
 
         if (role === 'professor') {
             setupProfessorNav();
@@ -201,9 +207,10 @@ import { initializeUpload } from './upload-handler.js';
         listEl.innerHTML = statuses.map(status => `
             <div class="p-2">
                 <h3 class="px-2 text-sm font-semibold text-slate-500 mb-2">${status}</h3>
-                ${lessonsData.filter(l => l.status === status).map(lesson => `
-                    <div class="lesson-bubble-in-library p-3 mb-2 rounded-lg flex items-center justify-between bg-white border border-slate-200 hover:shadow-md hover:border-green-500 transition-all" data-id="${lesson.id}" draggable="true">
-                        <div class="flex items-center space-x-3 cursor-pointer flex-grow">
+                ${lessonsData.filter(l => l.status === status).map(lesson => ` feat/lesson-crud
+                    <div class="lesson-bubble-in-library p-3 mb-2 rounded-lg flex items-center justify-between bg-white border border-slate-200 hover:shadow-md hover:border-green-500 transition-all" data-id="${lesson.id}">
+                        <div class="flex items-center space-x-3 cursor-pointer flex-grow" draggable="true">
+ main
                             <span class="text-2xl">${lesson.icon}</span>
                             <div>
                                 <span class="font-semibold text-sm text-slate-700">${lesson.title}</span>
@@ -219,9 +226,12 @@ import { initializeUpload } from './upload-handler.js';
         `).join('');
         
         container.querySelector('#create-new-lesson-btn').addEventListener('click', () => showProfessorContent('editor', null));
-        container.querySelectorAll('.lesson-bubble-in-library').forEach(el => {
-            // Attach click listener to the content part, not the whole bubble
-            el.querySelector('.flex-grow').addEventListener('click', () => {
+        container.querySelectorAll('.lesson-bubble-in-library').forEach(el => { feat/lesson-crud
+            const draggablePart = el.querySelector('[draggable="true"]');
+
+            // Attach click listener to the content part for editing
+            draggablePart.addEventListener('click', () => {
+ main
                 const lesson = lessonsData.find(l => l.id == el.dataset.id);
                 showProfessorContent('editor', lesson);
             });
@@ -234,13 +244,16 @@ import { initializeUpload } from './upload-handler.js';
                     const lessonId = e.currentTarget.dataset.id;
                     handleDeleteLesson(lessonId);
                 });
-            }
-
-            el.addEventListener('dragstart', (e) => {
-                e.target.classList.add('dragging');
-                e.dataTransfer.setData('lesson_id', e.target.dataset.id);
+            } feat/lesson-crud
+            // Attach drag-and-drop listeners
+            draggablePart.addEventListener('dragstart', (e) => {
+                e.currentTarget.closest('.lesson-bubble-in-library').classList.add('dragging');
+                e.dataTransfer.setData('lesson_id', el.dataset.id);
             });
-            el.addEventListener('dragend', (e) => e.target.classList.remove('dragging'));
+            draggablePart.addEventListener('dragend', (e) => {
+                e.currentTarget.closest('.lesson-bubble-in-library').classList.remove('dragging');
+ main
+            });
         });
     }
     
@@ -587,10 +600,15 @@ import { initializeUpload } from './upload-handler.js';
     }
 
     async function handleSaveLesson() {
-        const form = document.getElementById('lesson-details-form');
-        const title = form.querySelector('input[type="text"][placeholder^="Např."]').value;
-        const subtitle = form.querySelector('input[type="text"][placeholder^="Základní"]').value;
-        const number = form.querySelector('input[type="text"][placeholder^="Např. 101"]').value;
+        const form = document.getElementById('lesson-details-form'); feat/lesson-crud
+        const titleInput = form.querySelector('input[placeholder="Např. Úvod do organické chemie"]');
+        const subtitleInput = form.querySelector('input[placeholder="Základní pojmy a principy"]');
+        const numberInput = form.querySelector('input[placeholder="Např. 101"]');
+
+        const title = titleInput.value;
+        const subtitle = subtitleInput.value;
+        const number = numberInput.value;
+ main
 
         if (!title || !subtitle || !number) {
             alert('Vyplňte prosím všechna pole.');
@@ -634,6 +652,9 @@ import { initializeUpload } from './upload-handler.js';
                 const lessonRef = doc(db, 'lessons', lessonId);
                 await deleteDoc(lessonRef);
                 alert('Lekce byla úspěšně smazána.');
+ feat/lesson-crud
+                await fetchLessons(); // Re-fetch data to update the UI
+ main
                 showProfessorContent('timeline'); // Refresh the view
             } catch (error) {
                 console.error("Chyba při mazání lekce: ", error);
