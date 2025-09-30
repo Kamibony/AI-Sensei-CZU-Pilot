@@ -9,9 +9,11 @@ initializeApp();
 
 // --- AI Functions for the Application ---
 
+feature/update-firebase-functions
 // Initialize the single, shared Generative AI client
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
+ main
 
 
 export const generateText = onCall({ region: "europe-west1" }, async (request) => {
@@ -54,6 +56,8 @@ export const generateJson = onCall({ region: "europe-west1" }, async (request) =
 
 
 export const generateFromDocument = onCall({ region: "europe-west1" }, async (request) => {
+ feature/update-firebase-functions
+ main
     const { filePath, prompt } = request.data;
     if (!filePath || !prompt) {
         throw new HttpsError("invalid-argument", "The function must be called with 'filePath' and 'prompt' arguments.");
@@ -74,7 +78,9 @@ export const generateFromDocument = onCall({ region: "europe-west1" }, async (re
             throw new HttpsError("not-found", `File not found at path: ${filePath}`);
         }
 
+ feature/update-firebase-functions
         const result = await generativeModel.generateContent({
+ main
             contents: [{ role: "user", parts: [filePart, { text: prompt }] }],
         });
 
@@ -117,9 +123,11 @@ export const telegramWebhook = onCall({ region: "europe-west1" }, async (request
             chat_id: chatId,
             text: "Hello! You have been successfully connected to AI Sensei."
         });
+ feature/update-firebase-functions
 
         return { status: "success" };
 
+ main
     } catch (error) {
         console.error("Error saving chat ID:", error);
         throw new HttpsError("internal", "Could not save chat ID.");
