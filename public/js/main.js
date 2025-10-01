@@ -26,6 +26,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
 
     const generateTextFunction = httpsCallable(functions, 'generateText');
     const generateJsonFunction = httpsCallable(functions, 'generateJson');
+    const generateTelegramActivationCode = httpsCallable(functions, 'generateTelegramActivationCode');
 
     // --- API Volání ---
     async function callGeminiApi(prompt, systemInstruction = null) {
@@ -637,33 +638,53 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                         <div class="mt-6 border-t pt-6">
                             <h4 class="text-lg font-semibold text-slate-800 mb-2">Aktivační kód pro Telegram</h4>
                             <p class="text-sm text-slate-500 mb-2">Studenti použijí tento kód v Telegramu k aktivaci lekce a možnosti komunikace.</p>
-                            <input type="text" id="lesson-activation-code" class="w-full border-slate-300 rounded-lg p-2 mt-1 bg-slate-100 font-mono" readonly value="Generuji...">
+                            <div class="flex items-center space-x-4 mt-2">
+                                <button id="generate-telegram-code-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition transform hover:scale-105">Generovat kód pro Telegram</button>
+                                <span id="telegram-code-display" class="font-mono text-lg text-slate-700 bg-slate-100 px-4 py-2 rounded-lg"></span>
+                            </div>
                         </div>
 
                         <div class="text-right pt-4"><button id="save-lesson-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105">Uložit změny</button></div>
                     </div>`);
 
                 // --- Logic for Activation Code ---
-                if (currentLesson && currentLesson.id) {
-                    const codeInput = document.getElementById('lesson-activation-code');
-                    if (currentLesson.activationCode) {
-                        codeInput.value = currentLesson.activationCode;
-                    } else {
-                        // Generate, save, and display the code
-                        const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-                        const lessonRef = doc(db, 'lessons', currentLesson.id);
-                        updateDoc(lessonRef, { activationCode: newCode }).then(() => {
-                            codeInput.value = newCode;
-                            // Update the local data to prevent re-generation on next view
-                            currentLesson.activationCode = newCode;
-                        }).catch(err => {
-                            console.error("Error saving activation code:", err);
-                            codeInput.value = "Chyba při generování kódu";
-                        });
-                    }
+                const codeDisplay = document.getElementById('telegram-code-display');
+                const generateBtn = document.getElementById('generate-telegram-code-btn');
+
+                if (currentLesson?.telegramActivationCode) {
+                    codeDisplay.textContent = currentLesson.telegramActivationCode;
                 } else {
-                     document.getElementById('lesson-activation-code').value = "Uložte lekci pro vygenerování kódu.";
+                    codeDisplay.textContent = "Kód není vygenerován";
                 }
+
+                generateBtn.addEventListener('click', async () => {
+                    if (!currentLesson || !currentLesson.id) {
+                        alert("Před generováním kódu musíte lekci nejprve uložit.");
+                        return;
+                    }
+                    generateBtn.disabled = true;
+                    generateBtn.textContent = "Generuji...";
+                    try {
+                        const result = await generateTelegramActivationCode({ lessonId: currentLesson.id });
+                        const newCode = result.data.code;
+                        if (newCode) {
+                            codeDisplay.textContent = newCode;
+                            currentLesson.telegramActivationCode = newCode; // Update local state
+                            // Also update the main lessonsData array
+                            const lessonInArray = lessonsData.find(l => l.id === currentLesson.id);
+                            if (lessonInArray) {
+                                lessonInArray.telegramActivationCode = newCode;
+                            }
+                        }
+                    } catch (error) {
+                        console.error("Error generating Telegram code:", error);
+                        alert("Nepodařilo se vygenerovat kód. Zkuste to prosím znovu.");
+                        codeDisplay.textContent = "Chyba";
+                    } finally {
+                        generateBtn.disabled = false;
+                        generateBtn.textContent = "Generovat kód pro Telegram";
+                    }
+                });
                 break;
             case 'docs':
                 contentHTML = renderWrapper('Dokumenty k lekci', `
@@ -996,17 +1017,17 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             ` : '';
 
             return `
-                <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
+                <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
                     <div class="p-6">
                         <div class="flex items-start justify-between">
                             <div>
                                 <p class="text-sm font-semibold text-green-600">${lesson.number}</p>
-                                <h2 class="text-2xl font-bold text-slate-800 mt-1">${lesson.title}</h2>
-                                <p class="text-slate-500">${lesson.subtitle}</p>
+                                <h2 class="text-2xl font-bold text-slate-800 mt-1 pointer-events-none">${lesson.title}</h2>
+                                <p class="text-slate-500 pointer-events-none">${lesson.subtitle}</p>
                             </div>
-                            <span class="text-4xl">${lesson.icon}</span>
+                            <span class="text-4xl pointer-events-none">${lesson.icon}</span>
                         </div>
-                        <div class="mt-4 pt-4 border-t border-slate-200 prose prose-sm max-w-none text-slate-600">
+                        <div class="mt-4 pt-4 border-t border-slate-200 prose prose-sm max-w-none text-slate-600 pointer-events-none">
                             ${lesson.content}
                         </div>
                         ${activationHtml}
@@ -1021,17 +1042,26 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         mainContent.addEventListener('click', async (e) => {
             const codeButton = e.target.closest('.get-telegram-code-btn');
             const copyButton = e.target.closest('.copy-code-btn');
+            const lessonCard = e.target.closest('.student-lesson-card');
+
+            if (lessonCard) {
+                const lessonId = lessonCard.dataset.lessonId;
+                if (lessonId) {
+                    showStudentLesson(lessonId);
+                }
+                return; // Stop further processing if a lesson card was clicked
+            }
 
             if (codeButton) {
                 const lessonId = codeButton.dataset.lessonId;
                 const lesson = lessonsData.find(l => l.id === lessonId);
                 const codeDisplay = document.getElementById(`code-display-${lesson.id}`);
 
-                if (lesson && lesson.activationCode && codeDisplay) {
+                if (lesson && lesson.telegramActivationCode && codeDisplay) {
                     codeDisplay.innerHTML = `
                         <div class="bg-slate-100 p-3 rounded-lg flex items-center justify-between">
-                            <span class="font-mono text-lg text-slate-700">${lesson.activationCode}</span>
-                            <button class="copy-code-btn p-2 rounded-md hover:bg-slate-200" data-code="${lesson.activationCode}" title="Kopírovat kód">
+                            <span class="font-mono text-lg text-slate-700">${lesson.telegramActivationCode}</span>
+                            <button class="copy-code-btn p-2 rounded-md hover:bg-slate-200" data-code="${lesson.telegramActivationCode}" title="Kopírovat kód">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                             </button>
                         </div>
@@ -1054,6 +1084,49 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                 }
             }
         });
+    }
+
+    async function showStudentLesson(lessonId) {
+        const appContainer = document.getElementById('app-container');
+        const lessonView = document.getElementById('student-lesson-view');
+
+        if (!appContainer || !lessonView) {
+            console.error("Required view elements not found for showing lesson.");
+            return;
+        }
+
+        appContainer.classList.add('hidden');
+        lessonView.classList.remove('hidden');
+        lessonView.style.backgroundColor = '#111827'; // bg-gray-900 for the view background
+        lessonView.style.height = '100vh';
+        lessonView.style.overflowY = 'auto';
+
+        document.getElementById('student-lesson-title').textContent = 'Načítám lekci...';
+        document.getElementById('student-lesson-content').textContent = '';
+
+        try {
+            const lessonRef = doc(db, 'lessons', lessonId);
+            const lessonSnap = await getDoc(lessonRef);
+
+            if (lessonSnap.exists()) {
+                const lesson = lessonSnap.data();
+                document.getElementById('student-lesson-title').textContent = lesson.title;
+                document.getElementById('student-lesson-content').innerHTML = lesson.content ? lesson.content.replace(/\n/g, '<br>') : 'Tato lekce zatím nemá žádný obsah.';
+            } else {
+                document.getElementById('student-lesson-title').textContent = 'Chyba';
+                document.getElementById('student-lesson-content').textContent = 'Lekce nebyla nalezena.';
+            }
+        } catch (error) {
+            console.error("Error fetching lesson for student view:", error);
+            document.getElementById('student-lesson-title').textContent = 'Chyba';
+            document.getElementById('student-lesson-content').textContent = 'Nepodařilo se načíst obsah lekce.';
+        }
+
+        const backBtn = document.getElementById('back-to-student-dashboard-btn');
+        backBtn.addEventListener('click', () => {
+            lessonView.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+        }, { once: true });
     }
     
     // --- POMOCNÉ MODÁLY A SEKCE ---
@@ -1203,30 +1276,36 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     }
 
     async function showStudentDetail(studentId) {
-        const analysisView = document.getElementById('student-analysis-view');
+        const appContainer = document.getElementById('app-container');
         const detailView = document.getElementById('student-detail-view');
+        const aiAssistantBtn = document.getElementById('ai-assistant-btn');
 
-        if (!analysisView || !detailView) return;
+        if (!appContainer || !detailView) return;
 
-        analysisView.classList.add('hidden');
+        // Hide the main app container and the floating button
+        appContainer.classList.add('hidden');
+        if (aiAssistantBtn) aiAssistantBtn.classList.add('hidden');
+
+        // Show the detail view
         detailView.classList.remove('hidden');
-        detailView.innerHTML = '<p class="text-slate-500">Načítám detail studenta...</p>';
+        detailView.innerHTML = '<p class="text-slate-500 p-8">Načítám detail studenta...</p>';
 
         try {
             const studentRef = doc(db, 'students', studentId);
             const studentSnap = await getDoc(studentRef);
 
             if (!studentSnap.exists()) {
-                detailView.innerHTML = '<p class="text-red-500">Student nebyl nalezen.</p>';
+                detailView.innerHTML = '<p class="text-red-500 p-8">Student nebyl nalezen.</p>';
                 return;
             }
 
             const student = studentSnap.data();
             const registrationDate = student.createdAt?.toDate() ? student.createdAt.toDate().toLocaleDateString('cs-CZ') : 'Neznámé';
 
+            // The detail view now provides its own container styling, so we don't need the inner one.
             detailView.innerHTML = `
+                <button id="back-to-student-list" class="flex items-center text-sm text-green-700 hover:underline mb-4">&larr; Zpět na seznam studentů</button>
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <button id="back-to-student-list" class="flex items-center text-sm text-green-700 hover:underline mb-4">&larr; Zpět na seznam studentů</button>
                     <h2 class="text-3xl font-extrabold text-slate-800">${student.email}</h2>
                     <p class="text-slate-500 mt-1">Datum registrace: ${registrationDate}</p>
 
@@ -1242,10 +1321,11 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
 
             document.getElementById('back-to-student-list').addEventListener('click', () => {
                 detailView.classList.add('hidden');
-                analysisView.classList.remove('hidden');
+                appContainer.classList.remove('hidden');
+                if (aiAssistantBtn) aiAssistantBtn.classList.remove('hidden');
             });
         } catch (error) {
             console.error("Error fetching student detail:", error);
-            detailView.innerHTML = '<p class="text-red-500">Chyba při načítání detailu studenta.</p>';
+            detailView.innerHTML = '<p class.="text-red-500 p-8">Chyba při načítání detailu studenta.</p>';
         }
     }
