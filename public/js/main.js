@@ -17,7 +17,9 @@ import {
     deleteDoc,
     serverTimestamp,
     setDoc,
-    writeBatch
+    writeBatch,
+    query,
+    where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeUpload, initializeCourseMediaUpload } from './upload-handler.js';
 
@@ -88,11 +90,6 @@ import { initializeUpload, initializeCourseMediaUpload } from './upload-handler.
     }
 
 
-    let timelineData = JSON.parse(localStorage.getItem('ai-sensei-timeline-v8')) || {
-        "3": [],
-        "5": []
-    };
-    
     let currentUserRole = null;
     let currentLesson = null;
     const appContainer = document.getElementById('app-container');
@@ -127,11 +124,28 @@ import { initializeUpload, initializeCourseMediaUpload } from './upload-handler.
             }
         };
 
-        const handleStudentLoginRegister = async () => {
-            const emailInput = document.getElementById('student-email');
-            const passwordInput = document.getElementById('student-password');
-            const email = emailInput.value.trim();
-            const password = passwordInput.value.trim();
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const showRegisterLink = document.getElementById('show-register-form');
+        const showLoginLink = document.getElementById('show-login-form');
+
+        // Toggle form visibility
+        showRegisterLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            loginForm.classList.add('hidden');
+            registerForm.classList.remove('hidden');
+        });
+
+        showLoginLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            registerForm.classList.add('hidden');
+            loginForm.classList.remove('hidden');
+        });
+
+        // Handle student login
+        const handleStudentLogin = async () => {
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value.trim();
 
             if (!email || !password) {
                 alert('Prosím, zadejte email a heslo.');
@@ -139,41 +153,55 @@ import { initializeUpload, initializeCourseMediaUpload } from './upload-handler.
             }
 
             try {
-                // 1. Try to sign in
                 await signInWithEmailAndPassword(auth, email, password);
                 console.log('Student signed in successfully.');
                 sessionStorage.setItem('userRole', 'student');
                 await login('student');
             } catch (error) {
-                if (error.code === 'auth/user-not-found') {
-                    // 2. If user doesn't exist, try to create a new account
-                    try {
-                        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                        console.log('New student account created.');
-
-                        // 3. Create a corresponding document in 'students' collection
-                        await setDoc(doc(db, "students", userCredential.user.uid), {
-                            email: userCredential.user.email,
-                            createdAt: serverTimestamp()
-                        });
-                        console.log('Student document created in Firestore.');
-
-                        sessionStorage.setItem('userRole', 'student');
-                        await login('student');
-                    } catch (creationError) {
-                        console.error("Student account creation failed:", creationError);
-                        alert(`Registrace se nezdařila: ${creationError.message}`);
-                    }
+                console.error("Student sign-in failed:", error);
+                if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+                    alert('Přihlášení selhalo: Nesprávný email nebo heslo.');
                 } else {
-                    // Handle other sign-in errors (wrong password, etc.)
-                    console.error("Student sign-in failed:", error);
                     alert(`Přihlášení selhalo: ${error.message}`);
                 }
             }
         };
 
+        // Handle student registration
+        const handleStudentRegister = async () => {
+            const email = document.getElementById('register-email').value.trim();
+            const password = document.getElementById('register-password').value.trim();
+
+            if (!email || !password) {
+                alert('Prosím, zadejte email a heslo.');
+                return;
+            }
+
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                console.log('New student account created.');
+
+                await setDoc(doc(db, "students", userCredential.user.uid), {
+                    email: userCredential.user.email,
+                    createdAt: serverTimestamp()
+                });
+                console.log('Student document created in Firestore.');
+
+                sessionStorage.setItem('userRole', 'student');
+                await login('student');
+            } catch (error) {
+                console.error("Student account creation failed:", error);
+                if (error.code === 'auth/email-already-in-use') {
+                    alert('Registrace se nezdařila: Tento email je již používán.');
+                } else {
+                    alert(`Registrace se nezdařila: ${error.message}`);
+                }
+            }
+        };
+
         document.getElementById('login-professor').addEventListener('click', handleProfessorLogin);
-        document.getElementById('login-register-student').addEventListener('click', handleStudentLoginRegister);
+        document.getElementById('login-btn').addEventListener('click', handleStudentLogin);
+        document.getElementById('register-btn').addEventListener('click', handleStudentRegister);
     }
 
     async function logout() {
@@ -362,106 +390,188 @@ import { initializeUpload, initializeCourseMediaUpload } from './upload-handler.
             });
         });
 
-        // Initialize Sortable.js for each lesson group
+        // Initialize Sortable.js for each lesson group in the library
         container.querySelectorAll('.lesson-group').forEach(groupEl => {
             new Sortable(groupEl, {
+                group: {
+                    name: 'lessons',
+                    pull: 'clone',
+                    put: false // Do not allow items to be dropped back into this list
+                },
                 animation: 150,
-                ghostClass: 'blue-background-class',
-                onEnd: function (evt) {
-                    const lessonElements = evt.target.children;
-                    const batch = writeBatch(db);
-                    Array.from(lessonElements).forEach((el, index) => {
-                        const lessonId = el.dataset.id;
-                        if (lessonId) {
-                            const lessonRef = doc(db, 'lessons', lessonId);
-                            batch.update(lessonRef, { orderIndex: index });
-                        }
-                    });
-                    batch.commit().then(() => {
-                        console.log("New lesson order saved successfully.");
-                    }).catch(err => console.error("Error saving new lesson order:", err));
-                }
+                sort: false, // Disable sorting within the library
+                ghostClass: 'blue-background-class'
             });
         });
     }
     
-    function renderTimeline(container) {
+    async function renderTimeline(container) {
         container.innerHTML = `
             <header class="text-center p-6 border-b border-slate-200 bg-white">
                 <h1 class="text-3xl font-extrabold text-slate-800">Plán výuky</h1>
                 <p class="text-slate-500 mt-1">Naplánujte lekce přetažením z knihovny vlevo.</p>
             </header>
             <div class="flex-grow overflow-y-auto p-4 md:p-6">
-                <div class="bg-gradient-to-r from-green-600 to-green-800 text-white p-4 rounded-xl mb-6 shadow-lg">
-                    <h3 class="font-bold">💡 Tip od AI Sensei</h3>
-                    <p class="text-sm mt-1">Zvažte přidání krátkého opakovacího kvízu na začátek lekce 'Neuronové sítě' pro lepší zapojení studentů.</p>
-                </div>
                 <div id="timeline-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4"></div>
             </div>`;
-        
+
         const timelineContainer = container.querySelector('#timeline-container');
-        const startDate = new Date('2025-09-23T12:00:00Z');
-        
+        const startDate = new Date('2025-10-01T12:00:00Z'); // Consistent start date
+        const courseId = 'default-course'; // Placeholder
+
+        // 1. Fetch all timeline events for the course
+        const eventsCollection = collection(db, 'timeline_events');
+        const q = query(eventsCollection, where("courseId", "==", courseId));
+        const querySnapshot = await getDocs(q);
+        const timelineEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // 2. Create the day slots
         for (let i = 0; i < 10; i++) {
             const dayDate = new Date(startDate);
             dayDate.setDate(startDate.getDate() + i);
+            const dateString = dayDate.toISOString().split('T')[0]; // YYYY-MM-DD
+
             const dayWrapper = document.createElement('div');
             dayWrapper.className = 'day-slot bg-white rounded-xl p-3 border-2 border-transparent transition-colors min-h-[250px] shadow-sm flex flex-col';
-            dayWrapper.dataset.day = i + 1;
             
             const formattedDate = dayDate.toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'numeric' });
-            dayWrapper.innerHTML = `<div class="text-center pb-2 mb-2 border-b border-slate-200"><p class="font-bold text-slate-700">${formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1)}</p></div><div class="lessons-container flex-grow"></div>`;
+            dayWrapper.innerHTML = `<div class="text-center pb-2 mb-2 border-b border-slate-200"><p class="font-bold text-slate-700">${formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1)}</p></div><div class="lessons-container flex-grow" data-date="${dateString}"></div>`;
             
-            const lessonsCont = dayWrapper.querySelector('.lessons-container');
-            if (timelineData[i + 1]) {
-                timelineData[i + 1].forEach(lessonId => {
-                    const lesson = lessonsData.find(l => l.id == lessonId);
-                    if (lesson) lessonsCont.appendChild(createTimelineLessonElement(lesson));
-                });
-            }
             timelineContainer.appendChild(dayWrapper);
         }
-        addTimelineDragDropListeners();
+
+        // 3. Populate the day slots with events
+        timelineEvents.forEach(event => {
+            const lesson = lessonsData.find(l => l.id === event.lessonId);
+            if (lesson) {
+                const container = timelineContainer.querySelector(`.lessons-container[data-date="${event.scheduledDate}"]`);
+                if (container) {
+                    const lessonEl = createTimelineLessonElement(lesson, event.id);
+                    // Insert in correct order
+                    const existingLessons = Array.from(container.children);
+                    const insertBefore = existingLessons.find(el => parseInt(el.dataset.orderIndex) > event.orderIndex);
+                    if (insertBefore) {
+                        container.insertBefore(lessonEl, insertBefore);
+                    } else {
+                        container.appendChild(lessonEl);
+                    }
+                }
+            }
+        });
+
+        // 4. Initialize SortableJS for all timeline containers
+        initializeTimelineSortable();
     }
 
-    function createTimelineLessonElement(lesson) {
+    function createTimelineLessonElement(lesson, eventId) {
         const el = document.createElement('div');
-        el.className = 'lesson-bubble bg-green-100 text-green-800 p-3 m-1 rounded-lg shadow-sm flex items-center space-x-3 border border-green-200';
-        el.dataset.id = lesson.id;
-        el.draggable = true;
-        el.innerHTML = `<span class="text-xl">${lesson.icon}</span><span class="font-semibold text-sm">${lesson.title}</span>`;
+        el.className = 'lesson-bubble bg-green-100 text-green-800 p-3 m-1 rounded-lg shadow-sm flex items-center justify-between border border-green-200';
+        el.dataset.lessonId = lesson.id; // The original lesson ID
+        el.dataset.eventId = eventId;   // The ID of the document in timeline_events
+
+        el.innerHTML = `
+            <div class="flex items-center space-x-3 flex-grow">
+                <span class="text-xl">${lesson.icon}</span>
+                <span class="font-semibold text-sm">${lesson.title}</span>
+            </div>
+            <button class="delete-event-btn p-1 rounded-full hover:bg-red-200 text-slate-400 hover:text-red-600 transition-colors" title="Odebrat z plánu">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>`;
         
-        el.addEventListener('dragstart', (e) => {
+        // Add listener for the delete button on the event bubble
+        el.querySelector('.delete-event-btn').addEventListener('click', async (e) => {
             e.stopPropagation();
-            e.target.classList.add('dragging');
-            e.dataTransfer.setData('lesson_id', e.target.dataset.id);
-            e.dataTransfer.setData('original_day', e.target.closest('.day-slot').dataset.day);
+            const eventIdToDelete = el.dataset.eventId;
+            if (confirm('Opravdu chcete odebrat tuto lekci z plánu?')) {
+                try {
+                    await deleteDoc(doc(db, 'timeline_events', eventIdToDelete));
+                    el.remove(); // Remove from DOM
+                    // Note: Re-ordering other items is not strictly necessary but could be done
+                } catch (error) {
+                    console.error("Error deleting timeline event:", error);
+                    alert("Chyba při odstraňování události.");
+                }
+            }
         });
-        el.addEventListener('dragend', (e) => e.target.classList.remove('dragging'));
+
         return el;
     }
     
-    function addTimelineDragDropListeners() {
-        document.querySelectorAll('.day-slot').forEach(zone => {
-            zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-            zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-            zone.addEventListener('drop', e => {
-                e.preventDefault();
-                zone.classList.remove('drag-over');
-                const lessonId = e.dataTransfer.getData('lesson_id');
-                const newDay = zone.dataset.day;
-                const originalDay = e.dataTransfer.getData('original_day') ? e.dataTransfer.getData('original_day') : null;
+    function initializeTimelineSortable() {
+        const containers = document.querySelectorAll('#timeline-container .lessons-container');
 
-                if (originalDay && timelineData[originalDay]) {
-                    timelineData[originalDay] = timelineData[originalDay].filter(id => id != lessonId);
+        const updateFirestoreOrder = async (container) => {
+            const batch = writeBatch(db);
+            const children = container.children;
+            for (let i = 0; i < children.length; i++) {
+                const eventId = children[i].dataset.eventId;
+                if (eventId) {
+                    const eventRef = doc(db, 'timeline_events', eventId);
+                    batch.update(eventRef, { orderIndex: i });
                 }
-                if (!timelineData[newDay]) timelineData[newDay] = [];
-                if (!timelineData[newDay].includes(parseInt(lessonId))) {
-                    timelineData[newDay].push(parseInt(lessonId));
-                }
+            }
+            try {
+                await batch.commit();
+                console.log("Order updated successfully in Firestore.");
+            } catch (error) {
+                console.error("Failed to update order in Firestore:", error);
+            }
+        };
+
+        containers.forEach(container => {
+            new Sortable(container, {
+                group: 'lessons', // Allow receiving items from the library
+                animation: 150,
+                ghostClass: 'blue-background-class',
+                dragClass: 'dragging',
                 
-                localStorage.setItem('ai-sensei-timeline-v8', JSON.stringify(timelineData));
-                renderTimeline(document.getElementById('main-content-area'));
+                // Called when an item is dropped into a new list
+                onAdd: async function (evt) {
+                    const itemEl = evt.item; // The dropped element
+                    const toContainer = evt.to; // The new container
+                    const toDate = toContainer.dataset.date;
+                    const lessonId = itemEl.dataset.id || itemEl.dataset.lessonId; // Use data-id from library, data-lesson-id from timeline
+
+                    // If the item was moved from another timeline day, it will have an eventId.
+                    // We just need to update its date and the order of both old and new lists.
+                    if (itemEl.dataset.eventId) {
+                        const eventRef = doc(db, 'timeline_events', itemEl.dataset.eventId);
+                        await updateDoc(eventRef, { scheduledDate: toDate });
+                    } else {
+                        // This is a new item from the library. Create a new event.
+                        const newEvent = {
+                            lessonId: lessonId,
+                            courseId: 'default-course', // Placeholder
+                            scheduledDate: toDate,
+                            orderIndex: evt.newDraggableIndex,
+                            createdAt: serverTimestamp()
+                        };
+
+                        try {
+                            const docRef = await addDoc(collection(db, 'timeline_events'), newEvent);
+                            // Replace the original library item with a proper timeline event element
+                            const lesson = lessonsData.find(l => l.id === lessonId);
+                            const newTimelineEl = createTimelineLessonElement(lesson, docRef.id);
+                            toContainer.replaceChild(newTimelineEl, itemEl);
+                        } catch (error) {
+                            console.error("Error creating new timeline event:", error);
+                            itemEl.remove(); // Clean up on failure
+                        }
+                    }
+
+                    // Update order in the new list
+                    updateFirestoreOrder(toContainer);
+
+                    // If it was moved from another list, update the order in the old list too
+                    if (evt.from !== toContainer) {
+                        updateFirestoreOrder(evt.from);
+                    }
+                },
+
+                // Called when an item is sorted within the same list
+                onUpdate: function (evt) {
+                    updateFirestoreOrder(evt.from);
+                }
             });
         });
     }

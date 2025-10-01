@@ -73,10 +73,19 @@
                 <div class="space-y-4 pt-4">
                     <button id="login-professor" class="w-full flex items-center justify-center py-3 px-4 rounded-xl shadow-sm text-lg font-semibold text-white bg-green-700 hover:bg-green-800 transition-all duration-300 transform hover:scale-105">Vstoupit jako Profesor</button>
                     <div class="border-t border-slate-200 pt-4 mt-4">
-                        <div class="space-y-3">
-                            <input type="email" id="student-email" placeholder="Zadejte váš email" class="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-700 focus:ring-green-500 focus:border-green-500" required>
-                            <input type="password" id="student-password" placeholder="Zadejte vaše heslo" class="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-700 focus:ring-green-500 focus:border-green-500" required>
-                            <button id="login-register-student" class="w-full flex items-center justify-center py-3 px-4 rounded-xl shadow-sm text-lg font-semibold text-white bg-amber-800 hover:bg-amber-900 transition-all duration-300 transform hover:scale-105">Přihlásit / Registrovat se</button>
+                        <!-- Login Form -->
+                        <div id="login-form" class="space-y-3">
+                            <input type="email" id="login-email" placeholder="Zadejte váš email" class="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-700 focus:ring-green-500 focus:border-green-500" required>
+                            <input type="password" id="login-password" placeholder="Zadejte vaše heslo" class="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-700 focus:ring-green-500 focus:border-green-500" required>
+                            <button id="login-btn" class="w-full flex items-center justify-center py-3 px-4 rounded-xl shadow-sm text-lg font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all duration-300 transform hover:scale-105">Přihlásit</button>
+                            <a id="show-register-form" href="#" class="block text-center mt-4 text-sm text-slate-600 hover:underline">Nemáte účet? Zaregistrujte se</a>
+                        </div>
+                        <!-- Registration Form -->
+                        <div id="register-form" class="hidden space-y-3">
+                            <input type="email" id="register-email" placeholder="Zadejte váš email" class="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-700 focus:ring-green-500 focus:border-green-500" required>
+                            <input type="password" id="register-password" placeholder="Zadejte nové heslo" class="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-700 focus:ring-green-500 focus:border-green-500" required>
+                            <button id="register-btn" class="w-full flex items-center justify-center py-3 px-4 rounded-xl shadow-sm text-lg font-semibold text-white bg-green-700 hover:bg-green-800 transition-all duration-300 transform hover:scale-105">Zaregistrovat</button>
+                            <a id="show-login-form" href="#" class="block text-center mt-4 text-sm text-slate-600 hover:underline">Máte již účet? Přihlaste se</a>
                         </div>
                     </div>
                 </div>
