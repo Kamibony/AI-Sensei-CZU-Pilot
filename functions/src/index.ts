@@ -17,7 +17,7 @@ const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
 
 
 export const generateText = onCall(
-    { region: "europe-west1", cors: true },
+    { cors: true, region: "europe-west1" },
     async (request) => {
         const prompt = request.data.prompt;
 
@@ -39,7 +39,7 @@ export const generateText = onCall(
 );
 
 export const generateJson = onCall(
-    { region: "europe-west1", cors: true },
+    { cors: true, region: "europe-west1" },
     async (request) => {
         const prompt = request.data.prompt;
 
@@ -68,7 +68,7 @@ export const generateJson = onCall(
 
 
 export const generateFromDocument = onCall(
-    { region: "europe-west1", cors: true },
+    { cors: true, region: "europe-west1" },
     async (request) => {
         const { filePath, prompt } = request.data;
         if (!filePath || !prompt) {
@@ -108,7 +108,7 @@ export const generateFromDocument = onCall(
 );
 
 export const generateTelegramActivationCode = onCall(
-    { region: "europe-west1", cors: true },
+    { cors: true, region: "europe-west1" },
     async (request) => {
         const { lessonId } = request.data;
         if (!lessonId) {
@@ -151,7 +151,7 @@ async function sendTelegramMessage(chatId: string, text: string) {
 }
 
 export const telegramWebhook = onCall(
-    { region: "europe-west1", cors: true },
+    { cors: true, region: "europe-west1" },
     async (request) => {
         const message = request.data.message;
         if (!message || !message.text) {
@@ -200,7 +200,7 @@ export const telegramWebhook = onCall(
 );
 
 export const sendMessageToStudent = onCall(
-    { region: "europe-west1", cors: true },
+    { cors: true, region: "europe-west1" },
     async (request) => {
         const { studentId, lessonId, text } = request.data;
         if (!studentId || !lessonId || !text) {
@@ -230,5 +230,49 @@ export const sendMessageToStudent = onCall(
         await sendTelegramMessage(chatId, text);
 
         return { status: "success" };
+    }
+);
+
+export const sendMessageToProfessor = onCall(
+    { cors: true, region: "europe-west1" },
+    async (request) => {
+        const { lessonId, text } = request.data;
+        const studentId = request.auth?.uid;
+
+        if (!studentId) {
+            throw new HttpsError("unauthenticated", "The user is not authenticated.");
+        }
+        if (!lessonId || !text) {
+            throw new HttpsError("invalid-argument", "The function must be called with 'lessonId' and 'text'.");
+        }
+
+        // For this simple case, we assume a single professor and hardcode their chat ID.
+        // In a real application, you would look this up, perhaps from a 'courses' or 'professors' collection.
+        const professorTelegramChatId = process.env.PROFESSOR_TELEGRAM_CHAT_ID;
+        if (!professorTelegramChatId) {
+            console.error("PROFESSOR_TELEGRAM_CHAT_ID is not set in environment variables.");
+            throw new HttpsError("internal", "The professor's chat ID is not configured.");
+        }
+
+        // Optional: Fetch student and lesson details to make the message more informative for the professor.
+        const studentDoc = await db.collection('students').doc(studentId).get();
+        const lessonDoc = await db.collection('lessons').doc(lessonId).get();
+
+        const studentEmail = studentDoc.exists() ? studentDoc.data()?.email : `Student ID: ${studentId}`;
+        const lessonTitle = lessonDoc.exists() ? lessonDoc.data()?.title : `Lekce ID: ${lessonId}`;
+
+        const messageToProfessor = `
+        📬 *Nová zpráva od studenta*
+
+        *Student:* ${studentEmail}
+        *Lekce:* ${lessonTitle}
+
+        *Zpráva:*
+        ${text}
+        `;
+
+        await sendTelegramMessage(professorTelegramChatId, messageToProfessor);
+
+        return { status: "success", message: "Message sent to professor." };
     }
 );
