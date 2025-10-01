@@ -7,6 +7,8 @@ import axios from 'axios';
 
 initializeApp();
 
+const db = getFirestore();
+
 // --- AI Functions for the Application ---
 
 // Initialize the single, shared Generative AI client
@@ -87,8 +89,30 @@ export const generateFromDocument = onCall({ region: "europe-west1" }, async (re
     }
 });
 
+export const generateTelegramActivationCode = onCall({ region: "europe-west1" }, async (request) => {
+    const { lessonId } = request.data;
+    if (!lessonId) {
+        throw new HttpsError("invalid-argument", "The function must be called with a 'lessonId'.");
+    }
+
+    // Generate a unique, random 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    try {
+        const lessonRef = db.collection('lessons').doc(lessonId);
+        await lessonRef.update({ telegramActivationCode: code });
+
+        console.log(`Generated and saved Telegram activation code ${code} for lesson ${lessonId}`);
+        return { code };
+
+    } catch (error) {
+        console.error(`Error saving Telegram activation code for lesson ${lessonId}:`, error);
+        throw new HttpsError("internal", "Could not update the lesson with the new activation code.");
+    }
+});
+
+
 // --- Telegram Bot Functions ---
-const db = getFirestore();
 const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
 async function sendTelegramMessage(chatId: string, text: string) {
