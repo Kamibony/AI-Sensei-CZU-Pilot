@@ -258,8 +258,8 @@ export const sendMessageToProfessor = onCall(
         const studentDoc = await db.collection('students').doc(studentId).get();
         const lessonDoc = await db.collection('lessons').doc(lessonId).get();
 
-        const studentEmail = studentDoc.exists() ? studentDoc.data()?.email : `Student ID: ${studentId}`;
-        const lessonTitle = lessonDoc.exists() ? lessonDoc.data()?.title : `Lekce ID: ${lessonId}`;
+        const studentEmail = studentDoc.exists ? studentDoc.data()?.email : `Student ID: ${studentId}`;
+        const lessonTitle = lessonDoc.exists ? lessonDoc.data()?.title : `Lekce ID: ${lessonId}`;
 
         const messageToProfessor = `
         📬 *Nová zpráva od studenta*
