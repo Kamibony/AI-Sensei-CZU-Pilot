@@ -624,6 +624,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         
         const renderWrapper = (title, content) => `<h2 class="text-3xl font-extrabold text-slate-800 mb-6">${title}</h2><div class="bg-white p-6 rounded-2xl shadow-lg">${content}</div>`;
         
+        // Step 1: Generate the HTML string for the view
         switch(viewId) {
             case 'details':
                 contentHTML = renderWrapper('Detaily lekce', `
@@ -646,45 +647,6 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
 
                         <div class="text-right pt-4"><button id="save-lesson-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105">Uložit změny</button></div>
                     </div>`);
-
-                // --- Logic for Activation Code ---
-                const codeDisplay = document.getElementById('telegram-code-display');
-                const generateBtn = document.getElementById('generate-telegram-code-btn');
-
-                if (currentLesson?.telegramActivationCode) {
-                    codeDisplay.textContent = currentLesson.telegramActivationCode;
-                } else {
-                    codeDisplay.textContent = "Kód není vygenerován";
-                }
-
-                generateBtn.addEventListener('click', async () => {
-                    if (!currentLesson || !currentLesson.id) {
-                        alert("Před generováním kódu musíte lekci nejprve uložit.");
-                        return;
-                    }
-                    generateBtn.disabled = true;
-                    generateBtn.textContent = "Generuji...";
-                    try {
-                        const result = await generateTelegramActivationCode({ lessonId: currentLesson.id });
-                        const newCode = result.data.code;
-                        if (newCode) {
-                            codeDisplay.textContent = newCode;
-                            currentLesson.telegramActivationCode = newCode; // Update local state
-                            // Also update the main lessonsData array
-                            const lessonInArray = lessonsData.find(l => l.id === currentLesson.id);
-                            if (lessonInArray) {
-                                lessonInArray.telegramActivationCode = newCode;
-                            }
-                        }
-                    } catch (error) {
-                        console.error("Error generating Telegram code:", error);
-                        alert("Nepodařilo se vygenerovat kód. Zkuste to prosím znovu.");
-                        codeDisplay.textContent = "Chyba";
-                    } finally {
-                        generateBtn.disabled = false;
-                        generateBtn.textContent = "Generovat kód pro Telegram";
-                    }
-                });
                 break;
             case 'docs':
                 contentHTML = renderWrapper('Dokumenty k lekci', `
@@ -694,13 +656,6 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                     <div id="upload-progress" class="mt-4 space-y-2"></div>
                     <h3 class="font-bold text-slate-700 mt-6 mb-2">Nahrané soubory:</h3>
                     <ul id="documents-list" class="space-y-2"><li>Načítám...</li></ul>`);
-                
-                setTimeout(() => {
-                    if (typeof initializeUpload === 'function') {
-                        // The function now imports db and storage, so we don't pass them.
-                        initializeUpload(currentLesson);
-                    }
-                }, 0);
                 break;
             case 'text':
                 contentHTML = renderWrapper('Text pro studenty', `
@@ -805,10 +760,58 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             default:
                 contentHTML = renderWrapper(viewId, `<div class="text-center p-8 text-slate-400">Tato sekce se připravuje.</div>`);
         }
+
+        // Step 2: Render the HTML to the DOM
         container.innerHTML = contentHTML;
 
+        // Step 3: Execute JS logic that depends on the now-rendered DOM
         if (viewId === 'details') {
             document.getElementById('save-lesson-btn').addEventListener('click', handleSaveLesson);
+
+            const codeDisplay = document.getElementById('telegram-code-display');
+            const generateBtn = document.getElementById('generate-telegram-code-btn');
+
+            if (currentLesson?.telegramActivationCode) {
+                codeDisplay.textContent = currentLesson.telegramActivationCode;
+            } else {
+                codeDisplay.textContent = "Kód není vygenerován";
+            }
+
+            generateBtn.addEventListener('click', async () => {
+                if (!currentLesson || !currentLesson.id) {
+                    alert("Před generováním kódu musíte lekci nejprve uložit.");
+                    return;
+                }
+                generateBtn.disabled = true;
+                generateBtn.textContent = "Generuji...";
+                try {
+                    const result = await generateTelegramActivationCode({ lessonId: currentLesson.id });
+                    const newCode = result.data.code;
+                    if (newCode) {
+                        codeDisplay.textContent = newCode;
+                        currentLesson.telegramActivationCode = newCode; // Update local state
+                        const lessonInArray = lessonsData.find(l => l.id === currentLesson.id);
+                        if (lessonInArray) {
+                            lessonInArray.telegramActivationCode = newCode;
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error generating Telegram code:", error);
+                    alert("Nepodařilo se vygenerovat kód. Zkuste to prosím znovu.");
+                    codeDisplay.textContent = "Chyba";
+                } finally {
+                    generateBtn.disabled = false;
+                    generateBtn.textContent = "Generovat kód pro Telegram";
+                }
+            });
+        }
+
+        if (viewId === 'docs') {
+             setTimeout(() => {
+                if (typeof initializeUpload === 'function') {
+                    initializeUpload(currentLesson);
+                }
+            }, 0);
         }
         
         if (viewId === 'video') {
@@ -826,6 +829,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
 
         const generateBtn = document.getElementById('generate-btn');
         if (generateBtn) {
+            // This listener setup can be generalized for all generator views
             generateBtn.addEventListener('click', async () => {
                 const outputEl = document.getElementById('generation-output');
                 const promptInput = document.getElementById('prompt-input');
@@ -844,6 +848,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
 
                 let result;
                 try {
+                    // This switch is now only for the API call logic
                     switch(viewId) {
                          case 'text':
                             const length = document.getElementById('length-select').value;
@@ -1087,22 +1092,28 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     }
 
     async function showStudentLesson(lessonId) {
-        const appContainer = document.getElementById('app-container');
+        const mainAppTemplate = document.querySelector('template#main-app-template').parentElement;
         const lessonView = document.getElementById('student-lesson-view');
+        const aiAssistantBtn = document.getElementById('ai-assistant-btn');
 
-        if (!appContainer || !lessonView) {
+
+        if (!mainAppTemplate || !lessonView) {
             console.error("Required view elements not found for showing lesson.");
             return;
         }
 
-        appContainer.classList.add('hidden');
+        // Hide main app view and show the lesson view
+        mainAppTemplate.classList.add('hidden');
+        if(aiAssistantBtn) aiAssistantBtn.classList.add('hidden');
         lessonView.classList.remove('hidden');
-        lessonView.style.backgroundColor = '#111827'; // bg-gray-900 for the view background
-        lessonView.style.height = '100vh';
-        lessonView.style.overflowY = 'auto';
+        lessonView.classList.add('view-transition');
 
-        document.getElementById('student-lesson-title').textContent = 'Načítám lekci...';
-        document.getElementById('student-lesson-content').textContent = '';
+
+        const titleEl = document.getElementById('student-lesson-title');
+        const contentEl = document.getElementById('student-lesson-content');
+
+        titleEl.textContent = 'Načítám lekci...';
+        contentEl.innerHTML = '<div class="p-8 text-center pulse-loader text-slate-400">Načítání obsahu...</div>';
 
         try {
             const lessonRef = doc(db, 'lessons', lessonId);
@@ -1110,22 +1121,24 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
 
             if (lessonSnap.exists()) {
                 const lesson = lessonSnap.data();
-                document.getElementById('student-lesson-title').textContent = lesson.title;
-                document.getElementById('student-lesson-content').innerHTML = lesson.content ? lesson.content.replace(/\n/g, '<br>') : 'Tato lekce zatím nemá žádný obsah.';
+                titleEl.textContent = lesson.title;
+                // Replace newlines with <br> for proper HTML rendering and handle empty content
+                contentEl.innerHTML = lesson.content ? lesson.content.replace(/\n/g, '<br>') : '<p>Tato lekce zatím nemá žádný obsah.</p>';
             } else {
-                document.getElementById('student-lesson-title').textContent = 'Chyba';
-                document.getElementById('student-lesson-content').textContent = 'Lekce nebyla nalezena.';
+                titleEl.textContent = 'Chyba';
+                contentEl.innerHTML = '<p>Lekce nebyla nalezena.</p>';
             }
         } catch (error) {
             console.error("Error fetching lesson for student view:", error);
-            document.getElementById('student-lesson-title').textContent = 'Chyba';
-            document.getElementById('student-lesson-content').textContent = 'Nepodařilo se načíst obsah lekce.';
+            titleEl.textContent = 'Chyba';
+            contentEl.textContent = 'Nepodařilo se načíst obsah lekce.';
         }
 
         const backBtn = document.getElementById('back-to-student-dashboard-btn');
         backBtn.addEventListener('click', () => {
             lessonView.classList.add('hidden');
-            appContainer.classList.remove('hidden');
+            mainAppTemplate.classList.remove('hidden');
+            if(aiAssistantBtn) aiAssistantBtn.classList.remove('hidden');
         }, { once: true });
     }
     

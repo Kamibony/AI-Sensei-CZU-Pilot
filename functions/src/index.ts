@@ -12,8 +12,8 @@ const db = getFirestore();
 // --- AI Functions for the Application ---
 
 // Initialize the single, shared Generative AI client
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
 
 
 export const generateText = onCall({ region: "europe-west1" }, async (request) => {
