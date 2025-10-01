@@ -340,15 +340,19 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             </div>`;
 
         const listEl = container.querySelector('#lesson-library-list');
-        const statuses = ['Aktivní', 'Naplánováno', 'Archivováno'];
-        // Sort lessons by orderIndex before rendering
+        const statuses = [
+            { name: 'Naplánováno', id: 'lessons-scheduled' },
+            { name: 'Aktivní', id: 'lessons-active' },
+            { name: 'Archivováno', id: 'lessons-archived' }
+        ];
+
         lessonsData.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
 
-        listEl.innerHTML = statuses.map(status => `
+        listEl.innerHTML = statuses.map(statusInfo => `
             <div class="p-2">
-                <h3 class="px-2 text-sm font-semibold text-slate-500 mb-2">${status}</h3>
-                <div class="lesson-group" data-status="${status}">
-                ${lessonsData.filter(l => l.status === status).map(lesson => `
+                <h3 class="px-2 text-sm font-semibold text-slate-500 mb-2">${statusInfo.name}</h3>
+                <div id="${statusInfo.id}" class="lesson-group min-h-[100px] p-2 bg-slate-50 rounded-lg border border-dashed border-slate-200" data-status="${statusInfo.name}">
+                ${lessonsData.filter(l => l.status === statusInfo.name).map(lesson => `
                     <div class="lesson-bubble-in-library p-3 mb-2 rounded-lg flex items-center justify-between bg-white border border-slate-200 hover:shadow-md hover:border-green-500 transition-all" data-id="${lesson.id}">
                         <div class="flex items-center space-x-3 cursor-pointer flex-grow" draggable="true">
                             <span class="text-2xl">${lesson.icon}</span>
@@ -361,7 +365,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                         </button>
                     </div>
-                `).join('') || `<p class="px-2 text-xs text-slate-400">Žádné lekce.</p>`}
+                `).join('') || `<p class="px-2 text-xs text-slate-400 italic">Žádné lekce v tomto stavu.</p>`}
                 </div>
             </div>
         `).join('');
@@ -400,13 +404,54 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         container.querySelectorAll('.lesson-group').forEach(groupEl => {
             new Sortable(groupEl, {
                 group: {
-                    name: 'lessons',
-                    pull: 'clone',
-                    put: false // Do not allow items to be dropped back into this list
+                    name: 'lesson-status',
+                    pull: function (to, from) {
+                        const toGroupName = to.options.group.name;
+                        const fromGroupEl = from.el;
+
+                        // When dragging to the timeline for scheduling
+                        if (toGroupName === 'timeline-events') {
+                            // Only allow CLONING from the 'Aktivní' column.
+                            // Disallow dragging from any other status column to the timeline.
+                            return fromGroupEl.id === 'lessons-active' ? 'clone' : false;
+                        }
+
+                        // When dragging between status columns, allow MOVE.
+                        return true;
+                    },
+                    put: true // Allow dropping into any status column to change status
                 },
                 animation: 150,
-                sort: false, // Disable sorting within the library
-                ghostClass: 'blue-background-class'
+                sort: true,
+                ghostClass: 'blue-background-class',
+                onAdd: async function (evt) {
+                    const itemEl = evt.item;
+                    const lessonId = itemEl.dataset.id;
+                    const toContainer = evt.to;
+                    const newStatus = toContainer.dataset.status;
+
+                    // This event only fires for status changes, not for cloning to the timeline
+                    if (!lessonId || !newStatus) {
+                        console.error("Could not find lesson ID or new status on drop.");
+                        return;
+                    }
+
+                    const lessonRef = doc(db, 'lessons', lessonId);
+                    try {
+                        await updateDoc(lessonRef, { status: newStatus });
+                        console.log(`Lesson ${lessonId} status updated to ${newStatus}`);
+
+                        const lessonInData = lessonsData.find(l => l.id === lessonId);
+                        if (lessonInData) {
+                            lessonInData.status = newStatus;
+                        }
+
+                    } catch (error) {
+                        console.error("Error updating lesson status:", error);
+                        evt.from.appendChild(itemEl);
+                        alert("Došlo k chybě při změně stavu lekce.");
+                    }
+                }
             });
         });
     }
@@ -526,7 +571,10 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
 
         containers.forEach(container => {
             new Sortable(container, {
-                group: 'lessons', // Allow receiving items from the library
+                group: {
+                    name: 'timeline-events',
+                    put: ['lesson-status'] // Accept lessons from status columns
+                },
                 animation: 150,
                 ghostClass: 'blue-background-class',
                 dragClass: 'dragging',
@@ -775,6 +823,13 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                 codeDisplay.textContent = currentLesson.telegramActivationCode;
             } else {
                 codeDisplay.textContent = "Kód není vygenerován";
+            }
+
+            // Disable button if the lesson is not 'Aktivní'
+            if (!currentLesson || currentLesson.status !== 'Aktivní') {
+                generateBtn.disabled = true;
+                generateBtn.title = "Kód lze generovat pouze pro aktivní lekce.";
+                generateBtn.classList.add('opacity-50', 'cursor-not-allowed');
             }
 
             generateBtn.addEventListener('click', async () => {
@@ -1092,22 +1147,20 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     }
 
     async function showStudentLesson(lessonId) {
-        const mainAppTemplate = document.querySelector('template#main-app-template').parentElement;
+        const mainAppView = document.getElementById('app-container'); // Correct container for the main app
         const lessonView = document.getElementById('student-lesson-view');
         const aiAssistantBtn = document.getElementById('ai-assistant-btn');
 
-
-        if (!mainAppTemplate || !lessonView) {
+        if (!mainAppView || !lessonView) {
             console.error("Required view elements not found for showing lesson.");
             return;
         }
 
         // Hide main app view and show the lesson view
-        mainAppTemplate.classList.add('hidden');
-        if(aiAssistantBtn) aiAssistantBtn.classList.add('hidden');
+        mainAppView.classList.add('hidden');
+        if (aiAssistantBtn) aiAssistantBtn.classList.add('hidden');
         lessonView.classList.remove('hidden');
         lessonView.classList.add('view-transition');
-
 
         const titleEl = document.getElementById('student-lesson-title');
         const contentEl = document.getElementById('student-lesson-content');
@@ -1122,7 +1175,6 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             if (lessonSnap.exists()) {
                 const lesson = lessonSnap.data();
                 titleEl.textContent = lesson.title;
-                // Replace newlines with <br> for proper HTML rendering and handle empty content
                 contentEl.innerHTML = lesson.content ? lesson.content.replace(/\n/g, '<br>') : '<p>Tato lekce zatím nemá žádný obsah.</p>';
             } else {
                 titleEl.textContent = 'Chyba';
@@ -1137,8 +1189,8 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         const backBtn = document.getElementById('back-to-student-dashboard-btn');
         backBtn.addEventListener('click', () => {
             lessonView.classList.add('hidden');
-            mainAppTemplate.classList.remove('hidden');
-            if(aiAssistantBtn) aiAssistantBtn.classList.remove('hidden');
+            mainAppView.classList.remove('hidden');
+            if (aiAssistantBtn) aiAssistantBtn.classList.remove('hidden');
         }, { once: true });
     }
     
