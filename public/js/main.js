@@ -1147,7 +1147,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     }
 
     async function showStudentLesson(lessonId) {
-        const mainAppView = document.getElementById('app-container'); // Correct container for the main app
+        const mainAppView = document.getElementById('app-container');
         const lessonView = document.getElementById('student-lesson-view');
         const aiAssistantBtn = document.getElementById('ai-assistant-btn');
 
@@ -1162,11 +1162,27 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         lessonView.classList.remove('hidden');
         lessonView.classList.add('view-transition');
 
+        // Get all the new elements
         const titleEl = document.getElementById('student-lesson-title');
-        const contentEl = document.getElementById('student-lesson-content');
+        const textContentEl = document.getElementById('lesson-text-content');
+        const videoContentEl = document.getElementById('lesson-video-content');
+        const podcastContentEl = document.getElementById('lesson-podcast-content');
 
+        // Get section wrappers to hide them if content is missing
+        const textSection = document.getElementById('lesson-text-section');
+        const videoSection = document.getElementById('lesson-video-section');
+        const podcastSection = document.getElementById('lesson-podcast-section');
+
+        // Initial loading state
         titleEl.textContent = 'Načítám lekci...';
-        contentEl.innerHTML = '<div class="p-8 text-center pulse-loader text-slate-400">Načítání obsahu...</div>';
+        textContentEl.innerHTML = '<div class="p-8 text-center pulse-loader text-slate-500">Načítání obsahu...</div>';
+        videoContentEl.innerHTML = '<p class="text-slate-400">Načítání videa...</p>';
+        podcastContentEl.innerHTML = '<p class="text-slate-400">Načítání podcastů...</p>';
+
+        // Hide all sections initially, they will be shown if content exists
+        if(textSection) textSection.style.display = 'none';
+        if(videoSection) videoSection.style.display = 'none';
+        if(podcastSection) podcastSection.style.display = 'none';
 
         try {
             const lessonRef = doc(db, 'lessons', lessonId);
@@ -1175,15 +1191,38 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             if (lessonSnap.exists()) {
                 const lesson = lessonSnap.data();
                 titleEl.textContent = lesson.title;
-                contentEl.innerHTML = lesson.content ? lesson.content.replace(/\n/g, '<br>') : '<p>Tato lekce zatím nemá žádný obsah.</p>';
+
+                // 1. Populate Text Content
+                if (lesson.content) {
+                    textContentEl.innerHTML = lesson.content.replace(/\n/g, '<br>');
+                    if(textSection) textSection.style.display = 'block';
+                }
+
+                // 2. Populate Video Content (assuming 'videoUrl' field)
+                if (lesson.videoUrl) {
+                    const videoId = lesson.videoUrl.split('v=')[1]?.split('&')[0];
+                    if (videoId) {
+                        videoContentEl.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe>`;
+                        if(videoSection) videoSection.style.display = 'block';
+                    }
+                }
+
+                // 3. Populate Podcast Content (assuming 'podcastUrl' field)
+                if (lesson.podcastUrl) {
+                    podcastContentEl.innerHTML = `<iframe style="border-radius:12px" src="${lesson.podcastUrl}" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+                    if(podcastSection) podcastSection.style.display = 'block';
+                }
+
             } else {
                 titleEl.textContent = 'Chyba';
-                contentEl.innerHTML = '<p>Lekce nebyla nalezena.</p>';
+                textContentEl.innerHTML = '<p>Lekce nebyla nalezena.</p>';
+                if(textSection) textSection.style.display = 'block';
             }
         } catch (error) {
             console.error("Error fetching lesson for student view:", error);
             titleEl.textContent = 'Chyba';
-            contentEl.textContent = 'Nepodařilo se načíst obsah lekce.';
+            textContentEl.innerHTML = 'Nepodařilo se načíst obsah lekce.';
+            if(textSection) textSection.style.display = 'block';
         }
 
         const backBtn = document.getElementById('back-to-student-dashboard-btn');
