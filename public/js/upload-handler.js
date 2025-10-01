@@ -3,7 +3,7 @@ import { db, storage } from './firebase-init.js';
 
 // Import specific functions we need from the SDKs
 import { collection, getDocs, query, orderBy, doc, addDoc, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { ref, uploadBytes, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { ref, uploadBytes, deleteObject, listAll, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 // The function no longer needs db and storage passed in, as it imports them directly.
 export function initializeUpload(lesson) {
@@ -126,9 +126,8 @@ export function initializeCourseMediaUpload(courseId) {
         for (const file of files) {
             await uploadCourseFile(file, courseId);
         }
-        // After upload, you would typically refresh the list of media.
-        // For now, we'll just log it.
-        console.log('Upload complete for all files.');
+        // After uploads are done, refresh the list.
+        await renderMediaLibraryFiles(courseId);
     };
 
     uploadArea.onclick = () => fileInput.click();
@@ -141,29 +140,84 @@ export function initializeCourseMediaUpload(courseId) {
         uploadArea.classList.remove('drag-over-file');
         handleFiles(e.dataTransfer.files);
     };
+
+    // The initial render is now triggered from main.js
 }
 
 async function uploadCourseFile(file, courseId) {
     const mediaList = document.getElementById('course-media-list');
-    const tempId = `file-${Date.now()}`;
-    const listItem = document.createElement('li');
-    listItem.id = tempId;
-    listItem.textContent = `Nahrávám: ${file.name}...`;
-    listItem.className = 'text-sm text-slate-600';
-    mediaList.appendChild(listItem);
+    const tempId = `file-progress-${Date.now()}`;
+    // Use a temporary list item for upload progress
+    const progressItem = document.createElement('li');
+    progressItem.id = tempId;
+    progressItem.textContent = `Nahrávám: ${file.name}...`;
+    progressItem.className = 'text-sm text-slate-600 p-2';
+    mediaList.appendChild(progressItem);
 
     try {
         const storageRef = ref(storage, `courses/${courseId}/media/${file.name}`);
         await uploadBytes(storageRef, file);
-
-        // In a real app, you might save file metadata to Firestore here as well.
-        // For this task, just uploading to storage is sufficient.
-
-        document.getElementById(tempId).textContent = `✅ Nahráno: ${file.name}`;
+        // Remove the progress indicator on success. The list will be refreshed.
+        progressItem.remove();
     } catch (error) {
         console.error("Chyba při nahrávání souboru kurzu:", error);
         const errorItem = document.getElementById(tempId);
-        errorItem.textContent = `Chyba při nahrávání ${file.name}.`;
-        errorItem.classList.add('text-red-600');
+        if (errorItem) {
+            errorItem.textContent = `Chyba při nahrávání ${file.name}.`;
+            errorItem.classList.add('text-red-600');
+        }
+    }
+}
+
+export async function renderMediaLibraryFiles(courseId) {
+    const mediaList = document.getElementById('course-media-list');
+    if (!mediaList) return;
+
+    mediaList.innerHTML = '<li class="p-2 text-slate-500">Načítám soubory...</li>';
+
+    try {
+        const listRef = ref(storage, `courses/${courseId}/media`);
+        const res = await listAll(listRef);
+
+        if (res.items.length === 0) {
+            mediaList.innerHTML = '<li class="p-2 text-slate-500">Knihovna médií je prázdná.</li>';
+            return;
+        }
+
+        mediaList.innerHTML = ''; // Clear loading message
+
+        for (const itemRef of res.items) {
+            const url = await getDownloadURL(itemRef);
+            const listItem = document.createElement('li');
+            listItem.className = 'flex items-center justify-between bg-slate-50 p-3 rounded-lg';
+            listItem.innerHTML = `
+                <a href="${url}" target="_blank" class="text-green-700 hover:underline flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                    <span>${itemRef.name}</span>
+                </a>
+                <button data-path="${itemRef.fullPath}" class="delete-media-btn text-red-500 hover:underline text-sm">Smazat</button>
+            `;
+            mediaList.appendChild(listItem);
+        }
+
+        // Add event listeners to the new delete buttons
+        mediaList.querySelectorAll('.delete-media-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const filePath = e.target.dataset.path;
+                if (confirm(`Opravdu chcete smazat soubor: ${filePath.split('/').pop()}?`)) {
+                    try {
+                        await deleteObject(ref(storage, filePath));
+                        await renderMediaLibraryFiles(courseId); // Refresh list after deleting
+                    } catch (error) {
+                        console.error("Chyba při mazání souboru z médií:", error);
+                        alert("Nepodařilo se smazat soubor.");
+                    }
+                }
+            });
+        });
+
+    } catch (error) {
+        console.error("Chyba při načítání souborů z knihovny médií:", error);
+        mediaList.innerHTML = '<li class="p-2 text-red-500">Chyba při načítání souborů.</li>';
     }
 }
