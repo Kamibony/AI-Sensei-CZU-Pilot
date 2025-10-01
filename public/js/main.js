@@ -27,6 +27,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     const generateTextFunction = httpsCallable(functions, 'generateText');
     const generateJsonFunction = httpsCallable(functions, 'generateJson');
     const generateTelegramActivationCode = httpsCallable(functions, 'generateTelegramActivationCode');
+    const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor');
 
     // --- API Volání ---
     async function callGeminiApi(prompt, systemInstruction = null) {
@@ -430,7 +431,6 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                     const toContainer = evt.to;
                     const newStatus = toContainer.dataset.status;
 
-                    // This event only fires for status changes, not for cloning to the timeline
                     if (!lessonId || !newStatus) {
                         console.error("Could not find lesson ID or new status on drop.");
                         return;
@@ -444,6 +444,12 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                         const lessonInData = lessonsData.find(l => l.id === lessonId);
                         if (lessonInData) {
                             lessonInData.status = newStatus;
+                        }
+
+                        // Re-render the entire library to fix "dead" lessons.
+                        const sidebar = document.getElementById('professor-sidebar');
+                        if (sidebar) {
+                            renderLessonLibrary(sidebar);
                         }
 
                     } catch (error) {
@@ -553,7 +559,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
 
         const updateFirestoreOrder = async (container) => {
             const batch = writeBatch(db);
-            const children = container.children;
+            const children = Array.from(container.children);
             for (let i = 0; i < children.length; i++) {
                 const eventId = children[i].dataset.eventId;
                 if (eventId) {
@@ -563,7 +569,6 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             }
             try {
                 await batch.commit();
-                console.log("Order updated successfully in Firestore.");
             } catch (error) {
                 console.error("Failed to update order in Firestore:", error);
             }
@@ -573,56 +578,54 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             new Sortable(container, {
                 group: {
                     name: 'timeline-events',
-                    put: ['lesson-status'] // Accept lessons from status columns
+                    put: ['lesson-status']
                 },
                 animation: 150,
                 ghostClass: 'blue-background-class',
                 dragClass: 'dragging',
-                
-                // Called when an item is dropped into a new list
                 onAdd: async function (evt) {
-                    const itemEl = evt.item; // The dropped element
-                    const toContainer = evt.to; // The new container
-                    const toDate = toContainer.dataset.date;
-                    const lessonId = itemEl.dataset.id || itemEl.dataset.lessonId; // Use data-id from library, data-lesson-id from timeline
+                    const itemEl = evt.item;
+                    const fromContainer = evt.from;
+                    const toContainer = evt.to;
+                    const scheduledDate = toContainer.dataset.date;
 
-                    // If the item was moved from another timeline day, it will have an eventId.
-                    // We just need to update its date and the order of both old and new lists.
-                    if (itemEl.dataset.eventId) {
-                        const eventRef = doc(db, 'timeline_events', itemEl.dataset.eventId);
-                        await updateDoc(eventRef, { scheduledDate: toDate });
-                    } else {
-                        // This is a new item from the library. Create a new event.
-                        const newEvent = {
-                            lessonId: lessonId,
-                            courseId: 'default-course', // Placeholder
-                            scheduledDate: toDate,
-                            orderIndex: evt.newDraggableIndex,
-                            createdAt: serverTimestamp()
-                        };
+                    // CASE 1: A lesson is CLONED from the library to the timeline
+                    if (fromContainer.classList.contains('lesson-group')) {
+                        const lessonId = itemEl.dataset.id; // Correctly get lessonId from data-id
+                        itemEl.remove(); // Remove the clone, we'll create a real one.
 
+                        if (!lessonId || !scheduledDate) {
+                            console.error("Missing lessonId or scheduledDate for timeline event creation.");
+                            return;
+                        }
                         try {
-                            const docRef = await addDoc(collection(db, 'timeline_events'), newEvent);
-                            // Replace the original library item with a proper timeline event element
-                            const lesson = lessonsData.find(l => l.id === lessonId);
-                            const newTimelineEl = createTimelineLessonElement(lesson, docRef.id);
-                            toContainer.replaceChild(newTimelineEl, itemEl);
+                            await addDoc(collection(db, 'timeline_events'), {
+                                lessonId: lessonId,
+                                courseId: 'default-course',
+                                scheduledDate: scheduledDate,
+                                orderIndex: evt.newDraggableIndex,
+                                createdAt: serverTimestamp()
+                            });
+                            // Re-render everything to ensure UI is consistent and interactive
+                            const mainArea = document.getElementById('main-content-area');
+                            const sidebar = document.getElementById('professor-sidebar');
+                            await renderTimeline(mainArea);
+                            renderLessonLibrary(sidebar); // This is the crucial fix for "dead" lessons after cloning
                         } catch (error) {
                             console.error("Error creating new timeline event:", error);
-                            itemEl.remove(); // Clean up on failure
                         }
                     }
-
-                    // Update order in the new list
-                    updateFirestoreOrder(toContainer);
-
-                    // If it was moved from another list, update the order in the old list too
-                    if (evt.from !== toContainer) {
-                        updateFirestoreOrder(evt.from);
+                    // CASE 2: An existing timeline event is MOVED from one day to another
+                    else if (itemEl.dataset.eventId) {
+                        const eventId = itemEl.dataset.eventId;
+                        await updateDoc(doc(db, 'timeline_events', eventId), {
+                             scheduledDate: scheduledDate
+                        });
+                        // Update order in both lists
+                        await updateFirestoreOrder(fromContainer);
+                        await updateFirestoreOrder(toContainer);
                     }
                 },
-
-                // Called when an item is sorted within the same list
                 onUpdate: function (evt) {
                     updateFirestoreOrder(evt.from);
                 }
@@ -1151,39 +1154,51 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         const lessonView = document.getElementById('student-lesson-view');
         const aiAssistantBtn = document.getElementById('ai-assistant-btn');
 
-        if (!mainAppView || !lessonView) {
-            console.error("Required view elements not found for showing lesson.");
-            return;
-        }
+        if (!mainAppView || !lessonView) return;
 
-        // Hide main app view and show the lesson view
         mainAppView.classList.add('hidden');
         if (aiAssistantBtn) aiAssistantBtn.classList.add('hidden');
         lessonView.classList.remove('hidden');
         lessonView.classList.add('view-transition');
 
-        // Get all the new elements
+        // --- Element References ---
         const titleEl = document.getElementById('student-lesson-title');
         const textContentEl = document.getElementById('lesson-text-content');
         const videoContentEl = document.getElementById('lesson-video-content');
-        const podcastContentEl = document.getElementById('lesson-podcast-content');
+        const extraContentEl = document.getElementById('lesson-extra-content');
+        const chatInput = document.getElementById('student-chat-input');
+        const sendBtn = document.getElementById('student-send-message-btn');
+        const chatHistoryArea = document.getElementById('chat-history-area');
 
-        // Get section wrappers to hide them if content is missing
-        const textSection = document.getElementById('lesson-text-section');
-        const videoSection = document.getElementById('lesson-video-section');
-        const podcastSection = document.getElementById('lesson-podcast-section');
-
-        // Initial loading state
+        // --- Initial Loading State ---
         titleEl.textContent = 'Načítám lekci...';
-        textContentEl.innerHTML = '<div class="p-8 text-center pulse-loader text-slate-500">Načítání obsahu...</div>';
-        videoContentEl.innerHTML = '<p class="text-slate-400">Načítání videa...</p>';
-        podcastContentEl.innerHTML = '<p class="text-slate-400">Načítání podcastů...</p>';
+        textContentEl.innerHTML = '<div class="p-8 text-center pulse-loader text-slate-500">Načítání...</div>';
+        videoContentEl.innerHTML = '';
+        extraContentEl.innerHTML = '';
 
-        // Hide all sections initially, they will be shown if content exists
-        if(textSection) textSection.style.display = 'none';
-        if(videoSection) videoSection.style.display = 'none';
-        if(podcastSection) podcastSection.style.display = 'none';
+        // --- Tab Logic ---
+        const tabContainer = document.querySelector('#lesson-main-content');
+        tabContainer.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tabId = btn.dataset.tab;
 
+                // Update button styles
+                tabContainer.querySelectorAll('.tab-btn').forEach(b => {
+                    b.classList.remove('border-green-500', 'text-green-600');
+                    b.classList.add('border-transparent', 'text-slate-500', 'hover:border-slate-300', 'hover:text-slate-700');
+                });
+                btn.classList.add('border-green-500', 'text-green-600');
+                btn.classList.remove('border-transparent', 'text-slate-500');
+
+                // Show the correct pane
+                tabContainer.querySelectorAll('.tab-pane').forEach(pane => {
+                    pane.classList.add('hidden');
+                });
+                document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            });
+        });
+
+        // --- Fetch and Populate Data ---
         try {
             const lessonRef = doc(db, 'lessons', lessonId);
             const lessonSnap = await getDoc(lessonRef);
@@ -1192,39 +1207,91 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                 const lesson = lessonSnap.data();
                 titleEl.textContent = lesson.title;
 
-                // 1. Populate Text Content
-                if (lesson.content) {
-                    textContentEl.innerHTML = lesson.content.replace(/\n/g, '<br>');
-                    if(textSection) textSection.style.display = 'block';
-                }
+                // Populate Text Tab
+                textContentEl.innerHTML = lesson.content ? lesson.content.replace(/\n/g, '<br>') : '<p>Pro tuto lekci není k dispozici žádný text.</p>';
 
-                // 2. Populate Video Content (assuming 'videoUrl' field)
+                // Populate Video Tab
+                const videoTab = document.querySelector('[data-tab="video"]');
                 if (lesson.videoUrl) {
                     const videoId = lesson.videoUrl.split('v=')[1]?.split('&')[0];
-                    if (videoId) {
-                        videoContentEl.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe>`;
-                        if(videoSection) videoSection.style.display = 'block';
-                    }
+                    videoContentEl.innerHTML = videoId ? `<iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe>` : '<p>Neplatná adresa videa.</p>';
+                    videoTab.style.display = 'inline-flex';
+                } else {
+                    videoTab.style.display = 'none';
                 }
 
-                // 3. Populate Podcast Content (assuming 'podcastUrl' field)
+                // Populate "Mimo školu" (Extra) Tab
+                const extraTab = document.querySelector('[data-tab="extra"]');
+                let extraHtml = '';
                 if (lesson.podcastUrl) {
-                    podcastContentEl.innerHTML = `<iframe style="border-radius:12px" src="${lesson.podcastUrl}" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
-                    if(podcastSection) podcastSection.style.display = 'block';
+                    extraHtml += `
+                        <div class="p-4 bg-white rounded-lg shadow-sm">
+                            <h3 class="font-bold text-lg mb-2">Doporučený Podcast</h3>
+                            <iframe style="border-radius:12px" src="${lesson.podcastUrl}" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+                        </div>`;
                 }
+                if (lesson.quizUrl) {
+                    extraHtml += `
+                        <div class="p-4 bg-white rounded-lg shadow-sm">
+                            <h3 class="font-bold text-lg mb-2">Doplňkový Kvíz</h3>
+                            <a href="${lesson.quizUrl}" target="_blank" class="text-green-600 hover:underline">Otevřít kvíz v nové záložce &rarr;</a>
+                        </div>`;
+                }
+                extraContentEl.innerHTML = extraHtml || '<p>Pro tuto lekci nejsou k dispozici žádné doplňkové materiály.</p>';
+                extraTab.style.display = extraHtml ? 'inline-flex' : 'none';
+
 
             } else {
                 titleEl.textContent = 'Chyba';
                 textContentEl.innerHTML = '<p>Lekce nebyla nalezena.</p>';
-                if(textSection) textSection.style.display = 'block';
             }
         } catch (error) {
             console.error("Error fetching lesson for student view:", error);
             titleEl.textContent = 'Chyba';
             textContentEl.innerHTML = 'Nepodařilo se načíst obsah lekce.';
-            if(textSection) textSection.style.display = 'block';
         }
 
+        // --- Chat Logic ---
+        const handleSendMessage = async () => {
+            const text = chatInput.value.trim();
+            if (!text) return;
+
+            // Add user message to UI immediately
+            const userBubble = document.createElement('div');
+            userBubble.className = 'chat-bubble chat-bubble-user';
+            userBubble.textContent = text;
+            chatHistoryArea.appendChild(userBubble);
+            chatHistoryArea.scrollTop = chatHistoryArea.scrollHeight; // Scroll down
+
+            const originalButtonContent = sendBtn.innerHTML;
+            sendBtn.innerHTML = `<div class="spinner-dark"></div>`; // A spinner for the button
+            chatInput.value = '';
+            chatInput.disabled = true;
+            sendBtn.disabled = true;
+
+            try {
+                await sendMessageToProfessor({ lessonId, text });
+            } catch (error) {
+                console.error("Error sending message to professor:", error);
+                userBubble.style.borderColor = 'red'; // Indicate error
+                alert(`Chyba při odesílání: ${error.message}`);
+            } finally {
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = originalButtonContent;
+                chatInput.focus();
+            }
+        };
+
+        sendBtn.addEventListener('click', handleSendMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSendMessage();
+            }
+        });
+
+        // --- Back Button Logic ---
         const backBtn = document.getElementById('back-to-student-dashboard-btn');
         backBtn.addEventListener('click', () => {
             lessonView.classList.add('hidden');

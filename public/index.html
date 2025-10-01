@@ -99,63 +99,73 @@
     </div>
 
     <!-- Student Lesson View -->
-    <div id="student-lesson-view" class="hidden h-screen w-screen bg-slate-50 flex flex-col">
-        <header class="bg-white shadow-md p-4 flex items-center justify-between z-10 flex-shrink-0">
+    <div id="student-lesson-view" class="hidden h-screen w-screen bg-slate-100 flex flex-col">
+        <!-- Header -->
+        <header id="lesson-header" class="bg-white shadow-sm p-4 flex items-center justify-between z-10 flex-shrink-0">
             <button id="back-to-student-dashboard-btn" class="flex items-center text-slate-600 hover:text-slate-900 transition-colors font-medium">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-                Zpět na přehled lekcí
+                Zpět na přehled
             </button>
-            <h1 id="student-lesson-title" class="text-xl font-bold text-slate-800 text-center"></h1>
-            <div class="w-40"></div> <!-- Spacer to balance the back button -->
+            <div class="flex-grow text-center">
+                <h1 id="student-lesson-title" class="text-xl font-bold text-slate-800"></h1>
+                <!-- Progress Bar -->
+                <div class="w-64 bg-slate-200 rounded-full h-2.5 mx-auto mt-2">
+                    <div id="lesson-progress-bar" class="bg-green-600 h-2.5 rounded-full" style="width: 45%"></div>
+                </div>
+            </div>
+            <div class="w-40"></div> <!-- Spacer -->
         </header>
 
-        <main class="flex-grow overflow-y-auto p-6 md:p-8 lg:p-12">
-            <div class="max-w-4xl mx-auto space-y-12">
-                <!-- 1. Text Section -->
-                <section id="lesson-text-section" class="view-transition">
-                    <h2 class="text-3xl font-extrabold text-slate-800 mb-4 border-b-2 border-slate-200 pb-3">Textová část lekce</h2>
-                    <div id="lesson-text-content" class="prose prose-lg max-w-none text-slate-700 leading-relaxed">
-                        <!-- Text content will be rendered here -->
-                    </div>
-                </section>
+        <div class="flex-grow flex overflow-hidden">
+            <!-- Main Content Area -->
+            <main id="lesson-main-content" class="flex-grow overflow-y-auto p-6 md:p-8">
+                <!-- Tab Buttons -->
+                <div class="mb-6 border-b border-slate-200">
+                    <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+                        <button data-tab="text" class="tab-btn shrink-0 border-b-2 border-green-500 px-1 pb-4 text-sm font-medium text-green-600">Textová část</button>
+                        <button data-tab="video" class="tab-btn shrink-0 border-b-2 border-transparent px-1 pb-4 text-sm font-medium text-slate-500 hover:border-slate-300 hover:text-slate-700">Video</button>
+                        <button data-tab="extra" class="tab-btn shrink-0 border-b-2 border-transparent px-1 pb-4 text-sm font-medium text-slate-500 hover:border-slate-300 hover:text-slate-700">Mimo školu</button>
+                    </nav>
+                </div>
 
-                <!-- 2. Video Section -->
-                <section id="lesson-video-section" class="view-transition">
-                    <h2 class="text-3xl font-extrabold text-slate-800 mb-4 border-b-2 border-slate-200 pb-3">Video část lekce</h2>
-                    <div id="lesson-video-content" class="bg-slate-200 aspect-video rounded-lg overflow-hidden shadow-lg flex items-center justify-center">
-                        <!-- Embedded video will be rendered here -->
+                <!-- Tab Content -->
+                <div id="tab-content-container">
+                    <div id="tab-text" class="tab-pane active">
+                        <div id="lesson-text-content" class="prose prose-lg max-w-none text-slate-700 leading-relaxed"></div>
                     </div>
-                </section>
+                    <div id="tab-video" class="tab-pane hidden">
+                        <div id="lesson-video-content" class="bg-slate-200 aspect-video rounded-lg overflow-hidden shadow-lg flex items-center justify-center max-w-4xl mx-auto"></div>
+                    </div>
+                    <div id="tab-extra" class="tab-pane hidden">
+                        <div id="lesson-extra-content" class="space-y-6">
+                            <!-- Podcast, Quiz links etc. will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+            </main>
 
-                <!-- 3. Interactive Section -->
-                <section id="lesson-interactive-section" class="view-transition">
-                    <h2 class="text-3xl font-extrabold text-slate-800 mb-4 border-b-2 border-slate-200 pb-3">Interaktivní část</h2>
-                    <div id="lesson-interactive-content" class="flex justify-center py-8">
-                         <div class="phone-mockup">
-                            <div class="phone-screen">
-                                <div class="phone-header">
-                                    <h3 class="font-bold text-center">AI Sensei Chat</h3>
-                                </div>
-                                <div class="chat-area">
-                                    <div class="chat-bubble chat-bubble-bot">Ahoj! Jsem připraven ti pomoci s touto lekcí. Na co se chceš zeptat?</div>
-                                </div>
-                                <div class="p-2 border-t border-gray-200 bg-white">
-                                    <input type="text" placeholder="Napište zprávu..." class="w-full border-gray-300 rounded-full py-2 px-4 text-sm text-slate-800">
-                                </div>
+            <!-- Interactive Chat Sidebar -->
+            <aside id="lesson-interactive-chat" class="w-96 bg-white border-l border-slate-200 flex-shrink-0 flex flex-col">
+                <div class="flex-grow flex items-center justify-center p-4">
+                    <div class="phone-mockup">
+                        <div class="phone-screen">
+                            <div class="phone-header">
+                                <h3 class="font-bold text-center">Profesor Chat</h3>
+                            </div>
+                            <div id="chat-history-area" class="chat-area">
+                                <div class="chat-bubble chat-bubble-bot">Ahoj! Jsem tu, abych ti pomohl. Na co se chceš zeptat?</div>
+                            </div>
+                            <div class="p-3 border-t border-gray-200 bg-white flex items-center space-x-2">
+                                <input id="student-chat-input" type="text" placeholder="Napište zprávu..." class="w-full border-gray-300 rounded-full py-2 px-4 text-sm text-slate-800 focus:ring-green-500 focus:border-green-500">
+                                <button id="student-send-message-btn" class="bg-green-600 text-white rounded-full p-2 flex-shrink-0 hover:bg-green-700">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                                </button>
                             </div>
                         </div>
                     </div>
-                </section>
-
-                <!-- 4. Podcast Section -->
-                <section id="lesson-podcast-section" class="view-transition">
-                    <h2 class="text-3xl font-extrabold text-slate-800 mb-4 border-b-2 border-slate-200 pb-3">Podcasty pro učení</h2>
-                    <div id="lesson-podcast-content" class="bg-slate-100 p-6 rounded-lg">
-                        <!-- Podcast player/links will be rendered here -->
-                    </div>
-                </section>
-            </div>
-        </main>
+                </div>
+            </aside>
+        </div>
     </div>
 
     <template id="main-app-template">
