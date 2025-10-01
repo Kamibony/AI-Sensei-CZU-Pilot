@@ -11,6 +11,7 @@ import {
 import {
     collection,
     getDocs,
+    getDoc,
     doc,
     addDoc,
     updateDoc,
@@ -21,7 +22,7 @@ import {
     query,
     where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeUpload, initializeCourseMediaUpload } from './upload-handler.js';
+import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-handler.js';
 
     const generateTextFunction = httpsCallable(functions, 'generateText');
     const generateJsonFunction = httpsCallable(functions, 'generateJson');
@@ -251,9 +252,13 @@ import { initializeUpload, initializeCourseMediaUpload } from './upload-handler.
             const modal = document.getElementById('media-library-modal');
             if (modal) {
                 modal.classList.remove('hidden');
-                // Assumes a single course context for now, as per the prompt
                 const currentCourseId = 'default-course'; // Placeholder
+
+                // Initialize drag-and-drop functionality
                 initializeCourseMediaUpload(currentCourseId);
+
+                // Fetch and display existing files
+                renderMediaLibraryFiles(currentCourseId);
 
                 // Add listener for the close button inside the modal
                 const closeBtn = document.getElementById('close-media-library-btn');
@@ -929,116 +934,126 @@ import { initializeUpload, initializeCourseMediaUpload } from './upload-handler.
     // --- LOGIKA PRO STUDENTA ---
     function setupStudentNav() {
         const nav = document.getElementById('main-nav');
+        // Student nav is simple, just one button for their main dashboard view.
         nav.innerHTML = `<li><button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-600" title="Moje studium"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></button></li>`;
     }
 
-    function initStudentDashboard() {
-        const sidebar = document.querySelector('#dashboard-student aside');
-        const mainContent = document.getElementById('student-content-area');
+    async function getActiveLessonIdsForToday() {
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+        const eventsCollection = collection(db, 'timeline_events');
+        const q = query(eventsCollection, where("scheduledDate", "==", today));
+        try {
+            const querySnapshot = await getDocs(q);
+            const activeIds = new Set();
+            querySnapshot.forEach(doc => {
+                activeIds.add(doc.data().lessonId);
+            });
+            console.log("Active lesson IDs for today:", activeIds);
+            return activeIds;
+        } catch (error) {
+            console.error("Error fetching active lessons for today:", error);
+            return new Set(); // Return empty set on error
+        }
+    }
 
-        // Defensively check if UI elements are ready
-        if (!sidebar || !mainContent) {
+    async function initStudentDashboard() {
+        const mainContent = document.getElementById('student-content-area');
+        const sidebar = document.querySelector('#dashboard-student aside');
+
+        if (!mainContent || !sidebar) {
             console.error("Student dashboard elements not found. Cannot initialize.");
             return;
         }
 
-        // If there are no lessons, display a friendly message and stop.
+        // The new design uses the full width, so hide the sidebar.
+        sidebar.classList.add('hidden');
+
         if (!lessonsData || lessonsData.length === 0) {
-            currentLesson = null;
-            sidebar.innerHTML = `<div class="p-4"><p class="text-slate-500">Žádné lekce nebyly nalezeny.</p></div>`;
-            mainContent.innerHTML = `<div class="p-8 bg-white rounded-2xl shadow-xl"><h1 class="text-2xl font-bold">Vítejte!</h1><p class="mt-2 text-slate-600">Momentálně pro vás nejsou k dispozici žádné lekce. Zkuste to prosím později.</p></div>`;
+            mainContent.innerHTML = `
+                <div class="p-8 bg-white rounded-2xl shadow-xl text-center">
+                    <h1 class="text-2xl font-bold">Vítejte!</h1>
+                    <p class="mt-2 text-slate-600">Momentálně pro vás nejsou k dispozici žádné lekce. Zkuste to prosím později.</p>
+                </div>`;
             return;
         }
 
-        // Proceed with the first lesson if data is available
-        currentLesson = lessonsData[0];
-
-        sidebar.innerHTML = `
-            <h2 class="text-xl font-bold text-slate-800 mb-2">${currentLesson.title}</h2>
-            <p class="text-sm text-slate-500 mb-6">Lekce ${currentLesson.number}</p>
-            <nav id="student-lesson-menu" class="flex flex-col space-y-1">
-                <a href="#" data-view="overview" class="student-menu-item p-3 rounded-md font-semibold flex items-center bg-green-100 text-green-800">📖<span class="ml-3">Přehled lekce</span></a>
-                <a href="#" data-view="text_video" class="student-menu-item p-3 rounded-md hover:bg-slate-100 flex items-center">📺<span class="ml-3">Text a Video</span></a>
-                <a href="#" data-view="interactive" class="student-menu-item p-3 rounded-md hover:bg-slate-100 flex items-center">💬<span class="ml-3">Interaktivní část</span></a>
-                <a href="#" data-view="post" class="student-menu-item p-3 rounded-md hover:bg-slate-100 flex items-center">🎧<span class="ml-3">Podcasty a materiály</span></a>
-            </nav>`;
+        const activeLessonIds = await getActiveLessonIdsForToday();
         
-        const menu = sidebar.querySelector('#student-lesson-menu');
-        menu.addEventListener('click', e => {
-            e.preventDefault();
-            const target = e.target.closest('.student-menu-item');
-            if (target) {
-                menu.querySelectorAll('.student-menu-item').forEach(item => item.classList.remove('bg-green-100', 'text-green-800'));
-                target.classList.add('bg-green-100', 'text-green-800');
-                renderStudentContent(target.dataset.view);
+        // Sort lessons by creation date, newest first.
+        const sortedLessons = [...lessonsData].sort((a, b) => new Date(b.creationDate) - new Date(a.creationDate));
+
+        let lessonsHtml = sortedLessons.map(lesson => {
+            const isActiveToday = activeLessonIds.has(lesson.id);
+            const activationHtml = isActiveToday ? `
+                <div class="mt-4 pt-4 border-t border-slate-200">
+                    <h4 class="font-semibold text-slate-700">Komunikace s profesorem</h4>
+                    <p class="text-sm text-slate-500 mb-2">Tato lekce je dnes aktivní. Získejte kód pro připojení k AI Sensei botovi v Telegramu.</p>
+                    <button class="get-telegram-code-btn bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors text-sm font-semibold" data-lesson-id="${lesson.id}">
+                        Získat aktivační kód
+                    </button>
+                    <div id="code-display-${lesson.id}" class="mt-2"></div>
+                </div>
+            ` : '';
+
+            return `
+                <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
+                    <div class="p-6">
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <p class="text-sm font-semibold text-green-600">${lesson.number}</p>
+                                <h2 class="text-2xl font-bold text-slate-800 mt-1">${lesson.title}</h2>
+                                <p class="text-slate-500">${lesson.subtitle}</p>
+                            </div>
+                            <span class="text-4xl">${lesson.icon}</span>
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-slate-200 prose prose-sm max-w-none text-slate-600">
+                            ${lesson.content}
+                        </div>
+                        ${activationHtml}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        mainContent.innerHTML = `<h1 class="text-3xl font-extrabold text-slate-800 mb-6">Přehled vašich lekcí</h1>${lessonsHtml}`;
+
+        // Add a single event listener to the main content area for delegation
+        mainContent.addEventListener('click', async (e) => {
+            const codeButton = e.target.closest('.get-telegram-code-btn');
+            const copyButton = e.target.closest('.copy-code-btn');
+
+            if (codeButton) {
+                const lessonId = codeButton.dataset.lessonId;
+                const lesson = lessonsData.find(l => l.id === lessonId);
+                const codeDisplay = document.getElementById(`code-display-${lesson.id}`);
+
+                if (lesson && lesson.activationCode && codeDisplay) {
+                    codeDisplay.innerHTML = `
+                        <div class="bg-slate-100 p-3 rounded-lg flex items-center justify-between">
+                            <span class="font-mono text-lg text-slate-700">${lesson.activationCode}</span>
+                            <button class="copy-code-btn p-2 rounded-md hover:bg-slate-200" data-code="${lesson.activationCode}" title="Kopírovat kód">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            </button>
+                        </div>
+                    `;
+                    codeButton.textContent = 'Kód zobrazen';
+                    codeButton.disabled = true;
+                } else if (lesson && codeDisplay) {
+                    codeDisplay.innerHTML = `<p class="text-red-500 text-sm">Pro tuto lekci nebyl nalezen aktivační kód.</p>`;
+                }
+            }
+
+            if (copyButton) {
+                const code = copyButton.dataset.code;
+                try {
+                    await navigator.clipboard.writeText(code);
+                    alert('Kód byl zkopírován do schránky!');
+                } catch (err) {
+                    console.error('Failed to copy code: ', err);
+                    alert('Nepodařilo se zkopírovat kód.');
+                }
             }
         });
-        
-        renderStudentContent('overview');
-    }
-
-    function renderStudentContent(viewId) {
-        const container = document.getElementById('student-content-area');
-        container.className = 'flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50 view-transition';
-        let contentHTML = '';
-        
-        switch(viewId) {
-            case 'overview':
-                const currentIndex = lessonsData.findIndex(l => l.id === currentLesson.id);
-                const nextLesson = (currentIndex !== -1 && currentIndex < lessonsData.length - 1) ? lessonsData[currentIndex + 1] : null;
-
-                contentHTML = `<div class="bg-white p-8 rounded-2xl shadow-xl mb-8"><h1 class="text-4xl font-extrabold text-slate-800">${currentLesson.title}</h1><p class="text-slate-500 mt-2">Lekce ${currentLesson.number} | Odhadovaný čas: 45 minut</p><div class="mt-8 border-t border-slate-200 pt-6"><h3 class="font-semibold text-lg text-slate-700 mb-3">Co se v této lekci naučíte:</h3><ul class="list-disc list-inside space-y-2 text-slate-600"><li>Pochopit základní principy kvantového světa.</li><li>Rozlišovat mezi klasickou a kvantovou fyzikou.</li><li>Seznámit se s pojmy jako superpozice a dualismus.</li></ul></div></div><div class="bg-white p-8 rounded-2xl shadow-xl"><h2 class="text-2xl font-bold mb-4 text-slate-800">Váš Osobní Studijní Plán od AI Sensei</h2><div class="relative pl-6 border-l-2 border-green-500"><div class="mb-8 relative"><div class="absolute -left-[34px] top-1 w-4 h-4 bg-green-500 rounded-full border-4 border-white"></div><p class="font-bold text-green-600">Právě studujete</p><p class="text-lg">${currentLesson.title}</p></div><div class="mb-8 relative"><div class="absolute -left-[34px] top-1 w-4 h-4 bg-amber-500 rounded-full border-4 border-white"></div><p class="font-bold text-amber-600">Doporučené zaměření</p><p class="text-lg">Zopakovat si 'Princip Superpozice'</p><p class="text-sm text-slate-500">Na základě vašeho posledního kvízu vám AI doporučuje věnovat více času tomuto tématu.</p></div><div class="relative"><div class="absolute -left-[34px] top-1 w-4 h-4 bg-slate-400 rounded-full border-4 border-white"></div><p class="font-bold text-slate-500">Další na řadě</p><p class="text-lg">${nextLesson ? nextLesson.title : 'Všechny lekce dokončeny!'}</p></div></div></div>`;
-                break;
-            case 'text_video':
-                contentHTML = `<div class="space-y-8"><div class="bg-white p-8 rounded-2xl shadow-xl"><h2 class="text-3xl font-bold mb-4">Studijní text</h2><div class="prose max-w-none text-slate-700 leading-relaxed">${currentLesson.content.replace(/\n/g, '<br>')}</div></div><div class="bg-white p-8 rounded-2xl shadow-xl"><h2 class="text-3xl font-bold mb-4">Video k lekci</h2><div class="rounded-xl overflow-hidden aspect-video shadow-lg"><iframe src="https://www.youtube.com/embed/i-z_I1_Z2lY" frameborder="0" allowfullscreen class="w-full h-full"></iframe></div></div></div>`;
-                break;
-            case 'interactive':
-                contentHTML = `<div class="flex justify-center"><div class="phone-mockup"><div class="phone-screen"><div class="phone-header flex items-center space-x-3"><span class="font-semibold text-lg">🤖 AI Sensei Bot</span></div><div id="chat-area" class="chat-area"><div class="chat-bubble chat-bubble-bot shadow">Ahoj! Jsem tvůj studijní asistent pro lekci "${currentLesson.title}". Zeptej se mě na cokoliv, co tě zajímá!</div></div><div class="p-2 bg-white border-t"><div class="flex items-center space-x-2"><input type="text" id="student-chat-input" placeholder="Zeptej se na něco..." class="w-full bg-slate-100 border-transparent rounded-full p-3 focus:ring-2 focus:ring-green-500"><button id="student-chat-send" class="p-3 bg-green-700 text-white rounded-full hover:bg-green-800"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div></div></div></div></div>`;
-                break;
-            case 'post':
-                 contentHTML = `<div class="bg-white p-8 rounded-2xl shadow-xl"><h2 class="text-3xl font-bold mb-6">Podcasty a materiály</h2><h3 class="font-semibold mb-4 text-lg">Exkluzivní série podcastů k lekci:</h3><div class="space-y-4"><div class="bg-slate-800 text-white p-4 rounded-lg flex items-center space-x-4"><button class="text-3xl">▶️</button><div><p class="font-bold">Epizoda 1: Záhada kvantového světa</p><p class="text-sm text-slate-400">Odhalujeme, proč se nejmenší částice chovají tak podivně.</p></div></div><div class="bg-slate-800 text-white p-4 rounded-lg flex items-center space-x-4"><button class="text-3xl">▶️</button><div><p class="font-bold">Epizoda 2: Živá i mrtvá kočka</p><p class="text-sm text-slate-400">Ponořte se do principu superpozice s naším myšlenkovým experimentem.</p></div></div><div class="bg-slate-800 text-white p-4 rounded-lg flex items-center space-x-4"><button class="text-3xl">▶️</button><div><p class="font-bold">Epizoda 3: Kvantové počítače: Budoucnost je tady</p><p class="text-sm text-slate-400">Jak principy kvantové mechaniky mění svět technologií.</p></div></div></div><h3 class="font-semibold mt-8 mb-4 text-lg">Materiály ke stažení:</h3><a href="#" class="flex items-center p-3 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">📄<span class="ml-3 font-medium">sylabus_kvantovka.pdf</span></a></div>`;
-                break;
-        }
-        container.innerHTML = contentHTML;
-
-        if (viewId === 'interactive') {
-            const sendBtn = document.getElementById('student-chat-send');
-            const input = document.getElementById('student-chat-input');
-            sendBtn.addEventListener('click', handleStudentChat);
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') handleStudentChat();
-            });
-        }
-    }
-    
-    async function handleStudentChat() {
-        const chatArea = document.getElementById('chat-area');
-        const input = document.getElementById('student-chat-input');
-        const userMessage = input.value.trim();
-        if (!userMessage) return;
-
-        const userBubble = document.createElement('div');
-        userBubble.className = 'chat-bubble chat-bubble-user';
-        userBubble.textContent = userMessage;
-        chatArea.appendChild(userBubble);
-        input.value = '';
-        chatArea.scrollTop = chatArea.scrollHeight;
-        
-        const typingIndicator = document.createElement('div');
-        typingIndicator.className = 'chat-bubble chat-bubble-bot typing-indicator';
-        typingIndicator.innerHTML = '<span></span><span></span><span></span>';
-        chatArea.appendChild(typingIndicator);
-        chatArea.scrollTop = chatArea.scrollHeight;
-
-        const systemInstruction = `Jsi "AI Sensei", přátelský asistent. Kontext lekce "${currentLesson.title}":\n\n${currentLesson.content}`;
-        const result = await callGeminiApi(userMessage, systemInstruction);
-
-        chatArea.removeChild(typingIndicator);
-        const botBubble = document.createElement('div');
-        botBubble.className = 'chat-bubble chat-bubble-bot';
-        botBubble.textContent = result.error || result.text;
-        chatArea.appendChild(botBubble);
-        chatArea.scrollTop = chatArea.scrollHeight;
     }
     
     // --- POMOCNÉ MODÁLY A SEKCE ---
@@ -1162,12 +1177,23 @@ import { initializeUpload, initializeCourseMediaUpload } from './upload-handler.
 
             studentListContainer.innerHTML = ''; // Clear loading message
 
-            studentsSnapshot.forEach(doc => {
-                const student = doc.data();
+            studentsSnapshot.forEach(studentDoc => {
+                const student = studentDoc.data();
+                const studentId = studentDoc.id;
                 const studentEl = document.createElement('div');
-                studentEl.className = 'p-4 border-b border-slate-200';
-                studentEl.textContent = student.email || doc.id; // Display email, fallback to ID
+                studentEl.className = 'p-4 border-b border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors';
+                studentEl.textContent = student.email || studentId;
+                studentEl.dataset.studentId = studentId; // Add data attribute
                 studentListContainer.appendChild(studentEl);
+            });
+
+            // Add a single click listener to the list container
+            studentListContainer.addEventListener('click', (e) => {
+                const target = e.target.closest('[data-student-id]');
+                if (target) {
+                    const studentId = target.dataset.studentId;
+                    showStudentDetail(studentId);
+                }
             });
 
         } catch (error) {
@@ -1176,3 +1202,50 @@ import { initializeUpload, initializeCourseMediaUpload } from './upload-handler.
         }
     }
 
+    async function showStudentDetail(studentId) {
+        const analysisView = document.getElementById('student-analysis-view');
+        const detailView = document.getElementById('student-detail-view');
+
+        if (!analysisView || !detailView) return;
+
+        analysisView.classList.add('hidden');
+        detailView.classList.remove('hidden');
+        detailView.innerHTML = '<p class="text-slate-500">Načítám detail studenta...</p>';
+
+        try {
+            const studentRef = doc(db, 'students', studentId);
+            const studentSnap = await getDoc(studentRef);
+
+            if (!studentSnap.exists()) {
+                detailView.innerHTML = '<p class="text-red-500">Student nebyl nalezen.</p>';
+                return;
+            }
+
+            const student = studentSnap.data();
+            const registrationDate = student.createdAt?.toDate() ? student.createdAt.toDate().toLocaleDateString('cs-CZ') : 'Neznámé';
+
+            detailView.innerHTML = `
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <button id="back-to-student-list" class="flex items-center text-sm text-green-700 hover:underline mb-4">&larr; Zpět na seznam studentů</button>
+                    <h2 class="text-3xl font-extrabold text-slate-800">${student.email}</h2>
+                    <p class="text-slate-500 mt-1">Datum registrace: ${registrationDate}</p>
+
+                    <div class="mt-6 border-t pt-6">
+                        <h3 class="text-xl font-bold text-slate-800 mb-4">Analýza Aktivity (Fáze 2)</h3>
+                        <p class="text-slate-500 mb-4">Tato sekce bude obsahovat detailní analýzu interakcí a pokroku studenta.</p>
+                        <button id="ai-analysis-btn" class="bg-indigo-500 text-white font-semibold px-6 py-3 rounded-lg hover:bg-indigo-600 transition-colors">
+                            Spustit AI Analýzu
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('back-to-student-list').addEventListener('click', () => {
+                detailView.classList.add('hidden');
+                analysisView.classList.remove('hidden');
+            });
+        } catch (error) {
+            console.error("Error fetching student detail:", error);
+            detailView.innerHTML = '<p class="text-red-500">Chyba při načítání detailu studenta.</p>';
+        }
+    }
