@@ -1,34 +1,37 @@
-name: Deploy to Firebase Hosting
+name: Build and Deploy to Firebase
 
 on:
   push:
     branches:
-      - main # Spouští se při každém pushi do větve 'main'
+      - main
 
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Setup Node.js v22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
 
-      - name: Install dependencies and build
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Install functions dependencies and build
         run: |
-          npm install
           cd functions
           npm install
           npm run build
           cd ..
 
       - name: Deploy to Firebase
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        uses: w9jds/firebase-action@master
         with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_AI_SENSEI_CZU_PILOT }}'
-          channelId: live
-          projectId: ai-sensei-czu-pilot
+          args: deploy --only functions,hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_AI_SENSEI_CZU_PILOT }}
+          PROJECT_ID: ai-sensei-czu-pilot
