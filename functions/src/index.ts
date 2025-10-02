@@ -17,7 +17,7 @@ const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
 
 
 export const generateText = onCall(
-    { cors: true, region: "europe-west1" },
+    { region: "europe-west1", cors: true },
     async (request) => {
         const prompt = request.data.prompt;
 
@@ -39,7 +39,7 @@ export const generateText = onCall(
 );
 
 export const generateJson = onCall(
-    { cors: true, region: "europe-west1" },
+    { region: "europe-west1", cors: true },
     async (request) => {
         const prompt = request.data.prompt;
 
@@ -68,7 +68,7 @@ export const generateJson = onCall(
 
 
 export const generateFromDocument = onCall(
-    { cors: true, region: "europe-west1" },
+    { region: "europe-west1", cors: true },
     async (request) => {
         const { filePath, prompt } = request.data;
         if (!filePath || !prompt) {
@@ -108,7 +108,7 @@ export const generateFromDocument = onCall(
 );
 
 export const generateTelegramActivationCode = onCall(
-    { cors: true, region: "europe-west1" },
+    { region: "europe-west1", cors: true },
     async (request) => {
         const { lessonId } = request.data;
         if (!lessonId) {
@@ -151,7 +151,7 @@ async function sendTelegramMessage(chatId: string, text: string) {
 }
 
 export const telegramWebhook = onCall(
-    { cors: true, region: "europe-west1" },
+    { region: "europe-west1", cors: true },
     async (request) => {
         const message = request.data.message;
         if (!message || !message.text) {
@@ -200,7 +200,7 @@ export const telegramWebhook = onCall(
 );
 
 export const sendMessageToStudent = onCall(
-    { cors: true, region: "europe-west1" },
+    { region: "europe-west1", cors: true },
     async (request) => {
         const { studentId, lessonId, text } = request.data;
         if (!studentId || !lessonId || !text) {
@@ -234,7 +234,7 @@ export const sendMessageToStudent = onCall(
 );
 
 export const sendMessageToProfessor = onCall(
-    { cors: true, region: "europe-west1" },
+    { region: "europe-west1", cors: true },
     async (request) => {
         const { lessonId, text } = request.data;
         const studentId = request.auth?.uid;
@@ -274,5 +274,57 @@ export const sendMessageToProfessor = onCall(
         await sendTelegramMessage(professorTelegramChatId, messageToProfessor);
 
         return { status: "success", message: "Message sent to professor." };
+    }
+);
+
+// --- New Creative Functions for Student View ---
+
+export const getLessonKeyTakeaways = onCall(
+    { region: "europe-west1", cors: true },
+    async (request) => {
+        const { lessonText } = request.data;
+        if (!lessonText) {
+            throw new HttpsError("invalid-argument", "The function must be called with 'lessonText'.");
+        }
+
+        const prompt = `Based on the following lesson text, please identify and summarize the top 3 key takeaways. Present them as a numbered list.\n\n---\n\n${lessonText}`;
+
+        try {
+            const result = await generativeModel.generateContent(prompt);
+            const response = result.response;
+            const text = response.text();
+            return { takeaways: text };
+        } catch (error: any) {
+            console.error("Error generating key takeaways:", error);
+            if (error.message && (error.message.includes('400 Bad Request') || error.message.includes('API_KEY_INVALID'))) {
+                throw new HttpsError("unauthenticated", "The provided GEMINI_API_KEY is invalid or missing permissions.");
+            }
+            throw new HttpsError("internal", "Could not generate key takeaways from the text.");
+        }
+    }
+);
+
+export const getAiAssistantResponse = onCall(
+    { region: "europe-west1", cors: true },
+    async (request) => {
+        const { lessonText, userQuestion } = request.data;
+        if (!lessonText || !userQuestion) {
+            throw new HttpsError("invalid-argument", "The function must be called with 'lessonText' and 'userQuestion'.");
+        }
+
+        const prompt = `You are an AI assistant for a student. Your task is to answer the student's question based *only* on the provided lesson text. Do not use any external knowledge. If the answer is not in the text, say that you cannot find the answer in the provided materials.\n\nLesson Text:\n---\n${lessonText}\n---\n\nStudent's Question: "${userQuestion}"`;
+
+        try {
+            const result = await generativeModel.generateContent(prompt);
+            const response = result.response;
+            const text = response.text();
+            return { answer: text };
+        } catch (error: any) {
+            console.error("Error getting AI assistant response:", error);
+            if (error.message && (error.message.includes('400 Bad Request') || error.message.includes('API_KEY_INVALID'))) {
+                throw new HttpsError("unauthenticated", "The provided GEMINI_API_KEY is invalid or missing permissions.");
+            }
+            throw new HttpsError("internal", "Could not get an answer from the AI assistant.");
+        }
     }
 );
