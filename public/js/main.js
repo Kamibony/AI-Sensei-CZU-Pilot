@@ -113,6 +113,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     });
 
     function renderLogin() {
+        appContainer.classList.remove('hidden'); // Ensure the main container is visible
         appContainer.innerHTML = document.getElementById('login-template').innerHTML;
         document.getElementById('ai-assistant-btn').style.display = 'none';
 
@@ -246,6 +247,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         }
         document.getElementById('logout-btn').addEventListener('click', logout);
         document.getElementById('ai-assistant-btn').addEventListener('click', showAiAssistant);
+        document.getElementById('app-container').classList.remove('hidden');
         console.log(`--- LOGIN_END: Role=${role} ---`); // ADD THIS
     }
     
