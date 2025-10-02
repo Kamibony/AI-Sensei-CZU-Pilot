@@ -9,6 +9,14 @@ import axios from "axios";
 
 initializeApp();
 
+// --- Diagnostic Logging for API Key ---
+if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.length > 5) {
+    console.log("SUCCESS: GEMINI_API_KEY secret loaded. Key starts with:", process.env.GEMINI_API_KEY.substring(0, 4));
+} else {
+    console.error("CRITICAL ERROR: GEMINI_API_KEY secret is NOT LOADED or is empty. Please check Firebase function secrets.");
+}
+// ------------------------------------
+
 const db = getFirestore();
 
 // --- Auth/User Functions ---
