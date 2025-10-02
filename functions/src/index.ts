@@ -52,7 +52,7 @@ const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
 
 
 export const generateText = onCall(
-    { region: "europe-west1", cors: true },
+    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const prompt = request.data.prompt;
 
@@ -74,7 +74,7 @@ export const generateText = onCall(
 );
 
 export const generateJson = onCall(
-    { region: "europe-west1", cors: true },
+    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const prompt = request.data.prompt;
 
@@ -103,7 +103,7 @@ export const generateJson = onCall(
 
 
 export const generateFromDocument = onCall(
-    { region: "europe-west1", cors: true },
+    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const { filePath, prompt } = request.data;
         if (!filePath || !prompt) {
@@ -302,7 +302,7 @@ export const sendMessageToProfessor = onCall(
 // --- New Creative Functions for Student View ---
 
 export const getLessonKeyTakeaways = onCall(
-    { region: "europe-west1", cors: true },
+    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const { lessonText } = request.data;
         if (!lessonText) {
@@ -327,7 +327,7 @@ export const getLessonKeyTakeaways = onCall(
 );
 
 export const getAiAssistantResponse = onCall(
-    { region: "europe-west1", cors: true },
+    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const { lessonText, userQuestion } = request.data;
         if (!lessonText || !userQuestion) {
