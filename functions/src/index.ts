@@ -49,6 +49,18 @@ export const onStudentCreate = onDocumentCreated(
 export const generateText = onCall(
     { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
+        // --- START DIAGNOSTIC BLOCK ---
+        console.log("--- Function generateText triggered ---");
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (apiKey && apiKey.length > 8) {
+            console.log("SUCCESS: GEMINI_API_KEY environment variable is present.");
+            console.log(`Key Details: Starts with '${apiKey.substring(0, 4)}', ends with '${apiKey.slice(-4)}', length: ${apiKey.length}`);
+        } else {
+            console.error("CRITICAL FAILURE: GEMINI_API_KEY is UNDEFINED or TOO SHORT inside the function runtime!");
+            console.log("All environment variables:", JSON.stringify(process.env, null, 2));
+        }
+        // --- END DIAGNOSTIC BLOCK ---
+
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
 
@@ -58,15 +70,18 @@ export const generateText = onCall(
             const result = await generativeModel.generateContent(prompt);
             const response = result.response;
             const text = response.text();
-
+            console.log("--- Gemini API call successful ---");
             return { text };
         } catch (error: unknown) {
-            console.error("Error generating text:", error);
-            if (error instanceof Error && (error.message.includes("400 Bad Request") || error.message.includes("API_KEY_INVALID"))) {
-                throw new HttpsError("unauthenticated", "The provided GEMINI_API_KEY is invalid or missing permissions.");
+            console.error("--- Gemini SDK Error Details ---");
+            console.error("Raw error object:", JSON.stringify(error, null, 2));
+
+            if (error instanceof Error) {
+                console.error("Error Name:", error.name);
+                console.error("Error Message:", error.message);
             }
-            const errorMessage = (error instanceof Error) ? error.message : "Unknown error";
-            throw new HttpsError("internal", "Error generating text: " + errorMessage);
+
+            throw new HttpsError("internal", "Error calling Gemini API. Check function logs for details.");
         }
     }
 );
