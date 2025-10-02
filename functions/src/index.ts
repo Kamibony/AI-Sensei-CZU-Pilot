@@ -46,14 +46,12 @@ export const onStudentCreate = onDocumentCreated(
 
 // --- AI Functions for the Application ---
 
-// Initialize the single, shared Generative AI client
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
-
-
 export const generateText = onCall(
     { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+
         const prompt = request.data.prompt;
 
         try {
@@ -76,6 +74,9 @@ export const generateText = onCall(
 export const generateJson = onCall(
     { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+
         const prompt = request.data.prompt;
 
         // Instruct the model to return JSON.
@@ -105,6 +106,9 @@ export const generateJson = onCall(
 export const generateFromDocument = onCall(
     { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+
         const { filePath, prompt } = request.data;
         if (!filePath || !prompt) {
             throw new HttpsError("invalid-argument", "The function must be called with 'filePath' and 'prompt' arguments.");
@@ -304,6 +308,9 @@ export const sendMessageToProfessor = onCall(
 export const getLessonKeyTakeaways = onCall(
     { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+
         const { lessonText } = request.data;
         if (!lessonText) {
             throw new HttpsError("invalid-argument", "The function must be called with 'lessonText'.");
@@ -329,6 +336,9 @@ export const getLessonKeyTakeaways = onCall(
 export const getAiAssistantResponse = onCall(
     { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+
         const { lessonText, userQuestion } = request.data;
         if (!lessonText || !userQuestion) {
             throw new HttpsError("invalid-argument", "The function must be called with 'lessonText' and 'userQuestion'.");
