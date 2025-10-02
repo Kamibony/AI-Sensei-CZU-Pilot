@@ -974,76 +974,77 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     }
 
     async function initStudentDashboard() {
-        const mainContent = document.getElementById('student-content-area');
-        const sidebar = document.querySelector('#dashboard-student aside');
-
-        if (!mainContent || !sidebar) {
-            console.error("Student dashboard elements not found. Cannot initialize.");
+        // Use the new top-level container for student content
+        const studentContentArea = document.getElementById('student-content-area');
+        if (!studentContentArea) {
+            console.error("Student content area not found. Cannot initialize.");
             return;
         }
 
-        // The new design uses the full width, so hide the sidebar.
-        sidebar.classList.add('hidden');
-        mainContent.innerHTML = `<div class="p-8 text-center pulse-loader text-slate-500">Načítání...</div>`;
+        // Show a loading state inside the lesson container part
+        const studentDashboardContent = document.getElementById('student-dashboard-content');
+        if(studentDashboardContent) {
+            studentDashboardContent.innerHTML = `<div class="p-8 text-center pulse-loader text-slate-500">Načítání...</div>`;
+        }
 
-        // --- Fetch student-specific data for settings ---
+
+        // --- Part B: Implement the Display Logic for Telegram ---
         const user = auth.currentUser;
-        let settingsHtml = '';
-        if (user) {
+        const telegramConnectionBox = document.getElementById('telegram-connection-box');
+        const telegramLinkContainer = document.getElementById('telegram-link-container');
+
+        if (user && telegramConnectionBox && telegramLinkContainer) {
             try {
                 const studentDocRef = doc(db, "students", user.uid);
                 const studentDoc = await getDoc(studentDocRef);
+
                 if (studentDoc.exists()) {
                     const studentData = studentDoc.data();
-                    const token = studentData.telegramConnectionToken;
-                    const botUsername = 'ai_sensei_czu_bot'; // Per instructions, using a placeholder
 
+                    // If telegramChatId exists, the student is connected. Hide the box.
                     if (studentData.telegramChatId) {
-                        settingsHtml = `
-                            <div class="bg-green-100 border-l-4 border-green-500 text-green-800 p-4 rounded-r-lg mb-6 shadow-sm">
-                                <div class="flex items-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                    <div>
-                                        <h2 class="font-bold text-lg">Účet propojen s Telegramem</h2>
-                                        <p class="mt-1 text-sm">Váš účet AI Sensei je úspěšně propojen. Nyní můžete komunikovat s profesorem přes Telegram.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    } else if (token) {
-                        settingsHtml = `
-                            <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-r-lg mb-6 shadow-sm">
-                                <h2 class="font-bold text-lg">Propojte svůj účet s Telegramem</h2>
-                                <p class="mt-1">Propojte svůj účet s Telegramem a získejte přístup ke komunikaci s profesorem a dalším notifikacím.</p>
-                                <a href="https://t.me/${botUsername}?start=${token}" target="_blank" rel="noopener noreferrer" class="mt-3 inline-block bg-blue-500 text-white font-bold py-2 px-4 rounded hover:bg-blue-600 transition-colors">
-                                    Propojit s Telegramem
+                        telegramConnectionBox.style.display = 'none';
+                    } else {
+                        // Otherwise, ensure the box is visible and populate the link.
+                        telegramConnectionBox.style.display = 'flex';
+                        const token = studentData.telegramConnectionToken;
+                        const botUsername = 'ai_sensei_czu_bot'; // Placeholder
+
+                        if (token) {
+                            const connectionLink = `https://t.me/${botUsername}?start=${token}`;
+                            telegramLinkContainer.innerHTML = `
+                                <a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="inline-block bg-sky-500 text-white font-bold py-2 px-4 rounded hover:bg-sky-600 transition-colors shadow">
+                                    <i class="fa-brands fa-telegram mr-2"></i>Klikněte zde pro propojení
                                 </a>
-                            </div>
-                        `;
+                                <p class="text-xs mt-2 text-sky-700">Tento odkaz je unikátní pro váš účet a je jednorázový.</p>
+                            `;
+                        } else {
+                            telegramLinkContainer.innerHTML = '<p class="italic text-red-600">Nepodařilo se načíst váš unikátní propojovací kód. Zkuste prosím obnovit stránku.</p>';
+                        }
                     }
                 }
             } catch (error) {
-                console.error("Error fetching student data for settings:", error);
-                settingsHtml = `<div class="bg-red-100 p-4 rounded-lg mb-6">Nepodařilo se načíst nastavení Telegramu.</div>`;
+                console.error("Error fetching student data for Telegram connection:", error);
+                telegramConnectionBox.style.display = 'flex';
+                telegramLinkContainer.innerHTML = `<p class="italic text-red-600">Došlo k chybě při kontrole stavu propojení: ${error.message}</p>`;
             }
         }
 
-
-        // Robustness check: Ensure lessonsData is populated.
+        // --- Render Lessons into the dashboard content area ---
         if (!lessonsData || lessonsData.length === 0) {
-            mainContent.innerHTML = `
-                <div class="p-8 bg-white rounded-2xl shadow-xl text-center">
-                    <h1 class="text-2xl font-bold">Vítejte!</h1>
-                    <p class="mt-2 text-slate-600">Pro vás zatím nebyly připraveny žádné lekce.</p>
-                </div>`;
+            if(studentDashboardContent) {
+                 studentDashboardContent.innerHTML = `
+                    <div class="p-8 bg-white rounded-2xl shadow-xl text-center">
+                        <h1 class="text-2xl font-bold">Vítejte!</h1>
+                        <p class="mt-2 text-slate-600">Pro vás zatím nebyly připraveny žádné lekce.</p>
+                    </div>`;
+            }
             return;
         }
 
-        // Sort lessons by creation date, newest first.
         const sortedLessons = [...lessonsData].sort((a, b) => new Date(b.creationDate) - new Date(a.creationDate));
 
-        // Lesson cards no longer contain any Telegram-specific activation logic.
-        let lessonsHtml = sortedLessons.map(lesson => {
+        const lessonsHtml = sortedLessons.map(lesson => {
             return `
                 <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
                     <div class="p-6">
@@ -1063,22 +1064,26 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             `;
         }).join('');
 
-        mainContent.innerHTML = `
-            <h1 class="text-3xl font-extrabold text-slate-800 mb-6">Váš přehled</h1>
-            ${settingsHtml}
-            <h2 class="text-2xl font-bold text-slate-800 mb-4">Dostupné lekce</h2>
-            ${lessonsHtml}
-        `;
+        if (studentDashboardContent) {
+            studentDashboardContent.innerHTML = `
+                <h1 class="text-3xl font-extrabold text-slate-800 mb-6">Váš přehled</h1>
+                <h2 class="text-2xl font-bold text-slate-800 mb-4">Dostupné lekce</h2>
+                ${lessonsHtml}
+            `;
+        }
 
-        // The event listener is now much simpler, only handling clicks on lesson cards.
-        mainContent.addEventListener('click', async (e) => {
+        // To prevent adding multiple listeners if this function is called again,
+        // we clone the node, replace it, and add the listener to the new node.
+        const newStudentContentArea = studentContentArea.cloneNode(true);
+        studentContentArea.parentNode.replaceChild(newStudentContentArea, studentContentArea);
+
+        newStudentContentArea.addEventListener('click', async (e) => {
             const lessonCard = e.target.closest('.student-lesson-card');
-
             if (lessonCard) {
                 const lessonId = lessonCard.dataset.lessonId;
                 const lesson = lessonsData.find(l => l.id === lessonId);
                 if (lesson) {
-                    showStudentLesson(lesson); // Pass the whole object
+                    showStudentLesson(lesson);
                 }
             }
         });

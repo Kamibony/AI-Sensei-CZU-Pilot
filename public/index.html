@@ -245,6 +245,25 @@
     </div>
 </div>
 
+    <!-- This is the new container for the student dashboard, matching the pattern of other views -->
+    <div id="student-content-area" class="hidden p-8 bg-slate-50 flex-grow overflow-y-auto">
+        <!-- Part A: Permanent and Visible Telegram Connection UI -->
+        <div id="telegram-connection-box" class="bg-sky-100 border-l-4 border-sky-500 text-sky-800 p-4 mb-8 rounded-lg shadow-md flex items-center gap-4">
+            <div class="text-2xl flex-shrink-0">
+                <i class="fa-brands fa-telegram"></i>
+            </div>
+            <div>
+                <h3 class="font-bold text-lg">Propojte svůj účet s Telegramem</h3>
+                <p class="text-sm mt-1">Pro odemčení všech funkcí, jako jsou notifikace a přímá komunikace s profesorem, je potřeba propojit váš účet.</p>
+                <div id="telegram-link-container" class="mt-3">
+                    <p class="italic">Načítání propojovacího odkazu...</p>
+                </div>
+            </div>
+        </div>
+        <!-- The rest of the student dashboard (lessons etc.) will be rendered here by main.js -->
+        <div id="student-dashboard-content"></div>
+    </div>
+
     <template id="main-app-template">
         <div class="h-screen w-screen flex bg-white shadow-lg overflow-hidden">
             <nav class="w-20 bg-green-800 p-3 flex flex-col items-center justify-between flex-shrink-0">
