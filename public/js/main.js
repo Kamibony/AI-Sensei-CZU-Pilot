@@ -691,15 +691,6 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                             <div><label class="block font-medium text-slate-600">Datum vytvoření</label><input type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1 bg-slate-100" value="${currentLesson ? new Date(currentLesson.creationDate).toLocaleDateString('cs-CZ') : new Date().toLocaleDateString('cs-CZ')}" disabled></div>
                         </div>
 
-                        <div class="mt-6 border-t pt-6">
-                            <h4 class="text-lg font-semibold text-slate-800 mb-2">Aktivační kód pro Telegram</h4>
-                            <p class="text-sm text-slate-500 mb-2">Studenti použijí tento kód v Telegramu k aktivaci lekce a možnosti komunikace.</p>
-                            <div class="flex items-center space-x-4 mt-2">
-                                <button id="generate-telegram-code-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition transform hover:scale-105">Generovat kód pro Telegram</button>
-                                <span id="telegram-code-display" class="font-mono text-lg text-slate-700 bg-slate-100 px-4 py-2 rounded-lg"></span>
-                            </div>
-                        </div>
-
                         <div class="text-right pt-4"><button id="save-lesson-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105">Uložit změny</button></div>
                     </div>`);
                 break;
@@ -822,50 +813,6 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         // Step 3: Execute JS logic that depends on the now-rendered DOM
         if (viewId === 'details') {
             document.getElementById('save-lesson-btn').addEventListener('click', handleSaveLesson);
-
-            const codeDisplay = document.getElementById('telegram-code-display');
-            const generateBtn = document.getElementById('generate-telegram-code-btn');
-
-            if (currentLesson?.telegramActivationCode) {
-                codeDisplay.textContent = currentLesson.telegramActivationCode;
-            } else {
-                codeDisplay.textContent = "Kód není vygenerován";
-            }
-
-            // Disable button if the lesson is not 'Aktivní'
-            if (!currentLesson || currentLesson.status !== 'Aktivní') {
-                generateBtn.disabled = true;
-                generateBtn.title = "Kód lze generovat pouze pro aktivní lekce.";
-                generateBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-
-            generateBtn.addEventListener('click', async () => {
-                if (!currentLesson || !currentLesson.id) {
-                    alert("Před generováním kódu musíte lekci nejprve uložit.");
-                    return;
-                }
-                generateBtn.disabled = true;
-                generateBtn.textContent = "Generuji...";
-                try {
-                    const result = await generateTelegramActivationCode({ lessonId: currentLesson.id });
-                    const newCode = result.data.code;
-                    if (newCode) {
-                        codeDisplay.textContent = newCode;
-                        currentLesson.telegramActivationCode = newCode; // Update local state
-                        const lessonInArray = lessonsData.find(l => l.id === currentLesson.id);
-                        if (lessonInArray) {
-                            lessonInArray.telegramActivationCode = newCode;
-                        }
-                    }
-                } catch (error) {
-                    console.error("Error generating Telegram code:", error);
-                    alert("Nepodařilo se vygenerovat kód. Zkuste to prosím znovu.");
-                    codeDisplay.textContent = "Chyba";
-                } finally {
-                    generateBtn.disabled = false;
-                    generateBtn.textContent = "Generovat kód pro Telegram";
-                }
-            });
         }
 
         if (viewId === 'docs') {
@@ -1026,24 +973,6 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         nav.innerHTML = `<li><button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-600" title="Moje studium"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></button></li>`;
     }
 
-    async function getActiveLessonIdsForToday() {
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-        const eventsCollection = collection(db, 'timeline_events');
-        const q = query(eventsCollection, where("scheduledDate", "==", today));
-        try {
-            const querySnapshot = await getDocs(q);
-            const activeIds = new Set();
-            querySnapshot.forEach(doc => {
-                activeIds.add(doc.data().lessonId);
-            });
-            console.log("Active lesson IDs for today:", activeIds);
-            return activeIds;
-        } catch (error) {
-            console.error("Error fetching active lessons for today:", error);
-            return new Set(); // Return empty set on error
-        }
-    }
-
     async function initStudentDashboard() {
         const mainContent = document.getElementById('student-content-area');
         const sidebar = document.querySelector('#dashboard-student aside');
@@ -1055,37 +984,66 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
 
         // The new design uses the full width, so hide the sidebar.
         sidebar.classList.add('hidden');
+        mainContent.innerHTML = `<div class="p-8 text-center pulse-loader text-slate-500">Načítání...</div>`;
+
+        // --- Fetch student-specific data for settings ---
+        const user = auth.currentUser;
+        let settingsHtml = '';
+        if (user) {
+            try {
+                const studentDocRef = doc(db, "students", user.uid);
+                const studentDoc = await getDoc(studentDocRef);
+                if (studentDoc.exists()) {
+                    const studentData = studentDoc.data();
+                    const token = studentData.telegramConnectionToken;
+                    const botUsername = 'ai_sensei_czu_bot'; // Per instructions, using a placeholder
+
+                    if (studentData.telegramChatId) {
+                        settingsHtml = `
+                            <div class="bg-green-100 border-l-4 border-green-500 text-green-800 p-4 rounded-r-lg mb-6 shadow-sm">
+                                <div class="flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    <div>
+                                        <h2 class="font-bold text-lg">Účet propojen s Telegramem</h2>
+                                        <p class="mt-1 text-sm">Váš účet AI Sensei je úspěšně propojen. Nyní můžete komunikovat s profesorem přes Telegram.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (token) {
+                        settingsHtml = `
+                            <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-r-lg mb-6 shadow-sm">
+                                <h2 class="font-bold text-lg">Propojte svůj účet s Telegramem</h2>
+                                <p class="mt-1">Propojte svůj účet s Telegramem a získejte přístup ke komunikaci s profesorem a dalším notifikacím.</p>
+                                <a href="https://t.me/${botUsername}?start=${token}" target="_blank" rel="noopener noreferrer" class="mt-3 inline-block bg-blue-500 text-white font-bold py-2 px-4 rounded hover:bg-blue-600 transition-colors">
+                                    Propojit s Telegramem
+                                </a>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching student data for settings:", error);
+                settingsHtml = `<div class="bg-red-100 p-4 rounded-lg mb-6">Nepodařilo se načíst nastavení Telegramu.</div>`;
+            }
+        }
+
 
         // Robustness check: Ensure lessonsData is populated.
         if (!lessonsData || lessonsData.length === 0) {
             mainContent.innerHTML = `
                 <div class="p-8 bg-white rounded-2xl shadow-xl text-center">
                     <h1 class="text-2xl font-bold">Vítejte!</h1>
-                    <p class="mt-2 text-slate-600">Načítám dostupné lekce, prosím čekejte...</p>
+                    <p class="mt-2 text-slate-600">Pro vás zatím nebyly připraveny žádné lekce.</p>
                 </div>`;
-            // The `login` function already `awaits` fetchLessons, so this is a fallback.
-            // If we still hit this, it indicates a more fundamental issue.
             return;
         }
 
-        const activeLessonIds = await getActiveLessonIdsForToday();
-        
         // Sort lessons by creation date, newest first.
         const sortedLessons = [...lessonsData].sort((a, b) => new Date(b.creationDate) - new Date(a.creationDate));
 
+        // Lesson cards no longer contain any Telegram-specific activation logic.
         let lessonsHtml = sortedLessons.map(lesson => {
-            const isActiveToday = activeLessonIds.has(lesson.id);
-            const activationHtml = isActiveToday ? `
-                <div class="mt-4 pt-4 border-t border-slate-200">
-                    <h4 class="font-semibold text-slate-700">Komunikace s profesorem</h4>
-                    <p class="text-sm text-slate-500 mb-2">Tato lekce je dnes aktivní. Získejte kód pro připojení k AI Sensei botovi v Telegramu.</p>
-                    <button class="get-telegram-code-btn bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors text-sm font-semibold" data-lesson-id="${lesson.id}">
-                        Získat aktivační kód
-                    </button>
-                    <div id="code-display-${lesson.id}" class="mt-2"></div>
-                </div>
-            ` : '';
-
             return `
                 <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
                     <div class="p-6">
@@ -1100,58 +1058,27 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                         <div class="mt-4 pt-4 border-t border-slate-200 prose prose-sm max-w-none text-slate-600 pointer-events-none">
                             ${lesson.content}
                         </div>
-                        ${activationHtml}
                     </div>
                 </div>
             `;
         }).join('');
 
-        mainContent.innerHTML = `<h1 class="text-3xl font-extrabold text-slate-800 mb-6">Přehled vašich lekcí</h1>${lessonsHtml}`;
+        mainContent.innerHTML = `
+            <h1 class="text-3xl font-extrabold text-slate-800 mb-6">Váš přehled</h1>
+            ${settingsHtml}
+            <h2 class="text-2xl font-bold text-slate-800 mb-4">Dostupné lekce</h2>
+            ${lessonsHtml}
+        `;
 
-        // Add a single event listener to the main content area for delegation
+        // The event listener is now much simpler, only handling clicks on lesson cards.
         mainContent.addEventListener('click', async (e) => {
-            const codeButton = e.target.closest('.get-telegram-code-btn');
-            const copyButton = e.target.closest('.copy-code-btn');
             const lessonCard = e.target.closest('.student-lesson-card');
 
-            if (lessonCard && !codeButton && !copyButton) { // Ensure we don't trigger when clicking a button inside the card
+            if (lessonCard) {
                 const lessonId = lessonCard.dataset.lessonId;
                 const lesson = lessonsData.find(l => l.id === lessonId);
                 if (lesson) {
                     showStudentLesson(lesson); // Pass the whole object
-                }
-                return;
-            }
-
-            if (codeButton) {
-                const lessonId = codeButton.dataset.lessonId;
-                const lesson = lessonsData.find(l => l.id === lessonId);
-                const codeDisplay = document.getElementById(`code-display-${lesson.id}`);
-
-                if (lesson && lesson.telegramActivationCode && codeDisplay) {
-                    codeDisplay.innerHTML = `
-                        <div class="bg-slate-100 p-3 rounded-lg flex items-center justify-between">
-                            <span class="font-mono text-lg text-slate-700">${lesson.telegramActivationCode}</span>
-                            <button class="copy-code-btn p-2 rounded-md hover:bg-slate-200" data-code="${lesson.telegramActivationCode}" title="Kopírovat kód">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                            </button>
-                        </div>
-                    `;
-                    codeButton.textContent = 'Kód zobrazen';
-                    codeButton.disabled = true;
-                } else if (lesson && codeDisplay) {
-                    codeDisplay.innerHTML = `<p class="text-red-500 text-sm">Pro tuto lekci nebyl nalezen aktivační kód.</p>`;
-                }
-            }
-
-            if (copyButton) {
-                const code = copyButton.dataset.code;
-                try {
-                    await navigator.clipboard.writeText(code);
-                    alert('Kód byl zkopírován do schránky!');
-                } catch (err) {
-                    console.error('Failed to copy code: ', err);
-                    alert('Nepodařilo se zkopírovat kód.');
                 }
             }
         });
