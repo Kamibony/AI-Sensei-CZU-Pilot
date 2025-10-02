@@ -1,11 +1,11 @@
 import { initializeApp } from "firebase-admin/app";
 import { onCall, HttpsError, onRequest } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getStorage } from "firebase-admin/storage";
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import axios from 'axios';
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import axios from "axios";
 
 initializeApp();
 
@@ -54,9 +54,9 @@ export const generateText = onCall(
             const text = response.text();
 
             return { text };
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Error generating text:", error);
-            if (error.message && (error.message.includes('400 Bad Request') || error.message.includes('API_KEY_INVALID'))) {
+            if (error instanceof Error && (error.message.includes("400 Bad Request") || error.message.includes("API_KEY_INVALID"))) {
                 throw new HttpsError("unauthenticated", "The provided GEMINI_API_KEY is invalid or missing permissions.");
             }
             const errorMessage = (error instanceof Error) ? error.message : "Unknown error";
@@ -79,9 +79,9 @@ export const generateJson = onCall(
             const text = response.text().replace(/^```json\n|```$/g, "").trim(); // Strip markdown
 
             return JSON.parse(text);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Error generating JSON:", error);
-            if (error.message && (error.message.includes('400 Bad Request') || error.message.includes('API_KEY_INVALID'))) {
+            if (error instanceof Error && (error.message.includes("400 Bad Request") || error.message.includes("API_KEY_INVALID"))) {
                 throw new HttpsError("unauthenticated", "The provided GEMINI_API_KEY is invalid or missing permissions.");
             }
             const errorMessage = (error instanceof Error) ? error.message : "Unknown error";
@@ -123,13 +123,15 @@ export const generateFromDocument = onCall(
 
             return { text: result.response.text() };
 
-        } catch (e: any) {
-            const error = e as Error;
-            console.error("Error generating content from document:", error);
-            if (error.message && (error.message.includes('400 Bad Request') || error.message.includes('API_KEY_INVALID'))) {
-                throw new HttpsError("unauthenticated", "The provided GEMINI_API_KEY is invalid or missing permissions.");
+        } catch (e: unknown) {
+            console.error("Error generating content from document:", e);
+            if (e instanceof Error) {
+                if (e.message.includes("400 Bad Request") || e.message.includes("API_KEY_INVALID")) {
+                    throw new HttpsError("unauthenticated", "The provided GEMINI_API_KEY is invalid or missing permissions.");
+                }
+                throw new HttpsError("internal", "An unexpected error occurred while generating content.", e.message);
             }
-            throw new HttpsError("internal", "An unexpected error occurred while generating content.", error.message);
+            throw new HttpsError("internal", "An unexpected error occurred while generating content.");
         }
     }
 );
@@ -171,13 +173,13 @@ export const telegramWebhook = onRequest(
         const chatId = message.chat.id;
         const text = message.text;
 
-        if (!text || !text.startsWith('/start')) {
+        if (!text || !text.startsWith("/start")) {
             await sendTelegramMessage(chatId, "Ahoj! Jsem AI Sensei bot. Propoj svůj účet s platformou pomocí odkazu, který najdeš na nástěnce.");
             res.status(200).send("OK");
             return;
         }
 
-        const parts = text.split(' ');
+        const parts = text.split(" ");
         if (parts.length !== 2) {
             await sendTelegramMessage(chatId, "❌ Neplatný formát odkazu. Použij prosím odkaz, který jsi obdržel na platformě AI Sensei.");
             res.status(400).send("Invalid start command format");
@@ -187,8 +189,8 @@ export const telegramWebhook = onRequest(
         const token = parts[1];
 
         try {
-            const studentsRef = db.collection('students');
-            const q = studentsRef.where('telegramConnectionToken', '==', token).limit(1);
+            const studentsRef = db.collection("students");
+            const q = studentsRef.where("telegramConnectionToken", "==", token).limit(1);
             const querySnapshot = await q.get();
 
             if (querySnapshot.empty) {
@@ -228,7 +230,7 @@ export const sendMessageToStudent = onCall(
         }
 
         // Get student's chat ID
-        const studentDoc = await db.collection('students').doc(studentId).get();
+        const studentDoc = await db.collection("students").doc(studentId).get();
         if (!studentDoc.exists) {
             throw new HttpsError("not-found", "Student not found.");
         }
@@ -267,8 +269,8 @@ export const sendMessageToProfessor = onCall(
         }
 
         // Optional: Fetch student and lesson details to make the message more informative for the professor.
-        const studentDoc = await db.collection('students').doc(studentId).get();
-        const lessonDoc = await db.collection('lessons').doc(lessonId).get();
+        const studentDoc = await db.collection("students").doc(studentId).get();
+        const lessonDoc = await db.collection("lessons").doc(lessonId).get();
 
         const studentEmail = studentDoc.exists ? studentDoc.data()?.email : `Student ID: ${studentId}`;
         const lessonTitle = lessonDoc.exists ? lessonDoc.data()?.title : `Lekce ID: ${lessonId}`;
@@ -306,9 +308,9 @@ export const getLessonKeyTakeaways = onCall(
             const response = result.response;
             const text = response.text();
             return { takeaways: text };
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Error generating key takeaways:", error);
-            if (error.message && (error.message.includes('400 Bad Request') || error.message.includes('API_KEY_INVALID'))) {
+            if (error instanceof Error && (error.message.includes("400 Bad Request") || error.message.includes("API_KEY_INVALID"))) {
                 throw new HttpsError("unauthenticated", "The provided GEMINI_API_KEY is invalid or missing permissions.");
             }
             throw new HttpsError("internal", "Could not generate key takeaways from the text.");
@@ -331,9 +333,9 @@ export const getAiAssistantResponse = onCall(
             const response = result.response;
             const text = response.text();
             return { answer: text };
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Error getting AI assistant response:", error);
-            if (error.message && (error.message.includes('400 Bad Request') || error.message.includes('API_KEY_INVALID'))) {
+            if (error instanceof Error && (error.message.includes("400 Bad Request") || error.message.includes("API_KEY_INVALID"))) {
                 throw new HttpsError("unauthenticated", "The provided GEMINI_API_KEY is invalid or missing permissions.");
             }
             throw new HttpsError("internal", "Could not get an answer from the AI assistant.");
