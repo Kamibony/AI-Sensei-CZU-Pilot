@@ -974,6 +974,12 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     }
 
     async function initStudentDashboard() {
+        const mainContent = document.getElementById('student-content-area');
+        if (!lessonsData || lessonsData.length === 0) {
+            console.warn("initStudentDashboard called but lessonsData is empty. Displaying fallback message.");
+            mainContent.innerHTML = `<div class="p-8 text-center text-slate-500">Pro vás zatím nebyly připraveny žádné lekce.</div>`;
+            return; // Stop further execution
+        }
         // Use the new top-level container for student content
         const studentContentArea = document.getElementById('student-content-area');
         if (!studentContentArea) {
@@ -1031,16 +1037,6 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         }
 
         // --- Render Lessons into the dashboard content area ---
-        if (!lessonsData || lessonsData.length === 0) {
-            if(studentDashboardContent) {
-                 studentDashboardContent.innerHTML = `
-                    <div class="p-8 bg-white rounded-2xl shadow-xl text-center">
-                        <h1 class="text-2xl font-bold">Vítejte!</h1>
-                        <p class="mt-2 text-slate-600">Pro vás zatím nebyly připraveny žádné lekce.</p>
-                    </div>`;
-            }
-            return;
-        }
 
         const sortedLessons = [...lessonsData].sort((a, b) => new Date(b.creationDate) - new Date(a.creationDate));
 
