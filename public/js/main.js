@@ -222,12 +222,15 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     }
 
     async function login(role) {
+        console.log(`--- LOGIN_START: Role=${role} ---`); // ADD THIS
         currentUserRole = role;
         appContainer.innerHTML = document.getElementById('main-app-template').innerHTML;
         document.getElementById('ai-assistant-btn').style.display = 'flex';
 
         // Ensure data is fully loaded before attempting to render any role-specific UI
+        console.log("LOGIN: Awaiting fetchLessons()..."); // ADD THIS
         await fetchLessons();
+        console.log("LOGIN: fetchLessons() complete. lessonsData count:", lessonsData.length); // ADD THIS
 
         if (role === 'professor') {
             setupProfessorNav();
@@ -238,10 +241,12 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             setupStudentNav();
             const studentHTML = `<div id="dashboard-student" class="w-full flex main-view active"><aside class="w-72 bg-white border-r border-slate-200 flex-col p-4 flex-shrink-0 hidden md:flex"></aside><main id="student-content-area" class="flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50"></main></div>`;
             document.getElementById('role-content-wrapper').innerHTML = studentHTML;
+            console.log("LOGIN: Calling initStudentDashboard()..."); // ADD THIS
             initStudentDashboard();
         }
         document.getElementById('logout-btn').addEventListener('click', logout);
         document.getElementById('ai-assistant-btn').addEventListener('click', showAiAssistant);
+        console.log(`--- LOGIN_END: Role=${role} ---`); // ADD THIS
     }
     
     // --- LOGIKA PRO DASHBOARD PROFESORA ---
@@ -974,74 +979,85 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     }
 
     async function initStudentDashboard() {
-        const mainContent = document.getElementById('student-content-area');
-        if (!lessonsData || lessonsData.length === 0) {
-            console.warn("initStudentDashboard called but lessonsData is empty. Displaying fallback message.");
-            mainContent.innerHTML = `<div class="p-8 text-center text-slate-500">Pro vás zatím nebyly připraveny žádné lekce.</div>`;
-            return; // Stop further execution
-        }
-        // Use the new top-level container for student content
-        const studentContentArea = document.getElementById('student-content-area');
-        if (!studentContentArea) {
-            console.error("Student content area not found. Cannot initialize.");
-            return;
-        }
+        console.log("--- INIT_STUDENT_DASHBOARD_START ---"); // ADD THIS
 
-        // Show a loading state inside the lesson container part
-        const studentDashboardContent = document.getElementById('student-dashboard-content');
-        if(studentDashboardContent) {
-            studentDashboardContent.innerHTML = `<div class="p-8 text-center pulse-loader text-slate-500">Načítání...</div>`;
-        }
+        try { // ADD THIS 'try'
+            const mainContent = document.getElementById('student-content-area');
+            const sidebar = document.querySelector('#dashboard-student aside');
+
+            console.log("INIT_STUDENT: Checking for main elements..."); // ADD THIS
+            if (!mainContent || !sidebar) {
+                console.error("CRITICAL_ERROR: Student dashboard elements not found. Cannot initialize.");
+                return;
+            }
+            if (!lessonsData || lessonsData.length === 0) {
+                console.warn("initStudentDashboard called but lessonsData is empty. Displaying fallback message.");
+                mainContent.innerHTML = `<div class="p-8 text-center text-slate-500">Pro vás zatím nebyly připraveny žádné lekce.</div>`;
+                return; // Stop further execution
+            }
+            // Use the new top-level container for student content
+            const studentContentArea = document.getElementById('student-content-area');
+            if (!studentContentArea) {
+                console.error("Student content area not found. Cannot initialize.");
+                return;
+            }
+
+            // Show a loading state inside the lesson container part
+            const studentDashboardContent = document.getElementById('student-dashboard-content');
+            if (studentDashboardContent) {
+                studentDashboardContent.innerHTML = `<div class="p-8 text-center pulse-loader text-slate-500">Načítání...</div>`;
+            }
 
 
-        // --- Part B: Implement the Display Logic for Telegram ---
-        const user = auth.currentUser;
-        const telegramConnectionBox = document.getElementById('telegram-connection-box');
-        const telegramLinkContainer = document.getElementById('telegram-link-container');
+            // --- Part B: Implement the Display Logic for Telegram ---
+            console.log("INIT_STUDENT: Fetching student-specific data...");
+            const user = auth.currentUser;
+            const telegramConnectionBox = document.getElementById('telegram-connection-box');
+            const telegramLinkContainer = document.getElementById('telegram-link-container');
 
-        if (user && telegramConnectionBox && telegramLinkContainer) {
-            try {
-                const studentDocRef = doc(db, "students", user.uid);
-                const studentDoc = await getDoc(studentDocRef);
+            if (user && telegramConnectionBox && telegramLinkContainer) {
+                try {
+                    const studentDocRef = doc(db, "students", user.uid);
+                    const studentDoc = await getDoc(studentDocRef);
 
-                if (studentDoc.exists()) {
-                    const studentData = studentDoc.data();
+                    if (studentDoc.exists()) {
+                        const studentData = studentDoc.data();
 
-                    // If telegramChatId exists, the student is connected. Hide the box.
-                    if (studentData.telegramChatId) {
-                        telegramConnectionBox.style.display = 'none';
-                    } else {
-                        // Otherwise, ensure the box is visible and populate the link.
-                        telegramConnectionBox.style.display = 'flex';
-                        const token = studentData.telegramConnectionToken;
-                        const botUsername = 'ai_sensei_czu_bot'; // Placeholder
+                        // If telegramChatId exists, the student is connected. Hide the box.
+                        if (studentData.telegramChatId) {
+                            telegramConnectionBox.style.display = 'none';
+                        } else {
+                            // Otherwise, ensure the box is visible and populate the link.
+                            telegramConnectionBox.style.display = 'flex';
+                            const token = studentData.telegramConnectionToken;
+                            const botUsername = 'ai_sensei_czu_bot'; // Placeholder
 
-                        if (token) {
-                            const connectionLink = `https://t.me/${botUsername}?start=${token}`;
-                            telegramLinkContainer.innerHTML = `
+                            if (token) {
+                                const connectionLink = `https://t.me/${botUsername}?start=${token}`;
+                                telegramLinkContainer.innerHTML = `
                                 <a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="inline-block bg-sky-500 text-white font-bold py-2 px-4 rounded hover:bg-sky-600 transition-colors shadow">
                                     <i class="fa-brands fa-telegram mr-2"></i>Klikněte zde pro propojení
                                 </a>
                                 <p class="text-xs mt-2 text-sky-700">Tento odkaz je unikátní pro váš účet a je jednorázový.</p>
                             `;
-                        } else {
-                            telegramLinkContainer.innerHTML = '<p class="italic text-red-600">Nepodařilo se načíst váš unikátní propojovací kód. Zkuste prosím obnovit stránku.</p>';
+                            } else {
+                                telegramLinkContainer.innerHTML = '<p class="italic text-red-600">Nepodařilo se načíst váš unikátní propojovací kód. Zkuste prosím obnovit stránku.</p>';
+                            }
                         }
                     }
+                } catch (error) {
+                    console.error("Error fetching student data for Telegram connection:", error);
+                    telegramConnectionBox.style.display = 'flex';
+                    telegramLinkContainer.innerHTML = `<p class="italic text-red-600">Došlo k chybě při kontrole stavu propojení: ${error.message}</p>`;
                 }
-            } catch (error) {
-                console.error("Error fetching student data for Telegram connection:", error);
-                telegramConnectionBox.style.display = 'flex';
-                telegramLinkContainer.innerHTML = `<p class="italic text-red-600">Došlo k chybě při kontrole stavu propojení: ${error.message}</p>`;
             }
-        }
 
-        // --- Render Lessons into the dashboard content area ---
+            // --- Render Lessons into the dashboard content area ---
 
-        const sortedLessons = [...lessonsData].sort((a, b) => new Date(b.creationDate) - new Date(a.creationDate));
+            const sortedLessons = [...lessonsData].sort((a, b) => new Date(b.creationDate) - new Date(a.creationDate));
 
-        const lessonsHtml = sortedLessons.map(lesson => {
-            return `
+            const lessonsHtml = sortedLessons.map(lesson => {
+                return `
                 <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
                     <div class="p-6">
                         <div class="flex items-start justify-between">
@@ -1058,31 +1074,43 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                     </div>
                 </div>
             `;
-        }).join('');
+            }).join('');
 
-        if (studentDashboardContent) {
-            studentDashboardContent.innerHTML = `
+            if (studentDashboardContent) {
+                studentDashboardContent.innerHTML = `
                 <h1 class="text-3xl font-extrabold text-slate-800 mb-6">Váš přehled</h1>
                 <h2 class="text-2xl font-bold text-slate-800 mb-4">Dostupné lekce</h2>
                 ${lessonsHtml}
             `;
-        }
-
-        // To prevent adding multiple listeners if this function is called again,
-        // we clone the node, replace it, and add the listener to the new node.
-        const newStudentContentArea = studentContentArea.cloneNode(true);
-        studentContentArea.parentNode.replaceChild(newStudentContentArea, studentContentArea);
-
-        newStudentContentArea.addEventListener('click', async (e) => {
-            const lessonCard = e.target.closest('.student-lesson-card');
-            if (lessonCard) {
-                const lessonId = lessonCard.dataset.lessonId;
-                const lesson = lessonsData.find(l => l.id === lessonId);
-                if (lesson) {
-                    showStudentLesson(lesson);
-                }
             }
-        });
+
+            // To prevent adding multiple listeners if this function is called again,
+            // we clone the node, replace it, and add the listener to the new node.
+            const newStudentContentArea = studentContentArea.cloneNode(true);
+            studentContentArea.parentNode.replaceChild(newStudentContentArea, studentContentArea);
+
+            newStudentContentArea.addEventListener('click', async (e) => {
+                const lessonCard = e.target.closest('.student-lesson-card');
+                if (lessonCard) {
+                    const lessonId = lessonCard.dataset.lessonId;
+                    const lesson = lessonsData.find(l => l.id === lessonId);
+                    if (lesson) {
+                        showStudentLesson(lesson);
+                    }
+                }
+            });
+            console.log("--- INIT_STUDENT_DASHBOARD_SUCCESS ---"); // ADD THIS AT THE END OF THE 'try' block
+
+        } catch (error) { // ADD THIS 'catch' block
+            console.error("!!!!!!!!!!!!!!!!! CRASH DETECTED IN initStudentDashboard !!!!!!!!!!!!!!!!!");
+            console.error("THE ERROR IS:", error);
+            console.error("Stack Trace:", error.stack);
+            document.body.innerHTML = `<div style="padding: 2rem; color: red; font-family: monospace;">
+            <h1>Application Crashed</h1>
+            <p>Error in initStudentDashboard:</p>
+            <pre>${error.stack}</pre>
+        </div>`;
+        }
     }
 
 async function showStudentLesson(lessonData) { // Accept the full lesson object
