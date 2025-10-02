@@ -247,6 +247,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         }
         document.getElementById('logout-btn').addEventListener('click', logout);
         document.getElementById('ai-assistant-btn').addEventListener('click', showAiAssistant);
+        // Add this line at the end of the login(role) function
         document.getElementById('app-container').classList.remove('hidden');
         console.log(`--- LOGIN_END: Role=${role} ---`); // ADD THIS
     }
@@ -1005,9 +1006,8 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             }
 
             // Show a loading state inside the lesson container part
-            const studentDashboardContent = document.getElementById('student-dashboard-content');
-            if (studentDashboardContent) {
-                studentDashboardContent.innerHTML = `<div class="p-8 text-center pulse-loader text-slate-500">Načítání...</div>`;
+            if (mainContent) {
+                mainContent.innerHTML = `<div class="p-8 text-center pulse-loader text-slate-500">Načítání...</div>`;
             }
 
 
@@ -1078,8 +1078,8 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             `;
             }).join('');
 
-            if (studentDashboardContent) {
-                studentDashboardContent.innerHTML = `
+            if (mainContent) {
+                mainContent.innerHTML = `
                 <h1 class="text-3xl font-extrabold text-slate-800 mb-6">Váš přehled</h1>
                 <h2 class="text-2xl font-bold text-slate-800 mb-4">Dostupné lekce</h2>
                 ${lessonsHtml}
