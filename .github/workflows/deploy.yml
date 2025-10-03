@@ -17,6 +17,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
+          cache-dependency-path: functions/package-lock.json
 
       - name: Install root dependencies
         run: npm install
