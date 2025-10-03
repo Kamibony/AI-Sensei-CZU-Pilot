@@ -157,7 +157,7 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
     }
 }
 
-export const telegramWebhook = onRequest(
+export const telegramBotWebhook = onRequest(
     { region: "europe-west1", cors: true },
     async (req, res) => {
         // Telegram sends a POST request
