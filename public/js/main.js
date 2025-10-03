@@ -1059,24 +1059,24 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             const sortedLessons = [...lessonsData].sort((a, b) => new Date(b.creationDate) - new Date(a.creationDate));
 
             const lessonsHtml = sortedLessons.map(lesson => {
-                return `
-                <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
-                    <div class="p-6">
-                        <div class="flex items-start justify-between">
-                            <div>
-                                <p class="text-sm font-semibold text-green-600">${lesson.number}</p>
-                                <h2 class="text-2xl font-bold text-slate-800 mt-1 pointer-events-none">${lesson.title}</h2>
-                                <p class="text-slate-500 pointer-events-none">${lesson.subtitle}</p>
-                            </div>
-                            <span class="text-4xl pointer-events-none">${lesson.icon}</span>
-                        </div>
-                        <div class="mt-4 pt-4 border-t border-slate-200 prose prose-sm max-w-none text-slate-600 pointer-events-none">
-                            ${lesson.content}
-                        </div>
-                    </div>
+    return `
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
+        <div class="p-6">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-sm font-semibold text-green-600">${lesson.number || ' '}</p>
+                    <h2 class="text-2xl font-bold text-slate-800 mt-1 pointer-events-none">${lesson.title}</h2>
+                    <p class="text-slate-500 pointer-events-none">${lesson.subtitle}</p>
                 </div>
-            `;
-            }).join('');
+                <span class="text-4xl pointer-events-none">${lesson.icon}</span>
+            </div>
+            <div class="mt-4 pt-4 border-t border-slate-200 prose prose-sm max-w-none text-slate-600 pointer-events-none">
+                ${lesson.content || 'This lesson does not have any content yet.'}
+            </div>
+        </div>
+    </div>
+`;
+}).join('');
 
             if (mainContent) {
                 mainContent.innerHTML = `
