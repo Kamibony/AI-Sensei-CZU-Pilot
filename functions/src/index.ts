@@ -42,7 +42,8 @@ export const generateText = onCall(
     { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+        // UPDATED MODEL
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
         const prompt = request.data.prompt;
 
@@ -67,7 +68,8 @@ export const generateJson = onCall(
     { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+        // UPDATED MODEL
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
         const prompt = request.data.prompt;
 
@@ -99,7 +101,8 @@ export const generateFromDocument = onCall(
     { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+        // KEEPING a vision model for file processing
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
 
         const { filePath, prompt } = request.data;
         if (!filePath || !prompt) {
@@ -153,14 +156,12 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
         });
     } catch (error) {
         console.error(`Failed to send message to chat_id ${chatId}:`, error);
-        // Don't re-throw, just log the error. The caller can decide how to handle it.
     }
 }
 
 export const telegramBotWebhook = onRequest(
     { region: "europe-west1", cors: true },
     async (req, res) => {
-        // Telegram sends a POST request
         if (req.method !== "POST") {
             res.status(405).send("Method Not Allowed");
             return;
@@ -209,7 +210,7 @@ export const telegramBotWebhook = onRequest(
 
             await studentDoc.ref.update({
                 telegramChatId: chatId,
-                telegramConnectionToken: FieldValue.delete() // Remove the token
+                telegramConnectionToken: FieldValue.delete()
             });
 
             console.log(`Successfully connected student ${studentId} with chat ID ${chatId}`);
@@ -233,7 +234,6 @@ export const sendMessageToStudent = onCall(
             throw new HttpsError("invalid-argument", "The function must be called with 'studentId' and 'text'.");
         }
 
-        // Get student's chat ID
         const studentDoc = await db.collection("students").doc(studentId).get();
         if (!studentDoc.exists) {
             throw new HttpsError("not-found", "Student not found.");
@@ -244,7 +244,6 @@ export const sendMessageToStudent = onCall(
             throw new HttpsError("failed-precondition", "Student has not connected their Telegram account via the bot.");
         }
 
-        // Send the message
         await sendTelegramMessage(chatId, text);
 
         return { status: "success" };
@@ -264,15 +263,12 @@ export const sendMessageToProfessor = onCall(
             throw new HttpsError("invalid-argument", "The function must be called with 'lessonId' and 'text'.");
         }
 
-        // For this simple case, we assume a single professor and hardcode their chat ID.
-        // In a real application, you would look this up, perhaps from a 'courses' or 'professors' collection.
         const professorTelegramChatId = process.env.PROFESSOR_TELEGRAM_CHAT_ID;
         if (!professorTelegramChatId) {
             console.error("PROFESSOR_TELEGRAM_CHAT_ID is not set in environment variables.");
             throw new HttpsError("internal", "The professor's chat ID is not configured.");
         }
 
-        // Optional: Fetch student and lesson details to make the message more informative for the professor.
         const studentDoc = await db.collection("students").doc(studentId).get();
         const lessonDoc = await db.collection("lessons").doc(lessonId).get();
 
@@ -301,7 +297,8 @@ export const getLessonKeyTakeaways = onCall(
     { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+        // UPDATED MODEL
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
         const { lessonText } = request.data;
         if (!lessonText) {
@@ -329,7 +326,8 @@ export const getAiAssistantResponse = onCall(
     { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+        // UPDATED MODEL
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
         const { lessonText, userQuestion } = request.data;
         if (!lessonText || !userQuestion) {
