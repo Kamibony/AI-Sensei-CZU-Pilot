@@ -14,7 +14,7 @@ const db = getFirestore();
 // --- Auth/User Functions ---
 
 export const onStudentCreate = onDocumentCreated(
-    { document: "students/{studentId}", region: "europe-west1" },
+    { document: "students/{studentId}", region: "us-central1" }, // ZMENA REGIÓNU
     async (event) => {
         const snap = event.data;
         if (!snap) {
@@ -39,10 +39,9 @@ export const onStudentCreate = onDocumentCreated(
 // --- AI Functions for the Application ---
 
 export const generateText = onCall(
-    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
+    { region: "us-central1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        // UPDATED MODEL
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
         const prompt = request.data.prompt;
@@ -65,21 +64,19 @@ export const generateText = onCall(
 );
 
 export const generateJson = onCall(
-    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
+    { region: "us-central1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        // UPDATED MODEL
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
         const prompt = request.data.prompt;
 
-        // Instruct the model to return JSON.
         const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
 
         try {
             const result = await generativeModel.generateContent(jsonPrompt);
             const response = result.response;
-            const text = response.text().replace(/^```json\n|```$/g, "").trim(); // Strip markdown
+            const text = response.text().replace(/^```json\n|```$/g, "").trim();
 
             return JSON.parse(text);
         } catch (error: unknown) {
@@ -98,10 +95,9 @@ export const generateJson = onCall(
 
 
 export const generateFromDocument = onCall(
-    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
+    { region: "us-central1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        // KEEPING a vision model for file processing
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
 
         const { filePath, prompt } = request.data;
@@ -109,10 +105,10 @@ export const generateFromDocument = onCall(
             throw new HttpsError("invalid-argument", "The function must be called with 'filePath' and 'prompt' arguments.");
         }
 
-        const bucketName = "ai-sensei-czu-pilot.appspot.com"; // Or use process.env.GCLOUD_STORAGE_BUCKET
+        const bucketName = "ai-sensei-czu-pilot.appspot.com";
         const filePart = {
             fileData: {
-                mimeType: "application/pdf", // This should be dynamic based on the file type if possible
+                mimeType: "application/pdf",
                 fileUri: `gs://${bucketName}/${filePath}`
             }
         };
@@ -160,7 +156,7 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
 }
 
 export const telegramBotWebhook = onRequest(
-    { region: "europe-west1", cors: true },
+    { region: "us-central1", cors: true }, // ZMENA REGIÓNU
     async (req, res) => {
         if (req.method !== "POST") {
             res.status(405).send("Method Not Allowed");
@@ -227,7 +223,7 @@ export const telegramBotWebhook = onRequest(
 );
 
 export const sendMessageToStudent = onCall(
-    { region: "europe-west1", cors: true },
+    { region: "us-central1", cors: true }, // ZMENA REGIÓNU
     async (request) => {
         const { studentId, text } = request.data;
         if (!studentId || !text) {
@@ -251,7 +247,7 @@ export const sendMessageToStudent = onCall(
 );
 
 export const sendMessageToProfessor = onCall(
-    { region: "europe-west1", cors: true },
+    { region: "us-central1", cors: true }, // ZMENA REGIÓNU
     async (request) => {
         const { lessonId, text } = request.data;
         const studentId = request.auth?.uid;
@@ -294,10 +290,9 @@ export const sendMessageToProfessor = onCall(
 // --- New Creative Functions for Student View ---
 
 export const getLessonKeyTakeaways = onCall(
-    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
+    { region: "us-central1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        // UPDATED MODEL
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
         const { lessonText } = request.data;
@@ -323,10 +318,9 @@ export const getLessonKeyTakeaways = onCall(
 );
 
 export const getAiAssistantResponse = onCall(
-    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] },
+    { region: "us-central1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        // UPDATED MODEL
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
         const { lessonText, userQuestion } = request.data;
