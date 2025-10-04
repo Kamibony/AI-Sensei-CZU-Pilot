@@ -23,7 +23,7 @@ jobs:
       - name: Install Functions dependencies and build
         run: |
           cd functions
-          npm install
+          npm ci
           npm run build
 
       - name: Authenticate to Google Cloud
