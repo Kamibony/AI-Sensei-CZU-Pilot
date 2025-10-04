@@ -7,6 +7,9 @@ import { getStorage } from "firebase-admin/storage";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import axios from "axios";
 
+// --- OPRAVA: Definice povolené domény pro CORS ---
+const allowedOrigins = ['https://ai-sensei-czu-pilot.web.app'];
+
 initializeApp();
 
 const db = getFirestore();
@@ -14,7 +17,7 @@ const db = getFirestore();
 // --- Auth/User Functions ---
 
 export const onStudentCreate = onDocumentCreated(
-    { document: "students/{studentId}", region: "europe-west1" }, // ZMENA REGIÓNU
+    { document: "students/{studentId}", region: "europe-west1" },
     async (event) => {
         const snap = event.data;
         if (!snap) {
@@ -39,17 +42,10 @@ export const onStudentCreate = onDocumentCreated(
 // --- AI Functions for the Application ---
 
 export const generateText = onCall(
-    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
-        // --- EMULATOR-SPECIFIC MOCK RESPONSE ---
-        // When running in the emulator, we don't have access to secrets.
-        // We return a mock response to allow for frontend testing.
-        if (process.env.FUNCTIONS_EMULATOR === 'true') {
-            const mockText = `Toto je úspěšná odpověď z emulátoru pro prompt: "${request.data.prompt}"`;
-            return { text: mockText };
-        }
-        // --- PRODUCTION LOGIC ---
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+        // POUŽÍVÁME NOVĚJŠÍ MODEL
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
         const prompt = request.data.prompt;
@@ -72,7 +68,7 @@ export const generateText = onCall(
 );
 
 export const generateJson = onCall(
-    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
@@ -103,7 +99,7 @@ export const generateJson = onCall(
 
 
 export const generateFromDocument = onCall(
-    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
@@ -164,7 +160,7 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
 }
 
 export const telegramBotWebhook = onRequest(
-    { region: "europe-west1", cors: true }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: allowedOrigins },
     async (req, res) => {
         if (req.method !== "POST") {
             res.status(405).send("Method Not Allowed");
@@ -231,7 +227,7 @@ export const telegramBotWebhook = onRequest(
 );
 
 export const sendMessageToStudent = onCall(
-    { region: "europe-west1", cors: true }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
         const { studentId, text } = request.data;
         if (!studentId || !text) {
@@ -255,7 +251,7 @@ export const sendMessageToStudent = onCall(
 );
 
 export const sendMessageToProfessor = onCall(
-    { region: "europe-west1", cors: true }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
         const { lessonId, text } = request.data;
         const studentId = request.auth?.uid;
@@ -298,7 +294,7 @@ export const sendMessageToProfessor = onCall(
 // --- New Creative Functions for Student View ---
 
 export const getLessonKeyTakeaways = onCall(
-    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
@@ -326,7 +322,7 @@ export const getLessonKeyTakeaways = onCall(
 );
 
 export const getAiAssistantResponse = onCall(
-    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
