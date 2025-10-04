@@ -8,7 +8,7 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import axios from "axios";
 
 // --- OPRAVA: Definice povolené domény pro CORS ---
-const allowedOrigins = ['https://ai-sensei-czu-pilot.web.app'];
+const allowedOrigins = ["https://ai-sensei-czu-pilot.web.app"];
 
 initializeApp();
 
@@ -46,7 +46,7 @@ export const generateText = onCall(
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
         // POUŽÍVÁME NOVĚJŠÍ MODEL
-        const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const prompt = request.data.prompt;
 
@@ -71,7 +71,7 @@ export const generateJson = onCall(
     { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const prompt = request.data.prompt;
 
@@ -297,7 +297,7 @@ export const getLessonKeyTakeaways = onCall(
     { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const { lessonText } = request.data;
         if (!lessonText) {
@@ -325,7 +325,7 @@ export const getAiAssistantResponse = onCall(
     { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+        const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const { lessonText, userQuestion } = request.data;
         if (!lessonText || !userQuestion) {
