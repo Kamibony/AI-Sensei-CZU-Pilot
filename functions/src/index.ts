@@ -3,6 +3,7 @@ import { onCall, HttpsError, onRequest } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { version as genAiVersion } from "@google/generative-ai/package.json";
 import { getStorage } from "firebase-admin/storage";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import axios from "axios";
@@ -44,7 +45,7 @@ export const onStudentCreate = onDocumentCreated(
 export const generateText = onCall(
     { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
-        console.log(`RUNNING @google/generative-ai version: ${require('@google/generative-ai/package.json').version}`);
+        console.log(`RUNNING @google/generative-ai version: ${genAiVersion}`);
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
         // POUŽÍVÁME NOVĚJŠÍ MODEL
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
