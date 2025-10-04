@@ -44,6 +44,7 @@ export const onStudentCreate = onDocumentCreated(
 export const generateText = onCall(
     { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
     async (request) => {
+        console.log(`RUNNING @google/generative-ai version: ${require('@google/generative-ai/package.json').version}`);
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
         // POUŽÍVÁME NOVĚJŠÍ MODEL
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
