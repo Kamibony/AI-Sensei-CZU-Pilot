@@ -14,7 +14,7 @@ const db = getFirestore();
 // --- Auth/User Functions ---
 
 export const onStudentCreate = onDocumentCreated(
-    { document: "students/{studentId}", region: "us-central1" }, // ZMENA REGIÓNU
+    { document: "students/{studentId}", region: "europe-west1" }, // ZMENA REGIÓNU
     async (event) => {
         const snap = event.data;
         if (!snap) {
@@ -39,7 +39,7 @@ export const onStudentCreate = onDocumentCreated(
 // --- AI Functions for the Application ---
 
 export const generateText = onCall(
-    { region: "us-central1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
@@ -64,7 +64,7 @@ export const generateText = onCall(
 );
 
 export const generateJson = onCall(
-    { region: "us-central1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
@@ -95,7 +95,7 @@ export const generateJson = onCall(
 
 
 export const generateFromDocument = onCall(
-    { region: "us-central1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
@@ -156,7 +156,7 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
 }
 
 export const telegramBotWebhook = onRequest(
-    { region: "us-central1", cors: true }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: true }, // ZMENA REGIÓNU
     async (req, res) => {
         if (req.method !== "POST") {
             res.status(405).send("Method Not Allowed");
@@ -223,7 +223,7 @@ export const telegramBotWebhook = onRequest(
 );
 
 export const sendMessageToStudent = onCall(
-    { region: "us-central1", cors: true }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: true }, // ZMENA REGIÓNU
     async (request) => {
         const { studentId, text } = request.data;
         if (!studentId || !text) {
@@ -247,7 +247,7 @@ export const sendMessageToStudent = onCall(
 );
 
 export const sendMessageToProfessor = onCall(
-    { region: "us-central1", cors: true }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: true }, // ZMENA REGIÓNU
     async (request) => {
         const { lessonId, text } = request.data;
         const studentId = request.auth?.uid;
@@ -290,7 +290,7 @@ export const sendMessageToProfessor = onCall(
 // --- New Creative Functions for Student View ---
 
 export const getLessonKeyTakeaways = onCall(
-    { region: "us-central1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
@@ -318,7 +318,7 @@ export const getLessonKeyTakeaways = onCall(
 );
 
 export const getAiAssistantResponse = onCall(
-    { region: "us-central1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
+    { region: "europe-west1", cors: true, secrets: ["GEMINI_API_KEY"] }, // ZMENA REGIÓNU
     async (request) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
         const generativeModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
