@@ -5,6 +5,25 @@ import { v4 as uuidv4 } from "uuid";
 import { getStorage } from "firebase-admin/storage";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import axios, { AxiosError } from "axios";
+import { GoogleAuth } from "google-auth-library";
+
+// --- Vertex AI Response Types ---
+interface Part {
+    text: string;
+}
+interface Content {
+    parts: Part[];
+    role?: string;
+}
+interface Candidate {
+    content: Content;
+    finishReason?: string;
+    index?: number;
+    safetyRatings?: object[];
+}
+interface StreamedGenerateContentResponse {
+    candidates: Candidate[];
+}
 
 // --- CORS Configuration ---
 const allowedOrigins = [
@@ -36,58 +55,91 @@ export const onStudentCreate = onDocumentCreated(
     }
 );
 
-// --- REFACTORED AI FUNCTIONS USING DIRECT AXIOS CALLS ---
+// --- REFACTORED AI FUNCTIONS USING DIRECT AXIOS CALLS TO VERTEX AI ---
 
-const API_KEY = process.env.GEMINI_API_KEY;
-const API_BASE_URL = "https://generativelanguage.googleapis.com/v1/models/";
+const REGION = "europe-west1";
+const API_BASE_URL = `https://${REGION}-aiplatform.googleapis.com/v1`;
 
-// Define a type for the request body, disabling the linter rule for this specific line.
+// Define a type for the request body.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type GeminiRequestBody = any;
 
-// Universal helper function to call the Gemini v1 API
+// Universal helper function to call the Vertex AI Gemini API
 async function callGemini(model: string, requestBody: GeminiRequestBody): Promise<string> {
-    if (!API_KEY) {
-        throw new HttpsError("internal", "GEMINI_API_KEY is not set in the environment.");
+    const projectId = process.env.GCLOUD_PROJECT;
+    if (!projectId) {
+        throw new HttpsError("internal", "GCLOUD_PROJECT environment variable not set.");
     }
-    const url = `${API_BASE_URL}${model}:generateContent?key=${API_KEY}`;
+
+    const url = `${API_BASE_URL}/projects/${projectId}/locations/${REGION}/publishers/google/models/${model}:streamGenerateContent`;
+
     try {
+        // Get application default credentials for authentication
+        const auth = new GoogleAuth({
+            scopes: "https://www.googleapis.com/auth/cloud-platform",
+        });
+        const client = await auth.getClient();
+        const accessToken = (await client.getAccessToken()).token;
+
+        if (!accessToken) {
+            throw new HttpsError("internal", "Failed to obtain access token.");
+        }
+
         const response = await axios.post(url, requestBody, {
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Authorization": `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+            },
         });
 
-        if (response.data.candidates && response.data.candidates.length > 0) {
-            const candidate = response.data.candidates[0];
-            if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
-                return candidate.content.parts[0].text;
+        // The response from a streaming endpoint is an array of objects.
+        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+            // We concatenate the text from all parts of all candidates.
+            const fullText = response.data
+                .flatMap((chunk: StreamedGenerateContentResponse) => chunk.candidates)
+                .flatMap((candidate: Candidate) => candidate.content.parts)
+                .map((part: Part) => part.text)
+                .join("");
+
+            if (fullText) {
+                return fullText;
             }
         }
-        throw new HttpsError("internal", "Invalid response structure from Gemini API.");
+
+        console.warn("Gemini API returned an empty or invalid response:", response.data);
+        throw new HttpsError("internal", "Invalid or empty response structure from Vertex AI API.");
+
     } catch (error: unknown) {
         const axiosError = error as AxiosError;
-        console.error(`Error calling Gemini model ${model}:`, axiosError.response?.data || (error as Error).message);
+        console.error(`Error calling Vertex AI model ${model}:`, axiosError.response?.data || (error as Error).message);
+
         if (axios.isAxiosError(error) && error.response) {
             const status = error.response.status;
-            const message = (error.response.data as { error?: { message?: string } })?.error?.message || "Unknown API error";
+            const errorDetails = error.response.data as { error?: { message?: string, code?: number, status?: string } };
+            const message = errorDetails?.error?.message || "Unknown API error";
+
+            // Remap status codes to HttpsError codes
             if (status === 404) {
-                throw new HttpsError("not-found", `Model '${model}' not found. Please check the model name.`);
+                 throw new HttpsError("not-found", `Model '${model}' not found. Verify the model name and the API endpoint. Details: ${message}`);
             }
             if (status === 400) {
-                throw new HttpsError("invalid-argument", `Bad request to Gemini API: ${message}`);
+                throw new HttpsError("invalid-argument", `Bad request to Vertex AI API: ${message}`);
             }
             if (status === 401 || status === 403) {
-                throw new HttpsError("unauthenticated", "The provided GEMINI_API_KEY is invalid or missing permissions.");
+                 throw new HttpsError("unauthenticated", `Authentication failed. Ensure the service account has the 'Vertex AI User' role. Details: ${message}`);
             }
         }
-        throw new HttpsError("internal", "An unexpected error occurred while contacting the Gemini API.");
+
+        // Generic fallback error
+        throw new HttpsError("internal", "An unexpected error occurred while contacting the Vertex AI API.");
     }
 }
 
 
 export const generateText = onCall(
-    { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
+    { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
-        const model = "gemini-1.5-flash";
+        const model = "gemini-1.5-flash-001";
         const prompt = request.data.prompt;
 
         if (!prompt) {
@@ -104,9 +156,9 @@ export const generateText = onCall(
 );
 
 export const generateJson = onCall(
-    { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
+    { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
-        const model = "gemini-1.5-flash";
+        const model = "gemini-1.5-flash-001";
         const prompt = request.data.prompt;
 
         if (!prompt) {
@@ -133,50 +185,50 @@ export const generateJson = onCall(
 );
 
 export const generateFromDocument = onCall(
-    { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
+    { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
         const { filePath, prompt } = request.data;
         if (!filePath || !prompt) {
             throw new HttpsError("invalid-argument", "The function must be called with 'filePath' and 'prompt' arguments.");
         }
 
-        try {
-            const { GoogleGenerativeAI } = await import("@google/generative-ai");
-            const genAI = new GoogleGenerativeAI(API_KEY!);
-            const generativeModel = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+        const model = "gemini-pro-vision";
+        const bucketName = "ai-sensei-czu-pilot.appspot.com";
 
-            const bucketName = "ai-sensei-czu-pilot.appspot.com";
-            const filePart = {
-                fileData: {
-                    mimeType: "application/pdf",
-                    fileUri: `gs://${bucketName}/${filePath}`,
-                },
-            };
-
-            const file = getStorage().bucket(bucketName).file(filePath);
-            const [exists] = await file.exists();
-            if (!exists) {
-                throw new HttpsError("not-found", `File not found at path: ${filePath}`);
-            }
-
-            const result = await generativeModel.generateContent({
-                contents: [{ role: "user", parts: [filePart, { text: prompt }] }],
-            });
-
-            return { text: result.response.text() };
-        } catch (e: unknown) {
-            // LINTER FIX: Explicitly use the 'e' variable to create the error message.
-            const errorMessage = e instanceof Error ? e.message : "Unknown error";
-            console.error("Error in generateFromDocument with SDK:", errorMessage);
-            throw new HttpsError("internal", `An error occurred in the vision model function: ${errorMessage}`);
+        // Verify the file exists before making the API call
+        const file = getStorage().bucket(bucketName).file(filePath);
+        const [exists] = await file.exists();
+        if (!exists) {
+            throw new HttpsError("not-found", `File not found at path: ${filePath}`);
         }
+
+        const requestBody = {
+            contents: [
+                {
+                    parts: [
+                        {
+                            fileData: {
+                                mimeType: "application/pdf",
+                                fileUri: `gs://${bucketName}/${filePath}`,
+                            },
+                        },
+                        {
+                            text: prompt,
+                        },
+                    ],
+                },
+            ],
+        };
+
+        const text = await callGemini(model, requestBody);
+        return { text };
     }
 );
 
 
 // --- Creative Functions (Refactored) ---
 export const getLessonKeyTakeaways = onCall(
-    { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
+    { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
         const { lessonText } = request.data;
         if (!lessonText) {
@@ -185,13 +237,13 @@ export const getLessonKeyTakeaways = onCall(
 
         const prompt = `Based on the following lesson text, please identify and summarize the top 3 key takeaways. Present them as a numbered list.\n\n---\n\n${lessonText}`;
         const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
-        const takeaways = await callGemini("gemini-1.5-flash", requestBody);
+        const takeaways = await callGemini("gemini-1.5-flash-001", requestBody);
         return { takeaways };
     }
 );
 
 export const getAiAssistantResponse = onCall(
-    { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
+    { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
         const { lessonText, userQuestion } = request.data;
         if (!lessonText || !userQuestion) {
@@ -200,7 +252,7 @@ export const getAiAssistantResponse = onCall(
 
         const prompt = `You are an AI assistant for a student. Your task is to answer the student's question based *only* on the provided lesson text. Do not use any external knowledge. If the answer is not in the text, say that you cannot find the answer in the provided materials.\n\nLesson Text:\n---\n${lessonText}\n---\n\nStudent's Question: "${userQuestion}"`;
         const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
-        const answer = await callGemini("gemini-1.5-flash", requestBody);
+        const answer = await callGemini("gemini-1.5-flash-001", requestBody);
         return { answer };
     }
 );
