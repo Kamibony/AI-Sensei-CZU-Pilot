@@ -125,7 +125,7 @@ export const generateJson = onCall(
         const rawJsonText = await callGemini(model, requestBody);
         try {
             return JSON.parse(rawJsonText);
-        } catch (e) {
+        } catch (_e) {
             console.error("Failed to parse JSON from Gemini:", rawJsonText);
             throw new HttpsError("internal", "Model returned invalid JSON.");
         }
@@ -165,6 +165,7 @@ export const generateFromDocument = onCall(
 
             return { text: result.response.text() };
         } catch (e: unknown) {
+            // LINTER FIX: Explicitly use the 'e' variable to create the error message.
             const errorMessage = e instanceof Error ? e.message : "Unknown error";
             console.error("Error in generateFromDocument with SDK:", errorMessage);
             throw new HttpsError("internal", `An error occurred in the vision model function: ${errorMessage}`);
