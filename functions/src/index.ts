@@ -214,7 +214,7 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
 */
 
 export const telegramBotWebhook = onRequest(
-    { region: "europe-west1", cors: allowedOrigins },
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN"] },
     async (req, res) => {
         // Temporarily disabled for diagnostic purposes
         console.log("telegramBotWebhook called, but is temporarily disabled.");
@@ -223,7 +223,7 @@ export const telegramBotWebhook = onRequest(
 );
 
 export const sendMessageToStudent = onCall(
-    { region: "europe-west1", cors: allowedOrigins },
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN"] },
     async (request) => {
         // Temporarily disabled for diagnostic purposes
         console.log("sendMessageToStudent called, but is temporarily disabled.");
@@ -232,7 +232,7 @@ export const sendMessageToStudent = onCall(
 );
 
 export const sendMessageToProfessor = onCall(
-    { region: "europe-west1", cors: allowedOrigins },
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN", "PROFESSOR_TELEGRAM_CHAT_ID"] },
     async (request) => {
         // Temporarily disabled for diagnostic purposes
         console.log("sendMessageToProfessor called, but is temporarily disabled.");
