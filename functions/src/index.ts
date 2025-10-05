@@ -139,7 +139,7 @@ async function callGemini(model: string, requestBody: GeminiRequestBody): Promis
 export const generateText = onCall(
     { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
-        const model = "gemini-1.5-flash-001";
+        const model = "gemini-1.0-pro";
         const prompt = request.data.prompt;
 
         if (!prompt) {
@@ -158,7 +158,7 @@ export const generateText = onCall(
 export const generateJson = onCall(
     { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
-        const model = "gemini-1.5-flash-001";
+        const model = "gemini-1.0-pro";
         const prompt = request.data.prompt;
 
         if (!prompt) {
@@ -237,7 +237,7 @@ export const getLessonKeyTakeaways = onCall(
 
         const prompt = `Based on the following lesson text, please identify and summarize the top 3 key takeaways. Present them as a numbered list.\n\n---\n\n${lessonText}`;
         const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
-        const takeaways = await callGemini("gemini-1.5-flash-001", requestBody);
+        const takeaways = await callGemini("gemini-1.0-pro", requestBody);
         return { takeaways };
     }
 );
@@ -252,7 +252,7 @@ export const getAiAssistantResponse = onCall(
 
         const prompt = `You are an AI assistant for a student. Your task is to answer the student's question based *only* on the provided lesson text. Do not use any external knowledge. If the answer is not in the text, say that you cannot find the answer in the provided materials.\n\nLesson Text:\n---\n${lessonText}\n---\n\nStudent's Question: "${userQuestion}"`;
         const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
-        const answer = await callGemini("gemini-1.5-flash-001", requestBody);
+        const answer = await callGemini("gemini-1.0-pro", requestBody);
         return { answer };
     }
 );
