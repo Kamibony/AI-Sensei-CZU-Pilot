@@ -11,8 +11,8 @@ const REGION = "europe-west1";
 const vertex_ai = new VertexAI({ project: process.env.GCLOUD_PROJECT, location: REGION });
 
 const MODELS = {
-  PRO: "gemini-1.5-flash-001",
-  VISION: "gemini-1.5-flash-001" // Note: 1.5 Flash is also multimodal
+  PRO: "gemini-pro",
+  VISION: "gemini-pro-vision"
 };
 
 const generativeModel = vertex_ai.getGenerativeModel({ model: MODELS.PRO });
