@@ -97,7 +97,14 @@ async function callGemini(model: string, requestBody: GeminiRequestBody): Promis
             throw new HttpsError("internal", "Failed to obtain access token.");
         }
 
-        const response = await axios.post(url, requestBody, {
+        const response = await axios.post(url, { ...requestBody,
+            safetySettings: [
+                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+            ]
+        }, {
             headers: {
                 "Authorization": `Bearer ${accessToken}`,
                 "Content-Type": "application/json",
