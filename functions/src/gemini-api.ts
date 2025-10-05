@@ -7,7 +7,7 @@ import {
 } from "@google-cloud/vertexai";
 
 // 1. Centralized Initialization and Configuration
-const REGION = "europe-west1";
+const REGION = "us-central1";
 const vertex_ai = new VertexAI({ project: process.env.GCLOUD_PROJECT, location: REGION });
 
 const MODELS = {
