@@ -214,7 +214,7 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
 */
 
 export const telegramBotWebhook = onRequest(
-    { region: "europe-west1", cors: allowedOrigins },
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN"] },
     async (req, res) => {
         // Temporarily disabled for diagnostic purposes
         console.log("telegramBotWebhook called, but is temporarily disabled.");
