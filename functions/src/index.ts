@@ -168,6 +168,11 @@ export const generateFromDocument = onCall(
             console.error("Error in generateFromDocument with SDK:", errorMessage);
             throw new HttpsError("internal", `An error occurred in the vision model function: ${errorMessage}`);
         }
+
+        const prompt = `You are an AI assistant for a student. Your task is to answer the student's question based *only* on the provided lesson text. Do not use any external knowledge. If the answer is not in the text, say that you cannot find the answer in the provided materials.\n\nLesson Text:\n---\n${lessonText}\n---\n\nStudent's Question: "${userQuestion}"`;
+        const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
+        const answer = await callGemini("gemini-1.5-flash", requestBody);
+        return { answer };
     }
 );
 
