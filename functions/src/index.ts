@@ -66,6 +66,18 @@ type GeminiRequestBody = any;
 
 // Universal helper function to call the Vertex AI Gemini API
 async function callGemini(model: string, requestBody: GeminiRequestBody): Promise<string> {
+    // --- EMULATOR MOCK ---
+    // When running in the emulator, we can't make real API calls.
+    // Return a mock response to allow frontend testing.
+    if (process.env.FUNCTIONS_EMULATOR === "true") {
+        console.log(`EMULATOR_MOCK: Bypassing real API call for model ${model}.`);
+        // Return a mock JSON string for JSON requests, and plain text for others.
+        if (requestBody.generationConfig?.response_mime_type === "application/json") {
+            return JSON.stringify({ mock: "This is a mock JSON response from the emulator." });
+        }
+        return "This is a mock text response from the emulator because real API calls are not available locally.";
+    }
+
     const projectId = process.env.GCLOUD_PROJECT;
     if (!projectId) {
         throw new HttpsError("internal", "GCLOUD_PROJECT environment variable not set.");
@@ -139,7 +151,7 @@ async function callGemini(model: string, requestBody: GeminiRequestBody): Promis
 export const generateText = onCall(
     { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
-        const model = "gemini-1.0-pro";
+        const model = "gemini-2.5-flash";
         const prompt = request.data.prompt;
 
         if (!prompt) {
@@ -158,7 +170,7 @@ export const generateText = onCall(
 export const generateJson = onCall(
     { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
-        const model = "gemini-1.0-pro";
+        const model = "gemini-2.5-flash";
         const prompt = request.data.prompt;
 
         if (!prompt) {
@@ -192,7 +204,7 @@ export const generateFromDocument = onCall(
             throw new HttpsError("invalid-argument", "The function must be called with 'filePath' and 'prompt' arguments.");
         }
 
-        const model = "gemini-pro-vision";
+        const model = "gemini-2.5-flash-image";
         const bucketName = "ai-sensei-czu-pilot.appspot.com";
 
         // Verify the file exists before making the API call
@@ -237,7 +249,7 @@ export const getLessonKeyTakeaways = onCall(
 
         const prompt = `Based on the following lesson text, please identify and summarize the top 3 key takeaways. Present them as a numbered list.\n\n---\n\n${lessonText}`;
         const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
-        const takeaways = await callGemini("gemini-1.0-pro", requestBody);
+        const takeaways = await callGemini("gemini-2.5-flash", requestBody);
         return { takeaways };
     }
 );
@@ -252,7 +264,7 @@ export const getAiAssistantResponse = onCall(
 
         const prompt = `You are an AI assistant for a student. Your task is to answer the student's question based *only* on the provided lesson text. Do not use any external knowledge. If the answer is not in the text, say that you cannot find the answer in the provided materials.\n\nLesson Text:\n---\n${lessonText}\n---\n\nStudent's Question: "${userQuestion}"`;
         const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
-        const answer = await callGemini("gemini-1.0-pro", requestBody);
+        const answer = await callGemini("gemini-2.5-flash", requestBody);
         return { answer };
     }
 );
