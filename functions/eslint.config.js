@@ -34,4 +34,18 @@ export default [
   // Now, spread the SCOPED recommended configs.
   // These will only apply to files matching "src/**/*.ts".
   ...scopedRecommended,
+  {
+    // Override the no-unused-vars rule to allow underscore-prefixed variables
+    files: ["src/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          "argsIgnorePattern": "^_",
+          "varsIgnorePattern": "^_",
+          "caughtErrorsIgnorePattern": "^_",
+        },
+      ],
+    },
+  },
 ];
