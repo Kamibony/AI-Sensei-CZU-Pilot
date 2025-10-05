@@ -34,7 +34,11 @@ export const onStudentCreate = onDocumentCreated(
             console.error(`Failed to update student ${studentId} with telegramConnectionToken:`, error);
         }
     }
-);
+    const url = `${API_BASE_URL}${model}:generateContent?key=${API_KEY}`;
+    try {
+        const response = await axios.post(url, requestBody, {
+            headers: { "Content-Type": "application/json" },
+        });
 
 // --- REFACTORED AI FUNCTIONS USING DIRECT AXIOS CALLS ---
 
@@ -205,6 +209,32 @@ export const getAiAssistantResponse = onCall(
 // --- Telegram Bot Functions (Unchanged) ---
 const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
+        const prompt = `Based on the following lesson text, please identify and summarize the top 3 key takeaways. Present them as a numbered list.\n\n---\n\n${lessonText}`;
+        const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
+        const takeaways = await callGemini("gemini-1.5-flash", requestBody);
+        return { takeaways };
+    }
+);
+
+export const getAiAssistantResponse = onCall(
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
+    async (request) => {
+        const { lessonText, userQuestion } = request.data;
+        if (!lessonText || !userQuestion) {
+            throw new HttpsError("invalid-argument", "The function must be called with 'lessonText' and 'userQuestion'.");
+        }
+
+        const prompt = `You are an AI assistant for a student. Your task is to answer the student's question based *only* on the provided lesson text. Do not use any external knowledge. If the answer is not in the text, say that you cannot find the answer in the provided materials.\n\nLesson Text:\n---\n${lessonText}\n---\n\nStudent's Question: "${userQuestion}"`;
+        const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
+        const answer = await callGemini("gemini-1.5-flash", requestBody);
+        return { answer };
+    }
+);
+
+// --- Telegram Bot Functions (Unchanged) ---
+// const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+/*
 async function sendTelegramMessage(chatId: string | number, text: string) {
     if (!botToken) {
         console.error("TELEGRAM_BOT_TOKEN is not set.");
@@ -221,9 +251,10 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
         console.error(`Failed to send message to chat_id ${chatId}:`, error);
     }
 }
+*/
 
 export const telegramBotWebhook = onRequest(
-    { region: "europe-west1", cors: allowedOrigins },
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN"] },
     async (req, res) => {
         if (req.method !== "POST") {
             res.status(405).send("Method Not Allowed");
@@ -290,25 +321,10 @@ export const telegramBotWebhook = onRequest(
 
 export const sendMessageToStudent = onCall(
     { region: "europe-west1", cors: allowedOrigins },
-    async (request) => {
-        const { studentId, text } = request.data;
-        if (!studentId || !text) {
-            throw new HttpsError("invalid-argument", "The function must be called with 'studentId' and 'text'.");
-        }
-
-        const studentDoc = await db.collection("students").doc(studentId).get();
-        if (!studentDoc.exists) {
-            throw new HttpsError("not-found", "Student not found.");
-        }
-
-        const chatId = studentDoc.data()?.telegramChatId;
-        if (!chatId) {
-            throw new HttpsError("failed-precondition", "Student has not connected their Telegram account via the bot.");
-        }
-
-        await sendTelegramMessage(chatId, text);
-
-        return { status: "success" };
+    async (_request) => {
+        // Temporarily disabled for diagnostic purposes
+        console.log("sendMessageToStudent called, but is temporarily disabled.");
+        return { status: "success", message: "Temporarily disabled for diagnostics." };
     }
 );
 
