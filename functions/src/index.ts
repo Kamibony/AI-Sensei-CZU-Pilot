@@ -168,6 +168,32 @@ export const generateFromDocument = onCall(
             console.error("Error in generateFromDocument with SDK:", errorMessage);
             throw new HttpsError("internal", `An error occurred in the vision model function: ${errorMessage}`);
         }
+    }
+);
+
+// --- Creative Functions (Refactored) ---
+export const getLessonKeyTakeaways = onCall(
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
+    async (request) => {
+        const { lessonText } = request.data;
+        if (!lessonText) {
+            throw new HttpsError("invalid-argument", "The function must be called with 'lessonText'.");
+        }
+
+        const prompt = `Based on the following lesson text, please identify and summarize the top 3 key takeaways. Present them as a numbered list.\n\n---\n\n${lessonText}`;
+        const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
+        const takeaways = await callGemini("gemini-1.5-flash", requestBody);
+        return { takeaways };
+    }
+);
+
+export const getAiAssistantResponse = onCall(
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["GEMINI_API_KEY"] },
+    async (request) => {
+        const { lessonText, userQuestion } = request.data;
+        if (!lessonText || !userQuestion) {
+            throw new HttpsError("invalid-argument", "The function must be called with 'lessonText' and 'userQuestion'.");
+        }
 
         const prompt = `You are an AI assistant for a student. Your task is to answer the student's question based *only* on the provided lesson text. Do not use any external knowledge. If the answer is not in the text, say that you cannot find the answer in the provided materials.\n\nLesson Text:\n---\n${lessonText}\n---\n\nStudent's Question: "${userQuestion}"`;
         const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
@@ -175,8 +201,6 @@ export const generateFromDocument = onCall(
         return { answer };
     }
 );
-
-
 
 // --- Telegram Bot Functions (Unchanged) ---
 const botToken = process.env.TELEGRAM_BOT_TOKEN;
