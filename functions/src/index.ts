@@ -4,26 +4,8 @@ import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { getStorage } from "firebase-admin/storage";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import axios, { AxiosError } from "axios";
-import { GoogleAuth } from "google-auth-library";
-
-// --- Vertex AI Response Types ---
-interface Part {
-    text: string;
-}
-interface Content {
-    parts: Part[];
-    role?: string;
-}
-interface Candidate {
-    content: Content;
-    finishReason?: string;
-    index?: number;
-    safetyRatings?: object[];
-}
-interface StreamedGenerateContentResponse {
-    candidates: Candidate[];
-}
+import axios from "axios";
+import * as GeminiAPI from "./gemini-api.js";
 
 // --- CORS Configuration ---
 const allowedOrigins = [
@@ -35,7 +17,7 @@ const allowedOrigins = [
 initializeApp();
 const db = getFirestore();
 
-// --- Auth/User Functions (Unchanged) ---
+// --- Auth/User Functions ---
 export const onStudentCreate = onDocumentCreated(
     { document: "students/{studentId}", region: "europe-west1" },
     async (event) => {
@@ -55,150 +37,37 @@ export const onStudentCreate = onDocumentCreated(
     }
 );
 
-// --- REFACTORED AI FUNCTIONS USING DIRECT AXIOS CALLS TO VERTEX AI ---
-
-const REGION = "europe-west1";
-const API_BASE_URL = `https://${REGION}-aiplatform.googleapis.com/v1`;
-
-// Define a type for the request body.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type GeminiRequestBody = any;
-
-// Universal helper function to call the Vertex AI Gemini API
-async function callGemini(model: string, requestBody: GeminiRequestBody): Promise<string> {
-    // --- EMULATOR MOCK ---
-    // When running in the emulator, we can't make real API calls.
-    // Return a mock response to allow frontend testing.
-    if (process.env.FUNCTIONS_EMULATOR === "true") {
-        console.log(`EMULATOR_MOCK: Bypassing real API call for model ${model}.`);
-        // Return a mock JSON string for JSON requests, and plain text for others.
-        if (requestBody.generationConfig?.response_mime_type === "application/json") {
-            return JSON.stringify({ mock: "This is a mock JSON response from the emulator." });
-        }
-        return "This is a mock text response from the emulator because real API calls are not available locally.";
-    }
-
-    const projectId = process.env.GCLOUD_PROJECT;
-    if (!projectId) {
-        throw new HttpsError("internal", "GCLOUD_PROJECT environment variable not set.");
-    }
-
-    const url = `${API_BASE_URL}/projects/${projectId}/locations/${REGION}/publishers/google/models/${model}:streamGenerateContent`;
-
-    try {
-        // Get application default credentials for authentication
-        const auth = new GoogleAuth({
-            scopes: "https://www.googleapis.com/auth/cloud-platform",
-        });
-        const client = await auth.getClient();
-        const accessToken = (await client.getAccessToken()).token;
-
-        if (!accessToken) {
-            throw new HttpsError("internal", "Failed to obtain access token.");
-        }
-
-        const response = await axios.post(url, { ...requestBody,
-            safetySettings: [
-                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-            ]
-        }, {
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Content-Type": "application/json",
-            },
-        });
-
-        // The response from a streaming endpoint is an array of objects.
-        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-            // We concatenate the text from all parts of all candidates.
-            const fullText = response.data
-                .flatMap((chunk: StreamedGenerateContentResponse) => chunk.candidates)
-                .flatMap((candidate: Candidate) => candidate.content.parts)
-                .map((part: Part) => part.text)
-                .join("");
-
-            if (fullText) {
-                return fullText;
-            }
-        }
-
-        console.warn("Gemini API returned an empty or invalid response:", response.data);
-        throw new HttpsError("internal", "Invalid or empty response structure from Vertex AI API.");
-
-    } catch (error: unknown) {
-        const axiosError = error as AxiosError;
-        console.error(`Error calling Vertex AI model ${model}:`, axiosError.response?.data || (error as Error).message);
-
-        if (axios.isAxiosError(error) && error.response) {
-            const status = error.response.status;
-            const errorDetails = error.response.data as { error?: { message?: string, code?: number, status?: string } };
-            const message = errorDetails?.error?.message || "Unknown API error";
-
-            // Remap status codes to HttpsError codes
-            if (status === 404) {
-                 throw new HttpsError("not-found", `Model '${model}' not found. Verify the model name and the API endpoint. Details: ${message}`);
-            }
-            if (status === 400) {
-                throw new HttpsError("invalid-argument", `Bad request to Vertex AI API: ${message}`);
-            }
-            if (status === 401 || status === 403) {
-                 throw new HttpsError("unauthenticated", `Authentication failed. Ensure the service account has the 'Vertex AI User' role. Details: ${message}`);
-            }
-        }
-
-        // Generic fallback error
-        throw new HttpsError("internal", "An unexpected error occurred while contacting the Vertex AI API.");
-    }
-}
-
-
+// --- Refactored AI Functions ---
 export const generateText = onCall(
     { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
-        const model = "gemini-2.5-flash";
         const prompt = request.data.prompt;
-
         if (!prompt) {
             throw new HttpsError("invalid-argument", "The 'prompt' field is required.");
         }
-
-        const requestBody = {
-            contents: [{ parts: [{ text: prompt }] }],
-        };
-
-        const text = await callGemini(model, requestBody);
-        return { text };
+        try {
+            const text = await GeminiAPI.generateTextFromPrompt(prompt);
+            return { text };
+        } catch (error) {
+            console.error("generateText Cloud Function failed:", error);
+            throw new HttpsError("internal", (error as Error).message);
+        }
     }
 );
 
 export const generateJson = onCall(
     { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
-        const model = "gemini-2.5-flash";
         const prompt = request.data.prompt;
-
         if (!prompt) {
             throw new HttpsError("invalid-argument", "The 'prompt' field is required.");
         }
-
-        const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
-
-        const requestBody = {
-            contents: [{ parts: [{ text: jsonPrompt }] }],
-            generationConfig: {
-                response_mime_type: "application/json",
-            },
-        };
-
-        const rawJsonText = await callGemini(model, requestBody);
         try {
-            return JSON.parse(rawJsonText);
-        } catch (_e) {
-            console.error("Failed to parse JSON from Gemini:", rawJsonText);
-            throw new HttpsError("internal", "Model returned invalid JSON.");
+            const json = await GeminiAPI.generateJsonFromPrompt(prompt);
+            return json;
+        } catch (error) {
+            console.error("generateJson Cloud Function failed:", error);
+            throw new HttpsError("internal", (error as Error).message);
         }
     }
 );
@@ -211,41 +80,23 @@ export const generateFromDocument = onCall(
             throw new HttpsError("invalid-argument", "The function must be called with 'filePath' and 'prompt' arguments.");
         }
 
-        const model = "gemini-2.5-flash-image";
         const bucketName = "ai-sensei-czu-pilot.appspot.com";
-
-        // Verify the file exists before making the API call
         const file = getStorage().bucket(bucketName).file(filePath);
         const [exists] = await file.exists();
         if (!exists) {
             throw new HttpsError("not-found", `File not found at path: ${filePath}`);
         }
 
-        const requestBody = {
-            contents: [
-                {
-                    parts: [
-                        {
-                            fileData: {
-                                mimeType: "application/pdf",
-                                fileUri: `gs://${bucketName}/${filePath}`,
-                            },
-                        },
-                        {
-                            text: prompt,
-                        },
-                    ],
-                },
-            ],
-        };
-
-        const text = await callGemini(model, requestBody);
-        return { text };
+        try {
+            const text = await GeminiAPI.generateTextFromDocument(filePath, prompt);
+            return { text };
+        } catch (error) {
+            console.error("generateFromDocument Cloud Function failed:", error);
+            throw new HttpsError("internal", (error as Error).message);
+        }
     }
 );
 
-
-// --- Creative Functions (Refactored) ---
 export const getLessonKeyTakeaways = onCall(
     { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
@@ -253,11 +104,14 @@ export const getLessonKeyTakeaways = onCall(
         if (!lessonText) {
             throw new HttpsError("invalid-argument", "The function must be called with 'lessonText'.");
         }
-
         const prompt = `Based on the following lesson text, please identify and summarize the top 3 key takeaways. Present them as a numbered list.\n\n---\n\n${lessonText}`;
-        const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
-        const takeaways = await callGemini("gemini-2.5-flash", requestBody);
-        return { takeaways };
+        try {
+            const takeaways = await GeminiAPI.generateTextFromPrompt(prompt);
+            return { takeaways };
+        } catch (error) {
+            console.error("getLessonKeyTakeaways Cloud Function failed:", error);
+            throw new HttpsError("internal", (error as Error).message);
+        }
     }
 );
 
@@ -268,15 +122,19 @@ export const getAiAssistantResponse = onCall(
         if (!lessonText || !userQuestion) {
             throw new HttpsError("invalid-argument", "The function must be called with 'lessonText' and 'userQuestion'.");
         }
-
         const prompt = `You are an AI assistant for a student. Your task is to answer the student's question based *only* on the provided lesson text. Do not use any external knowledge. If the answer is not in the text, say that you cannot find the answer in the provided materials.\n\nLesson Text:\n---\n${lessonText}\n---\n\nStudent's Question: "${userQuestion}"`;
-        const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
-        const answer = await callGemini("gemini-2.5-flash", requestBody);
-        return { answer };
+        try {
+            const answer = await GeminiAPI.generateTextFromPrompt(prompt);
+            return { answer };
+        } catch (error) {
+            console.error("getAiAssistantResponse Cloud Function failed:", error);
+            throw new HttpsError("internal", (error as Error).message);
+        }
     }
 );
 
-// --- Telegram Bot Functions (Unchanged) ---
+
+// --- Telegram Bot Functions ---
 const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
 async function sendTelegramMessage(chatId: string | number, text: string) {
