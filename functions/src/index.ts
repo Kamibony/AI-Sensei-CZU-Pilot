@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { getStorage } from "firebase-admin/storage";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import axios from "axios";
-import * as GeminiAPI from "./gemini-api";
+import * as GeminiAPI from "./gemini-api.js";
 
 // --- CORS Configuration ---
 const allowedOrigins = [
@@ -17,7 +17,7 @@ const allowedOrigins = [
 initializeApp();
 const db = getFirestore();
 
-// --- Auth/User Functions (Unchanged) ---
+// --- Auth/User Functions ---
 export const onStudentCreate = onDocumentCreated(
     { document: "students/{studentId}", region: "europe-west1" },
     async (event) => {
@@ -37,6 +37,7 @@ export const onStudentCreate = onDocumentCreated(
     }
 );
 
+// --- Refactored AI Functions ---
 export const generateText = onCall(
     { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
@@ -132,7 +133,8 @@ export const getAiAssistantResponse = onCall(
     }
 );
 
-// --- Telegram Bot Functions (Unchanged) ---
+
+// --- Telegram Bot Functions ---
 const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
 async function sendTelegramMessage(chatId: string | number, text: string) {
