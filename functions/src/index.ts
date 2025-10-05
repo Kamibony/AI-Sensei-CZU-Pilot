@@ -37,7 +37,7 @@ const db = getFirestore();
 
 // --- Auth/User Functions (Unchanged) ---
 export const onStudentCreate = onDocumentCreated(
-    { document: "students/{studentId}", region: "us-central1" },
+    { document: "students/{studentId}", region: "europe-west1" },
     async (event) => {
         const snap = event.data;
         if (!snap) {
@@ -57,7 +57,7 @@ export const onStudentCreate = onDocumentCreated(
 
 // --- REFACTORED AI FUNCTIONS USING DIRECT AXIOS CALLS TO VERTEX AI ---
 
-const REGION = "us-central1";
+const REGION = "europe-west1";
 const API_BASE_URL = `https://${REGION}-aiplatform.googleapis.com/v1`;
 
 // Define a type for the request body.
@@ -66,6 +66,18 @@ type GeminiRequestBody = any;
 
 // Universal helper function to call the Vertex AI Gemini API
 async function callGemini(model: string, requestBody: GeminiRequestBody): Promise<string> {
+    // --- EMULATOR MOCK ---
+    // When running in the emulator, we can't make real API calls.
+    // Return a mock response to allow frontend testing.
+    if (process.env.FUNCTIONS_EMULATOR === "true") {
+        console.log(`EMULATOR_MOCK: Bypassing real API call for model ${model}.`);
+        // Return a mock JSON string for JSON requests, and plain text for others.
+        if (requestBody.generationConfig?.response_mime_type === "application/json") {
+            return JSON.stringify({ mock: "This is a mock JSON response from the emulator." });
+        }
+        return "This is a mock text response from the emulator because real API calls are not available locally.";
+    }
+
     const projectId = process.env.GCLOUD_PROJECT;
     if (!projectId) {
         throw new HttpsError("internal", "GCLOUD_PROJECT environment variable not set.");
@@ -137,9 +149,9 @@ async function callGemini(model: string, requestBody: GeminiRequestBody): Promis
 
 
 export const generateText = onCall(
-    { region: "us-central1", cors: allowedOrigins },
+    { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
-        const model = "gemini-1.0-pro";
+        const model = "gemini-2.5-flash";
         const prompt = request.data.prompt;
 
         if (!prompt) {
@@ -156,9 +168,9 @@ export const generateText = onCall(
 );
 
 export const generateJson = onCall(
-    { region: "us-central1", cors: allowedOrigins },
+    { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
-        const model = "gemini-1.0-pro";
+        const model = "gemini-2.5-flash";
         const prompt = request.data.prompt;
 
         if (!prompt) {
@@ -185,14 +197,14 @@ export const generateJson = onCall(
 );
 
 export const generateFromDocument = onCall(
-    { region: "us-central1", cors: allowedOrigins },
+    { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
         const { filePath, prompt } = request.data;
         if (!filePath || !prompt) {
             throw new HttpsError("invalid-argument", "The function must be called with 'filePath' and 'prompt' arguments.");
         }
 
-        const model = "gemini-pro-vision";
+        const model = "gemini-2.5-flash-image";
         const bucketName = "ai-sensei-czu-pilot.appspot.com";
 
         // Verify the file exists before making the API call
@@ -228,7 +240,7 @@ export const generateFromDocument = onCall(
 
 // --- Creative Functions (Refactored) ---
 export const getLessonKeyTakeaways = onCall(
-    { region: "us-central1", cors: allowedOrigins },
+    { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
         const { lessonText } = request.data;
         if (!lessonText) {
@@ -237,13 +249,13 @@ export const getLessonKeyTakeaways = onCall(
 
         const prompt = `Based on the following lesson text, please identify and summarize the top 3 key takeaways. Present them as a numbered list.\n\n---\n\n${lessonText}`;
         const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
-        const takeaways = await callGemini("gemini-1.0-pro", requestBody);
+        const takeaways = await callGemini("gemini-2.5-flash", requestBody);
         return { takeaways };
     }
 );
 
 export const getAiAssistantResponse = onCall(
-    { region: "us-central1", cors: allowedOrigins },
+    { region: "europe-west1", cors: allowedOrigins },
     async (request) => {
         const { lessonText, userQuestion } = request.data;
         if (!lessonText || !userQuestion) {
@@ -252,7 +264,7 @@ export const getAiAssistantResponse = onCall(
 
         const prompt = `You are an AI assistant for a student. Your task is to answer the student's question based *only* on the provided lesson text. Do not use any external knowledge. If the answer is not in the text, say that you cannot find the answer in the provided materials.\n\nLesson Text:\n---\n${lessonText}\n---\n\nStudent's Question: "${userQuestion}"`;
         const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
-        const answer = await callGemini("gemini-1.0-pro", requestBody);
+        const answer = await callGemini("gemini-2.5-flash", requestBody);
         return { answer };
     }
 );
@@ -278,7 +290,7 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
 }
 
 export const telegramBotWebhook = onRequest(
-    { region: "us-central1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN"] },
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN"] },
     async (req, res) => {
         if (req.method !== "POST") {
             res.status(405).send("Method Not Allowed");
@@ -344,7 +356,7 @@ export const telegramBotWebhook = onRequest(
 );
 
 export const sendMessageToStudent = onCall(
-    { region: "us-central1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN"] },
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN"] },
     async (request) => {
         const { studentId, text } = request.data;
         if (!studentId || !text) {
@@ -368,7 +380,7 @@ export const sendMessageToStudent = onCall(
 );
 
 export const sendMessageToProfessor = onCall(
-    { region: "us-central1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN", "PROFESSOR_TELEGRAM_CHAT_ID"] },
+    { region: "europe-west1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN", "PROFESSOR_TELEGRAM_CHAT_ID"] },
     async (request) => {
         const { lessonId, text } = request.data;
         const studentId = request.auth?.uid;
