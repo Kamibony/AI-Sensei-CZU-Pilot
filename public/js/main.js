@@ -182,7 +182,9 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         try {
             const querySnapshot = await getDocs(lessonsCollection);
             if (querySnapshot.empty) {
-                console.log("Database is empty, no lessons to display.");
+                console.log("Databáze lekcí je prázdná, nahrávám počáteční data...");
+                // The initialLessons array and the for-loop that were here have been removed.
+                // We will now simply proceed with an empty lessonsData array.
                 lessonsData = [];
             } else {
                  lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
