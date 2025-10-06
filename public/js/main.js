@@ -28,6 +28,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     const generateJsonFunction = httpsCallable(functions, 'generateJson');
     const generateFromDocument = httpsCallable(functions, 'generateFromDocument');
     const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor');
+    const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
     const getLessonKeyTakeaways = httpsCallable(functions, 'getLessonKeyTakeaways');
     const getAiAssistantResponse = httpsCallable(functions, 'getAiAssistantResponse');
 
@@ -1263,6 +1264,104 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         }
     }
     
+    async function renderTelegramInteractionView(courseId) {
+        const roleContentWrapper = document.getElementById('role-content-wrapper');
+        const dashboardView = document.getElementById('dashboard-professor');
+        const analysisView = document.getElementById('student-analysis-view');
+
+        // Hide other views
+        if (dashboardView) dashboardView.classList.add('hidden');
+        if (analysisView) analysisView.classList.add('hidden');
+
+        // Create and show the telegram view
+        roleContentWrapper.innerHTML = `
+            <div id="telegram-interaction-view" class="w-full p-4 sm:p-6 md:p-8 bg-slate-50 h-screen overflow-y-auto">
+                <header class="flex items-center justify-between mb-6">
+                    <div>
+                        <h1 class="text-3xl font-extrabold text-slate-800">Interakce se studenty</h1>
+                        <p class="text-slate-500 mt-1">Odesílejte zprávy studentům připojeným přes Telegram.</p>
+                    </div>
+                    <button id="back-to-timeline-from-interactions" class="text-sm font-semibold text-green-700 hover:underline">&larr; Zpět na hlavní panel</button>
+                </header>
+                <div id="student-telegram-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="p-8 text-center pulse-loader text-slate-500 col-span-full">Načítám studenty...</div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('back-to-timeline-from-interactions').addEventListener('click', () => {
+            showProfessorContent('timeline');
+        });
+
+        const listContainer = document.getElementById('student-telegram-list');
+
+        try {
+            const studentsCollection = collection(db, 'students');
+            const querySnapshot = await getDocs(studentsCollection);
+            const students = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            const connectedStudents = students.filter(s => s.telegramChatId);
+
+            if (connectedStudents.length === 0) {
+                listContainer.innerHTML = `<div class="bg-white p-6 rounded-lg shadow-sm text-center col-span-full"><p class="text-slate-500">Zatím se žádný student nepřipojil přes Telegram.</p></div>`;
+                return;
+            }
+
+            const studentCardsHtml = connectedStudents.map(student => `
+                <div class="bg-white rounded-2xl shadow-lg p-6 flex flex-col" data-student-id="${student.id}">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                            ${student.email.charAt(0).toUpperCase()}
+                        </div>
+                        <p class="ml-3 font-semibold text-slate-700 truncate">${student.email}</p>
+                    </div>
+                    <textarea class="message-input w-full border-slate-300 rounded-lg p-2 h-28 flex-grow" placeholder="Napište zprávu..."></textarea>
+                    <button class="send-telegram-btn mt-4 w-full px-4 py-2 bg-sky-500 text-white font-semibold rounded-lg hover:bg-sky-600 transition-colors">Odeslat zprávu</button>
+                </div>
+            `).join('');
+
+            listContainer.innerHTML = studentCardsHtml;
+
+            // Add event listeners to all send buttons
+            document.querySelectorAll('.send-telegram-btn').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const card = e.target.closest('[data-student-id]');
+                    const studentId = card.dataset.studentId;
+                    const textarea = card.querySelector('.message-input');
+                    const text = textarea.value.trim();
+
+                    if (!text) {
+                        showToast("Zpráva nemůže být prázdná.", true);
+                        return;
+                    }
+
+                    const originalButtonText = button.innerHTML;
+                    button.disabled = true;
+                    textarea.disabled = true;
+                    button.innerHTML = `<div class="spinner-small"></div><span class="ml-2">Odesílám...</span>`;
+
+                    try {
+                        await sendMessageToStudent({ studentId, text });
+                        showToast("Zpráva byla úspěšně odeslána.");
+                        textarea.value = ''; // Clear textarea on success
+                    } catch (error) {
+                        console.error("Error sending message to student:", error);
+                        showToast(`Odeslání selhalo: ${error.message}`, true);
+                    } finally {
+                        button.disabled = false;
+                        textarea.disabled = false;
+                        button.innerHTML = originalButtonText;
+                    }
+                });
+            });
+
+        } catch (error) {
+            console.error("Error fetching students for Telegram interaction:", error);
+            listContainer.innerHTML = '<div class="p-4 bg-red-100 text-red-700 rounded-lg col-span-full">Nepodařilo se načíst studenty.</div>';
+            showToast("Nepodařilo se načíst studenty.", true);
+        }
+    }
+
     // --- LOGIKA PRO STUDENTA ---
     function setupStudentNav() {
         const nav = document.getElementById('main-nav');
