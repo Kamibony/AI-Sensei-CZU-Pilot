@@ -10,7 +10,7 @@ import {
 const vertex_ai = new VertexAI({ project: process.env.GCLOUD_PROJECT });
 
 const MODELS = {
-  PRO: "gemini-pro",
+  PRO: "gemini-2.5-pro",
   VISION: "gemini-pro-vision"
 };
 
