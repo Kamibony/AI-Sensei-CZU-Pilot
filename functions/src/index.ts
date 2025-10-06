@@ -185,7 +185,7 @@ export const telegramBotWebhook = onRequest(
 
         const parts = text.split(" ");
         if (parts.length !== 2) {
-            await sendTelegramMessage(chatId, "❌ Neplatný formát odkazu. Použij prosím odkaz, který jsi obdržel na platformě AI Sensei.");
+            await sendTelegramMessage(chatId, "❌ Neplatný formát odkazu. Použij prosím odkaz, ktorý jsi obdržel na platformě AI Sensei.");
             res.status(400).send("Invalid start command format");
             return;
         }
