@@ -7,6 +7,9 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import axios from "axios";
 import * as GeminiAPI from "./gemini-api.js";
 
+// --- Deployment Configuration ---
+const DEPLOY_REGION = "us-central1";
+
 // --- CORS Configuration ---
 const allowedOrigins = [
     "https://ai-sensei-czu-pilot.web.app",
@@ -19,7 +22,7 @@ const db = getFirestore();
 
 // --- Auth/User Functions ---
 export const onStudentCreate = onDocumentCreated(
-    { document: "students/{studentId}", region: "us-central1" },
+    { document: "students/{studentId}", region: DEPLOY_REGION },
     async (event) => {
         const snap = event.data;
         if (!snap) {
@@ -39,7 +42,7 @@ export const onStudentCreate = onDocumentCreated(
 
 // --- Refactored AI Functions ---
 export const generateText = onCall(
-    { region: "us-central1", cors: allowedOrigins },
+    { region: DEPLOY_REGION, cors: allowedOrigins },
     async (request) => {
         const prompt = request.data.prompt;
         if (!prompt) {
@@ -56,7 +59,7 @@ export const generateText = onCall(
 );
 
 export const generateJson = onCall(
-    { region: "us-central1", cors: allowedOrigins },
+    { region: DEPLOY_REGION, cors: allowedOrigins },
     async (request) => {
         const prompt = request.data.prompt;
         if (!prompt) {
@@ -73,7 +76,7 @@ export const generateJson = onCall(
 );
 
 export const generateFromDocument = onCall(
-    { region: "us-central1", cors: allowedOrigins },
+    { region: DEPLOY_REGION, cors: allowedOrigins },
     async (request) => {
         const { filePath, prompt } = request.data;
         if (!filePath || !prompt) {
@@ -98,7 +101,7 @@ export const generateFromDocument = onCall(
 );
 
 export const getLessonKeyTakeaways = onCall(
-    { region: "us-central1", cors: allowedOrigins },
+    { region: DEPLOY_REGION, cors: allowedOrigins },
     async (request) => {
         const { lessonText } = request.data;
         if (!lessonText) {
@@ -116,7 +119,7 @@ export const getLessonKeyTakeaways = onCall(
 );
 
 export const getAiAssistantResponse = onCall(
-    { region: "us-central1", cors: allowedOrigins },
+    { region: DEPLOY_REGION, cors: allowedOrigins },
     async (request) => {
         const { lessonText, userQuestion } = request.data;
         if (!lessonText || !userQuestion) {
@@ -155,7 +158,7 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
 }
 
 export const telegramBotWebhook = onRequest(
-    { region: "us-central1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN"] },
+    { region: DEPLOY_REGION, cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN"] },
     async (req, res) => {
         if (req.method !== "POST") {
             res.status(405).send("Method Not Allowed");
@@ -221,7 +224,7 @@ export const telegramBotWebhook = onRequest(
 );
 
 export const sendMessageToStudent = onCall(
-    { region: "us-central1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN"] },
+    { region: DEPLOY_REGION, cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN"] },
     async (request) => {
         const { studentId, text } = request.data;
         if (!studentId || !text) {
@@ -245,7 +248,7 @@ export const sendMessageToStudent = onCall(
 );
 
 export const sendMessageToProfessor = onCall(
-    { region: "us-central1", cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN", "PROFESSOR_TELEGRAM_CHAT_ID"] },
+    { region: DEPLOY_REGION, cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN", "PROFESSOR_TELEGRAM_CHAT_ID"] },
     async (request) => {
         const { lessonId, text } = request.data;
         const studentId = request.auth?.uid;
