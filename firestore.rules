@@ -9,9 +9,11 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
-    // Secure student data: a user can only read/write their own documents.
+    // Allow authenticated users (like professors) to read the list of students,
+    // but only allow a student to write to their own document.
     match /students/{studentId}/{documents=**} {
-      allow read, write: if request.auth.uid == studentId;
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == studentId;
     }
 
     // Allow any authenticated user to manage timeline events for now.
