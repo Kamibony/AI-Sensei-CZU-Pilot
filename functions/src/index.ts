@@ -7,14 +7,15 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import axios from "axios";
 import * as GeminiAPI from "./gemini-api.js";
 
-// --- Deployment Configuration ---
+// --- CENTRALIZOVANÁ KONFIGURACE REGIONU ---
+// Všechny funkce budou nasazeny do tohoto regionu, kde je Gemini API dostupné.
 const DEPLOY_REGION = "us-central1";
 
 // --- CORS Configuration ---
 const allowedOrigins = [
     "https://ai-sensei-czu-pilot.web.app",
     "http://localhost:5000",
-    "http://127.0.0.1:5000"
+    "http://1227.0.0.1:5000"
 ];
 
 initializeApp();
