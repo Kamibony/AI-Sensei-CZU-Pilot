@@ -182,21 +182,8 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         try {
             const querySnapshot = await getDocs(lessonsCollection);
             if (querySnapshot.empty) {
-                console.log("Databáze lekcí je prázdná, nahrávám počáteční data...");
-                const initialLessons = [
-                    { title: 'Úvod do Kvantové Fyziky', subtitle: 'Základní principy', number: '101', creationDate: '2025-09-20', status: 'Aktivní', icon: '⚛️', content: 'Vítejte ve fascinujícím světě kvantové mechaniky! Na rozdíl od klasické fyziky, která popisuje pohyb velkých objektů jako jsou planety nebo míče, kvantová mechanika se zabývá chováním hmoty a energie na atomární a subatomární úrovni. Jedním z klíčových a nejvíce matoucích principů je vlnově-korpuskulární dualismus, který říká, že částice jako elektrony se mohou chovat jednou jako částice a jindy jako vlny. Dalším stěžejním konceptem je princip superpozice. Představte si minci, která se točí ve vzduchu. Dokud nedopadne, není ani panna, ani orel - je v jakémsi stavu obou možností najednou. Podobně může být kvantová částice ve více stavech současně, dokud ji nezačneme měřit. Teprve měřením "donutíme" částici vybrat si jeden konkrétní stav.' },
-                    { title: 'Historie Starověkého Říma', subtitle: 'Od republiky k císařství', number: '203', creationDate: '2025-09-18', status: 'Aktivní', icon: '🏛️', content: 'Dějiny starověkého Říma jsou příběhem o vzestupu malé městské osady na Apeninském poloostrově v globální impérium. Počátky se datují do 8. století př. n. l. a končí pádem Západořímské říše v roce 476 n. l. Římská republika, založená kolem roku 509 př. n. l., byla charakteristická systémem volených magistrátů a silným senátem.' },
-                    { title: 'Základy botaniky', subtitle: 'Fotosyntéza a růst', number: 'B05', creationDate: '2025-09-15', status: 'Naplánováno', icon: '🌱', content: 'Botanika je věda o rostlinách. Klíčovým procesem pro život na Zemi je fotosyntéza, při které zelené rostliny využívají sluneční světlo, vodu a oxid uhličitý k výrobě glukózy (energie) a kyslíku. Tento proces probíhá v chloroplastech, které obsahují zelené barvivo chlorofyl.' },
-                    { title: 'Shakespearova dramata', subtitle: 'Tragédie a komedie', number: 'LIT3', creationDate: '2025-09-12', status: 'Archivováno', icon: '🎭', content: 'William Shakespeare je považován za jednoho z největších dramatiků všech dob. Jeho hry se dělí na tragédie (Hamlet, Romeo a Julie), komedie (Sen noci svatojánské) a historické hry. Jeho dílo je charakteristické komplexními postavami, poetickým jazykem a nadčasovými tématy lásky, zrady, moci a smrti.'},
-                    { title: 'Neuronové sítě', subtitle: 'Úvod do hlubokého učení', number: 'AI-5', creationDate: '2025-09-21', status: 'Naplánováno', icon: '🧠', content: 'Neuronové sítě jsou základním stavebním kamenem moderní umělé inteligence a hlubokého učení. Jsou inspirovány strukturou lidského mozku a skládají se z propojených uzlů neboli "neuronů", které zpracovávají a přenášejí informace. Učí se na základě velkých objemů dat tím, že upravují váhy spojení mezi neurony.' },
-                ];
-                for (const lesson of initialLessons) {
-                    await addDoc(lessonsCollection, { ...lesson, createdAt: serverTimestamp() });
-                }
-                // After seeding, fetch the data again to get the generated IDs
-                const newQuerySnapshot = await getDocs(lessonsCollection);
-                lessonsData = newQuerySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
+                console.log("Database is empty, no lessons to display.");
+                lessonsData = [];
             } else {
                  lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             }
