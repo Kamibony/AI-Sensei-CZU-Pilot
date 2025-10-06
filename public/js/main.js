@@ -1750,6 +1750,106 @@ async function showStudentLesson(lessonData) { // Accept the full lesson object
 
     // --- Feature Initializers (as nested functions to capture scope) ---
     function initializeKeyTakeaways() {
+        const generateBtn = contentContainer.querySelector('#generate-takeaways-btn');
+        const resultContainer = contentContainer.querySelector('#takeaways-result');
+        const clickHandler = async () => {
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = `<div class="spinner"></div><span class="ml-2">Generuji...</span>`;
+            resultContainer.innerHTML = '';
+            try {
+                const result = await getLessonKeyTakeaways({ lessonText: lessonData.content });
+                resultContainer.innerHTML = `<div class="bg-yellow-50 border border-yellow-200 p-6 rounded-lg">${result.data.takeaways.replace(/\n/g, '<br>')}</div>`;
+            } catch (e) {
+                resultContainer.innerHTML = `<p class="text-red-500">Nepodařilo se vygenerovat klíčové body: ${e.message}</p>`;
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles mr-2"></i>Vygenerovat znovu`;
+            }
+        };
+        generateBtn.replaceWith(generateBtn.cloneNode(true));
+        contentContainer.querySelector('#generate-takeaways-btn').addEventListener('click', clickHandler);
+    }
+
+    function initializeAiAssistant() {
+        const sendBtn = contentContainer.querySelector('#ai-assistant-send-btn');
+        const input = contentContainer.querySelector('#ai-assistant-input');
+        const historyContainer = contentContainer.querySelector('#ai-assistant-chat-history');
+        const user = auth.currentUser;
+
+        const addMessageToHistory = (text, sender) => {
+            const bubble = document.createElement('div');
+            if (sender === 'user') {
+                bubble.className = 'flex gap-3 items-start justify-end';
+                bubble.innerHTML = `<div class="bg-green-600 text-white p-3 rounded-lg rounded-br-none"><p>${text}</p></div><div class="w-8 h-8 bg-blue-200 text-blue-800 rounded-full flex items-center justify-center flex-shrink-0 font-bold">${user.email.charAt(0).toUpperCase()}</div>`;
+            } else {
+                bubble.className = 'flex gap-3 items-start';
+                bubble.innerHTML = `<div class="w-8 h-8 bg-green-100 text-green-700 rounded-full flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-robot"></i></div><div class="bg-slate-100 p-3 rounded-lg rounded-tl-none ai-response"><p class="text-slate-700">${text}</p></div>`;
+            }
+            historyContainer.appendChild(bubble);
+            historyContainer.scrollTop = historyContainer.scrollHeight;
+            return bubble;
+        };
+
+        const handleSend = async () => {
+            const question = input.value.trim();
+            if (!question) return;
+            addMessageToHistory(question, 'user');
+            input.value = '';
+            input.disabled = true;
+            sendBtn.disabled = true;
+            const typingBubble = addMessageToHistory('<div class="typing-indicator"><span></span><span></span><span></span></div>', 'ai');
+            try {
+                const result = await getAiAssistantResponse({ lessonText: lessonData.content, userQuestion: question });
+                typingBubble.querySelector('.ai-response p').innerHTML = result.data.answer.replace(/\n/g, '<br>');
+            } catch (e) {
+                typingBubble.querySelector('.ai-response p').innerHTML = `<span class="text-red-500">Omlouvám se, došlo k chybě: ${e.message}</span>`;
+            } finally {
+                input.disabled = false;
+                sendBtn.disabled = false;
+                input.focus();
+            }
+        };
+        sendBtn.replaceWith(sendBtn.cloneNode(true));
+        contentContainer.querySelector('#ai-assistant-send-btn').addEventListener('click', handleSend);
+        input.replaceWith(input.cloneNode(true));
+        contentContainer.querySelector('#ai-assistant-input').addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
+    }
+
+    function initializeProfessorChat() {
+        const chatInput = contentContainer.querySelector('#student-chat-input');
+        const sendBtn = contentContainer.querySelector('#student-send-message-btn');
+        const chatHistoryArea = contentContainer.querySelector('#chat-history-area');
+
+        const handleSendMessage = async () => {
+            const text = chatInput.value.trim();
+            if (!text) return;
+            const userBubble = document.createElement('div');
+            userBubble.className = 'chat-bubble chat-bubble-user';
+            userBubble.textContent = text;
+            chatHistoryArea.appendChild(userBubble);
+            chatHistoryArea.scrollTop = chatHistoryArea.scrollHeight;
+            const originalButtonContent = sendBtn.innerHTML;
+            sendBtn.innerHTML = `<div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>`;
+            chatInput.value = '';
+            chatInput.disabled = true;
+            sendBtn.disabled = true;
+            try {
+                await sendMessageToProfessor({ lessonId: lessonData.id, text });
+            } catch (error) {
+                console.error("Error sending message to professor:", error);
+                userBubble.style.outline = '2px solid red';
+                alert(`Chyba při odesílání: ${error.message}`);
+            } finally {
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = originalButtonContent;
+                chatInput.focus();
+            }
+        };
+        sendBtn.replaceWith(sendBtn.cloneNode(true));
+        contentContainer.querySelector('#student-send-message-btn').addEventListener('click', handleSendMessage);
+        chatInput.replaceWith(chatInput.cloneNode(true));
+        contentContainer.querySelector('#student-chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(); } });
     }
 }
 
