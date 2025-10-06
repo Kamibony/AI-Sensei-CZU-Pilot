@@ -26,7 +26,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
 
     const generateTextFunction = httpsCallable(functions, 'generateText');
     const generateJsonFunction = httpsCallable(functions, 'generateJson');
-    const generateTelegramActivationCode = httpsCallable(functions, 'generateTelegramActivationCode');
+    const generateFromDocument = httpsCallable(functions, 'generateFromDocument');
     const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor');
     const getLessonKeyTakeaways = httpsCallable(functions, 'getLessonKeyTakeaways');
     const getAiAssistantResponse = httpsCallable(functions, 'getAiAssistantResponse');
@@ -60,6 +60,36 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     // Zpřístupnění funkcí pro ostatní skripty (např. editor-handler.js)
     window.callGeminiApi = callGeminiApi;
     window.callGeminiForJson = callGeminiForJson;
+
+    async function createDocumentSelector(lessonId) {
+        if (!lessonId) {
+            return `<div class="mb-4 p-3 bg-slate-100 text-slate-600 rounded-lg text-sm">Uložte prosím detaily lekce, abyste mohli nahrávat a vybírat dokumenty.</div>`;
+        }
+
+        const documentsCollectionRef = collection(db, 'lessons', lessonId, 'documents');
+        try {
+            const querySnapshot = await getDocs(documentsCollectionRef);
+            if (querySnapshot.empty) {
+                return `<div class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg text-sm">Pro využití RAG prosím nahrajte nejprve nějaký dokument v sekci 'Dokumenty k lekci'.</div>`;
+            }
+
+            const options = querySnapshot.docs.map(doc => {
+                const data = doc.data();
+                return `<option value="${data.storagePath}">${data.fileName}</option>`;
+            }).join('');
+
+            return `
+                <div class="mb-4">
+                    <label for="document-select" class="block font-medium text-slate-600 mb-1">Vyberte kontextový dokument (RAG):</label>
+                    <select id="document-select" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500">
+                        ${options}
+                    </select>
+                </div>`;
+        } catch (error) {
+            console.error("Chyba při načítání dokumentů pro selektor:", error);
+            return `<div class="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">Nepodařilo se načíst dokumenty.</div>`;
+        }
+    }
 
     // --- DATA A STAV APLIKACE ---
     let lessonsData = [];
@@ -684,6 +714,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         mainArea.innerHTML = `<div class="p-4 sm:p-6 md:p-8 overflow-y-auto h-full view-transition" id="editor-content-container"></div>`;
         const container = document.getElementById('editor-content-container');
         let contentHTML = '';
+        const lessonId = currentLesson ? currentLesson.id : null;
         
         const renderWrapper = (title, content) => `<h2 class="text-3xl font-extrabold text-slate-800 mb-6">${title}</h2><div class="bg-white p-6 rounded-2xl shadow-lg">${content}</div>`;
         
@@ -713,7 +744,8 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                 break;
             case 'text':
                 contentHTML = renderWrapper('Text pro studenty', `
-                    <p class="text-slate-500 mb-4">Zadejte AI prompt a vygenerujte hlavní studijní text pro tuto lekci.</p>
+                    <p class="text-slate-500 mb-4">Zadejte AI prompt a vygenerujte hlavní studijní text pro tuto lekci. Můžete vybrat dokument, ze kterého bude AI čerpat informace (RAG).</p>
+                    ${await createDocumentSelector(lessonId)}
                     <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Např. 'Vytvoř poutavý úvodní text o principech kvantové mechaniky pro úplné začátečníky. Zmiň Schrödingera, Heisenberga a princip superpozice.'"></textarea>
                     <div class="flex items-center justify-between mt-4">
                         <div class="flex items-center space-x-4">
@@ -724,11 +756,14 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                     </div>
                     <div id="generation-output" class="mt-6 border-t pt-6 text-slate-700 prose max-w-none">
                         <div class="text-center p-8 text-slate-400">Obsah se vygeneruje zde...</div>
-                    </div>`);
+                    </div>
+                    <div class="text-right mt-4"><button id="save-content-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
+                    `);
                 break;
             case 'presentation':
                  contentHTML = renderWrapper('AI Prezentace', `
-                    <p class="text-slate-500 mb-4">Zadejte téma a počet slidů pro vygenerování prezentace.</p>
+                    <p class="text-slate-500 mb-4">Zadejte téma a počet slidů pro vygenerování prezentace. Můžete vybrat dokument, ze kterého bude AI čerpat informace (RAG).</p>
+                    ${await createDocumentSelector(lessonId)}
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="md:col-span-2"><label class="block font-medium text-slate-600">Téma prezentace</label><input id="prompt-input" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" placeholder="Např. Klíčové momenty Římské republiky"></div>
                         <div><label class="block font-medium text-slate-600">Počet slidů</label><input id="slide-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="3"></div>
@@ -738,7 +773,9 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                     </div>
                     <div id="generation-output" class="mt-6 border-t pt-6">
                         <div class="text-center p-8 text-slate-400">Náhled prezentace se zobrazí zde...</div>
-                    </div>`);
+                    </div>
+                    <div class="text-right mt-4"><button id="save-content-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
+                    `);
                 break;
             case 'video':
                 contentHTML = renderWrapper('Vložení videa', `
@@ -751,18 +788,22 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                 break;
             case 'quiz':
                 contentHTML = renderWrapper('Interaktivní Kvíz', `
-                    <p class="text-slate-500 mb-4">Vytvořte rychlý kvíz pro studenty. Otázky se objeví v jejich chatovacím rozhraní.</p>
+                    <p class="text-slate-500 mb-4">Vytvořte rychlý kvíz pro studenty. Otázky se objeví v jejich chatovacím rozhraní. Můžete vybrat dokument, ze kterého bude AI čerpat informace (RAG).</p>
+                    ${await createDocumentSelector(lessonId)}
                     <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Např. 'Vytvoř 1 otázku s výběrem ze 3 možností na téma kvantová mechanika. Označ správnou odpověď.'"></textarea>
                     <div class="text-right mt-4">
                          <button id="generate-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ml-auto ai-glow">✨<span class="ml-2">Vygenerovat kvíz</span></button>
                     </div>
                     <div id="generation-output" class="mt-6 border-t pt-6">
                         <div class="text-center p-8 text-slate-400">Náhled kvízu se zobrazí zde...</div>
-                    </div>`);
+                    </div>
+                    <div class="text-right mt-4"><button id="save-content-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
+                    `);
                 break;
             case 'test':
                  contentHTML = renderWrapper('Pokročilý Test', `
-                    <p class="text-slate-500 mb-4">Navrhněte komplexnější test pro studenty s různými typy otázek a nastavením obtížnosti.</p>
+                    <p class="text-slate-500 mb-4">Navrhněte komplexnější test pro studenty. Můžete vybrat dokument, ze kterého bude AI čerpat informace (RAG).</p>
+                    ${await createDocumentSelector(lessonId)}
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div><label class="block font-medium text-slate-600">Počet otázek</label><input id="question-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="2"></div>
                         <div>
@@ -780,11 +821,14 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                     </div>
                     <div id="generation-output" class="mt-6 border-t pt-6">
                         <div class="text-center p-8 text-slate-400">Náhled testu se zobrazí zde...</div>
-                    </div>`);
+                    </div>
+                    <div class="text-right mt-4"><button id="save-content-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
+                    `);
                 break;
             case 'post':
                 contentHTML = renderWrapper('Podcast & Doplňkové materiály', `
-                    <p class="text-slate-500 mb-4">Vytvořte na základě obsahu lekce sérii podcastů nebo jiné doplňkové materiály, které studentům pomohou prohloubit znalosti.</p>
+                    <p class="text-slate-500 mb-4">Vytvořte na základě obsahu lekce sérii podcastů nebo jiné doplňkové materiály. Můžete vybrat dokument, ze kterého bude AI čerpat informace (RAG).</p>
+                    ${await createDocumentSelector(lessonId)}
                     <div class="bg-slate-50 p-4 rounded-lg">
                         <h4 class="font-bold text-slate-800 mb-3">🎙️ Generátor Podcastové Série</h4>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -809,6 +853,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                      <div id="generation-output" class="mt-6 border-t pt-6">
                         <div class="text-center p-8 text-slate-400">Vygenerovaný obsah se zobrazí zde...</div>
                     </div>
+                    <div class="text-right mt-4"><button id="save-content-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
                 `);
                 break;
             default:
@@ -846,17 +891,16 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
 
         const generateBtn = document.getElementById('generate-btn');
         if (generateBtn) {
-            // This listener setup can be generalized for all generator views
             generateBtn.addEventListener('click', async () => {
                 const outputEl = document.getElementById('generation-output');
                 const promptInput = document.getElementById('prompt-input');
-                let prompt = promptInput ? promptInput.value.trim() : 'general prompt for ' + viewId;
+                let userPrompt = promptInput ? promptInput.value.trim() : 'general prompt for ' + viewId;
 
-                if (promptInput && !prompt) {
+                if (promptInput && !userPrompt) {
                     outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Prosím, zadejte text do promptu.</div>`;
                     return;
                 }
-                
+
                 const originalText = generateBtn.innerHTML;
                 generateBtn.innerHTML = `<div class="spinner"></div><span class="ml-2">Generuji...</span>`;
                 generateBtn.disabled = true;
@@ -864,45 +908,140 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                 outputEl.innerHTML = `<div class="p-8 text-center pulse-loader text-slate-500">🤖 AI Sensei přemýšlí a tvoří obsah...</div>`;
 
                 let result;
+                let rawResultForSaving = null; // Store the raw generated content for saving
+
                 try {
-                    // This switch is now only for the API call logic
+                    const documentSelect = document.getElementById('document-select');
+                    const filePath = documentSelect && documentSelect.options.length > 0 ? documentSelect.value : null;
+
+                    // If a document is selected, use the RAG function. Otherwise, use the standard functions.
+                    if (filePath) {
+                        console.log(`Generating with RAG from document: ${filePath}`);
+                        let finalPrompt = userPrompt;
+                        let isJson = false;
+
+                        // For JSON-based views, we need to instruct the model to output JSON.
+                        // Since generateFromDocument is text-based, we embed this instruction in the prompt.
+                        switch(viewId) {
+                            case 'presentation': {
+                                isJson = true;
+                                const schema = { type: "OBJECT", properties: { slides: { type: "ARRAY", items: { type: "OBJECT", properties: { title: { type: "STRING" }, points: { type: "ARRAY", items: { type: "STRING" } } }, required: ["title", "points"] } } } };
+                                finalPrompt = `Vytvoř prezentaci na téma "${userPrompt}" s přesně ${document.getElementById('slide-count-input').value} slidy. The output must be a valid JSON object conforming to this schema: ${JSON.stringify(schema)}`;
+                                break;
+                            }
+                            case 'quiz': {
+                                isJson = true;
+                                const schema = { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "OBJECT", properties: { question_text: { type: "STRING" }, options: { type: "ARRAY", items: { type: "STRING" } }, correct_option_index: { type: "NUMBER" } }, required: ["question_text", "options", "correct_option_index"] } } } };
+                                finalPrompt = `Vytvoř kvíz na základě tohoto zadání: "${userPrompt}". The output must be a valid JSON object conforming to this schema: ${JSON.stringify(schema)}`;
+                                break;
+                            }
+                            case 'test': {
+                                isJson = true;
+                                const schema = { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "OBJECT", properties: { question_text: { type: "STRING" }, question_type: { type: "STRING", enum: ["multiple_choice", "true_false"] }, options: { type: "ARRAY", items: { type: "STRING" } }, correct_answer: { type: "STRING" } }, required: ["question_text", "question_type", "options", "correct_answer"] } } } };
+                                finalPrompt = `Vytvoř test na téma "${userPrompt}" s ${document.getElementById('question-count-input').value} otázkami. Obtížnost: ${document.getElementById('difficulty-select').value}. Typy otázek: ${document.getElementById('type-select').value}. The output must be a valid JSON object conforming to this schema: ${JSON.stringify(schema)}`;
+                                break;
+                            }
+                            case 'post': {
+                                isJson = true;
+                                const schema = { type: "OBJECT", properties: { podcast_series: { type: "ARRAY", items: { type: "OBJECT", properties: { episode: { type: "NUMBER" }, title: { type: "STRING" }, summary: { type: "STRING" } }, required: ["episode", "title", "summary"] } } } };
+                                finalPrompt = `Vytvoř sérii podcastů o ${document.getElementById('episode-count-input').value} epizodách na základě zadání: "${userPrompt}". The output must be a valid JSON object conforming to this schema: ${JSON.stringify(schema)}`;
+                                break;
+                            }
+                            case 'text': {
+                                const length = document.getElementById('length-select').value;
+                                finalPrompt = `Vytvoř studijní text na základě tohoto zadání. Požadovaná délka je ${length}. Text by měl být poutavý a edukativní. Zadání: "${userPrompt}"`;
+                                break;
+                            }
+                        }
+
+                        const ragResult = await generateFromDocument({ filePath, prompt: finalPrompt });
+                        if (ragResult.data.error) throw new Error(ragResult.data.error);
+
+                        rawResultForSaving = ragResult.data.text; // Save the raw text output
+
+                        if (isJson) {
+                            try {
+                                result = JSON.parse(ragResult.data.text);
+                            } catch (e) {
+                                console.error("Failed to parse JSON from RAG response:", e);
+                                console.error("Raw response was:", ragResult.data.text);
+                                throw new Error("AI vrátila neplatný JSON formát i přes instrukce.");
+                            }
+                        } else {
+                            result = ragResult.data;
+                        }
+
+                    } else {
+                        // Fallback to original functions if no document is selected
+                        switch(viewId) {
+                             case 'text':
+                                const length = document.getElementById('length-select').value;
+                                result = await callGeminiApi(`Vytvoř studijní text na základě tohoto zadání. Požadovaná délka je ${length}. Text by měl být poutavý a edukativní. Zadání: "${userPrompt}"`);
+                                rawResultForSaving = result.text;
+                                break;
+                            case 'presentation':
+                                const slideCount = document.getElementById('slide-count-input').value;
+                                result = await callGeminiForJson(`Vytvoř prezentaci na téma "${userPrompt}" s přesně ${slideCount} slidy.`, { type: "OBJECT", properties: { slides: { type: "ARRAY", items: { type: "OBJECT", properties: { title: { type: "STRING" }, points: { type: "ARRAY", items: { type: "STRING" } } }, required: ["title", "points"] } } } });
+                                rawResultForSaving = result;
+                                break;
+                            case 'quiz':
+                                result = await callGeminiForJson(`Vytvoř kvíz na základě tohoto zadání: "${userPrompt}"`, { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "OBJECT", properties: { question_text: { type: "STRING" }, options: { type: "ARRAY", items: { type: "STRING" } }, correct_option_index: { type: "NUMBER" } }, required: ["question_text", "options", "correct_option_index"] } } } });
+                                rawResultForSaving = result;
+                                break;
+                             case 'test':
+                                const qCount = document.getElementById('question-count-input').value;
+                                const difficulty = document.getElementById('difficulty-select').value;
+                                const qType = document.getElementById('type-select').value;
+                                result = await callGeminiForJson(`Vytvoř test na téma "${userPrompt}" s ${qCount} otázkami. Obtížnost testu je ${difficulty}. Typy otázek: ${qType}.`, { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "OBJECT", properties: { question_text: { type: "STRING" }, question_type: { type: "STRING", enum: ["multiple_choice", "true_false"] }, options: { type: "ARRAY", items: { type: "STRING" } }, correct_answer: { type: "STRING" } }, required: ["question_text", "question_type", "options", "correct_answer"] } } } });
+                                rawResultForSaving = result;
+                                break;
+                            case 'post':
+                                const episodeCount = document.getElementById('episode-count-input').value;
+                                result = await callGeminiForJson(`Vytvoř sérii podcastů o ${episodeCount} epizodách na základě zadání: "${userPrompt}". Každá epizoda by měla mít chytlavý název a krátký popis obsahu.`, { type: "OBJECT", properties: { podcast_series: { type: "ARRAY", items: { type: "OBJECT", properties: { episode: { type: "NUMBER" }, title: { type: "STRING" }, summary: { type: "STRING" } }, required: ["episode", "title", "summary"] } } } });
+                                rawResultForSaving = result;
+                                break;
+                        }
+                    }
+
+                    if (result.error) throw new Error(result.error);
+
+                    // Render the result based on the view
                     switch(viewId) {
-                         case 'text':
-                            const length = document.getElementById('length-select').value;
-                            result = await callGeminiApi(`Vytvoř studijní text na základě tohoto zadání. Požadovaná délka je ${length}. Text by měl být poutavý a edukativní. Zadání: "${prompt}"`);
-                            if (result.error) throw new Error(result.error);
+                        case 'text':
                             outputEl.innerHTML = `<div class="prose max-w-none">${result.text.replace(/\n/g, '<br>')}</div>`;
                             break;
                         case 'presentation':
-                            const slideCount = document.getElementById('slide-count-input').value;
-                            result = await callGeminiForJson(`Vytvoř prezentaci na téma "${prompt}" s přesně ${slideCount} slidy.`, { type: "OBJECT", properties: { slides: { type: "ARRAY", items: { type: "OBJECT", properties: { title: { type: "STRING" }, points: { type: "ARRAY", items: { type: "STRING" } } }, required: ["title", "points"] } } } });
-                            if (result.error) throw new Error(result.error);
                             const slidesHtml = result.slides.map((slide, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${slide.points.map(p => `<li>${p}</li>`).join('')}</ul></div>`).join('');
                             outputEl.innerHTML = slidesHtml;
                             break;
                         case 'quiz':
-                            result = await callGeminiForJson(`Vytvoř kvíz na základě tohoto zadání: "${prompt}"`, { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "OBJECT", properties: { question_text: { type: "STRING" }, options: { type: "ARRAY", items: { type: "STRING" } }, correct_option_index: { type: "NUMBER" } }, required: ["question_text", "options", "correct_option_index"] } } } });
-                            if (result.error) throw new Error(result.error);
                             const questionsHtml = result.questions.map((q, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4"><p class="font-semibold">${i+1}. ${q.question_text}</p><div class="mt-2 space-y-1 text-sm">${q.options.map((opt, j) => `<div class="${j === q.correct_option_index ? 'text-green-700 font-bold' : ''}">${String.fromCharCode(65 + j)}) ${opt}</div>`).join('')}</div></div>`).join('');
                             outputEl.innerHTML = questionsHtml;
                             break;
-                         case 'test':
-                            const qCount = document.getElementById('question-count-input').value;
-                            const difficulty = document.getElementById('difficulty-select').value;
-                            const qType = document.getElementById('type-select').value;
-                            result = await callGeminiForJson(`Vytvoř test na téma "${prompt}" s ${qCount} otázkami. Obtížnost testu je ${difficulty}. Typy otázek: ${qType}.`, { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "OBJECT", properties: { question_text: { type: "STRING" }, question_type: { type: "STRING", enum: ["multiple_choice", "true_false"] }, options: { type: "ARRAY", items: { type: "STRING" } }, correct_answer: { type: "STRING" } }, required: ["question_text", "question_type", "options", "correct_answer"] } } } });
-                            if (result.error) throw new Error(result.error);
+                        case 'test':
                             const testHtml = result.questions.map((q, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4"><p class="font-semibold">${i+1}. ${q.question_text}</p><div class="mt-2 space-y-1 text-sm">${q.options.map(opt => `<div>- ${opt}</div>`).join('')}</div><div class="mt-2 text-xs font-bold text-green-700 bg-green-100 p-1 rounded inline-block">Správná odpověď: ${q.correct_answer}</div></div>`).join('');
                             outputEl.innerHTML = testHtml;
                             break;
                         case 'post':
-                            const episodeCount = document.getElementById('episode-count-input').value;
-                            result = await callGeminiForJson(`Vytvoř sérii podcastů o ${episodeCount} epizodách na základě zadání: "${prompt}". Každá epizoda by měla mít chytlavý název a krátký popis obsahu.`, { type: "OBJECT", properties: { podcast_series: { type: "ARRAY", items: { type: "OBJECT", properties: { episode: { type: "NUMBER" }, title: { type: "STRING" }, summary: { type: "STRING" } }, required: ["episode", "title", "summary"] } } } });
-                            if (result.error) throw new Error(result.error);
                             const podcastsHtml = result.podcast_series.map(p => `<div class="p-4 border border-slate-200 rounded-lg mb-4 flex items-start space-x-4"><div class="text-3xl">🎧</div><div><h4 class="font-bold text-green-700">Epizoda ${p.episode}: ${p.title}</h4><p class="text-sm text-slate-600 mt-1">${p.summary}</p></div></div>`).join('');
                             outputEl.innerHTML = `<h3 class="text-xl font-bold mb-4">Vygenerovaná Série Podcastů:</h3>${podcastsHtml}`;
                             break;
                     }
+
+                    // If we are here, generation was successful. Show the save button.
+                    const saveBtn = document.getElementById('save-content-btn');
+                    if (saveBtn) {
+                        saveBtn.classList.remove('hidden');
+                        // Use cloneNode to remove any previous listeners
+                        const newSaveBtn = saveBtn.cloneNode(true);
+                        saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+
+                        newSaveBtn.addEventListener('click', () => {
+                            handleSaveGeneratedContent(currentLesson, viewId, rawResultForSaving);
+                        });
+                    }
+
+
                 } catch (e) {
                      outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě: ${e.message}</div>`;
                 } finally {
@@ -1360,6 +1499,75 @@ async function showStudentLesson(lessonData) { // Accept the full lesson object
     }, { once: true });
 }
     
+    async function handleSaveGeneratedContent(lesson, viewId, generatedData) {
+        if (!lesson || !lesson.id) {
+            alert("Chyba: Lekce není definována. Nelze uložit.");
+            return;
+        }
+
+        const lessonRef = doc(db, 'lessons', lesson.id);
+        let updatePayload = {};
+        let fieldName = '';
+        let dataToSave = generatedData;
+
+        switch (viewId) {
+            case 'text':
+                fieldName = 'content';
+                break;
+            case 'presentation':
+                fieldName = 'presentationData';
+                break;
+            case 'quiz':
+                fieldName = 'quizData';
+                break;
+            case 'test':
+                fieldName = 'testData';
+                break;
+            case 'post':
+                fieldName = 'postData';
+                break;
+            default:
+                alert(`Chyba: Neznámý typ obsahu '${viewId}'.`);
+                return;
+        }
+
+        // If the data is a string that should be JSON, parse it first.
+        if (typeof dataToSave === 'string' && (viewId === 'presentation' || viewId === 'quiz' || viewId === 'test' || viewId === 'post')) {
+            try {
+                dataToSave = JSON.parse(dataToSave);
+            } catch (e) {
+                alert(`Chyba při parsování vygenerovaných dat. Obsah nelze uložit. Chyba: ${e.message}`);
+                return;
+            }
+        }
+
+        updatePayload[fieldName] = dataToSave;
+
+        const saveBtn = document.getElementById('save-content-btn');
+        const originalSaveBtnText = saveBtn.innerHTML;
+        saveBtn.innerHTML = `<div class="spinner"></div><span class="ml-2">Ukládám...</span>`;
+        saveBtn.disabled = true;
+
+        try {
+            await updateDoc(lessonRef, updatePayload);
+            alert(`Obsah pro '${viewId}' byl úspěšně uložen do lekce.`);
+            // Update the local data to reflect the change immediately
+            const lessonInData = lessonsData.find(l => l.id === lesson.id);
+            if (lessonInData) {
+                lessonInData[fieldName] = dataToSave;
+            }
+            if (currentLesson && currentLesson.id === lesson.id) {
+                currentLesson[fieldName] = dataToSave;
+            }
+        } catch (error) {
+            console.error("Chyba při ukládání obsahu do lekce:", error);
+            alert(`Došlo k chybě při ukládání: ${error.message}`);
+        } finally {
+            saveBtn.innerHTML = originalSaveBtnText;
+            saveBtn.disabled = false;
+        }
+    }
+
     // --- POMOCNÉ MODÁLY A SEKCE ---
     function showAiAssistant() {
         const modalContainer = document.getElementById('modal-container');
