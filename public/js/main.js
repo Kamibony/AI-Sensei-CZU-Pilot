@@ -253,15 +253,12 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     }
 
     async function login(role) {
-        console.log(`--- LOGIN_START: Role=${role} ---`); // ADD THIS
         currentUserRole = role;
         appContainer.innerHTML = document.getElementById('main-app-template').innerHTML;
         document.getElementById('ai-assistant-btn').style.display = 'flex';
 
         // Ensure data is fully loaded before attempting to render any role-specific UI
-        console.log("LOGIN: Awaiting fetchLessons()..."); // ADD THIS
         await fetchLessons();
-        console.log("LOGIN: fetchLessons() complete. lessonsData count:", lessonsData.length); // ADD THIS
 
         if (role === 'professor') {
             setupProfessorNav();
@@ -272,14 +269,12 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             setupStudentNav();
             const studentHTML = `<div id="dashboard-student" class="w-full flex main-view active"><aside class="w-72 bg-white border-r border-slate-200 flex-col p-4 flex-shrink-0 hidden md:flex"></aside><main id="student-content-area" class="flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50"></main></div>`;
             document.getElementById('role-content-wrapper').innerHTML = studentHTML;
-            console.log("LOGIN: Calling initStudentDashboard()..."); // ADD THIS
-            initStudentDashboard();
+            await initStudentDashboard();
         }
         document.getElementById('logout-btn').addEventListener('click', logout);
         document.getElementById('ai-assistant-btn').addEventListener('click', showAiAssistant);
         // Add this line at the end of the login(role) function
         document.getElementById('app-container').classList.remove('hidden');
-        console.log(`--- LOGIN_END: Role=${role} ---`); // ADD THIS
     }
     
     // --- LOGIKA PRO DASHBOARD PROFESORA ---
@@ -1121,19 +1116,15 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     }
 
     async function initStudentDashboard() {
-        console.log("--- INIT_STUDENT_DASHBOARD_START ---"); // ADD THIS
-
-        try { // ADD THIS 'try'
+        try {
             const mainContent = document.getElementById('student-content-area');
             const sidebar = document.querySelector('#dashboard-student aside');
 
-            console.log("INIT_STUDENT: Checking for main elements..."); // ADD THIS
             if (!mainContent || !sidebar) {
                 console.error("CRITICAL_ERROR: Student dashboard elements not found. Cannot initialize.");
                 return;
             }
             if (!lessonsData || lessonsData.length === 0) {
-                console.warn("initStudentDashboard called but lessonsData is empty. Displaying fallback message.");
                 mainContent.innerHTML = `<div class="p-8 text-center text-slate-500">Pro vás zatím nebyly připraveny žádné lekce.</div>`;
                 return; // Stop further execution
             }
@@ -1151,7 +1142,6 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
 
 
             // --- Part B: Implement the Display Logic for Telegram ---
-            console.log("INIT_STUDENT: Fetching student-specific data...");
             const user = auth.currentUser;
             const telegramConnectionBox = document.getElementById('telegram-connection-box');
             const telegramLinkContainer = document.getElementById('telegram-link-container');
@@ -1240,9 +1230,8 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                     }
                 }
             });
-            console.log("--- INIT_STUDENT_DASHBOARD_SUCCESS ---"); // ADD THIS AT THE END OF THE 'try' block
 
-        } catch (error) { // ADD THIS 'catch' block
+        } catch (error) {
             console.error("!!!!!!!!!!!!!!!!! CRASH DETECTED IN initStudentDashboard !!!!!!!!!!!!!!!!!");
             console.error("THE ERROR IS:", error);
             console.error("Stack Trace:", error.stack);
@@ -1254,6 +1243,132 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         }
     }
 
+// --- Helper functions for rendering specific content types ---
+function renderQuiz(quizData, container) {
+    if (!quizData || !quizData.questions || quizData.questions.length === 0) {
+        container.innerHTML = '<p class="text-slate-500 text-center">Pro tuto lekci není k dispozici žádný kvíz.</p>';
+        return;
+    }
+
+    const questionsHtml = quizData.questions.map((q, index) => {
+        const optionsHtml = q.options.map((option, i) => `
+            <label class="block p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                <input type="radio" name="question-${index}" value="${i}" class="mr-3 accent-green-600">
+                <span>${option}</span>
+            </label>
+        `).join('');
+
+        return `
+            <div class="bg-white p-6 rounded-lg shadow-md mb-6" data-question-index="${index}">
+                <p class="font-semibold text-lg text-slate-800 mb-4">${index + 1}. ${q.question_text}</p>
+                <div class="space-y-3">${optionsHtml}</div>
+                <div class="mt-4 p-3 rounded-lg text-sm font-medium hidden result-feedback"></div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = `
+        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Interaktivní Kvíz</h2>
+        <form id="quiz-form">${questionsHtml}</form>
+        <div class="text-center mt-6">
+            <button id="check-quiz-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-700 transition-all transform hover:scale-105 shadow-lg">Vyhodnotit kvíz</button>
+        </div>
+        <div id="quiz-summary" class="hidden mt-8 text-center font-bold text-xl p-4 bg-yellow-100 text-yellow-800 rounded-lg"></div>
+    `;
+
+    document.getElementById('check-quiz-btn').addEventListener('click', () => {
+        let score = 0;
+        const form = document.getElementById('quiz-form');
+        quizData.questions.forEach((q, index) => {
+            const questionEl = form.querySelector(`[data-question-index="${index}"]`);
+            const feedbackEl = questionEl.querySelector('.result-feedback');
+            const selected = form.querySelector(`input[name="question-${index}"]:checked`);
+
+            feedbackEl.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
+
+            if (selected) {
+                if (parseInt(selected.value) === q.correct_option_index) {
+                    score++;
+                    feedbackEl.textContent = 'Správně!';
+                    feedbackEl.classList.add('bg-green-100', 'text-green-700');
+                } else {
+                    feedbackEl.textContent = `Špatně. Správná odpověď byla: ${q.options[q.correct_option_index]}`;
+                    feedbackEl.classList.add('bg-red-100', 'text-red-700');
+                }
+            } else {
+                feedbackEl.textContent = 'Nevybrali jste žádnou odpověď.';
+                feedbackEl.classList.add('bg-red-100', 'text-red-700');
+            }
+             feedbackEl.classList.remove('hidden');
+        });
+
+        const summaryEl = document.getElementById('quiz-summary');
+        summaryEl.textContent = `Vaše skóre: ${score} z ${quizData.questions.length}`;
+        summaryEl.classList.remove('hidden');
+        document.getElementById('check-quiz-btn').disabled = true;
+    });
+}
+
+function renderPresentation(presentationData, container) {
+    if (!presentationData || !presentationData.slides || presentationData.slides.length === 0) {
+        container.innerHTML = '<p class="text-slate-500 text-center">Pro tuto lekci není k dispozici žádná prezentace.</p>';
+        return;
+    }
+
+    let currentSlide = 0;
+
+    const render = () => {
+        const slide = presentationData.slides[currentSlide];
+        const slidesHtml = `
+             <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Prezentace</h2>
+            <div class="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col h-[70vh] max-w-4xl mx-auto">
+                <div class="bg-slate-700 text-white p-4 text-center">
+                    <h3 class="text-2xl font-bold">${slide.title}</h3>
+                </div>
+                <div class="p-8 flex-grow overflow-y-auto">
+                    <ul class="list-disc list-inside space-y-4 text-xl text-slate-700">
+                        ${slide.points.map(p => `<li>${p}</li>`).join('')}
+                    </ul>
+                </div>
+                <div class="p-4 bg-slate-100 border-t flex justify-between items-center flex-shrink-0">
+                    <button id="prev-slide-btn" class="px-4 py-2 bg-slate-300 rounded-lg hover:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed font-semibold">Předchozí</button>
+                    <span class="font-semibold text-slate-600">${currentSlide + 1} / ${presentationData.slides.length}</span>
+                    <button id="next-slide-btn" class="px-4 py-2 bg-slate-300 rounded-lg hover:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed font-semibold">Další</button>
+                </div>
+            </div>
+        `;
+        container.innerHTML = slidesHtml;
+
+        const prevBtn = document.getElementById('prev-slide-btn');
+        const nextBtn = document.getElementById('next-slide-btn');
+
+        prevBtn.disabled = currentSlide === 0;
+        nextBtn.disabled = currentSlide === presentationData.slides.length - 1;
+
+        // Use cloneNode to ensure listeners are fresh
+        const newPrevBtn = prevBtn.cloneNode(true);
+        prevBtn.parentNode.replaceChild(newPrevBtn, prevBtn);
+        newPrevBtn.addEventListener('click', () => {
+            if (currentSlide > 0) {
+                currentSlide--;
+                render();
+            }
+        });
+
+        const newNextBtn = nextBtn.cloneNode(true);
+        nextBtn.parentNode.replaceChild(newNextBtn, nextBtn);
+        newNextBtn.addEventListener('click', () => {
+            if (currentSlide < presentationData.slides.length - 1) {
+                currentSlide++;
+                render();
+            }
+        });
+    };
+
+    render();
+}
+
+
 async function showStudentLesson(lessonData) { // Accept the full lesson object
     const mainAppView = document.getElementById('app-container');
     const lessonView = document.getElementById('student-lesson-view');
@@ -1264,13 +1379,14 @@ async function showStudentLesson(lessonData) { // Accept the full lesson object
         return;
     }
 
-    const lessonId = lessonData.id; // Still need the ID for some operations like chat
+    const lessonId = lessonData.id;
     const visitedTabs = new Set();
-    let totalTabs = 3; // Start with the core tabs (Text, Takeaways, Assistant, Chat)
+    // Base tabs are the interactive ones that are always present
+    let totalTabs = 3; // Start with Takeaways, Assistant, Chat
 
     // --- Hide main view, show lesson view ---
     mainAppView.classList.add('hidden');
-    if (aiAssistantBtn) aiAssistantBtn.style.display = 'none'; // Use inline style to hide consistently
+    if (aiAssistantBtn) aiAssistantBtn.style.display = 'none';
     lessonView.classList.remove('hidden');
     lessonView.classList.add('view-transition');
 
@@ -1280,30 +1396,28 @@ async function showStudentLesson(lessonData) { // Accept the full lesson object
     const tabNav = lessonView.querySelector('nav');
     const contentContainer = lessonView.querySelector('#student-lesson-content-container');
 
-    // User info display
+    // --- User Info Display ---
     const user = auth.currentUser;
     if (user) {
         lessonView.querySelector('#student-email-display').textContent = user.email;
         lessonView.querySelector('#student-avatar').textContent = user.email.charAt(0).toUpperCase();
     }
 
-    // --- Reset to default state before populating ---
-    // This prevents stale data from a previously opened lesson from showing
+    // --- Reset UI to a clean state ---
     titleEl.textContent = 'Načítání...';
     progressBar.style.width = '0%';
-    contentContainer.querySelector('#lesson-text-content').innerHTML = '<div class="p-8 text-center pulse-loader text-slate-500">Načítání...</div>';
-    contentContainer.querySelector('#takeaways-result').innerHTML = '';
-    contentContainer.querySelector('#ai-assistant-chat-history').innerHTML = `
-         <div class="flex gap-3 items-start">
-            <div class="w-8 h-8 bg-green-100 text-green-700 rounded-full flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-robot"></i></div>
-            <div class="bg-slate-100 p-3 rounded-lg rounded-tl-none">
-                <p class="text-slate-700">Ahoj! Na co se chcete zeptat k této lekci?</p>
-            </div>
-        </div>`;
+    // Reset all tab panes
+    contentContainer.querySelectorAll('.student-lesson-tab-pane').forEach(pane => {
+        pane.innerHTML = '<div class="p-8 text-center pulse-loader text-slate-500">Načítání...</div>';
+    });
+    // The following lines are now redundant because the loop above clears all panes.
+    // They were causing errors by trying to access elements that no longer existed.
+    // contentContainer.querySelector('#takeaways-result').innerHTML = '';
+    // contentContainer.querySelector('#ai-assistant-chat-history').innerHTML = `...`;
 
     // --- Progress Bar Logic ---
     const updateProgressBar = () => {
-        const progress = Math.min((visitedTabs.size / totalTabs) * 100, 100);
+        const progress = totalTabs > 0 ? Math.min((visitedTabs.size / totalTabs) * 100, 100) : 0;
         progressBar.style.width = `${progress}%`;
     };
 
@@ -1313,10 +1427,8 @@ async function showStudentLesson(lessonData) { // Accept the full lesson object
     newTabNav.addEventListener('click', (e) => {
         const button = e.target.closest('.student-lesson-tab-btn');
         if (!button) return;
-
         const tabId = button.dataset.tab;
 
-        // Update button styles
         newTabNav.querySelectorAll('.student-lesson-tab-btn').forEach(btn => {
             btn.classList.remove('bg-green-100', 'text-green-800');
             btn.classList.add('text-slate-600', 'hover:bg-slate-100');
@@ -1324,447 +1436,77 @@ async function showStudentLesson(lessonData) { // Accept the full lesson object
         button.classList.add('bg-green-100', 'text-green-800');
         button.classList.remove('text-slate-600', 'hover:bg-slate-100');
 
-        // Show the correct pane
         contentContainer.querySelectorAll('.student-lesson-tab-pane').forEach(pane => {
             pane.classList.add('hidden');
         });
         contentContainer.querySelector(`#tab-${tabId}`).classList.remove('hidden');
 
-        // Update progress
         if (!visitedTabs.has(tabId)) {
             visitedTabs.add(tabId);
             updateProgressBar();
         }
     });
 
-    // --- Populate Data (No Fetch Needed) ---
+    // --- Data-Driven Population and Tab Visibility ---
     try {
         titleEl.textContent = lessonData.title;
 
-        // --- Populate Core Content ---
-        contentContainer.querySelector('#lesson-text-content').innerHTML = lessonData.content ? lessonData.content.replace(/\n/g, '<br>') : '<p>Pro tuto lekci není k dispozici žádný text.</p>';
+        // Configuration for each tab
+        const tabConfig = {
+            'text': { data: lessonData.content, container: '#lesson-text-content', renderer: (data, el) => { el.innerHTML = data ? data.replace(/\n/g, '<br>') : '<p>Pro tuto lekci není k dispozici žádný text.</p>'; } },
+            'video': { data: lessonData.videoUrl, container: '#lesson-video-content', renderer: (data, el) => { const videoId = data.split('v=')[1]?.split('&')[0]; el.innerHTML = videoId ? `<iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe>` : '<p class="text-white">Neplatná adresa videa.</p>'; } },
+            'presentation': { data: lessonData.presentationData, container: '#lesson-presentation-content', renderer: renderPresentation },
+            'quiz': { data: lessonData.quizData, container: '#lesson-quiz-content', renderer: renderQuiz },
+            'extra': { data: (lessonData.podcastUrl || lessonData.quizUrl), container: '#lesson-extra-content', renderer: (data, el) => {
+                let extraHtml = '';
+                if (lessonData.podcastUrl) extraHtml += `<h3 class="font-bold text-lg mb-2">Doporučený Podcast</h3><iframe style="border-radius:12px" src="${lessonData.podcastUrl}" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+                if (lessonData.quizUrl) extraHtml += `<h3 class="font-bold text-lg mt-6 mb-2">Doplňkový Kvíz</h3><a href="${lessonData.quizUrl}" target="_blank" class="text-green-600 hover:underline">Otevřít kvíz v nové záložce &rarr;</a>`;
+                el.innerHTML = extraHtml || '<p>Pro tuto lekci nejsou k dispozici žádné doplňkové materiály.</p>';
+            }}
+        };
 
-        const videoTabBtn = tabNav.querySelector('[data-tab="video"]');
-        if (lessonData.videoUrl) {
-            const videoId = lessonData.videoUrl.split('v=')[1]?.split('&')[0];
-            contentContainer.querySelector('#lesson-video-content').innerHTML = videoId ? `<iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe>` : '<p class="text-white">Neplatná adresa videa.</p>';
-            videoTabBtn.style.display = 'flex';
-            totalTabs++;
-        } else {
-            videoTabBtn.style.display = 'none';
-        }
+        // Reset totalTabs and count available content tabs
+        totalTabs = 3; // Reset to base interactive tabs
+        let firstAvailableTab = null;
 
-        const extraTabBtn = tabNav.querySelector('[data-tab="extra"]');
-        let extraHtml = '';
-        if (lessonData.podcastUrl) {
-            extraHtml += `<h3 class="font-bold text-lg mb-2">Doporučený Podcast</h3><iframe style="border-radius:12px" src="${lessonData.podcastUrl}" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
-        }
-        if (lessonData.quizUrl) {
-            extraHtml += `<h3 class="font-bold text-lg mt-6 mb-2">Doplňkový Kvíz</h3><a href="${lessonData.quizUrl}" target="_blank" class="text-green-600 hover:underline">Otevřít kvíz v nové záložce &rarr;</a>`;
-        }
-        contentContainer.querySelector('#lesson-extra-content').innerHTML = extraHtml || '<p>Pro tuto lekci nejsou k dispozici žádné doplňkové materiály.</p>';
-        if (extraHtml) {
-            extraTabBtn.style.display = 'flex';
-            totalTabs++;
-        } else {
-            extraTabBtn.style.display = 'none';
+        // Loop through configuration to set visibility and render content
+        for (const tabName in tabConfig) {
+            const config = tabConfig[tabName];
+            const tabBtn = newTabNav.querySelector(`[data-tab="${tabName}"]`);
+
+            if (config.data) {
+                tabBtn.style.display = 'flex';
+                totalTabs++;
+                if (!firstAvailableTab) firstAvailableTab = tabName;
+                config.renderer(config.data, contentContainer.querySelector(config.container));
+            } else {
+                tabBtn.style.display = 'none';
+            }
         }
 
         // --- Initialize Interactive Features ---
-        // These functions are defined below and capture the current lessonData in their scope.
         initializeKeyTakeaways();
         initializeAiAssistant();
         initializeProfessorChat();
 
-        // Set initial progress
-        visitedTabs.add('text');
+        // --- Set Initial State ---
+        if (firstAvailableTab) {
+            // Click the first available content tab
+            newTabNav.querySelector(`[data-tab="${firstAvailableTab}"]`).click();
+        } else {
+            // If no content tabs are available, default to the first interactive tab
+            newTabNav.querySelector('[data-tab="takeaways"]').click();
+        }
+        // Initial progress update is handled by the .click() event
         updateProgressBar();
+
 
     } catch (error) {
         console.error("Error populating student lesson view:", error);
         titleEl.textContent = 'Chyba';
-        contentContainer.querySelector('#lesson-text-content').innerHTML = `<p>${error.message}</p>`;
+        contentContainer.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Při zobrazování lekce došlo k chybě: ${error.message}</div>`;
     }
 
     // --- Feature Initializers (as nested functions to capture scope) ---
     function initializeKeyTakeaways() {
-        const generateBtn = contentContainer.querySelector('#generate-takeaways-btn');
-        const resultContainer = contentContainer.querySelector('#takeaways-result');
-        const clickHandler = async () => {
-            generateBtn.disabled = true;
-            generateBtn.innerHTML = `<div class="spinner"></div><span class="ml-2">Generuji...</span>`;
-            resultContainer.innerHTML = '';
-            try {
-                const result = await getLessonKeyTakeaways({ lessonText: lessonData.content });
-                resultContainer.innerHTML = `<div class="bg-yellow-50 border border-yellow-200 p-6 rounded-lg">${result.data.takeaways.replace(/\n/g, '<br>')}</div>`;
-            } catch (e) {
-                resultContainer.innerHTML = `<p class="text-red-500">Nepodařilo se vygenerovat klíčové body: ${e.message}</p>`;
-            } finally {
-                generateBtn.disabled = false;
-                generateBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles mr-2"></i>Vygenerovat znovu`;
-            }
-        };
-        generateBtn.replaceWith(generateBtn.cloneNode(true)); // Remove old listeners
-        contentContainer.querySelector('#generate-takeaways-btn').addEventListener('click', clickHandler);
-    }
-
-    function initializeAiAssistant() {
-        const sendBtn = contentContainer.querySelector('#ai-assistant-send-btn');
-        const input = contentContainer.querySelector('#ai-assistant-input');
-        const historyContainer = contentContainer.querySelector('#ai-assistant-chat-history');
-
-        const addMessageToHistory = (text, sender) => {
-            const bubble = document.createElement('div');
-            if (sender === 'user') {
-                bubble.className = 'flex gap-3 items-start justify-end';
-                bubble.innerHTML = `<div class="bg-green-600 text-white p-3 rounded-lg rounded-br-none"><p>${text}</p></div><div class="w-8 h-8 bg-blue-200 text-blue-800 rounded-full flex items-center justify-center flex-shrink-0 font-bold">${user.email.charAt(0).toUpperCase()}</div>`;
-            } else {
-                bubble.className = 'flex gap-3 items-start';
-                bubble.innerHTML = `<div class="w-8 h-8 bg-green-100 text-green-700 rounded-full flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-robot"></i></div><div class="bg-slate-100 p-3 rounded-lg rounded-tl-none ai-response"><p class="text-slate-700">${text}</p></div>`;
-            }
-            historyContainer.appendChild(bubble);
-            historyContainer.scrollTop = historyContainer.scrollHeight;
-            return bubble;
-        };
-
-        const handleSend = async () => {
-            const question = input.value.trim();
-            if (!question) return;
-            addMessageToHistory(question, 'user');
-            input.value = '';
-            input.disabled = true;
-            sendBtn.disabled = true;
-            const typingBubble = addMessageToHistory('<div class="typing-indicator"><span></span><span></span><span></span></div>', 'ai');
-            try {
-                const result = await getAiAssistantResponse({ lessonText: lessonData.content, userQuestion: question });
-                typingBubble.querySelector('.ai-response p').innerHTML = result.data.answer.replace(/\n/g, '<br>');
-            } catch (e) {
-                typingBubble.querySelector('.ai-response p').innerHTML = `<span class="text-red-500">Omlouvám se, došlo k chybě: ${e.message}</span>`;
-            } finally {
-                input.disabled = false;
-                sendBtn.disabled = false;
-                input.focus();
-            }
-        };
-        sendBtn.replaceWith(sendBtn.cloneNode(true));
-        contentContainer.querySelector('#ai-assistant-send-btn').addEventListener('click', handleSend);
-        input.replaceWith(input.cloneNode(true));
-        contentContainer.querySelector('#ai-assistant-input').addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
-    }
-
-    function initializeProfessorChat() {
-        const chatInput = contentContainer.querySelector('#student-chat-input');
-        const sendBtn = contentContainer.querySelector('#student-send-message-btn');
-        const chatHistoryArea = contentContainer.querySelector('#chat-history-area');
-
-        const handleSendMessage = async () => {
-            const text = chatInput.value.trim();
-            if (!text) return;
-            const userBubble = document.createElement('div');
-            userBubble.className = 'chat-bubble chat-bubble-user';
-            userBubble.textContent = text;
-            chatHistoryArea.appendChild(userBubble);
-            chatHistoryArea.scrollTop = chatHistoryArea.scrollHeight;
-            const originalButtonContent = sendBtn.innerHTML;
-            sendBtn.innerHTML = `<div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>`;
-            chatInput.value = '';
-            chatInput.disabled = true;
-            sendBtn.disabled = true;
-            try {
-                await sendMessageToProfessor({ lessonId, text });
-            } catch (error) {
-                console.error("Error sending message to professor:", error);
-                userBubble.style.outline = '2px solid red';
-                alert(`Chyba při odesílání: ${error.message}`);
-            } finally {
-                chatInput.disabled = false;
-                sendBtn.disabled = false;
-                sendBtn.innerHTML = originalButtonContent;
-                chatInput.focus();
-            }
-        };
-        sendBtn.replaceWith(sendBtn.cloneNode(true));
-        contentContainer.querySelector('#student-send-message-btn').addEventListener('click', handleSendMessage);
-        chatInput.replaceWith(chatInput.cloneNode(true));
-        contentContainer.querySelector('#student-chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(); } });
-    }
-
-    // --- Back Button Logic ---
-    const backBtn = lessonView.querySelector('#back-to-student-dashboard-btn');
-    backBtn.addEventListener('click', () => {
-        lessonView.classList.add('hidden');
-        mainAppView.classList.remove('hidden');
-        if (aiAssistantBtn) aiAssistantBtn.style.display = 'flex'; // Use inline style
-        initStudentDashboard();
-    }, { once: true });
-}
-    
-    async function handleSaveGeneratedContent(lesson, viewId, generatedData) {
-        if (!lesson || !lesson.id) {
-            alert("Chyba: Lekce není definována. Nelze uložit.");
-            return;
-        }
-
-        const lessonRef = doc(db, 'lessons', lesson.id);
-        let updatePayload = {};
-        let fieldName = '';
-        let dataToSave = generatedData;
-
-        switch (viewId) {
-            case 'text':
-                fieldName = 'content';
-                break;
-            case 'presentation':
-                fieldName = 'presentationData';
-                break;
-            case 'quiz':
-                fieldName = 'quizData';
-                break;
-            case 'test':
-                fieldName = 'testData';
-                break;
-            case 'post':
-                fieldName = 'postData';
-                break;
-            default:
-                alert(`Chyba: Neznámý typ obsahu '${viewId}'.`);
-                return;
-        }
-
-        // If the data is a string that should be JSON, parse it first.
-        if (typeof dataToSave === 'string' && (viewId === 'presentation' || viewId === 'quiz' || viewId === 'test' || viewId === 'post')) {
-            try {
-                dataToSave = JSON.parse(dataToSave);
-            } catch (e) {
-                alert(`Chyba při parsování vygenerovaných dat. Obsah nelze uložit. Chyba: ${e.message}`);
-                return;
-            }
-        }
-
-        updatePayload[fieldName] = dataToSave;
-
-        const saveBtn = document.getElementById('save-content-btn');
-        const originalSaveBtnText = saveBtn.innerHTML;
-        saveBtn.innerHTML = `<div class="spinner"></div><span class="ml-2">Ukládám...</span>`;
-        saveBtn.disabled = true;
-
-        try {
-            await updateDoc(lessonRef, updatePayload);
-            alert(`Obsah pro '${viewId}' byl úspěšně uložen do lekce.`);
-            // Update the local data to reflect the change immediately
-            const lessonInData = lessonsData.find(l => l.id === lesson.id);
-            if (lessonInData) {
-                lessonInData[fieldName] = dataToSave;
-            }
-            if (currentLesson && currentLesson.id === lesson.id) {
-                currentLesson[fieldName] = dataToSave;
-            }
-        } catch (error) {
-            console.error("Chyba při ukládání obsahu do lekce:", error);
-            alert(`Došlo k chybě při ukládání: ${error.message}`);
-        } finally {
-            saveBtn.innerHTML = originalSaveBtnText;
-            saveBtn.disabled = false;
-        }
-    }
-
-    // --- POMOCNÉ MODÁLY A SEKCE ---
-    function showAiAssistant() {
-        const modalContainer = document.getElementById('modal-container');
-        modalContainer.innerHTML = `
-            <div class="fixed inset-0 bg-slate-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-                <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg transform transition-all modal-transition">
-                     <header class="p-4 border-b border-slate-200 flex justify-between items-center">
-                         <h3 class="text-xl font-semibold">🤖 AI Asistent Sensei</h3>
-                         <button id="close-modal-btn" class="p-2 rounded-full hover:bg-slate-100">✖</button>
-                     </header>
-                     <main class="p-6">
-                         <p class="mb-4">Dobrý den, profesore! Co pro vás mohu udělat?</p>
-                         <div class="space-y-3">
-                             <button class="w-full text-left p-3 bg-slate-100 hover:bg-slate-200 rounded-lg">Navrhni mi strukturu nové lekce</button>
-                             <button class="w-full text-left p-3 bg-slate-100 hover:bg-slate-200 rounded-lg">Vytvoř 3 kreativní otázky k zamyšlení</button>
-                         </div>
-                     </main>
-                </div>
-            </div>`;
-        document.getElementById('close-modal-btn').addEventListener('click', () => modalContainer.innerHTML = '');
-    }
-
-
-    async function renderTelegramInteractionView(courseId) {
-        // Hide the main dashboard and show the Telegram view
-        const dashboardView = document.getElementById('dashboard-professor');
-        const telegramView = document.getElementById('telegram-interaction-view');
-        const studentListContainer = document.getElementById('student-telegram-list');
-        const roleContentWrapper = document.getElementById('role-content-wrapper');
-
-        if (dashboardView) dashboardView.classList.add('hidden');
-        if (roleContentWrapper) roleContentWrapper.classList.add('hidden');
-        if (telegramView) {
-            telegramView.classList.remove('hidden');
-            telegramView.style.backgroundColor = '#1f2937'; // bg-gray-800
-            telegramView.style.height = '100%';
-            telegramView.style.flexGrow = '1';
-        }
-
-        studentListContainer.innerHTML = '<p class="text-white">Načítám studenty...</p>';
-
-        try {
-            // In a real app, you might query based on courseId.
-            // For now, we fetch all students as per the prompt's example.
-            const studentsSnapshot = await getDocs(collection(db, 'students'));
-
-            studentListContainer.innerHTML = ''; // Clear loading message
-
-            if (studentsSnapshot.empty) {
-                studentListContainer.innerHTML = '<p class="text-white">Nebyly nalezeni žádní studenti.</p>';
-                return;
-            }
-
-            const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
-
-            studentsSnapshot.forEach(doc => {
-                const student = doc.data();
-                const studentId = doc.id;
-
-                // Create the UI element for each student
-                const studentEl = document.createElement('div');
-                studentEl.className = 'bg-gray-800 p-4 rounded-lg flex flex-col md:flex-row items-center justify-between';
-                studentEl.innerHTML = `
-                    <span class="text-white font-medium mb-2 md:mb-0">${student.email || studentId}</span>
-                    <div class="w-full md:w-3/4 flex items-center space-x-2">
-                        <textarea class="w-full bg-gray-700 text-white rounded-md p-2" rows="1" placeholder="Napište zprávu..."></textarea>
-                        <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Odeslat</button>
-                    </div>
-                `;
-
-                // Add send message functionality
-                const sendButton = studentEl.querySelector('button');
-                const textArea = studentEl.querySelector('textarea');
-                sendButton.addEventListener('click', async () => {
-                    const messageText = textArea.value;
-                    if (!messageText.trim()) {
-                        alert('Zpráva nemůže být prázdná.');
-                        return;
-                    }
-
-                    sendButton.textContent = 'Odesílám...';
-                    sendButton.disabled = true;
-
-                    try {
-                        await sendMessageToStudent({ studentId: studentId, text: messageText });
-                        textArea.value = '';
-                        alert('Zpráva úspěšně odeslána!');
-                    } catch (error) {
-                        console.error('Error sending message:', error);
-                        alert('Nepodařilo se odeslat zprávu: ' + error.message);
-                    } finally {
-                        sendButton.textContent = 'Odeslat';
-                        sendButton.disabled = false;
-                    }
-                });
-
-                studentListContainer.appendChild(studentEl);
-            });
-
-        } catch (error) {
-            console.error("Error fetching students: ", error);
-            studentListContainer.innerHTML = '<p class="text-red-500">Chyba při načítání studentů.</p>';
-        }
-    }
-
-    async function renderAnalytics() {
-        const studentListContainer = document.getElementById('analysis-student-list');
-        if (!studentListContainer) return;
-
-        studentListContainer.innerHTML = '<p class="text-slate-500">Načítám studenty...</p>';
-
-        try {
-            const studentsSnapshot = await getDocs(collection(db, 'students'));
-
-            if (studentsSnapshot.empty) {
-                studentListContainer.innerHTML = '<p class="text-slate-500">Nebyly nalezeni žádní studenti.</p>';
-                return;
-            }
-
-            studentListContainer.innerHTML = ''; // Clear loading message
-
-            studentsSnapshot.forEach(studentDoc => {
-                const student = studentDoc.data();
-                const studentId = studentDoc.id;
-                const studentEl = document.createElement('div');
-                studentEl.className = 'p-4 border-b border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors';
-                studentEl.textContent = student.email || studentId;
-                studentEl.dataset.studentId = studentId; // Add data attribute
-                studentListContainer.appendChild(studentEl);
-            });
-
-            // Add a single click listener to the list container
-            studentListContainer.addEventListener('click', (e) => {
-                const target = e.target.closest('[data-student-id]');
-                if (target) {
-                    const studentId = target.dataset.studentId;
-                    showStudentDetail(studentId);
-                }
-            });
-
-        } catch (error) {
-            console.error("Error fetching students for analysis: ", error);
-            studentListContainer.innerHTML = '<p class="text-red-500">Chyba při načítání studentů.</p>';
-        }
-    }
-
-    async function showStudentDetail(studentId) {
-        const appContainer = document.getElementById('app-container');
-        const detailView = document.getElementById('student-detail-view');
-        const aiAssistantBtn = document.getElementById('ai-assistant-btn');
-
-        if (!appContainer || !detailView) return;
-
-        // Hide the main app container and the floating button
-        appContainer.classList.add('hidden');
-        if (aiAssistantBtn) aiAssistantBtn.classList.add('hidden');
-
-        // Show the detail view
-        detailView.classList.remove('hidden');
-        detailView.innerHTML = '<p class="text-slate-500 p-8">Načítám detail studenta...</p>';
-
-        try {
-            const studentRef = doc(db, 'students', studentId);
-            const studentSnap = await getDoc(studentRef);
-
-            if (!studentSnap.exists()) {
-                detailView.innerHTML = '<p class="text-red-500 p-8">Student nebyl nalezen.</p>';
-                return;
-            }
-
-            const student = studentSnap.data();
-            const registrationDate = student.createdAt?.toDate() ? student.createdAt.toDate().toLocaleDateString('cs-CZ') : 'Neznámé';
-
-            // The detail view now provides its own container styling, so we don't need the inner one.
-            detailView.innerHTML = `
-                <button id="back-to-student-list" class="flex items-center text-sm text-green-700 hover:underline mb-4">&larr; Zpět na seznam studentů</button>
-                <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <h2 class="text-3xl font-extrabold text-slate-800">${student.email}</h2>
-                    <p class="text-slate-500 mt-1">Datum registrace: ${registrationDate}</p>
-
-                    <div class="mt-6 border-t pt-6">
-                        <h3 class="text-xl font-bold text-slate-800 mb-4">Analýza Aktivity (Fáze 2)</h3>
-                        <p class="text-slate-500 mb-4">Tato sekce bude obsahovat detailní analýzu interakcí a pokroku studenta.</p>
-                        <button id="ai-analysis-btn" class="bg-indigo-500 text-white font-semibold px-6 py-3 rounded-lg hover:bg-indigo-600 transition-colors">
-                            Spustit AI Analýzu
-                        </button>
-                    </div>
-                </div>
-            `;
-
-            document.getElementById('back-to-student-list').addEventListener('click', () => {
-                detailView.classList.add('hidden');
-                appContainer.classList.remove('hidden');
-                if (aiAssistantBtn) aiAssistantBtn.classList.remove('hidden');
-            });
-        } catch (error) {
-            console.error("Error fetching student detail:", error);
-            detailView.innerHTML = '<p class.="text-red-500 p-8">Chyba při načítání detailu studenta.</p>';
-        }
-    }
+>>>>>>> REPLACE

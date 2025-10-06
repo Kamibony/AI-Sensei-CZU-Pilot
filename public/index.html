@@ -130,6 +130,14 @@
                     <i class="fa-solid fa-video w-5 text-center"></i>
                     <span>Video</span>
                 </button>
+                <button data-tab="presentation" class="student-lesson-tab-btn w-full flex items-center gap-3 px-3 py-2.5 text-left text-base font-medium rounded-lg text-slate-600 hover:bg-slate-100">
+                    <i class="fa-solid fa-file-powerpoint w-5 text-center"></i>
+                    <span>Prezentace</span>
+                </button>
+                <button data-tab="quiz" class="student-lesson-tab-btn w-full flex items-center gap-3 px-3 py-2.5 text-left text-base font-medium rounded-lg text-slate-600 hover:bg-slate-100">
+                    <i class="fa-solid fa-question-circle w-5 text-center"></i>
+                    <span>Kvíz</span>
+                </button>
                 <button data-tab="extra" class="student-lesson-tab-btn w-full flex items-center gap-3 px-3 py-2.5 text-left text-base font-medium rounded-lg text-slate-600 hover:bg-slate-100">
                     <i class="fa-solid fa-graduation-cap w-5 text-center"></i>
                     <span>Učení na doma</span>
@@ -172,6 +180,14 @@
                     <div id="lesson-video-content" class="bg-black aspect-video rounded-xl overflow-hidden shadow-2xl flex items-center justify-center max-w-4xl mx-auto">
                         <p class="text-white">Sem přijde video</p>
                     </div>
+                </div>
+                <!-- Presentation Tab -->
+                <div id="tab-presentation" class="student-lesson-tab-pane hidden">
+                    <div id="lesson-presentation-content" class="space-y-4"></div>
+                </div>
+                <!-- Quiz Tab -->
+                <div id="tab-quiz" class="student-lesson-tab-pane hidden">
+                    <div id="lesson-quiz-content" class="max-w-3xl mx-auto"></div>
                 </div>
                 <!-- Extra Materials Tab -->
                 <div id="tab-extra" class="student-lesson-tab-pane hidden">
