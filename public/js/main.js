@@ -1,29 +1,13 @@
-// --- HLAVNÍ SKRIPT APLIKACE ---
-import { auth, db, storage, functions } from './firebase-init.js';
+// --- ALL IMPORTS MUST BE AT THE TOP ---
+import { onAuthStateChanged, signOut, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { collection, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, setDoc, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import {
-    onAuthStateChanged,
-    signOut,
-    signInAnonymously,
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {
-    collection,
-    getDocs,
-    getDoc,
-    doc,
-    addDoc,
-    updateDoc,
-    deleteDoc,
-    serverTimestamp,
-    setDoc,
-    writeBatch,
-    query,
-    where
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-handler.js';
 
+// --- MAIN APPLICATION LOGIC WRAPPER ---
+export function initializeAppUI(auth, db, storage, functions) {
+
+    // --- CALLABLE FUNCTIONS INITIALIZATION ---
     const generateTextFunction = httpsCallable(functions, 'generateText');
     const generateJsonFunction = httpsCallable(functions, 'generateJson');
     const generateFromDocument = httpsCallable(functions, 'generateFromDocument');
@@ -31,6 +15,63 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
     const getLessonKeyTakeaways = httpsCallable(functions, 'getLessonKeyTakeaways');
     const getAiAssistantResponse = httpsCallable(functions, 'getAiAssistantResponse');
+
+    // Make functions globally accessible for other modules if needed
+    window.callGeminiApi = callGeminiApi;
+    window.callGeminiForJson = callGeminiForJson;
+
+    // --- API CALL WRAPPERS ---
+    async function callGeminiApi(prompt, systemInstruction = null) {
+        try {
+            const result = await generateTextFunction({ prompt, systemInstruction });
+            return result.data;
+        } catch (error) {
+            console.error("Error calling 'generateText' function:", error);
+            return { error: `Backend Error: ${error.message}` };
+        }
+    }
+
+    async function callGeminiForJson(prompt, schema) {
+        try {
+            const result = await generateJsonFunction({ prompt, schema });
+            return result.data;
+        } catch (error) {
+            console.error("Error calling 'generateJson' function:", error);
+            return { error: `Backend Error during JSON generation: ${error.message}` };
+        }
+    }
+
+    // --- APP STATE ---
+    let lessonsData = [];
+    const lessonsCollection = collection(db, 'lessons');
+    let currentUserRole = null;
+    let currentLesson = null;
+    const appContainer = document.getElementById('app-container');
+
+    // --- DATA FETCHING ---
+    async function fetchLessons() {
+        try {
+            const querySnapshot = await getDocs(lessonsCollection);
+            if (querySnapshot.empty) {
+                console.log("Lesson database is empty. No initial data will be seeded.");
+                lessonsData = [];
+            } else {
+                lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            }
+            console.log("Lessons successfully fetched from Firestore:", lessonsData);
+        } catch (error) {
+            console.error("Error fetching lessons from Firestore: ", error);
+            alert("Could not load lesson data. Please try refreshing the page.");
+        }
+    }
+
+    // --- AUTH & ROUTING ---
+    onAuthStateChanged(auth, (user) => {
+        sessionStorage.removeItem('userRole');
+        currentUserRole = null;
+        currentLesson = null;
+        renderLogin();
+    });
 
     // --- Toast Notification System ---
     function showToast(message, isError = false) {
@@ -112,36 +153,6 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         return container;
     }
 
-
-    // --- API Volání ---
-    async function callGeminiApi(prompt, systemInstruction = null) {
-        console.log("Volám Firebase funkci 'generateText':", { prompt, systemInstruction });
-        try {
-            const result = await generateTextFunction({ prompt, systemInstruction });
-            return result.data;
-        } catch (error) {
-            console.error("Chyba při volání Firebase funkce 'generateText':", error);
-            const details = error.details || {};
-            return { error: `Chyba backendu: ${error.message} (kód: ${error.code}, detaily: ${JSON.stringify(details)})` };
-        }
-    }
-
-    async function callGeminiForJson(prompt, schema) {
-        console.log("Volám Firebase funkci 'generateJson':", { prompt, schema });
-        try {
-            const result = await generateJsonFunction({ prompt, schema });
-            return result.data;
-        } catch (error) {
-            console.error("Chyba při volání Firebase funkce 'generateJson':", error);
-            const details = error.details || {};
-            return { error: `Chyba backendu při generování JSON: ${error.message} (kód: ${error.code}, detaily: ${JSON.stringify(details)})` };
-        }
-    }
-
-    // Zpřístupnění funkcí pro ostatní skripty (např. editor-handler.js)
-    window.callGeminiApi = callGeminiApi;
-    window.callGeminiForJson = callGeminiForJson;
-
     async function createDocumentSelector(lessonId) {
         if (!lessonId) {
             return `<div class="mb-4 p-3 bg-slate-100 text-slate-600 rounded-lg text-sm">Uložte prosím detaily lekce, abyste mohli nahrávat a vybírat dokumenty.</div>`;
@@ -172,47 +183,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             return `<div class="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">Nepodařilo se načíst dokumenty.</div>`;
         }
     }
-
-    // --- DATA A STAV APLIKACE ---
-    let lessonsData = [];
-    const lessonsCollection = collection(db, 'lessons');
-
-    // Funkce pro načtení a případné nasazení počátečních dat
-    async function fetchLessons() {
-        try {
-            const querySnapshot = await getDocs(lessonsCollection);
-            if (querySnapshot.empty) {
-                console.log("Databáze lekcí je prázdná, nahrávám počáteční data...");
-                // The initialLessons array and the for-loop that were here have been removed.
-                // We will now simply proceed with an empty lessonsData array.
-                lessonsData = [];
-            } else {
-                 lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            }
-            console.log("Lekce úspěšně načteny z Firestore:", lessonsData);
-        } catch (error) {
-            console.error("Chyba při načítání lekcí z Firestore: ", error);
-            showToast("Nepodařilo se načíst data lekcí. Zkuste prosím obnovit stránku.", true);
-        }
-    }
-
-
-    let currentUserRole = null;
-    let currentLesson = null;
-    const appContainer = document.getElementById('app-container');
     
-    // --- HLAVNÍ LOGIKA APLIKACE (ROUTER) ---
-
-    // The application always starts at the role selection page.
-    // The user's role is stored in sessionStorage only after they click a button.
-    onAuthStateChanged(auth, (user) => {
-        // Clear session storage on auth state change to ensure clean login.
-        sessionStorage.removeItem('userRole');
-        currentUserRole = null;
-        currentLesson = null;
-        renderLogin();
-    });
-
     function renderLogin() {
         appContainer.classList.remove('hidden'); // Ensure the main container is visible
         appContainer.innerHTML = document.getElementById('login-template').innerHTML;
@@ -1874,4 +1845,5 @@ function showAiAssistant() {
             </div>
         </div>`;
     document.getElementById('close-modal-btn').addEventListener('click', () => modalContainer.innerHTML = '');
+}
 }
