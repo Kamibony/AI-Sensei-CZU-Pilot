@@ -23,7 +23,7 @@ try {
     auth = getAuth(app);
     db = getFirestore(app);
     storage = getStorage(app);
-    functions = getFunctions(app, 'us-central1');
+    functions = getFunctions(app, 'europe-west1');
 
 } catch (e) {
     // If the fetch fails, it's likely because the app is being served locally.
@@ -46,7 +46,7 @@ try {
     auth = getAuth(app);
     db = getFirestore(app);
     storage = getStorage(app);
-    functions = getFunctions(app, 'us-central1');
+    functions = getFunctions(app, 'europe-west1');
 
     // Connect to the running emulators
     console.log("Connecting to Firebase Emulators...");

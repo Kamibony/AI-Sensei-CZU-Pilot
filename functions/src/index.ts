@@ -9,7 +9,7 @@ import * as GeminiAPI from "./gemini-api.js";
 
 // --- CENTRALIZOVANÁ KONFIGURACE REGIONU ---
 // Všechny funkce budou nasazeny do tohoto regionu, kde je Gemini API dostupné.
-const DEPLOY_REGION = "us-central1";
+const DEPLOY_REGION = "europe-west1";
 
 // --- CORS Configuration ---
 const allowedOrigins = [
