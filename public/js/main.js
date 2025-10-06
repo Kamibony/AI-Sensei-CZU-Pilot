@@ -1752,3 +1752,24 @@ async function showStudentLesson(lessonData) { // Accept the full lesson object
     function initializeKeyTakeaways() {
     }
 }
+
+function showAiAssistant() {
+    const modalContainer = document.getElementById('modal-container');
+    modalContainer.innerHTML = `
+        <div class="fixed inset-0 bg-slate-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg transform transition-all modal-transition">
+                 <header class="p-4 border-b border-slate-200 flex justify-between items-center">
+                     <h3 class="text-xl font-semibold">🤖 AI Asistent Sensei</h3>
+                     <button id="close-modal-btn" class="p-2 rounded-full hover:bg-slate-100">✖</button>
+                 </header>
+                 <main class="p-6">
+                     <p class="mb-4">Dobrý den, profesore! Co pro vás mohu udělat?</p>
+                     <div class="space-y-3">
+                         <button class="w-full text-left p-3 bg-slate-100 hover:bg-slate-200 rounded-lg">Navrhni mi strukturu nové lekce</button>
+                         <button class="w-full text-left p-3 bg-slate-100 hover:bg-slate-200 rounded-lg">Vytvoř 3 kreativní otázky k zamyšlení</button>
+                     </div>
+                 </main>
+            </div>
+        </div>`;
+    document.getElementById('close-modal-btn').addEventListener('click', () => modalContainer.innerHTML = '');
+}
