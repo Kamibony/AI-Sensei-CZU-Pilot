@@ -6,33 +6,17 @@ import {
   GenerateContentRequest,
 } from "@google-cloud/vertexai";
 
-// 1. Centralized Initialization and Configuration
 const vertex_ai = new VertexAI({ project: process.env.GCLOUD_PROJECT });
 
-const MODELS = {
-  PRO: "gemini-2.5-pro",
-  VISION: "gemini-pro-vision"
-};
+const model = vertex_ai.getGenerativeModel({ model: "gemini-1.5-pro-preview-0409" });
 
-const generativeModel = vertex_ai.getGenerativeModel({ model: MODELS.PRO });
-const generativeVisionModel = vertex_ai.getGenerativeModel({ model: MODELS.VISION });
-
-/**
- * A reusable helper to stream responses from a Gemini model.
- * @param model The Vertex AI model instance to use.
- * @param requestBody The request payload for the model.
- * @returns A promise that resolves to the aggregated text response.
- */
-async function streamGeminiResponse(model: GenerativeModel, requestBody: GenerateContentRequest): Promise<string> {
-  // When running in the emulator, we can't make real API calls.
-  // Return a mock response to allow frontend testing.
+async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
         console.log("EMULATOR_MOCK: Bypassing real API call.");
-        // Return a mock JSON string for JSON requests, and plain text for others.
         if (requestBody.generationConfig?.responseMimeType === "application/json") {
             return JSON.stringify({ mock: "This is a mock JSON response from the emulator." });
         }
-        return "This is a mock text response from the emulator because real API calls are not available locally.";
+        return "This is a mock response from the emulator.";
     }
   try {
     const streamResult = await model.generateContentStream(requestBody);
@@ -49,12 +33,11 @@ async function streamGeminiResponse(model: GenerativeModel, requestBody: Generat
   }
 }
 
-// 2. Export High-Level Functions for Your Application Logic
 export async function generateTextFromPrompt(prompt: string): Promise<string> {
   const request: GenerateContentRequest = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
   };
-  return await streamGeminiResponse(generativeModel, request);
+  return await streamGeminiResponse(request);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,17 +49,19 @@ export async function generateJsonFromPrompt(prompt: string): Promise<any> {
         responseMimeType: "application/json",
     },
   };
-  const rawJsonText = await streamGeminiResponse(generativeModel, request);
+  const rawJsonText = await streamGeminiResponse(request);
   try {
     return JSON.parse(rawJsonText);
-  } catch (_e) { // Changed 'e' to '_e' to satisfy the linter
+  } catch (_e) {
     console.error("Failed to parse JSON from Gemini:", rawJsonText);
     throw new Error("Model returned invalid JSON.");
   }
 }
 
 export async function generateTextFromDocument(filePath: string, prompt: string): Promise<string> {
-    const bucketName = "ai-sensei-czu-pilot.appspot.com";
+    const bucketName = process.env.GCLOUD_PROJECT + ".appspot.com";
+    console.log(`[gemini-api] Generating from document. Bucket: ${bucketName}, Path: ${filePath}`);
+
     const request: GenerateContentRequest = {
         contents: [
             {
@@ -88,5 +73,5 @@ export async function generateTextFromDocument(filePath: string, prompt: string)
             },
         ],
     };
-    return await streamGeminiResponse(generativeVisionModel, request);
+    return await streamGeminiResponse(request);
 }

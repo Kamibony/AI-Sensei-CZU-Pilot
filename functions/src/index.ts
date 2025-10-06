@@ -2,7 +2,6 @@ import { initializeApp } from "firebase-admin/app";
 import { onCall, HttpsError, onRequest } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { v4 as uuidv4 } from "uuid";
-import { getStorage } from "firebase-admin/storage";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import axios from "axios";
 import cors from "cors";
@@ -78,25 +77,30 @@ export const generateJson = onCall(
 );
 
 export const generateFromDocument = onCall(
-    { region: DEPLOY_REGION, cors: allowedOrigins },
+    { region: DEPLOY_REGION, cors: true }, // Using simple boolean for cors for now
     async (request) => {
-        const { filePath, prompt } = request.data;
-        if (!filePath || !prompt) {
-            throw new HttpsError("invalid-argument", "The function must be called with 'filePath' and 'prompt' arguments.");
+        console.log("--- generateFromDocument invoked ---");
+        console.log("Request Auth:", JSON.stringify(request.auth));
+        console.log("Request Data:", JSON.stringify(request.data));
+
+        const { filePaths, prompt } = request.data;
+
+        if (!Array.isArray(filePaths) || filePaths.length === 0 || !prompt) {
+            console.error("Invalid arguments received:", request.data);
+            throw new HttpsError("invalid-argument", "The function must be called with a 'filePaths' array and a 'prompt'.");
         }
 
-        const bucketName = "ai-sensei-czu-pilot.appspot.com";
-        const file = getStorage().bucket(bucketName).file(filePath);
-        const [exists] = await file.exists();
-        if (!exists) {
-            throw new HttpsError("not-found", `File not found at path: ${filePath}`);
-        }
+        // For debugging, we will only use the FIRST file.
+        const firstFilePath = filePaths[0];
+        console.log(`Attempting to process file: ${firstFilePath}`);
 
         try {
-            const text = await GeminiAPI.generateTextFromDocument(filePath, prompt);
+            const text = await GeminiAPI.generateTextFromDocument(firstFilePath, prompt);
+            console.log("Successfully generated text from document.");
             return { text };
         } catch (error) {
             console.error("generateFromDocument Cloud Function failed:", error);
+            // This will propagate a clear error to the frontend
             throw new HttpsError("internal", (error as Error).message);
         }
     }
