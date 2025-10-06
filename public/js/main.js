@@ -27,7 +27,6 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     const generateTextFunction = httpsCallable(functions, 'generateText');
     const generateJsonFunction = httpsCallable(functions, 'generateJson');
     const generateFromDocument = httpsCallable(functions, 'generateFromDocument');
-    const generateTelegramActivationCode = httpsCallable(functions, 'generateTelegramActivationCode');
     const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor');
     const getLessonKeyTakeaways = httpsCallable(functions, 'getLessonKeyTakeaways');
     const getAiAssistantResponse = httpsCallable(functions, 'getAiAssistantResponse');
