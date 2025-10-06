@@ -31,6 +31,86 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     const getLessonKeyTakeaways = httpsCallable(functions, 'getLessonKeyTakeaways');
     const getAiAssistantResponse = httpsCallable(functions, 'getAiAssistantResponse');
 
+    // --- Toast Notification System ---
+    function showToast(message, isError = false) {
+        const toastContainer = document.getElementById('toast-container') || createToastContainer();
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${isError ? 'toast-error' : 'toast-success'}`;
+        toast.textContent = message;
+
+        toastContainer.appendChild(toast);
+
+        // Trigger animation
+        setTimeout(() => {
+            toast.classList.add('show');
+        }, 10);
+
+        // Auto-hide
+        setTimeout(() => {
+            toast.classList.remove('show');
+            // Remove from DOM after transition
+            toast.addEventListener('transitionend', () => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            });
+        }, 5000);
+    }
+
+    function createToastContainer() {
+        const container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+
+        // Add styles for the toast container and toasts
+        const style = document.createElement('style');
+        style.textContent = `
+            #toast-container {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 9999;
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end;
+                gap: 10px;
+            }
+            .toast {
+                padding: 12px 20px;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 500;
+                color: white;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                opacity: 0;
+                transform: translateX(100%);
+                transition: opacity 0.3s ease, transform 0.3s ease;
+            }
+            .toast.show {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            .toast-success {
+                background-color: #28a745; /* Green */
+            }
+            .toast-error {
+                background-color: #dc3545; /* Red */
+            }
+            .spinner-small {
+                border: 2px solid rgba(107, 114, 128, 0.2);
+                border-radius: 50%;
+                border-top: 2px solid #6b7280;
+                width: 16px;
+                height: 16px;
+                animation: spin 1s linear infinite;
+                margin: auto;
+            }
+        `;
+        document.head.appendChild(style);
+        return container;
+    }
+
 
     // --- API Volání ---
     async function callGeminiApi(prompt, systemInstruction = null) {
@@ -87,6 +167,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                 </div>`;
         } catch (error) {
             console.error("Chyba při načítání dokumentů pro selektor:", error);
+            showToast("Nepodařilo se načíst dokumenty pro RAG.", true);
             return `<div class="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">Nepodařilo se načíst dokumenty.</div>`;
         }
     }
@@ -121,7 +202,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             console.log("Lekce úspěšně načteny z Firestore:", lessonsData);
         } catch (error) {
             console.error("Chyba při načítání lekcí z Firestore: ", error);
-            alert("Nepodařilo se načíst data lekcí. Zkuste prosím obnovit stránku.");
+            showToast("Nepodařilo se načíst data lekcí. Zkuste prosím obnovit stránku.", true);
         }
     }
 
@@ -157,7 +238,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                 await login('professor');
             } catch (error) {
                 console.error("Professor anonymous sign-in failed:", error);
-                alert("Přihlášení pro profesora selhalo.");
+                showToast("Přihlášení pro profesora selhalo.", true);
             }
         };
 
@@ -185,7 +266,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             const password = document.getElementById('login-password').value.trim();
 
             if (!email || !password) {
-                alert('Prosím, zadejte email a heslo.');
+                showToast('Prosím, zadejte email a heslo.', true);
                 return;
             }
 
@@ -197,9 +278,9 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             } catch (error) {
                 console.error("Student sign-in failed:", error);
                 if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
-                    alert('Přihlášení selhalo: Nesprávný email nebo heslo.');
+                    showToast('Přihlášení selhalo: Nesprávný email nebo heslo.', true);
                 } else {
-                    alert(`Přihlášení selhalo: ${error.message}`);
+                    showToast(`Přihlášení selhalo: ${error.message}`, true);
                 }
             }
         };
@@ -210,7 +291,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             const password = document.getElementById('register-password').value.trim();
 
             if (!email || !password) {
-                alert('Prosím, zadejte email a heslo.');
+                showToast('Prosím, zadejte email a heslo.', true);
                 return;
             }
 
@@ -229,9 +310,9 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             } catch (error) {
                 console.error("Student account creation failed:", error);
                 if (error.code === 'auth/email-already-in-use') {
-                    alert('Registrace se nezdařila: Tento email je již používán.');
+                    showToast('Registrace se nezdařila: Tento email je již používán.', true);
                 } else {
-                    alert(`Registrace se nezdařila: ${error.message}`);
+                    showToast(`Registrace se nezdařila: ${error.message}`, true);
                 }
             }
         };
@@ -249,6 +330,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             currentLesson = null;
         } catch (error) {
             console.error("Sign-out failed:", error);
+            showToast("Odhlášení selhalo.", true);
         }
     }
 
@@ -424,7 +506,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                 deleteBtn.addEventListener('click', (e) => {
                     e.stopPropagation(); // Prevent the edit listener from firing
                     const lessonId = e.currentTarget.dataset.id;
-                    handleDeleteLesson(lessonId);
+                    handleDeleteLesson(lessonId, e.currentTarget);
                 });
             }
 
@@ -491,8 +573,8 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
 
                     } catch (error) {
                         console.error("Error updating lesson status:", error);
-                        evt.from.appendChild(itemEl);
-                        alert("Došlo k chybě při změně stavu lekce.");
+                        evt.from.appendChild(itemEl); // Revert the move on error
+                        showToast("Došlo k chybě při změně stavu lekce.", true);
                     }
                 }
             });
@@ -580,10 +662,10 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                 try {
                     await deleteDoc(doc(db, 'timeline_events', eventIdToDelete));
                     el.remove(); // Remove from DOM
-                    // Note: Re-ordering other items is not strictly necessary but could be done
+                    showToast("Lekce byla odebrána z plánu.");
                 } catch (error) {
                     console.error("Error deleting timeline event:", error);
-                    alert("Chyba při odstraňování události.");
+                    showToast("Chyba při odstraňování události.", true);
                 }
             }
         });
@@ -608,6 +690,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                 await batch.commit();
             } catch (error) {
                 console.error("Failed to update order in Firestore:", error);
+                showToast("Nepodařilo se uložit nové pořadí lekcí.", true);
             }
         };
 
@@ -643,6 +726,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                                 orderIndex: evt.newDraggableIndex,
                                 createdAt: serverTimestamp()
                             });
+                            showToast("Lekce byla naplánována.");
                             // Re-render everything to ensure UI is consistent and interactive
                             const mainArea = document.getElementById('main-content-area');
                             const sidebar = document.getElementById('professor-sidebar');
@@ -650,6 +734,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                             renderLessonLibrary(sidebar); // This is the crucial fix for "dead" lessons after cloning
                         } catch (error) {
                             console.error("Error creating new timeline event:", error);
+                            showToast("Nepodařilo se naplánovat lekci.", true);
                         }
                     }
                     // CASE 2: An existing timeline event is MOVED from one day to another
@@ -1049,6 +1134,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
     }
 
     async function handleSaveLesson() {
+        const saveBtn = document.getElementById('save-lesson-btn');
         const form = document.getElementById('lesson-details-form');
         const titleInput = form.querySelector('input[placeholder="Např. Úvod do organické chemie"]');
         const subtitleInput = form.querySelector('input[placeholder="Základní pojmy a principy"]');
@@ -1059,9 +1145,13 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
         const number = numberInput.value;
 
         if (!title || !subtitle || !number) {
-            alert('Vyplňte prosím všechna pole.');
+            showToast('Vyplňte prosím všechna pole.', true);
             return;
         }
+
+        const originalText = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = `<div class="spinner"></div><span class="ml-2">Ukládám...</span>`;
 
         const lessonData = {
             title,
@@ -1077,7 +1167,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                 // Update existing lesson
                 const lessonRef = doc(db, 'lessons', currentLesson.id);
                 await updateDoc(lessonRef, lessonData);
-                alert('Lekce byla úspěšně aktualizována.');
+                showToast('Lekce byla úspěšně aktualizována.');
             } else {
                 // Create new lesson
                 await addDoc(lessonsCollection, {
@@ -1085,25 +1175,90 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                     creationDate: new Date().toISOString().split('T')[0], // Set creation date
                     createdAt: serverTimestamp() // For ordering
                 });
-                alert('Lekce byla úspěšně vytvořena.');
+                showToast('Lekce byla úspěšně vytvořena.');
             }
-            await login(currentUserRole); // Re-login to refresh all data and UI
+            await login(currentUserRole); // Re-login will redraw the UI, so no need to restore button state here
         } catch (error) {
             console.error("Chyba při ukládání lekce: ", error);
-            alert("Při ukládání lekce došlo k chybě.");
+            showToast("Při ukládání lekce došlo k chybě.", true);
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalText;
         }
     }
 
-    async function handleDeleteLesson(lessonId) {
+    async function handleDeleteLesson(lessonId, deleteBtn) {
         if (confirm('Opravdu chcete smazat tuto lekci? Tato akce je nevratná.')) {
+            const originalContent = deleteBtn.innerHTML;
+            deleteBtn.disabled = true;
+            deleteBtn.innerHTML = `<div class="spinner-small"></div>`;
+
             try {
                 const lessonRef = doc(db, 'lessons', lessonId);
                 await deleteDoc(lessonRef);
-                alert('Lekce byla úspěšně smazána.');
-                await login(currentUserRole); // Re-login to refresh all data and UI
+                showToast('Lekce byla úspěšně smazána.');
+                await login(currentUserRole); // Re-login refreshes UI, no need to restore button
             } catch (error) {
                 console.error("Chyba při mazání lekce: ", error);
-                alert("Při mazání lekce došlo k chybě.");
+                showToast("Při mazání lekce došlo k chybě.", true);
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = originalContent;
+            }
+        }
+    }
+
+    async function handleSaveGeneratedContent(lesson, viewId, contentToSave) {
+        const saveBtn = document.getElementById('save-content-btn');
+        if (!lesson || !lesson.id) {
+            showToast("Nelze uložit obsah, lekce nebyla uložena.", true);
+            return;
+        }
+
+        const lessonRef = doc(db, 'lessons', lesson.id);
+        const fieldMapping = {
+            'text': 'content',
+            'presentation': 'presentationData',
+            'quiz': 'quizData',
+            'test': 'testData', // Assuming 'testData' field
+            'post': 'postData' // Assuming 'postData' field
+        };
+
+        const fieldToUpdate = fieldMapping[viewId];
+        if (!fieldToUpdate) {
+            showToast(`Neznámý typ obsahu '${viewId}', nelze uložit.`, true);
+            return;
+        }
+
+        const originalText = saveBtn ? saveBtn.innerHTML : 'Uložit';
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = `<div class="spinner"></div><span class="ml-2">Ukládám...</span>`;
+        }
+
+        try {
+            await updateDoc(lessonRef, {
+                [fieldToUpdate]: contentToSave
+            });
+            showToast("Obsah byl úspěšně uložen do lekce.");
+
+            // Update local data to prevent needing a full reload
+            const lessonInData = lessonsData.find(l => l.id === lesson.id);
+            if (lessonInData) {
+                lessonInData[fieldToUpdate] = contentToSave;
+            }
+            if (currentLesson && currentLesson.id === lesson.id) {
+                currentLesson[fieldToUpdate] = contentToSave;
+            }
+            if (saveBtn) {
+                saveBtn.classList.add('hidden'); // Hide after successful save
+            }
+
+        } catch (error) {
+            console.error(`Chyba při ukládání obsahu (${viewId}) do lekce:`, error);
+            showToast("Při ukládání obsahu došlo k chybě.", true);
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalText;
             }
         }
     }
@@ -1180,6 +1335,7 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
                     console.error("Error fetching student data for Telegram connection:", error);
                     telegramConnectionBox.style.display = 'flex';
                     telegramLinkContainer.innerHTML = `<p class="italic text-red-600">Došlo k chybě při kontrole stavu propojení: ${error.message}</p>`;
+                    showToast("Chyba při načítání stavu Telegramu.", true);
                 }
             }
 
@@ -1232,14 +1388,12 @@ import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles 
             });
 
         } catch (error) {
-            console.error("!!!!!!!!!!!!!!!!! CRASH DETECTED IN initStudentDashboard !!!!!!!!!!!!!!!!!");
-            console.error("THE ERROR IS:", error);
-            console.error("Stack Trace:", error.stack);
+            console.error("CRASH DETECTED IN initStudentDashboard:", error);
+            showToast("Kritická chyba při inicializaci studentského panelu.", true);
             document.body.innerHTML = `<div style="padding: 2rem; color: red; font-family: monospace;">
             <h1>Application Crashed</h1>
-            <p>Error in initStudentDashboard:</p>
-            <pre>${error.stack}</pre>
-        </div>`;
+            <p>Error in initStudentDashboard. See console for details.</p>
+            </div>`;
         }
     }
 
@@ -1503,10 +1657,12 @@ async function showStudentLesson(lessonData) { // Accept the full lesson object
 
     } catch (error) {
         console.error("Error populating student lesson view:", error);
+        showToast("Při zobrazování lekce došlo k chybě.", true);
         titleEl.textContent = 'Chyba';
         contentContainer.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Při zobrazování lekce došlo k chybě: ${error.message}</div>`;
     }
 
     // --- Feature Initializers (as nested functions to capture scope) ---
     function initializeKeyTakeaways() {
->>>>>>> REPLACE
+    }
+}

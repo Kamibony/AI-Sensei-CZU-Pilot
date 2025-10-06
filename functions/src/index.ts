@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { getStorage } from "firebase-admin/storage";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import axios from "axios";
+import cors from "cors";
 import * as GeminiAPI from "./gemini-api.js";
 
 // --- CENTRALIZOVANÁ KONFIGURACE REGIONU ---
@@ -158,69 +159,73 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
     }
 }
 
+const corsHandler = cors({ origin: true });
+
 export const telegramBotWebhook = onRequest(
-    { region: DEPLOY_REGION, cors: allowedOrigins, secrets: ["TELEGRAM_BOT_TOKEN"] },
-    async (req, res) => {
-        if (req.method !== "POST") {
-            res.status(405).send("Method Not Allowed");
-            return;
-        }
-
-        const update = req.body;
-        if (!update.message) {
-            console.log("Received update without message, skipping.");
-            res.status(200).send("OK");
-            return;
-        }
-
-        const message = update.message;
-        const chatId = message.chat.id;
-        const text = message.text;
-
-        if (!text || !text.startsWith("/start")) {
-            await sendTelegramMessage(chatId, "Ahoj! Jsem AI Sensei bot. Propoj svůj účet s platformou pomocí odkazu, který najdeš na nástěnce.");
-            res.status(200).send("OK");
-            return;
-        }
-
-        const parts = text.split(" ");
-        if (parts.length !== 2) {
-            await sendTelegramMessage(chatId, "❌ Neplatný formát odkazu. Použij prosím odkaz, ktorý jsi obdržel na platformě AI Sensei.");
-            res.status(400).send("Invalid start command format");
-            return;
-        }
-
-        const token = parts[1];
-
-        try {
-            const studentsRef = db.collection("students");
-            const q = studentsRef.where("telegramConnectionToken", "==", token).limit(1);
-            const querySnapshot = await q.get();
-
-            if (querySnapshot.empty) {
-                console.log(`No student found with token: ${token}`);
-                await sendTelegramMessage(chatId, "❌ Tento propojovací odkaz je neplatný nebo již byl použit. Zkus si vygenerovat nový na svém profilu.");
-                res.status(404).send("Token not found");
+    { region: DEPLOY_REGION, secrets: ["TELEGRAM_BOT_TOKEN"] },
+    (req, res) => {
+        corsHandler(req, res, async () => {
+            if (req.method !== "POST") {
+                res.status(405).send("Method Not Allowed");
                 return;
             }
 
-            const studentDoc = querySnapshot.docs[0];
-            const studentId = studentDoc.id;
+            const update = req.body;
+            if (!update.message) {
+                console.log("Received update without message, skipping.");
+                res.status(200).send("OK");
+                return;
+            }
 
-            await studentDoc.ref.update({
-                telegramChatId: chatId,
-                telegramConnectionToken: FieldValue.delete(),
-            });
+            const message = update.message;
+            const chatId = message.chat.id;
+            const text = message.text;
 
-            console.log(`Successfully connected student ${studentId} with chat ID ${chatId}`);
-            await sendTelegramMessage(chatId, "✅ Váš účet byl úspěšně propojen. Nyní můžete komunikovat s profesorem.");
+            if (!text || !text.startsWith("/start")) {
+                await sendTelegramMessage(chatId, "Ahoj! Jsem AI Sensei bot. Propoj svůj účet s platformou pomocí odkazu, který najdeš na nástěnce.");
+                res.status(200).send("OK");
+                return;
+            }
 
-            res.status(200).send("OK");
-        } catch (error) {
-            console.error("Error processing /start command:", error);
-            await sendTelegramMessage(chatId, "Interní chyba serveru. Zkuste to prosím později.");
-            res.status(500).send("Internal Server Error");
-        }
+            const parts = text.split(" ");
+            if (parts.length !== 2) {
+                await sendTelegramMessage(chatId, "❌ Neplatný formát odkazu. Použij prosím odkaz, ktorý jsi obdržel na platformě AI Sensei.");
+                res.status(400).send("Invalid start command format");
+                return;
+            }
+
+            const token = parts[1];
+
+            try {
+                const studentsRef = db.collection("students");
+                const q = studentsRef.where("telegramConnectionToken", "==", token).limit(1);
+                const querySnapshot = await q.get();
+
+                if (querySnapshot.empty) {
+                    console.log(`No student found with token: ${token}`);
+                    await sendTelegramMessage(chatId, "❌ Tento propojovací odkaz je neplatný nebo již byl použit. Zkus si vygenerovat nový na svém profilu.");
+                    res.status(404).send("Token not found");
+                    return;
+                }
+
+                const studentDoc = querySnapshot.docs[0];
+                const studentId = studentDoc.id;
+
+                await studentDoc.ref.update({
+                    telegramChatId: chatId,
+                    telegramConnectionToken: FieldValue.delete(),
+                });
+
+                console.log(`Successfully connected student ${studentId} with chat ID ${chatId}`);
+                await sendTelegramMessage(chatId, "✅ Váš účet byl úspěšně propojen. Nyní můžete komunikovat s profesorem.");
+
+                res.status(200).send("OK");
+            } catch (error) {
+                console.error("Error processing /start command:", error);
+                await sendTelegramMessage(chatId, "Interní chyba serveru. Zkuste to prosím později.");
+                res.status(500).send("Internal Server Error");
+            }
+        });
     }
 );
 
