@@ -2,7 +2,6 @@
 
 import {
   VertexAI,
-  GenerativeModel,
   GenerateContentRequest,
 } from "@google-cloud/vertexai";
 
@@ -53,7 +52,7 @@ export async function generateJsonFromPrompt(prompt: string): Promise<any> {
   try {
     return JSON.parse(rawJsonText);
   } catch (_e) {
-    console.error("Failed to parse JSON from Gemini:", rawJsonText);
+    console.error("Failed to parse JSON from Gemini. Raw text:", rawJsonText, "Original error:", _e);
     throw new Error("Model returned invalid JSON.");
   }
 }

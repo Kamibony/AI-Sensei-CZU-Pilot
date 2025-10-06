@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import axios from "axios";
 import cors from "cors";
-import * as GeminiAPI from "./gemini-api.js";
+import * as GeminiAPI from "./gemini-api";
 
 // --- CENTRALIZOVANÁ KONFIGURACE REGIONU ---
 // Všechny funkce budou nasazeny do tohoto regionu, kde je Gemini API dostupné.
@@ -77,7 +77,7 @@ export const generateJson = onCall(
 );
 
 export const generateFromDocument = onCall(
-    { region: DEPLOY_REGION, cors: true }, // Using simple boolean for cors for now
+    { region: DEPLOY_REGION, cors: allowedOrigins },
     async (request) => {
         console.log("--- generateFromDocument invoked ---");
         console.log("Request Auth:", JSON.stringify(request.auth));
