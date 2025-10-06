@@ -5,7 +5,7 @@ import { getStorage, connectStorageEmulator } from "https://www.gstatic.com/fire
 import { getFunctions, connectFunctionsEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
 // Import the main application UI logic
-import { initializeAppUI } from './main.js';
+import { initializeAppUI } from './app.js';
 
 let app;
 let auth;
