@@ -104,7 +104,7 @@ export function renderLogin() {
     document.getElementById('register-btn').addEventListener('click', handleStudentRegister);
 }
 
-export async function logout() {
+export async function handleLogout() {
     try {
         await signOut(auth);
         sessionStorage.removeItem('userRole');
@@ -123,7 +123,7 @@ async function login(role) {
     appContainer.appendChild(clone);
 
     document.getElementById('ai-assistant-btn').style.display = 'flex';
-    document.getElementById('logout-btn').addEventListener('click', logout);
+    document.getElementById('logout-btn').addEventListener('click', handleLogout);
 
     if (role === 'professor') {
         await setupProfessorDashboard();
