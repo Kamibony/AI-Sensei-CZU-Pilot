@@ -104,7 +104,7 @@ export async function generateJsonFromPrompt(prompt: string): Promise<any> {
     const parsedJson = JSON.parse(rawJsonText);
     console.log("[gemini-api:generateJson] Successfully parsed JSON response.");
     return parsedJson;
-  } catch (e) {
+  } catch (_e) {
     console.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText);
     throw new Error("Model returned a malformed JSON string.");
   }
