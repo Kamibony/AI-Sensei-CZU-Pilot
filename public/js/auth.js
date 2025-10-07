@@ -1,8 +1,8 @@
 import { onAuthStateChanged, signOut, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
-import { setupProfessorDashboard } from './professor.js';
-import { setupStudentDashboard } from './student.js';
+import { initProfessorDashboard } from './professor.js';
+import { initStudentDashboard } from './student.js';
 import { auth, db } from './firebase-init.js'; // Import services directly
 
 let appContainer, mainAppTemplate;

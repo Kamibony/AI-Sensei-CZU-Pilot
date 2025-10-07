@@ -22,7 +22,7 @@ async function fetchLessons() {
     }
 }
 
-export async function setupProfessorDashboard() {
+export async function initProfessorDashboard() {
     const lessonsLoaded = await fetchLessons();
     const roleContentWrapper = document.getElementById('role-content-wrapper');
 

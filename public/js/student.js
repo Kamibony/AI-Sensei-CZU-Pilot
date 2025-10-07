@@ -19,7 +19,7 @@ async function fetchLessons() {
     }
 }
 
-export async function setupStudentDashboard() {
+export async function initStudentDashboard() {
     const lessonsLoaded = await fetchLessons();
     const roleContentWrapper = document.getElementById('role-content-wrapper');
 
