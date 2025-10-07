@@ -16,6 +16,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm' # Use npm's built-in caching for the root directory
+          cache-dependency-path: '**/package-lock.json'
 
       - name: Install root dependencies
         run: npm install
@@ -24,8 +26,8 @@ jobs:
         run: rm -rf functions/lib
 
       - name: Install Functions dependencies and build
+        working-directory: ./functions
         run: |
-          cd functions
           npm ci
           npm run lint
           npm run build
