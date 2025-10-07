@@ -1,10 +1,7 @@
-// --- ALL IMPORTS MUST BE AT THE TOP ---
-import { onAuthStateChanged, signOut, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { collection, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, setDoc, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-handler.js';
+import { startAuthFlow } from './auth.js';
 
-// --- MAIN APPLICATION LOGIC WRAPPER ---
+// This is the main entry point for the application's UI logic.
+// It is called by `firebase-init.js` only after Firebase has been fully initialized.
 export function initializeAppUI(auth, db, storage, functions) {
 
     // --- CALLABLE FUNCTIONS INITIALIZATION ---
