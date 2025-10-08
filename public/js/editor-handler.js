@@ -3,7 +3,6 @@ import { db } from './firebase-init.js';
 import { showToast } from './utils.js';
 import { callGeminiApi, callGeminiForJson, callGenerateFromDocument } from './gemini-api.js';
 import { initializeUpload } from './upload-handler.js';
-import { initProfessorDashboard } from './professor.js';
 
 let currentLesson = null;
 
@@ -20,9 +19,8 @@ export function renderEditorMenu(container, lesson) {
         <div class="flex-grow overflow-y-auto p-2"><nav id="editor-vertical-menu" class="flex flex-col space-y-1"></nav></div>`;
 
     container.querySelector('#back-to-timeline-btn').addEventListener('click', () => {
-        // This is a bit of a circular dependency, but necessary for UX.
-        // The professor module's init function will handle re-rendering the timeline view.
-        initProfessorDashboard();
+        // Reload the page to go back to the default timeline view, breaking the circular dependency.
+        window.location.reload();
     });
 
     const menuEl = container.querySelector('#editor-vertical-menu');

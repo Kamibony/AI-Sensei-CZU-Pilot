@@ -1,7 +1,7 @@
-﻿import { startAuthFlow, handleLogout } from './auth.js';
-import { showToast } from './utils.js';
+import { initializeFirebase } from './firebase-init.js';
+import { startAuthFlow, handleLogout } from './auth.js';
 
-export function initializeAppUI(auth, db, storage, functions) {
+function initializeAppUI() {
     const appContainer = document.getElementById('app-container');
 
     const login = async (role) => {
@@ -22,3 +22,8 @@ export function initializeAppUI(auth, db, storage, functions) {
     
     startAuthFlow(login);
 }
+
+// Start the entire application
+initializeFirebase().then(() => {
+    initializeAppUI();
+});
