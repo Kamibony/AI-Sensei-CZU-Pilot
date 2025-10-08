@@ -74,10 +74,7 @@ async function handleStudentRegister() {
 }
 
 export async function handleLogout() {
-    // Nejdříve vymažeme roli ze session storage.
     sessionStorage.removeItem('userRole');
-    // Poté odhlásíme uživatele z Firebase.
     await signOut(auth);
-    // onAuthStateChanged se postará o zbytek a zobrazí login screen,
-    // protože po odhlášení uživatel nebude mít ani 'user' ani 'role'.
+    renderLogin();
 }
