@@ -372,7 +372,11 @@ async function handleGeneration(viewId) {
                     result = await callGeminiForJson(`Vytvoř prezentaci na téma "${userPrompt}" s přesně ${slideCount} slidy.`, { type: "OBJECT", properties: { slides: { type: "ARRAY", items: { type: "OBJECT", properties: { title: { type: "STRING" }, points: { type: "ARRAY", items: { type: "STRING" } } }, required: ["title", "points"] } } } });
                     rawResultForSaving = result;
                     break;
-                // Add cases for quiz, test, post
+                case 'quiz':
+                    result = await callGeminiForJson(`Vytvoř interaktivní kvíz na základě tohoto zadání: "${userPrompt}". Kvíz by měl obsahovat několik otázek, každá s několika možnostmi odpovědi a označením správné odpovědi.`, { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "OBJECT", properties: { question_text: { type: "STRING" }, options: { type: "ARRAY", items: { type: "STRING" } }, correct_option_index: { type: "NUMBER" } }, required: ["question_text", "options", "correct_option_index"] } } } });
+                    rawResultForSaving = result;
+                    break;
+                // Add cases for test, post
             }
         }
 
@@ -385,8 +389,9 @@ async function handleGeneration(viewId) {
             const newSaveBtn = saveBtn.cloneNode(true);
             saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
             newSaveBtn.addEventListener('click', () => {
-                const fieldMapping = { 'presentation': 'presentationData', 'quiz': 'quizData', 'test': 'testData', 'post': 'postData' };
-                handleSaveGeneratedContent(currentLesson, fieldMapping[viewId], rawResultForSaving);
+                const fieldMapping = { 'text': 'content', 'presentation': 'presentationData', 'quiz': 'quizData', 'test': 'testData', 'post': 'postData' };
+                const contentToSave = (viewId === 'text') ? outputEl.innerHTML : rawResultForSaving;
+                handleSaveGeneratedContent(currentLesson, fieldMapping[viewId], contentToSave);
             });
         }
 
@@ -408,7 +413,17 @@ function renderGeneratedContent(viewId, result, outputEl) {
             const slidesHtml = result.slides.map((slide, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${slide.points.map(p => `<li>${p}</li>`).join('')}</ul></div>`).join('');
             outputEl.innerHTML = slidesHtml;
             break;
-        // Add cases for quiz, test, post
+        case 'quiz':
+            const questionsHtml = result.questions.map((q, i) => {
+                const optionsHtml = q.options.map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
+                return `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
+                            <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text}</h4>
+                            <div class="mt-2 space-y-2">${optionsHtml}</div>
+                        </div>`;
+            }).join('');
+            outputEl.innerHTML = questionsHtml;
+            break;
+        // Add cases for test, post
     }
 }
 
