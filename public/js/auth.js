@@ -1,4 +1,4 @@
-﻿import { onAuthStateChanged, signOut, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { onAuthStateChanged, signOut, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { auth, db } from './firebase-init.js';
@@ -17,18 +17,22 @@ export function startAuthFlow(loginCallback) {
         }
     });
 }
+
 function renderLogin() {
     const appContainer = document.getElementById('app-container');
     if (!appContainer) return;
     appContainer.innerHTML = document.getElementById('login-template').innerHTML;
+
     document.getElementById('login-professor').addEventListener('click', handleProfessorLogin);
     document.getElementById('login-btn').addEventListener('click', handleStudentLogin);
     document.getElementById('register-btn').addEventListener('click', handleStudentRegister);
+    
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
     document.getElementById('show-register-form').addEventListener('click', (e) => { e.preventDefault(); loginForm.classList.add('hidden'); registerForm.classList.remove('hidden'); });
     document.getElementById('show-login-form').addEventListener('click', (e) => { e.preventDefault(); registerForm.classList.add('hidden'); loginForm.classList.remove('hidden'); });
 }
+
 async function handleProfessorLogin() {
     try {
         await signInAnonymously(auth);
@@ -38,7 +42,8 @@ async function handleProfessorLogin() {
         console.error("Professor anonymous sign-in failed:", error);
         showToast("Přihlášení pro profesora selhalo.", true);
     }
-};
+}
+
 async function handleStudentLogin() {
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value.trim();
@@ -51,7 +56,8 @@ async function handleStudentLogin() {
         console.error("Student sign-in failed:", error);
         showToast('Přihlášení selhalo: Nesprávný email nebo heslo.', true);
     }
-};
+}
+
 async function handleStudentRegister() {
     const email = document.getElementById('register-email').value.trim();
     const password = document.getElementById('register-password').value.trim();
@@ -63,9 +69,11 @@ async function handleStudentRegister() {
         await loginSuccessCallback('student');
     } catch (error) {
         console.error("Student account creation failed:", error);
-        showToast(Registrace se nezdařila: , true);
+        showToast(`Registrace se nezdařila: ${error.message}`, true);
     }
-};
+}
+
 export async function handleLogout() {
     await signOut(auth);
+    // onAuthStateChanged se postará o zbytek a zobrazí login screen
 }
