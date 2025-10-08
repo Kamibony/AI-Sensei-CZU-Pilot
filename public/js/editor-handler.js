@@ -1,239 +1,18 @@
 import { doc, addDoc, updateDoc, collection, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase-init.js';
 import { showToast } from './utils.js';
-import { callGeminiApi, callGeminiForJson } from './gemini-api.js'; // callGenerateFromDocument is not used here but could be
+import { callGeminiApi, callGeminiForJson, callGenerateFromDocument } from './gemini-api.js';
 import { initializeUpload } from './upload-handler.js';
 
 let currentLesson = null;
 
-export function renderEditorMenu(container, lesson) {
-    currentLesson = lesson;
-    container.innerHTML = `
-        <header class="p-4 border-b border-slate-200 flex-shrink-0">
-            <button id="back-to-timeline-btn" class="flex items-center text-sm text-green-700 hover:underline mb-3">&larr; Zpět na plán výuky</button>
-            <div class="flex items-center space-x-3">
-                <span class="text-3xl">${currentLesson ? currentLesson.icon : '🆕'}</span>
-                <h2 id="editor-lesson-title" class="text-xl font-bold truncate text-slate-800">${currentLesson ? currentLesson.title : 'Vytvořit novou lekci'}</h2>
-            </div>
-        </header>
-        <div class="flex-grow overflow-y-auto p-2"><nav id="editor-vertical-menu" class="flex flex-col space-y-1"></nav></div>`;
-
-    container.querySelector('#back-to-timeline-btn').addEventListener('click', () => {
-        window.location.reload();
-    });
-
-    const menuEl = container.querySelector('#editor-vertical-menu');
-    const menuItems = [
-        { id: 'details', label: 'Detaily lekce', icon: '📝' },
-        { id: 'docs', label: 'Dokumenty k lekci', icon: '📁' },
-        { id: 'text', label: 'Text pro studenty', icon: '✍️' },
-        { id: 'presentation', label: 'Prezentace', icon: '🖼️' },
-        { id: 'video', label: 'Video', icon: '▶️' },
-        { id: 'quiz', label: 'Kvíz', icon: '❓' },
-        { id: 'test', label: 'Test', icon: '✅' },
-        { id: 'post', label: 'Podcast & Materiály', icon: '🎙️' },
-    ];
-
-    menuEl.innerHTML = menuItems.map(item => `<a href="#" data-view="${item.id}" class="editor-menu-item flex items-center p-3 text-sm font-medium rounded-md hover:bg-slate-100 transition-colors">${item.icon}<span class="ml-3">${item.label}</span></a>`).join('');
-
-    menuEl.querySelectorAll('.editor-menu-item').forEach(item => {
-        item.addEventListener('click', e => {
-            e.preventDefault();
-            menuEl.querySelectorAll('.editor-menu-item').forEach(i => i.classList.remove('bg-green-100', 'text-green-800', 'font-semibold'));
-            item.classList.add('bg-green-100', 'text-green-800', 'font-semibold');
-            showEditorContent(item.dataset.view, currentLesson);
-        });
-    });
-    menuEl.querySelector('.editor-menu-item[data-view="details"]').click();
-}
-
-async function createDocumentSelector(lessonId) {
-    if (!lessonId) {
-        return `<div class="mb-4 p-3 bg-slate-100 text-slate-600 rounded-lg text-sm">Uložte prosím detaily lekce, abyste mohli nahrávat a vybírat dokumenty.</div>`;
-    }
-    const documentsCollectionRef = collection(db, 'lessons', lessonId, 'documents');
-    try {
-        const querySnapshot = await getDocs(documentsCollectionRef);
-        if (querySnapshot.empty) {
-            return `<div class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg text-sm">Pro využití RAG prosím nahrajte nejprve nějaký dokument v sekci 'Dokumenty k lekci'.</div>`;
-        }
-        const options = querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return `<option value="${data.storagePath}">${data.fileName}</option>`;
-        }).join('');
-        return `
-            <div class="mb-4">
-                <label for="document-select" class="block font-medium text-slate-600 mb-1">Vyberte kontextový dokument (RAG):</label>
-                <select id="document-select" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500">
-                    ${options}
-                </select>
-            </div>`;
-    } catch (error) {
-        console.error("Chyba při načítání dokumentů pro selektor:", error);
-        showToast("Nepodařilo se načíst dokumenty pro RAG.", true);
-        return `<div class="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">Nepodařilo se načíst dokumenty.</div>`;
-    }
-}
-
-export async function showEditorContent(viewId, lesson) {
-    currentLesson = lesson;
-    const mainArea = document.getElementById('main-content-area');
-    mainArea.innerHTML = `<div class="p-4 sm:p-6 md:p-8 overflow-y-auto h-full view-transition" id="editor-content-container"></div>`;
-    const container = document.getElementById('editor-content-container');
-    let contentHTML = '';
-    const lessonId = currentLesson ? currentLesson.id : null;
-
-    const renderWrapper = (title, content) => `<h2 class="text-3xl font-extrabold text-slate-800 mb-6">${title}</h2><div class="bg-white p-6 rounded-2xl shadow-lg">${content}</div>`;
-
-    switch(viewId) {
-        case 'details':
-            contentHTML = renderWrapper('Detaily lekce', `
-                <div id="lesson-details-form" class="space-y-4">
-                    <div><label class="block font-medium text-slate-600">Název lekce</label><input type="text" id="lesson-title-input" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500" value="${currentLesson?.title || ''}" placeholder="Např. Úvod do organické chemie"></div>
-                    <div><label class="block font-medium text-slate-600">Podtitulek</label><input type="text" id="lesson-subtitle-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.subtitle || ''}" placeholder="Základní pojmy a principy"></div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div><label class="block font-medium text-slate-600">Číslo lekce</label><input type="text" id="lesson-number-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.number || ''}" placeholder="Např. 101"></div>
-                        <div><label class="block font-medium text-slate-600">Ikona</label><input type="text" id="lesson-icon-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.icon || '🆕'}" placeholder="🆕"></div>
-                    </div>
-                    <div class="text-right pt-4"><button id="save-lesson-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105">Uložit změny</button></div>
-                </div>`);
-            break;
-        case 'docs':
-            contentHTML = renderWrapper('Dokumenty k lekci', `
-                <p class="text-slate-500 mb-4">Nahrajte specifické soubory pro tuto lekci (např. sylabus, doplňkové texty).</p>
-                <div id="upload-zone" class="upload-zone rounded-lg p-10 text-center text-slate-500 cursor-pointer"><p class="font-semibold">Přetáhněte soubory sem nebo klikněte pro výběr</p><p class="text-sm">Maximální velikost 10MB</p></div>
-                <input type="file" id="file-upload-input" multiple class="hidden">
-                <div id="upload-progress" class="mt-4 space-y-2"></div>
-                <h3 class="font-bold text-slate-700 mt-6 mb-2">Nahrané soubory:</h3>
-                <ul id="documents-list" class="space-y-2"><li>Načítám...</li></ul>`);
-            break;
-        case 'text':
-            contentHTML = renderWrapper('Text pro studenty', `
-                <p class="text-slate-500 mb-4">Zadejte AI prompt a vygenerujte hlavní studijní text pro tuto lekci. Můžete vybrat dokument, ze kterého bude AI čerpat informace (RAG).</p>
-                ${await createDocumentSelector(lessonId)}
-                <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Např. 'Vytvoř poutavý úvodní text o principech kvantové mechaniky pro úplné začátečníky. Zmiň Schrödingera, Heisenberga a princip superpozice.'"></textarea>
-                <div class="flex items-center justify-between mt-4">
-                    <div class="flex items-center space-x-4">
-                        <label class="font-medium">Délka:</label>
-                        <select id="length-select" class="rounded-lg border-slate-300"><option>Krátký</option><option selected>Střední</option><option>Dlouhý</option></select>
-                    </div>
-                    <button id="generate-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ai-glow">✨<span class="ml-2">Generovat text</span></button>
-                </div>
-                <div id="generation-output" class="mt-6 border-t pt-6 text-slate-700 prose max-w-none">
-                     ${currentLesson?.content ? currentLesson.content.replace(/\n/g, '<br>') : '<div class="text-center p-8 text-slate-400">Obsah se vygeneruje zde...</div>'}
-                </div>
-                <div class="text-right mt-4"><button id="save-content-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105">Uložit do lekce</button></div>
-                `);
-            break;
-        case 'presentation':
-             contentHTML = renderWrapper('AI Prezentace', `
-                <p class="text-slate-500 mb-4">Zadejte téma a počet slidů pro vygenerování prezentace. Můžete vybrat dokument, ze kterého bude AI čerpat informace (RAG).</p>
-                ${await createDocumentSelector(lessonId)}
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="md:col-span-2"><label class="block font-medium text-slate-600">Téma prezentace</label><input id="prompt-input" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" placeholder="Např. Klíčové momenty Římské republiky"></div>
-                    <div><label class="block font-medium text-slate-600">Počet slidů</label><input id="slide-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="3"></div>
-                </div>
-                <div class="text-right mt-4">
-                     <button id="generate-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ml-auto ai-glow">✨<span class="ml-2">Generovat prezentaci</span></button>
-                </div>
-                <div id="generation-output" class="mt-6 border-t pt-6">
-                    <div class="text-center p-8 text-slate-400">Náhled prezentace se zobrazí zde...</div>
-                </div>
-                <div class="text-right mt-4"><button id="save-content-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
-                `);
-            break;
-        case 'video':
-            contentHTML = renderWrapper('Vložení videa', `
-                <p class="text-slate-500 mb-4">Vložte odkaz na video z YouTube, které se zobrazí studentům v jejich panelu.</p>
-                <div><label class="block font-medium text-slate-600">YouTube URL</label><input id="youtube-url" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.videoUrl || ''}" placeholder="https://www.youtube.com/watch?v=i-z_I1_Z2lY"></div>
-                <div class="text-right pt-4"><button id="embed-video-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800">Vložit video</button></div>
-                <div id="video-preview" class="mt-6 border-t pt-6">
-                    <div class="text-center p-8 text-slate-400">Náhled videa se zobrazí zde...</div>
-                </div>`);
-            break;
-        case 'quiz':
-            contentHTML = renderWrapper('Interaktivní Kvíz', `
-                <p class="text-slate-500 mb-4">Vytvořte rychlý kvíz pro studenty. Otázky se objeví v jejich chatovacím rozhraní. Můžete vybrat dokument, ze kterého bude AI čerpat informace (RAG).</p>
-                ${await createDocumentSelector(lessonId)}
-                <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Např. 'Vytvoř 1 otázku s výběrem ze 3 možností na téma kvantová mechanika. Označ správnou odpověď.'"></textarea>
-                <div class="text-right mt-4">
-                     <button id="generate-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ml-auto ai-glow">✨<span class="ml-2">Vygenerovat kvíz</span></button>
-                </div>
-                <div id="generation-output" class="mt-6 border-t pt-6">
-                    <div class="text-center p-8 text-slate-400">Náhled kvízu se zobrazí zde...</div>
-                </div>
-                <div class="text-right mt-4"><button id="save-content-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
-                `);
-            break;
-        case 'test':
-             contentHTML = renderWrapper('Pokročilý Test', `
-                <p class="text-slate-500 mb-4">Navrhněte komplexnější test pro studenty. Můžete vybrat dokument, ze kterého bude AI čerpat informace (RAG).</p>
-                ${await createDocumentSelector(lessonId)}
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div><label class="block font-medium text-slate-600">Počet otázek</label><input id="question-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="2"></div>
-                    <div>
-                        <label class="block font-medium text-slate-600">Obtížnost</label>
-                        <select id="difficulty-select" class="w-full border-slate-300 rounded-lg p-2 mt-1"><option>Lehká</option><option selected>Střední</option><option>Těžká</option></select>
-                    </div>
-                    <div>
-                        <label class="block font-medium text-slate-600">Typy otázek</label>
-                        <select id="type-select" class="w-full border-slate-300 rounded-lg p-2 mt-1"><option>Mix (výběr + pravda/nepravda)</option><option>Výběr z možností</option><option>Pravda/Nepravda</option></select>
-                    </div>
-                </div>
-                <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Zadejte hlavní téma testu, např. 'Klíčové události a postavy Římské republiky od jejího založení po vznik císařství.'"></textarea>
-                <div class="text-right mt-4">
-                     <button id="generate-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ml-auto ai-glow">✨<span class="ml-2">Vygenerovat test</span></button>
-                </div>
-                <div id="generation-output" class="mt-6 border-t pt-6">
-                    <div class="text-center p-8 text-slate-400">Náhled testu se zobrazí zde...</div>
-                </div>
-                <div class="text-right mt-4"><button id="save-content-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
-                `);
-            break;
-        case 'post':
-            contentHTML = renderWrapper('Podcast & Doplňkové materiály', `
-                <p class="text-slate-500 mb-4">Vytvořte na základě obsahu lekce sérii podcastů nebo jiné doplňkové materiály.</p>
-                ${await createDocumentSelector(lessonId)}
-                <div class="bg-slate-50 p-4 rounded-lg">
-                    <h4 class="font-bold text-slate-800 mb-3">🎙️ Generátor Podcastové Série</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <div>
-                            <label class="block font-medium text-slate-600 text-sm">Počet epizod</label>
-                            <input id="episode-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="3">
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-600 text-sm">Hlas</label>
-                            <select id="voice-select" class="w-full border-slate-300 rounded-lg p-2 mt-1"><option>Mužský (informativní)</option><option>Ženský (konverzační)</option></select>
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-600 text-sm">Jazyk</label>
-                            <select class="w-full border-slate-300 rounded-lg p-2 mt-1"><option>Čeština</option><option>Angličtina</option></select>
-                        </div>
-                    </div>
-                    <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-20" placeholder="Zadejte hlavní téma pro sérii podcastů. Standardně vychází z tématu lekce. Např. 'Vytvoř sérii podcastů, které detailněji prozkoumají klíčové koncepty kvantové fyziky zmíněné v lekci.'">${'Prozkoumej klíčové koncepty z lekce "' + (currentLesson?.title || 'aktuální lekce') + '"'}</textarea>
-                    <div class="text-right mt-4">
-                        <button id="generate-btn" data-type="podcast" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ml-auto ai-glow">✨<span class="ml-2">Vytvořit sérii podcastů</span></button>
-                    </div>
-                </div>
-                 <div id="generation-output" class="mt-6 border-t pt-6">
-                    <div class="text-center p-8 text-slate-400">Vygenerovaný obsah se zobrazí zde...</div>
-                </div>
-                <div class="text-right mt-4"><button id="save-content-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
-            `);
-            break;
-        default:
-            contentHTML = renderWrapper(viewId, `<div class="text-center p-8 text-slate-400">Tato sekce se připravuje.</div>`);
-    }
-    container.innerHTML = contentHTML;
-
-    attachEditorEventListeners(viewId);
-}
-
+// TÁTO FUNKCIA JE TERAZ INTERNÁ A NIE JE EXPORTOVANÁ
 function attachEditorEventListeners(viewId) {
     if (viewId === 'details') {
         document.getElementById('save-lesson-btn')?.addEventListener('click', handleSaveLesson);
     }
     if (viewId === 'docs') {
+        // Použijeme setTimeout, aby sme zaistili, že DOM je pripravený
         setTimeout(() => initializeUpload(currentLesson), 0);
     }
     if (viewId === 'video') {
@@ -272,6 +51,9 @@ function attachEditorEventListeners(viewId) {
     }
 }
 
+// Ostatné funkcie ako handleSaveLesson, handleGeneration, atď., zostávajú rovnaké
+// (Pre úplnosť ich sem skopírujem z predchádzajúcej odpovede)
+
 async function handleSaveLesson() {
     const saveBtn = document.getElementById('save-lesson-btn');
     const title = document.getElementById('lesson-title-input').value;
@@ -308,7 +90,6 @@ async function handleSaveLesson() {
             showToast('Lekce byla úspěšně vytvořena.');
             const sidebar = document.getElementById('professor-sidebar');
             renderEditorMenu(sidebar, currentLesson);
-            showEditorContent('details', currentLesson);
         }
     } catch (error) {
         console.error("Chyba při ukládání lekce: ", error);
@@ -442,6 +223,7 @@ function renderGeneratedContent(viewId, result, outputEl) {
     }
 }
 
+
 async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) {
     const saveBtn = document.getElementById('save-content-btn');
     if (!lesson || !lesson.id) {
@@ -471,3 +253,8 @@ async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) 
         }
     }
 }
+
+
+// --- EXPORTOVANÉ FUNKCIE ---
+// Toto sú jediné dve funkcie, ktoré `professor.js` potrebuje.
+export { renderEditorMenu, showEditorContent };
