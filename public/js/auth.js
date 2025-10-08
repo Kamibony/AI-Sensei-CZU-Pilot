@@ -22,16 +22,35 @@ export function startAuthFlow(loginCallback) {
 function renderLogin() {
     const appContainer = document.getElementById('app-container');
     if (!appContainer) return;
-    appContainer.innerHTML = document.getElementById('login-template').innerHTML;
 
+    const template = document.getElementById('login-template');
+    if (!template) return;
+
+    appContainer.innerHTML = ''; // Clear previous content
+    appContainer.appendChild(template.content.cloneNode(true));
+
+    // Attach event listeners to the newly created elements
     document.getElementById('login-professor').addEventListener('click', handleProfessorLogin);
-    document.getElementById('login-btn').addEventListener('click', handleStudentLogin);
-    document.getElementById('register-btn').addEventListener('click', handleStudentRegister);
     
-    const loginForm = document.getElementById('login-form');
-    const registerForm = document.getElementById('register-form');
-    document.getElementById('show-register-form').addEventListener('click', (e) => { e.preventDefault(); loginForm.classList.add('hidden'); registerForm.classList.remove('hidden'); });
-    document.getElementById('show-login-form').addEventListener('click', (e) => { e.preventDefault(); registerForm.classList.add('hidden'); loginForm.classList.remove('hidden'); });
+    const studentContainer = document.getElementById('student-login-container');
+    if (!studentContainer) return;
+
+    studentContainer.querySelector('#login-btn').addEventListener('click', handleStudentLogin);
+    studentContainer.querySelector('#register-btn').addEventListener('click', handleStudentRegister);
+
+    const loginForm = studentContainer.querySelector('#login-form');
+    const registerForm = studentContainer.querySelector('#register-form');
+
+    studentContainer.querySelector('#show-register-form').addEventListener('click', (e) => {
+        e.preventDefault();
+        loginForm.classList.add('hidden');
+        registerForm.classList.remove('hidden');
+    });
+    studentContainer.querySelector('#show-login-form').addEventListener('click', (e) => {
+        e.preventDefault();
+        registerForm.classList.add('hidden');
+        loginForm.classList.remove('hidden');
+    });
 }
 
 async function handleProfessorLogin() {

@@ -18,30 +18,36 @@ async function fetchLessons() {
 }
 
 function renderStudentDashboard(container) {
+    let lessonsContent;
     if (lessonsData.length === 0) {
-        container.innerHTML = `<div class="p-8 text-center text-slate-500">Pro vás zatím nebyly připraveny žádné lekce.</div>`;
-        return;
-    }
-    const sortedLessons = [...lessonsData].sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
-    const lessonsHtml = sortedLessons.map(lesson => `
-        <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
-            <div class="p-6">
-                <div class="flex items-start justify-between">
-                    <div>
-                        <p class="text-sm font-semibold text-green-600">${lesson.number || ' '}</p>
-                        <h2 class="text-2xl font-bold text-slate-800 mt-1">${lesson.title}</h2>
-                        <p class="text-slate-500">${lesson.subtitle}</p>
+        lessonsContent = `<div class="p-8 text-center text-slate-500">Pro vás zatím nebyly připraveny žádné lekce.</div>`;
+    } else {
+        const sortedLessons = [...lessonsData].sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+        const lessonsHtml = sortedLessons.map(lesson => `
+            <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
+                <div class="p-6">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <p class="text-sm font-semibold text-green-600">${lesson.number || ' '}</p>
+                            <h2 class="text-2xl font-bold text-slate-800 mt-1">${lesson.title}</h2>
+                            <p class="text-slate-500">${lesson.subtitle}</p>
+                        </div>
+                        <span class="text-4xl">${lesson.icon}</span>
                     </div>
-                    <span class="text-4xl">${lesson.icon}</span>
                 </div>
-            </div>
-        </div>`).join('');
+            </div>`).join('');
+        lessonsContent = `
+            <h2 class="text-2xl font-bold text-slate-800 mb-4">Dostupné lekce</h2>
+            ${lessonsHtml}
+        `;
+    }
+
     container.innerHTML = `
         <h1 class="text-3xl font-extrabold text-slate-800 mb-6">Váš přehled</h1>
-        <h2 class="text-2xl font-bold text-slate-800 mb-4">Dostupné lekce</h2>
-        ${lessonsHtml}
+        ${lessonsContent}
     `;
 }
+
 
 export async function initStudentDashboard() {
     const lessonsLoaded = await fetchLessons();
@@ -101,6 +107,7 @@ function showStudentLesson(lessonData) {
     }
 
     document.getElementById('back-to-overview-btn').addEventListener('click', () => {
+        const studentContentArea = document.getElementById('student-content-area');
         renderStudentDashboard(studentContentArea);
     });
 }
