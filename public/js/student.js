@@ -33,6 +33,7 @@ export async function initStudentDashboard() {
         return;
     }
 
+    // Prepare the main student dashboard view
     roleContentWrapper.innerHTML = `
         <div id="dashboard-student" class="w-full flex main-view active">
             <aside class="w-72 bg-white border-r border-slate-200 flex-col p-4 flex-shrink-0 hidden md:flex"></aside>
@@ -41,24 +42,13 @@ export async function initStudentDashboard() {
     `;
 
     setupStudentNav();
-    await initStudentDashboard();
-}
 
-function setupStudentNav() {
-    const nav = document.getElementById('main-nav');
-    if (nav) {
-        nav.innerHTML = `<li><button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-600" title="Moje studium"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></button></li>`;
-    }
-}
-
-async function initStudentDashboard() {
     const mainContent = document.getElementById('student-content-area');
     if (!mainContent) {
         console.error("Student content area not found.");
         return;
     }
 
-    // The lessonsData is already fetched and checked in setupStudentDashboard
     if (lessonsData.length === 0) {
         mainContent.innerHTML = `<div class="p-8 text-center text-slate-500">Pro vás zatím nebyly připraveny žádné lekce.</div>`;
         return;
@@ -97,7 +87,6 @@ async function initStudentDashboard() {
         }
     });
 
-    // Handle Telegram connection box display
     const telegramConnectionBox = document.getElementById('telegram-connection-box');
     const user = auth.currentUser;
     if(telegramConnectionBox && user) {
@@ -105,23 +94,20 @@ async function initStudentDashboard() {
         const studentDoc = await getDoc(studentDocRef);
         if (studentDoc.exists() && !studentDoc.data().telegramChatId) {
             telegramConnectionBox.style.display = 'flex';
-            // ... logic to create and display the link
         }
     }
 }
 
 
-// The full implementation of showStudentLesson and its helpers (renderQuiz, etc.)
-// would follow here. They will use the module-scoped `db`, `auth`, `functions` and `lessonsData`.
+function setupStudentNav() {
+    const nav = document.getElementById('main-nav');
+    if (nav) {
+        nav.innerHTML = `<li><button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-600" title="Moje studium"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></button></li>`;
+    }
+}
+
 async function showStudentLesson(lessonData) {
-    // ... same implementation as before ...
+    // ... (zde bude implementace pro zobrazení detailu lekce)
+    console.log("Showing lesson:", lessonData);
+    alert(`Zobrazuje se lekce: ${lessonData.title}`);
 }
-
-function renderQuiz(quizData, container) {
-    // ... same implementation as before ...
-}
-
-function renderPresentation(presentationData, container) {
-    // ... same implementation as before ...
-}
-// etc.
