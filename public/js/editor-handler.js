@@ -1,7 +1,7 @@
 import { doc, addDoc, updateDoc, collection, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase-init.js';
 import { showToast } from './utils.js';
-import { callGeminiApi, callGeminiForJson, callGenerateFromDocument } from './gemini-api.js';
+import { callGeminiApi, callGeminiForJson } from './gemini-api.js'; // callGenerateFromDocument is not used here but could be
 import { initializeUpload } from './upload-handler.js';
 
 let currentLesson = null;
@@ -19,16 +19,19 @@ export function renderEditorMenu(container, lesson) {
         <div class="flex-grow overflow-y-auto p-2"><nav id="editor-vertical-menu" class="flex flex-col space-y-1"></nav></div>`;
 
     container.querySelector('#back-to-timeline-btn').addEventListener('click', () => {
-        // Reload the page to go back to the default timeline view, breaking the circular dependency.
         window.location.reload();
     });
 
     const menuEl = container.querySelector('#editor-vertical-menu');
     const menuItems = [
         { id: 'details', label: 'Detaily lekce', icon: '📝' },
-        { id: 'docs', label: 'Dokumenty k lekci', icon: '📁' }, { id: 'text', label: 'Text pro studenty', icon: '✍️' },
-        { id: 'presentation', label: 'Prezentace', icon: '🖼️' }, { id: 'video', label: 'Video', icon: '▶️' },
-        { id: 'quiz', label: 'Kvíz', icon: '❓' }, { id: 'test', label: 'Test', icon: '✅' }, { id: 'post', label: 'Podcast & Materiály', icon: '🎙️' },
+        { id: 'docs', label: 'Dokumenty k lekci', icon: '📁' },
+        { id: 'text', label: 'Text pro studenty', icon: '✍️' },
+        { id: 'presentation', label: 'Prezentace', icon: '🖼️' },
+        { id: 'video', label: 'Video', icon: '▶️' },
+        { id: 'quiz', label: 'Kvíz', icon: '❓' },
+        { id: 'test', label: 'Test', icon: '✅' },
+        { id: 'post', label: 'Podcast & Materiály', icon: '🎙️' },
     ];
 
     menuEl.innerHTML = menuItems.map(item => `<a href="#" data-view="${item.id}" class="editor-menu-item flex items-center p-3 text-sm font-medium rounded-md hover:bg-slate-100 transition-colors">${item.icon}<span class="ml-3">${item.label}</span></a>`).join('');
@@ -41,7 +44,6 @@ export function renderEditorMenu(container, lesson) {
             showEditorContent(item.dataset.view, currentLesson);
         });
     });
-    // Programmatically click the first item to show the default view
     menuEl.querySelector('.editor-menu-item[data-view="details"]').click();
 }
 
@@ -224,7 +226,6 @@ export async function showEditorContent(viewId, lesson) {
     }
     container.innerHTML = contentHTML;
 
-    // Attach event listeners after rendering
     attachEditorEventListeners(viewId);
 }
 
@@ -249,7 +250,6 @@ function attachEditorEventListeners(viewId) {
                 preview.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg text-center">Neplatná YouTube URL.</div>`;
             }
         });
-        // Show existing preview
         const existingUrl = document.getElementById('youtube-url').value;
         if (existingUrl) {
             const existingVideoId = existingUrl.split('v=')[1]?.split('&')[0];
@@ -271,7 +271,6 @@ function attachEditorEventListeners(viewId) {
         });
     }
 }
-
 
 async function handleSaveLesson() {
     const saveBtn = document.getElementById('save-lesson-btn');
@@ -295,9 +294,9 @@ async function handleSaveLesson() {
         if (currentLesson && currentLesson.id) {
             const lessonRef = doc(db, 'lessons', currentLesson.id);
             await updateDoc(lessonRef, lessonData);
-            Object.assign(currentLesson, lessonData); // Update local state
+            Object.assign(currentLesson, lessonData);
             showToast('Lekce byla úspěšně aktualizována.');
-            document.getElementById('editor-lesson-title').textContent = title; // Update title in editor menu
+            document.getElementById('editor-lesson-title').textContent = title;
         } else {
             const docRef = await addDoc(collection(db, 'lessons'), {
                 ...lessonData,
@@ -307,7 +306,6 @@ async function handleSaveLesson() {
             });
             currentLesson = { id: docRef.id, ...lessonData };
             showToast('Lekce byla úspěšně vytvořena.');
-            // Re-render the editor to get the correct context (e.g., for file uploads)
             const sidebar = document.getElementById('professor-sidebar');
             renderEditorMenu(sidebar, currentLesson);
             showEditorContent('details', currentLesson);
@@ -346,21 +344,14 @@ async function handleGeneration(viewId) {
         const filePath = documentSelect && documentSelect.options.length > 0 ? documentSelect.value : null;
 
         if (filePath) {
-            // RAG-based generation
             let finalPrompt = userPrompt;
             let isJson = ['presentation', 'quiz', 'test', 'post'].includes(viewId);
-            // Construct schema-based prompt for RAG
-            // This part is complex and needs to be carefully constructed based on viewId
-            // For now, let's assume a simplified prompt construction
             finalPrompt = `Using the document provided, generate content for: ${userPrompt}`;
-
             const ragResult = await callGenerateFromDocument({ filePaths: [filePath], prompt: finalPrompt });
             if (ragResult.error) throw new Error(ragResult.error);
             rawResultForSaving = ragResult.text;
             result = isJson ? JSON.parse(ragResult.text) : ragResult;
-
         } else {
-            // Standard generation without RAG
             switch(viewId) {
                 case 'text':
                     const length = document.getElementById('length-select').value;
@@ -376,7 +367,18 @@ async function handleGeneration(viewId) {
                     result = await callGeminiForJson(`Vytvoř interaktivní kvíz na základě tohoto zadání: "${userPrompt}". Kvíz by měl obsahovat několik otázek, každá s několika možnostmi odpovědi a označením správné odpovědi.`, { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "OBJECT", properties: { question_text: { type: "STRING" }, options: { type: "ARRAY", items: { type: "STRING" } }, correct_option_index: { type: "NUMBER" } }, required: ["question_text", "options", "correct_option_index"] } } } });
                     rawResultForSaving = result;
                     break;
-                // Add cases for test, post
+                case 'test':
+                    const questionCount = document.getElementById('question-count-input').value;
+                    const difficulty = document.getElementById('difficulty-select').value;
+                    const questionTypes = document.getElementById('type-select').value;
+                    result = await callGeminiForJson(`Vytvoř test na téma "${userPrompt}" s ${questionCount} otázkami. Obtížnost: ${difficulty}. Typy otázek: ${questionTypes}.`, { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "OBJECT", properties: { question_text: { type: "STRING" }, type: {type: "STRING", enum: ["multiple_choice", "true_false"]}, options: { type: "ARRAY", items: { type: "STRING" } }, correct_option_index: { type: "NUMBER" } }, required: ["question_text", "type", "options", "correct_option_index"] } } } });
+                    rawResultForSaving = result;
+                    break;
+                case 'post':
+                    const episodeCount = document.getElementById('episode-count-input').value;
+                    result = await callGeminiForJson(`Vytvoř sérii ${episodeCount} podcast epizod na téma "${userPrompt}". Každá epizoda by měla mít název a scénář.`, { type: "OBJECT", properties: { episodes: { type: "ARRAY", items: { type: "OBJECT", properties: { title: { type: "STRING" }, script: { type: "STRING" } }, required: ["title", "script"] } } } });
+                    rawResultForSaving = result;
+                    break;
             }
         }
 
@@ -423,10 +425,22 @@ function renderGeneratedContent(viewId, result, outputEl) {
             }).join('');
             outputEl.innerHTML = questionsHtml;
             break;
-        // Add cases for test, post
+        case 'test':
+            const testQuestionsHtml = result.questions.map((q, i) => {
+                const optionsHtml = q.options.map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
+                return `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
+                            <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text} (${q.type === 'true_false' ? 'Pravda/Nepravda' : 'Výběr z možností'})</h4>
+                            <div class="mt-2 space-y-2">${optionsHtml}</div>
+                        </div>`;
+            }).join('');
+            outputEl.innerHTML = testQuestionsHtml;
+            break;
+        case 'post':
+            const episodesHtml = result.episodes.map((episode, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Epizoda ${i+1}: ${episode.title}</h4><p class="mt-2 text-sm text-slate-600">${episode.script.replace(/\n/g, '<br>')}</p></div>`).join('');
+            outputEl.innerHTML = episodesHtml;
+            break;
     }
 }
-
 
 async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) {
     const saveBtn = document.getElementById('save-content-btn');
