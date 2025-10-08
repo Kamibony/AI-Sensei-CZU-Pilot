@@ -12,6 +12,7 @@ export function startAuthFlow(loginCallback) {
         if (user && role) {
             loginSuccessCallback(role);
         } else {
+            // If user is null or role is missing, clear session and show login
             sessionStorage.removeItem('userRole');
             renderLogin();
         }
@@ -74,7 +75,7 @@ async function handleStudentRegister() {
 }
 
 export async function handleLogout() {
-    sessionStorage.removeItem('userRole');
+    sessionStorage.removeItem('userRole'); // Ensure role is cleared immediately
     await signOut(auth);
-    renderLogin();
+    // onAuthStateChanged will handle rendering the login screen
 }
