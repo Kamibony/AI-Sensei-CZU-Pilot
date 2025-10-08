@@ -1,5 +1,5 @@
-import { collection, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderEditorMenu, showEditorContent } from './editor-handler.js';
+import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { renderEditorMenu } from './editor-handler.js';
 import { showToast } from './utils.js';
 import { db } from './firebase-init.js';
 
@@ -65,8 +65,8 @@ async function showProfessorContent(view, lesson = null) {
     const mainArea = document.getElementById('main-content-area');
 
     if (view === 'editor') {
+        // renderEditorMenu sa už postará o zobrazenie menu aj prvého pohľadu editora ('details')
         renderEditorMenu(sidebar, lesson);
-        showEditorContent('details', lesson);
     } else {
         await fetchLessons();
         renderLessonLibrary(sidebar);
@@ -104,15 +104,17 @@ function renderLessonLibrary(container) {
     });
     
     container.querySelector('#add-new-lesson-btn').addEventListener('click', () => {
-        showProfessorContent('editor', null); // Pass null for a new lesson
+        showProfessorContent('editor', null);
     });
 
     const listEl = container.querySelector('#lesson-list-container');
-    new Sortable(listEl, {
-        group: { name: 'lessons', pull: 'clone', put: false },
-        animation: 150,
-        sort: false,
-    });
+    if (listEl) {
+        new Sortable(listEl, {
+            group: { name: 'lessons', pull: 'clone', put: false },
+            animation: 150,
+            sort: false,
+        });
+    }
 }
 
 async function renderTimeline(container) {
@@ -224,7 +226,6 @@ async function updateAllOrderIndexes(container) {
 
 function attachDeleteListeners(container) {
     container.querySelectorAll('.delete-event-btn').forEach(btn => {
-        // Remove old listener to prevent duplicates
         btn.replaceWith(btn.cloneNode(true));
     });
     container.querySelectorAll('.delete-event-btn').forEach(btn => {
@@ -236,7 +237,7 @@ function attachDeleteListeners(container) {
                 try {
                     await deleteDoc(doc(db, 'timeline_events', eventId));
                     eventElement.remove();
-                    await updateAllOrderIndexes(container); // Update order after deletion
+                    await updateAllOrderIndexes(container);
                     showToast("Lekce byla odebrána z plánu.");
                 } catch (error) {
                     console.error("Error deleting timeline event:", error);
