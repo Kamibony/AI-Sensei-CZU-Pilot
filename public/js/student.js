@@ -81,29 +81,39 @@ function showStudentLesson(lessonData) {
     studentContentArea.innerHTML = `
         <div class="p-4 sm:p-6 md:p-8">
             <button id="back-to-overview-btn" class="mb-6 text-green-700 font-semibold hover:underline">&larr; Zpět na přehled</button>
-            <h1 class="text-4xl font-extrabold text-slate-800">${lessonData.title}</h1>
-            <p class="text-xl text-slate-500 mb-8">${lessonData.subtitle}</p>
-            <div class="prose max-w-none lg:prose-lg mb-8" id="lesson-text-content"></div>
+            <header class="mb-8">
+                <span class="text-5xl">${lessonData.icon}</span>
+                <h1 class="text-4xl font-extrabold text-slate-800 mt-2">${lessonData.title}</h1>
+                <p class="text-xl text-slate-500">${lessonData.subtitle}</p>
+            </header>
+            
+            <div id="lesson-video-content" class="mb-8"></div>
+            <div id="lesson-text-content" class="prose max-w-none lg:prose-lg mb-8"></div>
             <div id="lesson-presentation-content" class="mb-8"></div>
             <div id="lesson-quiz-content" class="mb-8"></div>
+            <div id="lesson-test-content" class="mb-8"></div>
+            <div id="lesson-post-content" class="mb-8"></div>
         </div>
     `;
 
-    const textContainer = document.getElementById('lesson-text-content');
+    // Render all available content types
+    if (lessonData.videoUrl) {
+        renderVideo(lessonData.videoUrl, document.getElementById('lesson-video-content'));
+    }
     if (lessonData.content) {
-        textContainer.innerHTML = lessonData.content;
-    } else {
-        textContainer.innerHTML = "<p>Tato lekce zatím nemá žádný textový obsah.</p>";
+        document.getElementById('lesson-text-content').innerHTML = lessonData.content;
     }
-
-    const presentationContainer = document.getElementById('lesson-presentation-content');
     if (lessonData.presentationData) {
-        renderPresentation(lessonData.presentationData, presentationContainer);
+        renderPresentation(lessonData.presentationData, document.getElementById('lesson-presentation-content'));
     }
-
-    const quizContainer = document.getElementById('lesson-quiz-content');
     if (lessonData.quizData) {
-        renderQuiz(lessonData.quizData, quizContainer);
+        renderQuiz(lessonData.quizData, document.getElementById('lesson-quiz-content'));
+    }
+    if (lessonData.testData) {
+        renderTest(lessonData.testData, document.getElementById('lesson-test-content'));
+    }
+    if (lessonData.postData) {
+        renderPodcast(lessonData.postData, document.getElementById('lesson-post-content'));
     }
 
     document.getElementById('back-to-overview-btn').addEventListener('click', () => {
@@ -112,8 +122,18 @@ function showStudentLesson(lessonData) {
     });
 }
 
+function renderVideo(videoUrl, container) {
+    const videoId = videoUrl.split('v=')[1]?.split('&')[0];
+    if (videoId) {
+        container.innerHTML = `
+            <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Video k lekci</h2>
+            <div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-4xl shadow-lg">
+                <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe>
+            </div>`;
+    }
+}
+
 function renderPresentation(presentationData, container) {
-    // This is the full logic for rendering a presentation
     if (!presentationData || !presentationData.slides || presentationData.slides.length === 0) return;
     let currentSlide = 0;
     const render = () => {
@@ -124,9 +144,9 @@ function renderPresentation(presentationData, container) {
                 <div class="bg-slate-700 text-white p-4 text-center"><h3 class="text-2xl font-bold">${slide.title}</h3></div>
                 <div class="p-8"><ul class="list-disc list-inside space-y-4 text-xl">${slide.points.map(p => `<li>${p}</li>`).join('')}</ul></div>
                 <div class="p-4 bg-slate-100 border-t flex justify-between items-center">
-                    <button id="prev-slide-btn" class="px-4 py-2 bg-slate-300 rounded-lg font-semibold">Předchozí</button>
+                    <button id="prev-slide-btn" class="px-4 py-2 bg-slate-300 rounded-lg font-semibold hover:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed">Předchozí</button>
                     <span>${currentSlide + 1} / ${presentationData.slides.length}</span>
-                    <button id="next-slide-btn" class="px-4 py-2 bg-slate-300 rounded-lg font-semibold">Další</button>
+                    <button id="next-slide-btn" class="px-4 py-2 bg-slate-300 rounded-lg font-semibold hover:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed">Další</button>
                 </div>
             </div>`;
 
@@ -142,7 +162,6 @@ function renderPresentation(presentationData, container) {
 }
 
 function renderQuiz(quizData, container) {
-    // This is the full logic for rendering a quiz
     if (!quizData || !quizData.questions || quizData.questions.length === 0) return;
     const questionsHtml = quizData.questions.map((q, index) => {
         const optionsHtml = q.options.map((option, i) => `
@@ -158,7 +177,7 @@ function renderQuiz(quizData, container) {
     container.innerHTML = `
         <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Interaktivní Kvíz</h2>
         <form id="quiz-form">${questionsHtml}</form>
-        <div class="text-center mt-6"><button id="check-quiz-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg">Vyhodnotit</button></div>
+        <div class="text-center mt-6"><button id="check-quiz-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-700">Vyhodnotit</button></div>
         <div id="quiz-summary" class="hidden mt-8 text-center font-bold text-xl p-4 rounded-lg"></div>`;
 
     document.getElementById('check-quiz-btn').addEventListener('click', () => {
@@ -179,11 +198,73 @@ function renderQuiz(quizData, container) {
                 }
             } else {
                 feedbackEl.textContent = 'Nevybrali jste odpověď.';
-                feedbackEl.classList.add('bg-red-100', 'text-red-700');
+                feedbackEl.classList.add('bg-yellow-100', 'text-yellow-800');
             }
         });
         const summaryEl = document.getElementById('quiz-summary');
         summaryEl.textContent = `Vaše skóre: ${score} z ${quizData.questions.length}`;
         summaryEl.classList.remove('hidden');
     });
+}
+
+function renderTest(testData, container) {
+    if (!testData || !testData.questions || testData.questions.length === 0) return;
+    const questionsHtml = testData.questions.map((q, index) => {
+        const optionsHtml = q.options.map((option, i) => `
+            <label class="block p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                <input type="radio" name="test-question-${index}" value="${i}" class="mr-3"><span>${option}</span>
+            </label>`).join('');
+        return `<div class="bg-white p-6 rounded-lg shadow-md mb-6" data-q-index="${index}">
+                    <p class="font-semibold text-lg mb-4">${index + 1}. ${q.question_text}</p>
+                    <div class="space-y-3">${optionsHtml}</div>
+                    <div class="mt-4 p-3 rounded-lg text-sm hidden result-feedback"></div>
+                </div>`;
+    }).join('');
+    container.innerHTML = `
+        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Test</h2>
+        <form id="test-form">${questionsHtml}</form>
+        <div class="text-center mt-6"><button id="check-test-btn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700">Vyhodnotit Test</button></div>
+        <div id="test-summary" class="hidden mt-8 text-center font-bold text-xl p-4 rounded-lg"></div>`;
+
+    document.getElementById('check-test-btn').addEventListener('click', () => {
+        let score = 0;
+        testData.questions.forEach((q, index) => {
+            const qEl = container.querySelector(`[data-q-index="${index}"]`);
+            const feedbackEl = qEl.querySelector('.result-feedback');
+            const selected = qEl.querySelector(`input:checked`);
+            feedbackEl.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
+            if (selected) {
+                if (parseInt(selected.value) === q.correct_option_index) {
+                    score++;
+                    feedbackEl.textContent = 'Správně!';
+                    feedbackEl.classList.add('bg-green-100', 'text-green-700');
+                } else {
+                    feedbackEl.textContent = `Špatně. Správná odpověď: ${q.options[q.correct_option_index]}`;
+                    feedbackEl.classList.add('bg-red-100', 'text-red-700');
+                }
+            } else {
+                feedbackEl.textContent = 'Nevybrali jste odpověď.';
+                 feedbackEl.classList.add('bg-yellow-100', 'text-yellow-800');
+            }
+        });
+        const summaryEl = document.getElementById('test-summary');
+        summaryEl.textContent = `Vaše skóre: ${score} z ${testData.questions.length}`;
+        summaryEl.classList.remove('hidden');
+    });
+}
+
+function renderPodcast(postData, container) {
+    if (!postData || !postData.episodes || postData.episodes.length === 0) return;
+    const episodesHtml = postData.episodes.map((episode, i) => `
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h4 class="font-bold text-xl text-slate-800">${i + 1}. ${episode.title}</h4>
+            <div class="mt-4 text-slate-600 prose">
+                ${episode.script.replace(/\n/g, '<br>')}
+            </div>
+        </div>
+    `).join('');
+    container.innerHTML = `
+        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Podcast & Materiály</h2>
+        ${episodesHtml}
+    `;
 }
