@@ -19,22 +19,9 @@ async function fetchLessons() {
     }
 }
 
-export async function initStudentDashboard() {
-    const lessonsLoaded = await fetchLessons();
+function renderStudentDashboard() {
     const roleContentWrapper = document.getElementById('role-content-wrapper');
-
-    if (!roleContentWrapper) {
-        console.error("role-content-wrapper not found!");
-        return;
-    }
-
-    if (!lessonsLoaded) {
-        roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat. Zkuste prosím obnovit stránku.</div>`;
-        return;
-    }
-
-    // Prepare the main student dashboard view
-    roleContentWrapper.innerHTML = `
+     roleContentWrapper.innerHTML = `
         <div id="dashboard-student" class="w-full flex main-view active">
             <aside class="w-72 bg-white border-r border-slate-200 flex-col p-4 flex-shrink-0 hidden md:flex"></aside>
             <main id="student-content-area" class="flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50"></main>
@@ -42,12 +29,7 @@ export async function initStudentDashboard() {
     `;
 
     setupStudentNav();
-
     const mainContent = document.getElementById('student-content-area');
-    if (!mainContent) {
-        console.error("Student content area not found.");
-        return;
-    }
 
     if (lessonsData.length === 0) {
         mainContent.innerHTML = `<div class="p-8 text-center text-slate-500">Pro vás zatím nebyly připraveny žádné lekce.</div>`;
@@ -76,7 +58,7 @@ export async function initStudentDashboard() {
         ${lessonsHtml}
     `;
 
-    mainContent.addEventListener('click', (e) => {
+     mainContent.addEventListener('click', (e) => {
         const lessonCard = e.target.closest('.student-lesson-card');
         if (lessonCard) {
             const lessonId = lessonCard.dataset.lessonId;
@@ -86,18 +68,24 @@ export async function initStudentDashboard() {
             }
         }
     });
-
-    const telegramConnectionBox = document.getElementById('telegram-connection-box');
-    const user = auth.currentUser;
-    if(telegramConnectionBox && user) {
-        const studentDocRef = doc(db, "students", user.uid);
-        const studentDoc = await getDoc(studentDocRef);
-        if (studentDoc.exists() && !studentDoc.data().telegramChatId) {
-            telegramConnectionBox.style.display = 'flex';
-        }
-    }
 }
 
+export async function initStudentDashboard() {
+    const lessonsLoaded = await fetchLessons();
+    const roleContentWrapper = document.getElementById('role-content-wrapper');
+
+    if (!roleContentWrapper) {
+        console.error("role-content-wrapper not found!");
+        return;
+    }
+
+    if (!lessonsLoaded) {
+        roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat. Zkuste prosím obnovit stránku.</div>`;
+        return;
+    }
+
+    renderStudentDashboard();
+}
 
 function setupStudentNav() {
     const nav = document.getElementById('main-nav');
@@ -107,42 +95,21 @@ function setupStudentNav() {
 }
 
 async function showStudentLesson(lessonData) {
-    const roleContentWrapper = document.getElementById('role-content-wrapper');
-    if (!roleContentWrapper) {
-        console.error("role-content-wrapper not found!");
-        return;
-    }
-
-    // The entire dashboard is replaced with the lesson view
-    roleContentWrapper.innerHTML = `
-        <div id="lesson-view" class="p-4 sm:p-6 md:p-8 animate-fade-in">
-            <button id="back-to-dashboard" class="mb-6 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 mr-2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-                Zpět na přehled
-            </button>
-            <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
-                <div class="p-6 md:p-8">
-                    <div class="flex items-start justify-between mb-4">
-                        <div>
-                            <h1 class="text-3xl lg:text-4xl font-extrabold text-slate-800">${lessonData.title}</h1>
-                            <p class="text-slate-500 mt-1 text-lg">${lessonData.subtitle}</p>
-                        </div>
-                        <span class="text-5xl ml-4">${lessonData.icon || '📖'}</span>
-                    </div>
-                    <div class="prose prose-lg max-w-none mt-6">
-                        ${lessonData.content || '<p>Tato lekce zatím nemá žádný obsah.</p>'}
-                    </div>
-                </div>
+    console.log("Showing lesson:", lessonData);
+    const mainContent = document.getElementById('student-content-area');
+    mainContent.innerHTML = `
+        <div class="p-4 sm:p-6 md:p-8">
+            <button id="back-to-overview-btn" class="mb-6 text-green-700 font-semibold hover:underline">&larr; Zpět na přehled</button>
+            <h1 class="text-4xl font-extrabold text-slate-800">${lessonData.title}</h1>
+            <p class="text-xl text-slate-500 mb-8">${lessonData.subtitle}</p>
+            <div class="prose max-w-none lg:prose-lg">
+                ${lessonData.content || '<p>Tato lekce zatím nemá žádný obsah.</p>'}
             </div>
-
-            <!-- Future placeholders for interactive elements -->
-            <div id="lesson-quiz-container" class="mt-8"></div>
-            <div id="lesson-progress-tracker" class="mt-8"></div>
         </div>
     `;
 
-    document.getElementById('back-to-dashboard').addEventListener('click', () => {
-        // Re-initialize the dashboard view to go back
-        initStudentDashboard();
+    document.getElementById('back-to-overview-btn').addEventListener('click', () => {
+        // Re-render the dashboard instead of just hiding
+        renderStudentDashboard();
     });
 }
