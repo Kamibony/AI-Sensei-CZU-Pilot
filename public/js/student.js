@@ -107,7 +107,42 @@ function setupStudentNav() {
 }
 
 async function showStudentLesson(lessonData) {
-    // ... (zde bude implementace pro zobrazení detailu lekce)
-    console.log("Showing lesson:", lessonData);
-    alert(`Zobrazuje se lekce: ${lessonData.title}`);
+    const roleContentWrapper = document.getElementById('role-content-wrapper');
+    if (!roleContentWrapper) {
+        console.error("role-content-wrapper not found!");
+        return;
+    }
+
+    // The entire dashboard is replaced with the lesson view
+    roleContentWrapper.innerHTML = `
+        <div id="lesson-view" class="p-4 sm:p-6 md:p-8 animate-fade-in">
+            <button id="back-to-dashboard" class="mb-6 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 mr-2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                Zpět na přehled
+            </button>
+            <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                <div class="p-6 md:p-8">
+                    <div class="flex items-start justify-between mb-4">
+                        <div>
+                            <h1 class="text-3xl lg:text-4xl font-extrabold text-slate-800">${lessonData.title}</h1>
+                            <p class="text-slate-500 mt-1 text-lg">${lessonData.subtitle}</p>
+                        </div>
+                        <span class="text-5xl ml-4">${lessonData.icon || '📖'}</span>
+                    </div>
+                    <div class="prose prose-lg max-w-none mt-6">
+                        ${lessonData.content || '<p>Tato lekce zatím nemá žádný obsah.</p>'}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Future placeholders for interactive elements -->
+            <div id="lesson-quiz-container" class="mt-8"></div>
+            <div id="lesson-progress-tracker" class="mt-8"></div>
+        </div>
+    `;
+
+    document.getElementById('back-to-dashboard').addEventListener('click', () => {
+        // Re-initialize the dashboard view to go back
+        initStudentDashboard();
+    });
 }

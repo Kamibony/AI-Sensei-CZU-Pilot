@@ -2,24 +2,34 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Allow any authenticated user to read all lesson-related data.
-    // This is the primary fix for the 400 Bad Request on the /Listen channel.
-    // Write access is kept open for now to allow professors to manage content.
+    // Helper function to check if the user is a professor (anonymous auth)
+    function isProfessor() {
+      return request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
+    // Lessons can be read by any authenticated user, but only written by professors.
     match /lessons/{lessonId}/{documents=**} {
-      allow read, write: if request.auth != null;
-    }
-
-    // Allow authenticated users (like professors) to read the list of students,
-    // but only allow a student to write to their own document.
-    match /students/{studentId}/{documents=**} {
       allow read: if request.auth != null;
-      allow write: if request.auth.uid == studentId;
+      allow write: if isProfessor();
     }
 
-    // Allow any authenticated user to manage timeline events for now.
-    // This will be restricted to a professor role in the future.
+    // Students can be read by any authenticated user (for professor's list view).
+    // A student can only create and update their own document.
+    match /students/{studentId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth.uid == studentId;
+      // Note: Deleting students should be an admin action, so it's disallowed here.
+    }
+
+    // Students can only write to their own subcollections (e.g., progress)
+    match /students/{studentId}/{documents=**} {
+        allow write: if request.auth.uid == studentId;
+    }
+
+    // Timeline events can be read by any authenticated user, but only written by professors.
     match /timeline_events/{eventId} {
-       allow read, write: if request.auth != null;
+       allow read: if request.auth != null;
+       allow write: if isProfessor();
     }
   }
 }

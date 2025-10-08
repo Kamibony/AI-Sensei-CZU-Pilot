@@ -1,7 +1,7 @@
 ﻿export function showToast(message, isError = false) {
     const toastContainer = document.getElementById('toast-container') || createToastContainer();
     const toast = document.createElement('div');
-    toast.className = 	oast ;
+    toast.className = `toast ${isError ? 'toast-error' : 'toast-success'}`;
     toast.textContent = message;
     toastContainer.appendChild(toast);
     setTimeout(() => {
