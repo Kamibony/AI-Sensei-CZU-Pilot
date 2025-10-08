@@ -354,7 +354,7 @@ async function handleGeneration(viewId) {
             // For now, let's assume a simplified prompt construction
             finalPrompt = `Using the document provided, generate content for: ${userPrompt}`;
 
-            const ragResult = await callGenerateFromDocument({ filePath, prompt: finalPrompt });
+            const ragResult = await callGenerateFromDocument({ filePaths: [filePath], prompt: finalPrompt });
             if (ragResult.error) throw new Error(ragResult.error);
             rawResultForSaving = ragResult.text;
             result = isJson ? JSON.parse(ragResult.text) : ragResult;
