@@ -1,18 +1,15 @@
-import { collection, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeUpload, initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-handler.js';
+import { collection, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { renderEditorMenu, showEditorContent } from './editor-handler.js';
 import { showToast } from './utils.js';
 import { db } from './firebase-init.js';
-import { getEditorContent, attachEditorEventListeners, initializeEditor } from './editor-handler.js';
 
 let lessonsData = [];
-let currentLesson = null;
 
 async function fetchLessons() {
     try {
         const lessonsCollection = collection(db, 'lessons');
         const querySnapshot = await getDocs(lessonsCollection);
         lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log("Professor lessons fetched:", lessonsData);
         return true;
     } catch (error) {
         console.error("Error fetching lessons for professor: ", error);
@@ -36,13 +33,13 @@ export async function initProfessorDashboard() {
     }
 
     roleContentWrapper.innerHTML = `
-        <div id="dashboard-professor" class="w-full flex main-view active">
-            <aside id="professor-sidebar" class="w-full md:w-96 bg-white border-r border-slate-200 flex flex-col flex-shrink-0"></aside>
-            <main id="main-content-area" class="flex-grow bg-slate-100 flex flex-col h-screen"></main>
+        <div id="dashboard-professor" class="w-full flex main-view active h-screen">
+            <aside id="professor-sidebar" class="w-full md:w-96 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 h-full"></aside>
+            <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-screen"></main>
         </div>
     `;
     setupProfessorNav();
-    showProfessorContent('timeline'); // Default to timeline view, as it's the main hub
+    showProfessorContent('timeline');
 }
 
 function setupProfessorNav() {
@@ -50,61 +47,52 @@ function setupProfessorNav() {
     if (nav) {
         nav.innerHTML = `
             <li><button data-view="timeline" class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Plán výuky"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button></li>
-        `; // Add other nav items here if needed
+        `;
 
         nav.querySelectorAll('.nav-item').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const view = e.currentTarget.dataset.view;
+                nav.querySelectorAll('.nav-item').forEach(b => b.classList.remove('bg-green-700'));
+                e.currentTarget.classList.add('bg-green-700');
                 showProfessorContent(view);
-                nav.querySelectorAll('.nav-item').forEach(b => {
-                    b.classList.remove('bg-green-700', 'text-white');
-                    b.classList.add('text-green-200', 'hover:bg-green-700');
-                });
-                e.currentTarget.classList.add('bg-green-700', 'text-white');
             });
         });
     }
 }
 
 async function showProfessorContent(view, lesson = null) {
-    const dashboardView = document.getElementById('dashboard-professor');
-    if (!dashboardView) return;
-    
-    dashboardView.classList.remove('hidden');
-
     const sidebar = document.getElementById('professor-sidebar');
     const mainArea = document.getElementById('main-content-area');
 
     if (view === 'editor') {
-        currentLesson = lesson;
-        initializeEditor(currentLesson);
-        renderEditorMenu(sidebar);
-        showEditorContent('details'); // Always start with details view
-    } else { // Default to timeline/library view
-        await fetchLessons(); // Refresh lessons data
+        renderEditorMenu(sidebar, lesson);
+        showEditorContent('details', lesson);
+    } else {
+        await fetchLessons();
         renderLessonLibrary(sidebar);
         renderTimeline(mainArea);
     }
 }
 
 function renderLessonLibrary(container) {
-    const lessonsHtml = lessonsData.map(lesson => `
-        <div class="lesson-bubble-in-library p-4 mb-2 bg-slate-50 rounded-lg cursor-pointer hover:bg-green-100" data-lesson-id="${lesson.id}" draggable="true">
+    const sortedLessons = [...lessonsData].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    const lessonsHtml = sortedLessons.map(lesson => `
+        <div class="lesson-bubble-in-library p-4 mb-2 bg-slate-50 rounded-lg cursor-pointer hover:bg-green-100" data-lesson-id="${lesson.id}">
             <h3 class="font-semibold text-slate-800">${lesson.title}</h3>
             <p class="text-sm text-slate-500">${lesson.subtitle}</p>
         </div>
     `).join('');
 
     container.innerHTML = `
-        <div class="p-4 border-b">
-            <h2 class="text-xl font-bold">Knihovna lekcí</h2>
-        </div>
-        <div class="p-4 overflow-y-auto" id="lesson-list-container">
+        <header class="p-4 border-b border-slate-200 flex-shrink-0">
+            <h2 class="text-xl font-bold text-slate-800">Knihovna lekcí</h2>
+        </header>
+        <div class="flex-grow overflow-y-auto p-4" id="lesson-list-container">
             ${lessonsHtml}
         </div>
-        <div class="p-4 border-t">
-            <button id="add-new-lesson-btn" class="w-full p-3 bg-green-700 text-white rounded-lg hover:bg-green-800">Přidat novou lekci</button>
-        </div>
+        <footer class="p-4 border-t border-slate-200 flex-shrink-0">
+            <button id="add-new-lesson-btn" class="w-full p-3 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800">Přidat novou lekci</button>
+        </footer>
     `;
 
     container.querySelectorAll('.lesson-bubble-in-library').forEach(el => {
@@ -115,10 +103,15 @@ function renderLessonLibrary(container) {
         });
     });
     
-    container.querySelector('#add-new-lesson-btn').addEventListener('click', async () => {
-        const newLessonData = { title: 'Nová lekce', subtitle: 'Krátký popis', icon: '🆕', content: '', status: 'Naplánováno', creationDate: new Date().toISOString() };
-        const docRef = await addDoc(collection(db, 'lessons'), newLessonData);
-        showProfessorContent('editor', { id: docRef.id, ...newLessonData });
+    container.querySelector('#add-new-lesson-btn').addEventListener('click', () => {
+        showProfessorContent('editor', null); // Pass null for a new lesson
+    });
+
+    const listEl = container.querySelector('#lesson-list-container');
+    new Sortable(listEl, {
+        group: { name: 'lessons', pull: 'clone', put: false },
+        animation: 150,
+        sort: false,
     });
 }
 
@@ -129,59 +122,60 @@ async function renderTimeline(container) {
             <p class="text-slate-500 mt-1">Naplánujte lekce přetažením z knihovny vlevo.</p>
         </header>
         <div class="flex-grow overflow-y-auto p-4 md:p-6">
-            <div id="timeline-dropzone" class="p-4 min-h-[400px] bg-white rounded-lg border-2 border-dashed"></div>
+            <div id="timeline-dropzone" class="p-4 min-h-[400px] bg-white rounded-lg border-2 border-dashed border-slate-300 space-y-2"></div>
         </div>`;
 
     const dropzone = container.querySelector('#timeline-dropzone');
     
-    // Fetch existing timeline events
     const eventsCollection = collection(db, 'timeline_events');
-    const q = query(eventsCollection, orderBy("scheduledDate"), orderBy("orderIndex"));
+    const q = query(eventsCollection, orderBy("orderIndex"));
     const querySnapshot = await getDocs(q);
     const timelineEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     dropzone.innerHTML = timelineEvents.map(renderScheduledEvent).join('');
     
-    // Initialize SortableJS
+    attachDeleteListeners(dropzone);
+
     new Sortable(dropzone, {
         group: 'lessons',
         animation: 150,
-        ghostClass: 'blue-background-class',
+        handle: '.handle',
+        ghostClass: 'opacity-50',
         onAdd: async (evt) => {
             const lessonId = evt.item.dataset.lessonId;
             const lesson = lessonsData.find(l => l.id === lessonId);
-            if (!lesson) return;
+            const tempEl = evt.item;
+            tempEl.innerHTML = `<div class="p-3">Načítám...</div>`;
 
-            // This is a placeholder for actual date selection
             const scheduledDate = new Date().toISOString().split('T')[0];
 
-            const newEvent = {
+            const newEventData = {
                 lessonId: lesson.id,
-                title: lesson.title,
-                icon: lesson.icon,
                 scheduledDate: scheduledDate,
                 orderIndex: evt.newIndex,
                 createdAt: serverTimestamp()
             };
 
             try {
-                const docRef = await addDoc(collection(db, 'timeline_events'), newEvent);
-                evt.item.dataset.eventId = docRef.id; // Add event id to the element
+                const docRef = await addDoc(collection(db, 'timeline_events'), newEventData);
+                const newEvent = { id: docRef.id, ...newEventData };
+                
+                const newElement = document.createElement('div');
+                newElement.innerHTML = renderScheduledEvent(newEvent);
+                
+                tempEl.replaceWith(newElement.firstChild);
+                await updateAllOrderIndexes(dropzone);
+                attachDeleteListeners(dropzone);
                 showToast("Lekce naplánována.");
             } catch (error) {
                 console.error("Error scheduling lesson:", error);
                 showToast("Chyba při plánování lekce.", true);
-                evt.item.remove(); // Remove element if DB operation fails
+                tempEl.remove();
             }
+        },
+        onUpdate: async (evt) => {
+            await updateAllOrderIndexes(evt.to);
         }
-    });
-
-    // Add delete functionality to existing events
-    dropzone.querySelectorAll('.delete-event-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const eventElement = e.target.closest('.lesson-bubble');
-            handleDeleteEvent(e, eventElement);
-        });
     });
 }
 
@@ -189,16 +183,15 @@ function renderScheduledEvent(event) {
     const lesson = lessonsData.find(l => l.id === event.lessonId);
     if (!lesson) return '';
 
-    // THIS IS THE FIX FOR THE DATE ERROR
-    const scheduledDate = new Date(event.scheduledDate); 
-
-    const isPast = scheduledDate < new Date();
+    const scheduledDate = new Date(event.scheduledDate);
+    const isPast = new Date(scheduledDate.toDateString()) < new Date(new Date().toDateString());
     const dateString = scheduledDate.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' });
     
     return `
-    <div class="lesson-bubble p-3 m-1 rounded-lg shadow-sm flex items-center justify-between border ${isPast ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-green-100 text-green-800 border-green-200'}" data-lesson-id="${lesson.id}" data-event-id="${event.id}" data-order-index="${event.orderIndex}">
-        <div class="flex items-center space-x-3 flex-grow cursor-grab">
-            <span class="font-mono text-xs text-slate-400">${dateString}</span>
+    <div class="lesson-bubble p-3 rounded-lg shadow-sm flex items-center justify-between border ${isPast ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-green-50 text-green-800 border-green-200'}" data-event-id="${event.id}">
+        <div class="flex items-center space-x-3 flex-grow">
+            <span class="handle cursor-grab text-slate-400 hover:text-slate-600"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></span>
+            <span class="font-mono text-xs text-slate-500">${dateString}</span>
             <span class="text-xl">${lesson.icon}</span>
             <span class="font-semibold text-sm">${lesson.title}</span>
         </div>
@@ -208,56 +201,48 @@ function renderScheduledEvent(event) {
     </div>`;
 }
 
-async function handleDeleteEvent(e, eventElement) {
-    e.stopPropagation();
-    const eventId = eventElement.dataset.eventId;
-    if (confirm('Opravdu chcete odebrat tuto lekci z plánu?')) {
-        try {
-            await deleteDoc(doc(db, 'timeline_events', eventId));
-            eventElement.remove();
-            showToast("Lekce byla odebrána z plánu.");
-        } catch (error) {
-            console.error("Error deleting timeline event:", error);
-            showToast("Chyba při odstraňování události.", true);
+async function updateAllOrderIndexes(container) {
+    const items = container.querySelectorAll('.lesson-bubble');
+    const batch = writeBatch(db);
+    
+    items.forEach((item, index) => {
+        const eventId = item.dataset.eventId;
+        if (eventId) {
+            const docRef = doc(db, 'timeline_events', eventId);
+            batch.update(docRef, { orderIndex: index });
         }
+    });
+
+    try {
+        await batch.commit();
+        console.log("Order indexes updated.");
+    } catch (error) {
+        console.error("Error updating order indexes:", error);
+        showToast("Nepodařilo se uložit nové pořadí.", true);
     }
 }
 
-function renderEditorMenu(container) {
-    container.innerHTML = `
-        <div class="p-4 border-b flex items-center justify-between">
-            <button id="back-to-timeline-btn" class="text-green-700 hover:underline">&larr; Zpět na plánovač</button>
-            <h2 class="text-xl font-bold truncate">${currentLesson?.title || 'Nová lekce'}</h2>
-        </div>
-        <div class="flex-grow p-4 overflow-y-auto">
-            <ul id="editor-nav" class="space-y-2">
-                <li><button data-view="details" class="editor-nav-item w-full text-left p-3 rounded-lg bg-green-100 font-semibold">Detaily lekce</button></li>
-                <li><button data-view="text" class="editor-nav-item w-full text-left p-3 rounded-lg">Hlavní text</button></li>
-                <li><button data-view="files" class="editor-nav-item w-full text-left p-3 rounded-lg">Soubory</button></li>
-                <li><button data-view="quiz" class="editor-nav-item w-full text-left p-3 rounded-lg">Kvíz</button></li>
-            </ul>
-        </div>
-    `;
-
-    container.querySelector('#back-to-timeline-btn').addEventListener('click', () => {
-        showProfessorContent('timeline');
+function attachDeleteListeners(container) {
+    container.querySelectorAll('.delete-event-btn').forEach(btn => {
+        // Remove old listener to prevent duplicates
+        btn.replaceWith(btn.cloneNode(true));
     });
-
-    container.querySelectorAll('.editor-nav-item').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const viewId = e.currentTarget.dataset.view;
-            showEditorContent(viewId);
-            container.querySelectorAll('.editor-nav-item').forEach(b => b.classList.remove('bg-green-100', 'font-semibold'));
-            e.currentTarget.classList.add('bg-green-100', 'font-semibold');
+    container.querySelectorAll('.delete-event-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const eventElement = e.target.closest('.lesson-bubble');
+            const eventId = eventElement.dataset.eventId;
+            if (confirm('Opravdu chcete odebrat tuto lekci z plánu?')) {
+                try {
+                    await deleteDoc(doc(db, 'timeline_events', eventId));
+                    eventElement.remove();
+                    await updateAllOrderIndexes(container); // Update order after deletion
+                    showToast("Lekce byla odebrána z plánu.");
+                } catch (error) {
+                    console.error("Error deleting timeline event:", error);
+                    showToast("Chyba při odstraňování události.", true);
+                }
+            }
         });
     });
-}
-
-function showEditorContent(viewId) {
-    const mainArea = document.getElementById('main-content-area');
-    mainArea.innerHTML = `<div class="p-8 overflow-y-auto">${getEditorContent(viewId)}</div>`;
-    attachEditorEventListeners(viewId);
-    if (viewId === 'files') {
-        initializeUpload(currentLesson);
-    }
 }
