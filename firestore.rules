@@ -1,35 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper function to check if the user is a professor (anonymous auth)
-    function isProfessor() {
-      return request.auth.token.firebase.sign_in_provider == 'anonymous';
-    }
-
-    // Lessons can be read by any authenticated user, but only written by professors.
-    match /lessons/{lessonId}/{documents=**} {
-      allow read: if request.auth != null;
-      allow write: if isProfessor();
-    }
-
-    // Students can be read by any authenticated user (for professor's list view).
-    // A student can only create and update their own document.
-    match /students/{studentId} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth.uid == studentId;
-      // Note: Deleting students should be an admin action, so it's disallowed here.
-    }
-
-    // Students can only write to their own subcollections (e.g., progress)
-    match /students/{studentId}/{documents=**} {
-        allow write: if request.auth.uid == studentId;
-    }
-
-    // Timeline events can be read by any authenticated user, but only written by professors.
-    match /timeline_events/{eventId} {
-       allow read: if request.auth != null;
-       allow write: if isProfessor();
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
