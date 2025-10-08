@@ -26,9 +26,12 @@ export async function callGeminiForJson(prompt, schema) {
     }
 }
 
-export async function callGenerateFromDocument(filePath, prompt) {
+// --- TOTO JE OPRAVENÁ FUNKCIA ---
+// Prijíma jeden objekt 'data' a posiela ho priamo backendu.
+export async function callGenerateFromDocument(data) {
     try {
-        const result = await generateFromDocumentFunction({ filePath, prompt });
+        // 'data' by mal byť objekt v tvare { filePaths: ['...'], prompt: '...' }
+        const result = await generateFromDocumentFunction(data);
         return result.data;
     } catch (error) {
         console.error("Error calling 'generateFromDocument' function:", error);
