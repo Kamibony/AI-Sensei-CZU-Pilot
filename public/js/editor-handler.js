@@ -135,7 +135,7 @@ export async function showEditorContent(viewId, lesson) {
         case 'video':
             contentHTML = renderWrapper('Vložení videa', `
                 <p class="text-slate-500 mb-4">Vložte odkaz na video z YouTube, které se zobrazí studentům v jejich panelu.</p>
-                <div><label class="block font-medium text-slate-600">YouTube URL</label><input id="youtube-url" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.videoUrl || ''}" placeholder="https://www.youtube.com/watch?v=i-z_I1_Z2lY"></div>
+                <div><label class="block font-medium text-slate-600">YouTube URL</label><input id="youtube-url" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.videoUrl || ''}" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ"></div>
                 <div class="text-right pt-4"><button id="embed-video-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800">Vložit video</button></div>
                 <div id="video-preview" class="mt-6 border-t pt-6">
                     <div class="text-center p-8 text-slate-400">Náhled videa se zobrazí zde...</div>
@@ -224,19 +224,23 @@ function attachEditorEventListeners(viewId) {
         document.getElementById('save-lesson-btn')?.addEventListener('click', handleSaveLesson);
     }
     
-    // --- TOTO JE KĽÚČOVÁ OPRAVA PRE VIDEO ---
+    // --- OPRAVENÁ A ZJEDNOTENÁ LOGIKA PRE VIDEO ---
     if (viewId === 'video') {
         const embedBtn = document.getElementById('embed-video-btn');
         const urlInput = document.getElementById('youtube-url');
         const preview = document.getElementById('video-preview');
 
         const showPreview = (url) => {
-            const videoId = url.split('v=')[1]?.split('&')[0];
+            const videoIdMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+            const videoId = videoIdMatch ? videoIdMatch[1] : null;
+
             if (videoId) {
                 preview.innerHTML = `<div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-2xl shadow-lg"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe></div>`;
                 return true;
             } else {
-                preview.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg text-center">Neplatná YouTube URL.</div>`;
+                if (url.trim() !== '') { // Zobrazíme chybu, len ak niečo bolo zadané
+                    preview.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg text-center">Neplatná YouTube URL.</div>`;
+                }
                 return false;
             }
         };
@@ -245,12 +249,9 @@ function attachEditorEventListeners(viewId) {
             const url = urlInput.value;
             if (showPreview(url)) {
                 await handleSaveGeneratedContent(currentLesson, 'videoUrl', url);
-                // Po úspešnom uložení sa hodnota v currentLesson aktualizuje
-                // a pri ďalšom zobrazení bude už načítaná správne.
             }
         });
-
-        // Zobrazíme náhľad, ak už URL existuje
+        
         if (currentLesson?.videoUrl) {
             showPreview(currentLesson.videoUrl);
         }
@@ -341,7 +342,6 @@ async function handleGeneration(viewId) {
         const checkedBoxes = document.querySelectorAll('.document-checkbox:checked');
         const filePaths = Array.from(checkedBoxes).map(cb => cb.value);
         const isJson = ['presentation', 'quiz', 'test', 'post'].includes(viewId);
-
         let finalPrompt = userPrompt;
         
         if (isJson) {
@@ -482,11 +482,15 @@ async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) 
     try {
         await updateDoc(lessonRef, { [fieldToUpdate]: contentToSave });
         showToast("Obsah byl úspěšně uložen do lekce.");
-        if (lesson) lesson[fieldToUpdate] = contentToSave; // Update local state
+        if (lesson) {
+            lesson[fieldToUpdate] = contentToSave; 
+        }
         if (currentLesson && currentLesson.id === lesson.id) {
             currentLesson[fieldToUpdate] = contentToSave;
         }
-        if (saveBtn) saveBtn.classList.add('hidden');
+        if (saveBtn) {
+            saveBtn.classList.add('hidden');
+        }
     } catch (error) {
         console.error(`Chyba při ukládání obsahu (${fieldToUpdate}) do lekce:`, error);
         showToast("Při ukládání obsahu došlo k chybě.", true);
