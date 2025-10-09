@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { db, auth } from './firebase-init.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
@@ -6,18 +6,15 @@ import { functions } from './firebase-init.js';
 
 let lessonsData = [];
 const getLessonAssistantResponse = httpsCallable(functions, 'getLessonAssistantResponse');
-const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor');
 
 async function fetchLessons() {
     try {
         const lessonsCollection = collection(db, 'lessons');
-        // Pridanie query na načítanie iba aktívnych lekcií pre študenta
         const q = query(lessonsCollection, where("status", "==", "active"));
         const querySnapshot = await getDocs(q);
         lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         return true;
-    } catch (error)
-    {
+    } catch (error) {
         console.error("Error fetching lessons:", error);
         showToast("Nepodařilo se načíst data lekcí.", true);
         return false;
@@ -29,7 +26,6 @@ async function setupStudentNav() {
     const user = auth.currentUser;
     if (!nav || !user) return;
     
-    // Stará logika pre Telegram bola odstránená, pretože je nahradená novým bannerom.
     nav.innerHTML = `
         <li>
             <button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium">
@@ -38,7 +34,6 @@ async function setupStudentNav() {
         </li>
     `;
 }
-
 
 function renderStudentDashboard(container) {
     let lessonsContent;
@@ -88,15 +83,12 @@ export async function initStudentDashboard() {
 
     renderStudentDashboard(studentContentArea);
 
-    // --- FINÁLNY KÓD PRE TELEGRAM BANNER ---
     const user = auth.currentUser;
     if (user) {
         try {
-            // Používame kolekciu 'students', ako je to v tvojej verzii
             const userDoc = await getDoc(doc(db, "students", user.uid));
             if (userDoc.exists()) {
                 const userData = userDoc.data();
-                // Názov tokenu je 'telegramConnectionToken' podľa tvojej verzie
                 const token = userData.telegramConnectionToken;
                 
                 if (token && !userData.telegramChatId) {
@@ -118,7 +110,6 @@ export async function initStudentDashboard() {
             showToast("Nepodařilo se zkontrolovat stav propojení s Telegramem.", true);
         }
     }
-    // --- KONIEC KÓDU PRE BANNER ---
 
     studentContentArea.addEventListener('click', (e) => {
         const lessonCard = e.target.closest('.student-lesson-card');
@@ -172,7 +163,6 @@ function showStudentLesson(lessonData) {
     `;
 
     document.getElementById('back-to-overview-btn').addEventListener('click', () => {
-        // Oprava: Po návrate na dashboard ho reinicializujeme, aby sa znova načítal stav Telegramu
         initStudentDashboard();
     });
 
@@ -372,7 +362,7 @@ function renderQuiz(quizData, container) {
                     feedbackEl.textContent = 'Správně!';
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700';
                 } else {
-                    feedbackEl.textContent = \`Špatně. Správná odpověď: ${q.options[q.correct_option_index]}\`;
+                    feedbackEl.textContent = \`Špatně. Správná odpověď: \${q.options[q.correct_option_index]}\`;
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700';
                 }
             } else {
@@ -381,7 +371,7 @@ function renderQuiz(quizData, container) {
             }
         });
         const summaryEl = document.getElementById('quiz-summary');
-        summaryEl.textContent = \`Vaše skóre: ${score} z ${quizData.questions.length}\`;
+        summaryEl.textContent = \`Vaše skóre: \${score} z \${quizData.questions.length}\`;
         summaryEl.classList.remove('hidden');
     });
 }
@@ -418,7 +408,7 @@ function renderTest(testData, container) {
                     feedbackEl.textContent = 'Správně!';
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700';
                 } else {
-                    feedbackEl.textContent = \`Špatně. Správná odpověď: ${q.options[q.correct_option_index]}\`;
+                    feedbackEl.textContent = \`Špatně. Správná odpověď: \${q.options[q.correct_option_index]}\`;
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700';
                 }
             } else {
@@ -427,7 +417,7 @@ function renderTest(testData, container) {
             }
         });
         const summaryEl = document.getElementById('test-summary');
-        summaryEl.textContent = \`Vaše skóre: ${score} z ${testData.questions.length}\`;
+        summaryEl.textContent = \`Vaše skóre: \${score} z \${testData.questions.length}\`;
         summaryEl.classList.remove('hidden');
     });
 }
