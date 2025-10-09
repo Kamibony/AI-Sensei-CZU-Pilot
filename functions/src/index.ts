@@ -75,7 +75,6 @@ export const generateJson = onCall(
     }
 );
 
-// --- UPRAVENÁ FUNKCIA PRE VIACERO SÚBOROV ---
 export const generateFromDocument = onCall(
     { region: DEPLOY_REGION, cors: allowedOrigins },
     async (request) => {
@@ -90,7 +89,6 @@ export const generateFromDocument = onCall(
         }
 
         try {
-            // Voláme novú funkciu, ktorá spracuje pole súborov
             const text = await GeminiAPI.generateTextFromDocuments(filePaths, prompt);
             console.log("Successfully generated text from document(s).");
             return { text };
@@ -100,6 +98,28 @@ export const generateFromDocument = onCall(
         }
     }
 );
+
+// --- NOVÁ CLOUD FUNKCIA PRE JSON Z DOKUMENTOV ---
+export const generateJsonFromDocument = onCall(
+    { region: DEPLOY_REGION, cors: allowedOrigins },
+    async (request) => {
+        console.log("--- generateJsonFromDocument invoked ---");
+        console.log("Request Data:", JSON.stringify(request.data));
+
+        const { filePaths, prompt } = request.data;
+        if (!Array.isArray(filePaths) || filePaths.length === 0 || !prompt) {
+            throw new HttpsError("invalid-argument", "The function must be called with a 'filePaths' array and a 'prompt'.");
+        }
+        try {
+            const json = await GeminiAPI.generateJsonFromDocuments(filePaths, prompt);
+            return json;
+        } catch (error) {
+            console.error("generateJsonFromDocument Cloud Function failed:", error);
+            throw new HttpsError("internal", (error as Error).message);
+        }
+    }
+);
+
 
 export const getLessonKeyTakeaways = onCall(
     { region: DEPLOY_REGION, cors: allowedOrigins },
