@@ -136,7 +136,7 @@ export async function showEditorContent(viewId, lesson) {
         case 'video':
             contentHTML = renderWrapper('Vložení videa', `
                 <p class="text-slate-500 mb-4">Vložte odkaz na video z YouTube, které se zobrazí studentům v jejich panelu.</p>
-                <div><label class="block font-medium text-slate-600">YouTube URL</label><input id="youtube-url" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.videoUrl || ''}" placeholder="https://www.youtube.com/watch?v=i-z_I1_Z2lY"></div>
+                <div><label class="block font-medium text-slate-600">YouTube URL</label><input id="youtube-url" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.videoUrl || ''}" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ"></div>
                 <div class="text-right pt-4"><button id="embed-video-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800">Vložit video</button></div>
                 <div id="video-preview" class="mt-6 border-t pt-6">
                     <div class="text-center p-8 text-slate-400">Náhled videa se zobrazí zde...</div>
@@ -225,24 +225,36 @@ function attachEditorEventListeners(viewId) {
         document.getElementById('save-lesson-btn')?.addEventListener('click', handleSaveLesson);
     }
     
+    // --- OPRAVENÁ A ZJEDNOTENÁ LOGIKA PRE VIDEO ---
     if (viewId === 'video') {
         const embedBtn = document.getElementById('embed-video-btn');
-        embedBtn?.addEventListener('click', () => {
-            const urlInput = document.getElementById('youtube-url');
-            const url = urlInput.value;
-            handleSaveGeneratedContent(currentLesson, 'videoUrl', url);
-            const videoId = url.split('v=')[1]?.split('&')[0];
-            const preview = document.getElementById('video-preview');
+        const urlInput = document.getElementById('youtube-url');
+        const preview = document.getElementById('video-preview');
+
+        const showPreview = (url) => {
+            const videoIdMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+            const videoId = videoIdMatch ? videoIdMatch[1] : null;
+
             if (videoId) {
                 preview.innerHTML = `<div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-2xl shadow-lg"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe></div>`;
+                return true;
             } else {
-                preview.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg text-center">Neplatná YouTube URL.</div>`;
+                if (url.trim() !== '') { // Zobrazíme chybu, len ak niečo bolo zadané
+                    preview.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg text-center">Neplatná YouTube URL.</div>`;
+                }
+                return false;
+            }
+        };
+
+        embedBtn?.addEventListener('click', async () => {
+            const url = urlInput.value;
+            if (showPreview(url)) {
+                await handleSaveGeneratedContent(currentLesson, 'videoUrl', url);
             }
         });
-        const existingUrl = document.getElementById('youtube-url')?.value;
-        if (existingUrl) {
-            const existingVideoId = existingUrl.split('v=')[1]?.split('&')[0];
-            if (existingVideoId) document.getElementById('video-preview').innerHTML = `<div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-2xl shadow-lg"><iframe src="https://www.youtube.com/embed/${existingVideoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe></div>`;
+        
+        if (currentLesson?.videoUrl) {
+            showPreview(currentLesson.videoUrl);
         }
     }
 
