@@ -26,37 +26,14 @@ async function setupStudentNav() {
     const user = auth.currentUser;
     if (!nav || !user) return;
     
-    try {
-        const studentDoc = await getDoc(doc(db, "students", user.uid));
-        if (studentDoc.exists()) {
-            const studentData = studentDoc.data();
-            const token = studentData.telegramConnectionToken;
-            const botUsername = 'ai_sensei_czu_bot';
-            
-            let telegramHtml = '';
-            if (token && !studentData.telegramChatId) {
-                 const connectionLink = `https://t.me/${botUsername}?start=${token}`;
-                 telegramHtml = `
-                    <li>
-                        <a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Propojit s Telegramem">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-send"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                        </a>
-                    </li>
-                 `;
-            }
-
-            nav.innerHTML = `
-                <li>
-                    <button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                    </button>
-                </li>
-                ${telegramHtml}
-            `;
-        }
-    } catch (error) {
-        console.error("Error setting up student nav:", error);
-    }
+    // Stará logika pre Telegram bola odstránená, pretože je nahradená novým bannerom.
+    nav.innerHTML = `
+        <li>
+            <button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium">
+                <svg xmlns="http://www.w.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            </button>
+        </li>
+    `;
 }
 
 function renderStudentDashboard(container) {
@@ -107,15 +84,17 @@ export async function initStudentDashboard() {
 
     renderStudentDashboard(studentContentArea);
 
-    // Fetch user data and display Telegram connection link
+    // --- SPRÁVNE PRIDANÝ BLOK KÓDU PRE TELEGRAM BANNER ---
     const user = auth.currentUser;
     if (user) {
         try {
+            // Správne sa odkazujeme na kolekciu 'users', nie 'students'
             const userDoc = await getDoc(doc(db, "users", user.uid));
             if (userDoc.exists()) {
                 const userData = userDoc.data();
                 const token = userData.telegramToken;
-                // Only show the link if the token exists and the user is not yet connected
+                
+                // Banner sa zobrazí len ak token existuje a chatId ešte nie je priradený
                 if (token && !userData.telegramChatId) {
                     const connectSection = document.getElementById('telegram-connect-section');
                     if (connectSection) {
@@ -135,6 +114,7 @@ export async function initStudentDashboard() {
             showToast("Nepodařilo se zkontrolovat stav propojení s Telegramem.", true);
         }
     }
+    // --- KONIEC PRIDANÉHO BLOKU ---
 
     studentContentArea.addEventListener('click', (e) => {
         const lessonCard = e.target.closest('.student-lesson-card');
@@ -188,7 +168,10 @@ function showStudentLesson(lessonData) {
     `;
 
     document.getElementById('back-to-overview-btn').addEventListener('click', () => {
+        // Oprava: renderStudentDashboard potrebuje argument, kam sa má vykresliť
         renderStudentDashboard(studentContentArea);
+        // Po navrate na dashboard znova skontrolujeme zobrazenie Telegram linku
+        initStudentDashboard(); 
     });
 
     const contentDisplay = document.getElementById('lesson-content-display');
@@ -268,7 +251,7 @@ function renderAIAssistantChat(lessonData, container) {
     const addMessage = (text, sender) => {
         const messageEl = document.createElement('div');
         messageEl.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
-        messageEl.innerHTML = `<div class="${sender === 'user' ? 'bg-green-200' : 'bg-white'} p-3 rounded-xl max-w-xs text-sm">${text}</div>`;
+        messageEl.innerHTML = `<div class="${sender === 'user' ? 'bg-green-200' : 'bg-white'} p-3 rounded-xl max-w-xs text-sm">${text.replace(/\n/g, '<br>')}</div>`;
         historyContainer.appendChild(messageEl);
         historyContainer.scrollTop = historyContainer.scrollHeight;
         return messageEl;
@@ -279,6 +262,7 @@ function renderAIAssistantChat(lessonData, container) {
         if (!userQuestion) return;
         
         input.value = '';
+        input.style.height = 'auto';
         sendBtn.disabled = true;
         addMessage(userQuestion, 'user');
 
@@ -294,13 +278,17 @@ function renderAIAssistantChat(lessonData, container) {
             sendBtn.disabled = false;
         }
     };
-
+    
     sendBtn.addEventListener('click', handleSend);
     input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSend();
         }
+    });
+    input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = (input.scrollHeight) + 'px';
     });
 }
 
@@ -379,7 +367,7 @@ function renderQuiz(quizData, container) {
                     feedbackEl.textContent = 'Správně!';
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700';
                 } else {
-                    feedbackEl.textContent = `Špatně. Správná odpověď: ${q.options[q.correct_option_index]}`;
+                    feedbackEl.textContent = \`Špatně. Správná odpověď: ${q.options[q.correct_option_index]}\`;
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700';
                 }
             } else {
@@ -388,7 +376,7 @@ function renderQuiz(quizData, container) {
             }
         });
         const summaryEl = document.getElementById('quiz-summary');
-        summaryEl.textContent = `Vaše skóre: ${score} z ${quizData.questions.length}`;
+        summaryEl.textContent = \`Vaše skóre: ${score} z ${quizData.questions.length}\`;
         summaryEl.classList.remove('hidden');
     });
 }
@@ -425,7 +413,7 @@ function renderTest(testData, container) {
                     feedbackEl.textContent = 'Správně!';
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700';
                 } else {
-                    feedbackEl.textContent = `Špatně. Správná odpověď: ${q.options[q.correct_option_index]}`;
+                    feedbackEl.textContent = \`Špatně. Správná odpověď: ${q.options[q.correct_option_index]}\`;
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700';
                 }
             } else {
@@ -434,7 +422,7 @@ function renderTest(testData, container) {
             }
         });
         const summaryEl = document.getElementById('test-summary');
-        summaryEl.textContent = `Vaše skóre: ${score} z ${testData.questions.length}`;
+        summaryEl.textContent = \`Vaše skóre: ${score} z ${testData.questions.length}\`;
         summaryEl.classList.remove('hidden');
     });
 }
