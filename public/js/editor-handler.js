@@ -6,6 +6,8 @@ import { initializeUpload } from './upload-handler.js';
 
 let currentLesson = null;
 
+// --- EXPORTOVANÉ FUNKCIE ---
+
 export function renderEditorMenu(container, lesson) {
     currentLesson = lesson;
     container.innerHTML = `
@@ -59,7 +61,6 @@ export async function showEditorContent(viewId, lesson) {
     const renderWrapper = (title, content) => `<h2 class="text-3xl font-extrabold text-slate-800 mb-6">${title}</h2><div class="bg-white p-6 rounded-2xl shadow-lg">${content}</div>`;
 
     switch(viewId) {
-        // ... (všetky 'case' zostávajú rovnaké, pre stručnosť vynechané) ...
         case 'details':
             contentHTML = renderWrapper('Detaily lekce', `
                 <div id="lesson-details-form" class="space-y-4">
@@ -202,35 +203,7 @@ export async function showEditorContent(viewId, lesson) {
     attachEditorEventListeners(viewId);
 }
 
-// --- INTERNÉ POMOCNÉ FUNKCIE (NIE SÚ EXPORTOVANÉ) ---
-
-async function createDocumentSelector(lessonId) {
-    if (!lessonId) {
-        return `<div class="mb-4 p-3 bg-slate-100 text-slate-600 rounded-lg text-sm">Uložte prosím detaily lekce, abyste mohli nahrávat a vybírat dokumenty.</div>`;
-    }
-    const documentsCollectionRef = collection(db, 'lessons', lessonId, 'documents');
-    try {
-        const querySnapshot = await getDocs(documentsCollectionRef);
-        if (querySnapshot.empty) {
-            return `<div class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg text-sm">Pro využití RAG prosím nahrajte nejprve nějaký dokument v sekci 'Dokumenty k lekci'.</div>`;
-        }
-        const options = querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return `<option value="${data.storagePath}">${data.fileName}</option>`;
-        }).join('');
-        return `
-            <div class="mb-4">
-                <label for="document-select" class="block font-medium text-slate-600 mb-1">Vyberte kontextový dokument (RAG):</label>
-                <select id="document-select" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500">
-                    ${options}
-                </select>
-            </div>`;
-    } catch (error) {
-        console.error("Chyba při načítání dokumentů pro selektor:", error);
-        showToast("Nepodařilo se načíst dokumenty pro RAG.", true);
-        return `<div class="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">Nepodařilo se načíst dokumenty.</div>`;
-    }
-}
+// --- INTERNÉ POMOCNÉ FUNKCIE ---
 
 function attachEditorEventListeners(viewId) {
     if (viewId === 'details') {
@@ -272,6 +245,34 @@ function attachEditorEventListeners(viewId) {
              const contentToSave = outputEl.innerHTML;
              handleSaveGeneratedContent(currentLesson, 'content', contentToSave);
         });
+    }
+}
+
+async function createDocumentSelector(lessonId) {
+    if (!lessonId) {
+        return `<div class="mb-4 p-3 bg-slate-100 text-slate-600 rounded-lg text-sm">Uložte prosím detaily lekce, abyste mohli nahrávat a vybírat dokumenty.</div>`;
+    }
+    const documentsCollectionRef = collection(db, 'lessons', lessonId, 'documents');
+    try {
+        const querySnapshot = await getDocs(documentsCollectionRef);
+        if (querySnapshot.empty) {
+            return `<div class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg text-sm">Pro využití RAG prosím nahrajte nejprve nějaký dokument v sekci 'Dokumenty k lekci'.</div>`;
+        }
+        const options = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return `<option value="${data.storagePath}">${data.fileName}</option>`;
+        }).join('');
+        return `
+            <div class="mb-4">
+                <label for="document-select" class="block font-medium text-slate-600 mb-1">Vyberte kontextový dokument (RAG):</label>
+                <select id="document-select" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500">
+                    ${options}
+                </select>
+            </div>`;
+    } catch (error) {
+        console.error("Chyba při načítání dokumentů pro selektor:", error);
+        showToast("Nepodařilo se načíst dokumenty pro RAG.", true);
+        return `<div class="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">Nepodařilo se načíst dokumenty.</div>`;
     }
 }
 
@@ -346,33 +347,31 @@ async function handleGeneration(viewId) {
         const filePath = documentSelect && documentSelect.options.length > 0 ? documentSelect.value : null;
 
         if (filePath) {
-            let finalPrompt = userPrompt;
+            let finalPrompt = `Na základě poskytnutého dokumentu vygeneruj obsah pro: ${userPrompt}`;
             let isJson = ['presentation', 'quiz', 'test', 'post'].includes(viewId);
-            finalPrompt = `Na základě poskytnutého dokumentu vygeneruj obsah pro: ${userPrompt}`;
-
-            // --- TOTO JE OPRAVENÉ VOLANIE ---
-            const ragResult = await callGenerateFromDocument({ filePaths: [filePath], prompt: finalPrompt });
-
-            if (ragResult.error) throw new Error(ragResult.error);
             
-            const resultText = ragResult.text; // Backend vráti objekt { text: "..." }
+            // --- TOTO JE OPRAVENÉ VOLANIE ---
+            const ragResult = await callGenerateFromDocument({ filePath: filePath, prompt: finalPrompt });
+
+            if (ragResult.error) {
+                throw new Error(ragResult.error);
+            }
+            
+            const resultText = ragResult.text;
             rawResultForSaving = resultText;
             
-            // Ak očakávame JSON, skúsime ho parsovať. Inak ho použijeme ako bežný text.
             if (isJson) {
                 try {
                     result = JSON.parse(resultText);
                 } catch (e) {
-                    // Ak parsovanie zlyhá, zobrazíme text, aby sme videli, čo AI vrátila
                     console.error("Failed to parse JSON from RAG response:", resultText);
-                    throw new Error("AI vrátila neplatný JSON formát.");
+                    throw new Error("AI vrátila neplatný JSON formát. Zobrazená surová odpoveď.");
                 }
             } else {
                  result = { text: resultText };
             }
 
         } else {
-            // Generovanie bez RAG (zostáva rovnaké)
             switch(viewId) {
                 case 'text':
                     const length = document.getElementById('length-select').value;
