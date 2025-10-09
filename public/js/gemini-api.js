@@ -1,49 +1,30 @@
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { functions } from './firebase-init.js';
 
-const generateTextFunction = httpsCallable(functions, 'generateText');
-const generateJsonFunction = httpsCallable(functions, 'generateJson');
-const generateFromDocumentFunction = httpsCallable(functions, 'generateFromDocument');
-// --- NOVÁ FUNKCIA ---
-const generateJsonFromDocumentFunction = httpsCallable(functions, 'generateJsonFromDocument');
+// A single, unified callable function, matching the refactored backend.
+const generateContentFunction = httpsCallable(functions, 'generateContent');
 
-export async function callGeminiApi(prompt, systemInstruction = null) {
+/**
+ * Calls the single 'generateContent' backend function.
+ *
+ * @param {object} data - The data payload.
+ * @param {string} data.contentType - The type of content to generate (e.g., 'presentation', 'text').
+ * @param {object} data.promptData - The data for building the prompt on the backend.
+ * @param {string} data.promptData.userPrompt - The raw user input.
+ * @param {string[]} [data.filePaths] - Optional array of file paths for RAG.
+ * @returns {Promise<object>} A promise that resolves with the generated content or an error object.
+ */
+export async function callGenerateContent(data) {
     try {
-        const result = await generateTextFunction({ prompt, systemInstruction });
+        const result = await generateContentFunction(data);
+        // The backend now returns the validated data directly.
         return result.data;
     } catch (error) {
-        console.error("Error calling 'generateText' function:", error);
-        return { error: `Backend Error: ${error.message}` };
-    }
-}
-
-export async function callGeminiForJson(prompt, schema) {
-    try {
-        const result = await generateJsonFunction({ prompt, schema });
-        return result.data;
-    } catch (error) {
-        console.error("Error calling 'generateJson' function:", error);
-        return { error: `Backend Error during JSON generation: ${error.message}` };
-    }
-}
-
-export async function callGenerateFromDocument(data) {
-    try {
-        const result = await generateFromDocumentFunction(data);
-        return result.data;
-    } catch (error) {
-        console.error("Error calling 'generateFromDocument' function:", error);
-        return { error: `Backend Error during document generation: ${error.message}` };
-    }
-}
-
-// --- NOVÁ FUNKCIA ---
-export async function callGenerateJsonFromDocument(data) {
-    try {
-        const result = await generateJsonFromDocumentFunction(data);
-        return result.data; // Pri JSONe vraciame priamo dáta, nie result.data.text
-    } catch (error) {
-        console.error("Error calling 'generateJsonFromDocument' function:", error);
-        return { error: `Backend Error during JSON document generation: ${error.message}` };
+        console.error("Error calling 'generateContent' function:", error);
+        // Pass a structured error back to the handler.
+        return {
+            error: `Backend Error: ${error.message}`,
+            details: error.details
+        };
     }
 }
