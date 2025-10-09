@@ -8,14 +8,13 @@ import cors from "cors";
 import * as GeminiAPI from "./gemini-api";
 
 // --- CENTRALIZOVANÁ KONFIGURACE REGIONU ---
-// Všechny funkce budou nasazeny do tohoto regionu, kde je Gemini API dostupné.
 const DEPLOY_REGION = "europe-west1";
 
 // --- CORS Configuration ---
 const allowedOrigins = [
     "https://ai-sensei-czu-pilot.web.app",
     "http://localhost:5000",
-    "http://1227.0.0.1:5000"
+    "http://127.0.0.1:5000"
 ];
 
 initializeApp();
@@ -76,6 +75,7 @@ export const generateJson = onCall(
     }
 );
 
+// --- TOTO JE OPRAVENÁ FUNKCIA ---
 export const generateFromDocument = onCall(
     { region: DEPLOY_REGION, cors: allowedOrigins },
     async (request) => {
@@ -83,28 +83,29 @@ export const generateFromDocument = onCall(
         console.log("Request Auth:", JSON.stringify(request.auth));
         console.log("Request Data:", JSON.stringify(request.data));
 
-        const { filePaths, prompt } = request.data;
+        // ZMENA: Očakávame 'filePath' (string) namiesto 'filePaths' (pole)
+        const { filePath, prompt } = request.data;
 
-        if (!Array.isArray(filePaths) || filePaths.length === 0 || !prompt) {
+        // ZMENA: Zjednodušená validácia
+        if (typeof filePath !== 'string' || !filePath || !prompt) {
             console.error("Invalid arguments received:", request.data);
-            throw new HttpsError("invalid-argument", "The function must be called with a 'filePaths' array and a 'prompt'.");
+            throw new HttpsError("invalid-argument", "The function must be called with a 'filePath' string and a 'prompt'.");
         }
 
-        // For debugging, we will only use the FIRST file.
-        const firstFilePath = filePaths[0];
-        console.log(`Attempting to process file: ${firstFilePath}`);
+        console.log(`Attempting to process file: ${filePath}`);
 
         try {
-            const text = await GeminiAPI.generateTextFromDocument(firstFilePath, prompt);
+            // ZMENA: Posielame 'filePath' priamo
+            const text = await GeminiAPI.generateTextFromDocument(filePath, prompt);
             console.log("Successfully generated text from document.");
             return { text };
         } catch (error) {
             console.error("generateFromDocument Cloud Function failed:", error);
-            // This will propagate a clear error to the frontend
             throw new HttpsError("internal", (error as Error).message);
         }
     }
 );
+
 
 export const getLessonKeyTakeaways = onCall(
     { region: DEPLOY_REGION, cors: allowedOrigins },
