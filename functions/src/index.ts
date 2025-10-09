@@ -6,10 +6,8 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import axios from "axios";
 import cors from "cors";
 import * as GeminiAPI from "./gemini-api";
-import { z } from "zod";
 import {
   generateContent,
-  generateContentSchema,
 } from "./prompts";
 
 const DEPLOY_REGION = "europe-west1";
@@ -61,7 +59,7 @@ export const getLessonAssistantResponse = onCall(
             const lessonData = lessonDoc.data();
 
             // Zostavíme kontext pre AI z textu lekcie
-            let context = `Kontext z textu lekce:\n${lessonData?.content || "Tato lekce nemá žádný text."}\n\n`;
+            const context = `Kontext z textu lekce:\n${lessonData?.content || "Tato lekce nemá žádný text."}\n\n`;
             
             // Tu by sme v budúcnosti mohli pridať aj obsah RAG súborov, ak sú k lekcii priradené
             

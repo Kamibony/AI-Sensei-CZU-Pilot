@@ -29,15 +29,15 @@ const model = vertex_ai.getGenerativeModel({
 });
 
 function getMimeTypeFromPath(filePath: string): string {
-    const extension = filePath.split('.').pop()?.toLowerCase();
+    const extension = filePath.split(".").pop()?.toLowerCase();
     switch (extension) {
-        case 'pdf': return 'application/pdf';
-        case 'png': return 'image/png';
-        case 'jpg': case 'jpeg': return 'image/jpeg';
-        case 'webp': return 'image/webp';
+        case "pdf": return "application/pdf";
+        case "png": return "image/png";
+        case "jpg": case "jpeg": return "image/jpeg";
+        case "webp": return "image/webp";
         // Pre .docx vrátime špeciálny typ, aby sme ho spracovali inak
-        case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-        default: return 'unsupported/type';
+        case "docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        default: return "unsupported/type";
     }
 }
 
@@ -88,13 +88,13 @@ async function processDocuments(filePaths: string[]): Promise<Part[]> {
         
         console.log(`[gemini-api:processDocuments] Processing file: ${filePath} with MIME type: ${mimeType}`);
 
-        if (mimeType === 'unsupported/type') {
-            throw new Error(`Nepodporovaný typ souboru: ${filePath.split('/').pop()}. Prosím, použijte PDF, DOCX, PNG, JPG, nebo WEBP.`);
+        if (mimeType === "unsupported/type") {
+            throw new Error(`Nepodporovaný typ souboru: ${filePath.split("/").pop()}. Prosím, použijte PDF, DOCX, PNG, JPG, nebo WEBP.`);
         }
         
         const [fileBuffer] = await file.download();
 
-        if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
             // Extrahujeme text z DOCX a pridáme ho do spoločného textového kontextu
             const textResult = await mammoth.extractRawText({ buffer: fileBuffer });
             extractedText += textResult.value + "\n\n";
@@ -137,7 +137,7 @@ export async function generateJsonFromDocuments(filePaths: string[], prompt: str
     const rawJsonText = await streamGeminiResponse(request);
     try {
         return JSON.parse(rawJsonText);
-    } catch (e) {
+    } catch (_e) {
         console.error("Failed to parse JSON:", rawJsonText);
         throw new Error("Model returned a malformed JSON string.");
     }
@@ -157,7 +157,7 @@ export async function generateJsonFromPrompt(prompt: string): Promise<unknown> {
     const rawJsonText = await streamGeminiResponse(request);
     try {
         return JSON.parse(rawJsonText);
-    } catch (e) {
+    } catch (_e) {
         console.error("Failed to parse JSON:", rawJsonText);
         throw new Error("Model returned a malformed JSON string.");
     }
