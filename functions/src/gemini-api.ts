@@ -6,6 +6,7 @@ import {
   HarmCategory,
   HarmBlockThreshold,
 } from "@google-cloud/vertexai";
+import { getStorage } from "firebase-admin/storage"; // <-- PRIDANÝ IMPORT
 
 // --- KONFIGURACE MODELU ---
 const GCLOUD_PROJECT = process.env.GCLOUD_PROJECT;
@@ -13,12 +14,9 @@ if (!GCLOUD_PROJECT) {
     throw new Error("GCLOUD_PROJECT environment variable not set.");
 }
 
-// 1. Správny región
 const LOCATION = "europe-west1"; 
-
 const vertex_ai = new VertexAI({ project: GCLOUD_PROJECT, location: LOCATION });
 
-// 2. Správny model
 const model = vertex_ai.getGenerativeModel({
     model: "gemini-2.5-pro", 
     safetySettings: [
@@ -29,7 +27,9 @@ const model = vertex_ai.getGenerativeModel({
     ],
 });
 
-// --- HLAVNÍ FUNKCE PRO KOMUNIKACI S GEMINI ---
+// --- Zvyšok súboru je rovnaký až po funkciu generateTextFromDocument ---
+// ... (streamGeminiResponse, generateTextFromPrompt, generateJsonFromPrompt zostávajú nezmenené) ...
+
 async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
     const functionName = requestBody.generationConfig?.responseMimeType === "application/json"
         ? "generateJson"
@@ -66,8 +66,6 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
     }
 }
 
-// --- EXPORTOVANÉ FUNKCIE ---
-
 export async function generateTextFromPrompt(prompt: string): Promise<string> {
   const request: GenerateContentRequest = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -75,7 +73,6 @@ export async function generateTextFromPrompt(prompt: string): Promise<string> {
   return await streamGeminiResponse(request);
 }
 
-// OPRAVA: Nahradili sme `Promise<any>` za `Promise<unknown>`
 export async function generateJsonFromPrompt(prompt: string): Promise<unknown> {
   const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
   const request: GenerateContentRequest = {
@@ -97,21 +94,39 @@ export async function generateJsonFromPrompt(prompt: string): Promise<unknown> {
   }
 }
 
+
+// --- TOTO JE KOMPLETNE PREPRACOVANÁ FUNKCIA ---
 export async function generateTextFromDocument(filePath: string, prompt: string): Promise<string> {
     const bucketName = `${GCLOUD_PROJECT}.appspot.com`;
-    const fileUri = `gs://${bucketName}/${filePath}`;
-    console.log(`[gemini-api:generateTextFromDocument] Generating from document. URI: ${fileUri}`);
+    const bucket = getStorage().bucket(bucketName);
+    const file = bucket.file(filePath);
+
+    console.log(`[gemini-api:generateTextFromDocument] Reading file from gs://${bucketName}/${filePath}`);
+
+    // Stiahneme súbor do pamäte (buffer)
+    const [fileBuffer] = await file.download();
+    
+    // Prevedieme ho na base64 reťazec, ktorému Gemini rozumie
+    const fileBase64 = fileBuffer.toString("base64");
 
     const request: GenerateContentRequest = {
         contents: [
             {
                 role: "user",
                 parts: [
-                    { fileData: { mimeType: "application/pdf", fileUri: fileUri } },
+                    // Namiesto fileUri použijeme inlineData
+                    { 
+                        inlineData: {
+                            mimeType: "application/pdf",
+                            data: fileBase64,
+                        } 
+                    },
                     { text: prompt },
                 ],
             },
         ],
     };
+
+    // Pošleme požiadavku s dátami súboru priamo v tele
     return await streamGeminiResponse(request);
 }
