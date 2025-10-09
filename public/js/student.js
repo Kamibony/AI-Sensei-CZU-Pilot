@@ -1,8 +1,13 @@
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
-import { db } from './firebase-init.js';
+import { db, auth } from './firebase-init.js';
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { functions } from './firebase-init.js';
 
 let lessonsData = [];
+const getLessonKeyTakeaways = httpsCallable(functions, 'getLessonKeyTakeaways');
+const getAiAssistantResponse = httpsCallable(functions, 'getAiAssistantResponse');
+const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor');
 
 async function fetchLessons() {
     try {
@@ -48,18 +53,12 @@ function renderStudentDashboard(container) {
     `;
 }
 
-
 export async function initStudentDashboard() {
-    const lessonsLoaded = await fetchLessons();
+    await fetchLessons();
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
-
-    if (!lessonsLoaded) {
-        roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat.</div>`;
-        return;
-    }
-
-    roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50"></div>`;
+    
+    roleContentWrapper.innerHTML = `<main id="student-content-area" class="flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50"></main>`;
     const studentContentArea = document.getElementById('student-content-area');
 
     renderStudentDashboard(studentContentArea);
@@ -85,186 +84,101 @@ function showStudentLesson(lessonData) {
                 <span class="text-5xl">${lessonData.icon}</span>
                 <h1 class="text-4xl font-extrabold text-slate-800 mt-2">${lessonData.title}</h1>
                 <p class="text-xl text-slate-500">${lessonData.subtitle}</p>
+                 <div class="w-full bg-gray-200 rounded-full h-2.5 mt-4">
+                    <div id="lesson-progress-bar" class="bg-green-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
             </header>
             
-            <div id="lesson-video-content" class="mb-8"></div>
-            <div id="lesson-text-content" class="prose max-w-none lg:prose-lg mb-8"></div>
-            <div id="lesson-presentation-content" class="mb-8"></div>
-            <div id="lesson-quiz-content" class="mb-8"></div>
-            <div id="lesson-test-content" class="mb-8"></div>
-            <div id="lesson-post-content" class="mb-8"></div>
+            <nav class="flex space-x-1 border-b mb-6">
+                <button data-tab="text" class="student-lesson-tab-btn px-4 py-2 font-semibold text-slate-500 border-b-2 border-transparent hover:text-green-600">Text lekce</button>
+                <button data-tab="takeaways" class="student-lesson-tab-btn px-4 py-2 font-semibold text-slate-500 border-b-2 border-transparent hover:text-green-600">Klíčové body</button>
+                <button data-tab="assistant" class="student-lesson-tab-btn px-4 py-2 font-semibold text-slate-500 border-b-2 border-transparent hover:text-green-600">AI Asistent</button>
+            </nav>
+            
+            <div id="student-lesson-content-container">
+                <div id="tab-text" class="student-lesson-tab-pane"></div>
+                <div id="tab-takeaways" class="student-lesson-tab-pane hidden"></div>
+                <div id="tab-assistant" class="student-lesson-tab-pane hidden"></div>
+            </div>
         </div>
     `;
 
-    // Render all available content types
-    if (lessonData.videoUrl) {
-        renderVideo(lessonData.videoUrl, document.getElementById('lesson-video-content'));
-    }
-    if (lessonData.content) {
-        document.getElementById('lesson-text-content').innerHTML = lessonData.content;
-    }
-    if (lessonData.presentationData) {
-        renderPresentation(lessonData.presentationData, document.getElementById('lesson-presentation-content'));
-    }
-    if (lessonData.quizData) {
-        renderQuiz(lessonData.quizData, document.getElementById('lesson-quiz-content'));
-    }
-    if (lessonData.testData) {
-        renderTest(lessonData.testData, document.getElementById('lesson-test-content'));
-    }
-    if (lessonData.postData) {
-        renderPodcast(lessonData.postData, document.getElementById('lesson-post-content'));
-    }
+    // Renderovanie obsahu
+    document.getElementById('tab-text').innerHTML = lessonData.content ? `<div class="prose max-w-none lg:prose-lg">${lessonData.content}</div>` : '<p>Žiadny obsah.</p>';
+    initializeKeyTakeaways(document.getElementById('tab-takeaways'), lessonData);
+    initializeAiAssistant(document.getElementById('tab-assistant'), lessonData);
+    
+    // Logika pre taby
+    const tabs = studentContentArea.querySelectorAll('.student-lesson-tab-btn');
+    const panes = studentContentArea.querySelectorAll('.student-lesson-tab-pane');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('border-green-600', 'text-green-600'));
+            tab.classList.add('border-green-600', 'text-green-600');
+            panes.forEach(p => p.classList.add('hidden'));
+            document.getElementById(`tab-${tab.dataset.tab}`).classList.remove('hidden');
+        });
+    });
+    tabs[0].click(); // Activate first tab
 
     document.getElementById('back-to-overview-btn').addEventListener('click', () => {
-        const studentContentArea = document.getElementById('student-content-area');
         renderStudentDashboard(studentContentArea);
     });
 }
 
-function renderVideo(videoUrl, container) {
-    const videoId = videoUrl.split('v=')[1]?.split('&')[0];
-    if (videoId) {
-        container.innerHTML = `
-            <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Video k lekci</h2>
-            <div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-4xl shadow-lg">
-                <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe>
-            </div>`;
-    }
-}
-
-function renderPresentation(presentationData, container) {
-    if (!presentationData || !presentationData.slides || presentationData.slides.length === 0) return;
-    let currentSlide = 0;
-    const render = () => {
-        const slide = presentationData.slides[currentSlide];
-        container.innerHTML = `
-            <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Prezentace</h2>
-            <div class="bg-white rounded-2xl shadow-lg overflow-hidden max-w-4xl mx-auto">
-                <div class="bg-slate-700 text-white p-4 text-center"><h3 class="text-2xl font-bold">${slide.title}</h3></div>
-                <div class="p-8"><ul class="list-disc list-inside space-y-4 text-xl">${slide.points.map(p => `<li>${p}</li>`).join('')}</ul></div>
-                <div class="p-4 bg-slate-100 border-t flex justify-between items-center">
-                    <button id="prev-slide-btn" class="px-4 py-2 bg-slate-300 rounded-lg font-semibold hover:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed">Předchozí</button>
-                    <span>${currentSlide + 1} / ${presentationData.slides.length}</span>
-                    <button id="next-slide-btn" class="px-4 py-2 bg-slate-300 rounded-lg font-semibold hover:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed">Další</button>
-                </div>
-            </div>`;
-
-        const prevBtn = document.getElementById('prev-slide-btn');
-        const nextBtn = document.getElementById('next-slide-btn');
-        prevBtn.disabled = currentSlide === 0;
-        nextBtn.disabled = currentSlide === presentationData.slides.length - 1;
-
-        prevBtn.addEventListener('click', () => { if (currentSlide > 0) { currentSlide--; render(); } });
-        nextBtn.addEventListener('click', () => { if (currentSlide < presentationData.slides.length - 1) { currentSlide++; render(); } });
-    };
-    render();
-}
-
-function renderQuiz(quizData, container) {
-    if (!quizData || !quizData.questions || quizData.questions.length === 0) return;
-    const questionsHtml = quizData.questions.map((q, index) => {
-        const optionsHtml = q.options.map((option, i) => `
-            <label class="block p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
-                <input type="radio" name="question-${index}" value="${i}" class="mr-3"><span>${option}</span>
-            </label>`).join('');
-        return `<div class="bg-white p-6 rounded-lg shadow-md mb-6" data-q-index="${index}">
-                    <p class="font-semibold text-lg mb-4">${index + 1}. ${q.question_text}</p>
-                    <div class="space-y-3">${optionsHtml}</div>
-                    <div class="mt-4 p-3 rounded-lg text-sm hidden result-feedback"></div>
-                </div>`;
-    }).join('');
+function initializeKeyTakeaways(container, lessonData) {
     container.innerHTML = `
-        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Interaktivní Kvíz</h2>
-        <form id="quiz-form">${questionsHtml}</form>
-        <div class="text-center mt-6"><button id="check-quiz-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-700">Vyhodnotit</button></div>
-        <div id="quiz-summary" class="hidden mt-8 text-center font-bold text-xl p-4 rounded-lg"></div>`;
-
-    document.getElementById('check-quiz-btn').addEventListener('click', () => {
-        let score = 0;
-        quizData.questions.forEach((q, index) => {
-            const qEl = container.querySelector(`[data-q-index="${index}"]`);
-            const feedbackEl = qEl.querySelector('.result-feedback');
-            const selected = qEl.querySelector(`input:checked`);
-            feedbackEl.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
-            if (selected) {
-                if (parseInt(selected.value) === q.correct_option_index) {
-                    score++;
-                    feedbackEl.textContent = 'Správně!';
-                    feedbackEl.classList.add('bg-green-100', 'text-green-700');
-                } else {
-                    feedbackEl.textContent = `Špatně. Správná odpověď: ${q.options[q.correct_option_index]}`;
-                    feedbackEl.classList.add('bg-red-100', 'text-red-700');
-                }
-            } else {
-                feedbackEl.textContent = 'Nevybrali jste odpověď.';
-                feedbackEl.classList.add('bg-yellow-100', 'text-yellow-800');
-            }
-        });
-        const summaryEl = document.getElementById('quiz-summary');
-        summaryEl.textContent = `Vaše skóre: ${score} z ${quizData.questions.length}`;
-        summaryEl.classList.remove('hidden');
-    });
-}
-
-function renderTest(testData, container) {
-    if (!testData || !testData.questions || testData.questions.length === 0) return;
-    const questionsHtml = testData.questions.map((q, index) => {
-        const optionsHtml = q.options.map((option, i) => `
-            <label class="block p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
-                <input type="radio" name="test-question-${index}" value="${i}" class="mr-3"><span>${option}</span>
-            </label>`).join('');
-        return `<div class="bg-white p-6 rounded-lg shadow-md mb-6" data-q-index="${index}">
-                    <p class="font-semibold text-lg mb-4">${index + 1}. ${q.question_text}</p>
-                    <div class="space-y-3">${optionsHtml}</div>
-                    <div class="mt-4 p-3 rounded-lg text-sm hidden result-feedback"></div>
-                </div>`;
-    }).join('');
-    container.innerHTML = `
-        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Test</h2>
-        <form id="test-form">${questionsHtml}</form>
-        <div class="text-center mt-6"><button id="check-test-btn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700">Vyhodnotit Test</button></div>
-        <div id="test-summary" class="hidden mt-8 text-center font-bold text-xl p-4 rounded-lg"></div>`;
-
-    document.getElementById('check-test-btn').addEventListener('click', () => {
-        let score = 0;
-        testData.questions.forEach((q, index) => {
-            const qEl = container.querySelector(`[data-q-index="${index}"]`);
-            const feedbackEl = qEl.querySelector('.result-feedback');
-            const selected = qEl.querySelector(`input:checked`);
-            feedbackEl.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
-            if (selected) {
-                if (parseInt(selected.value) === q.correct_option_index) {
-                    score++;
-                    feedbackEl.textContent = 'Správně!';
-                    feedbackEl.classList.add('bg-green-100', 'text-green-700');
-                } else {
-                    feedbackEl.textContent = `Špatně. Správná odpověď: ${q.options[q.correct_option_index]}`;
-                    feedbackEl.classList.add('bg-red-100', 'text-red-700');
-                }
-            } else {
-                feedbackEl.textContent = 'Nevybrali jste odpověď.';
-                 feedbackEl.classList.add('bg-yellow-100', 'text-yellow-800');
-            }
-        });
-        const summaryEl = document.getElementById('test-summary');
-        summaryEl.textContent = `Vaše skóre: ${score} z ${testData.questions.length}`;
-        summaryEl.classList.remove('hidden');
-    });
-}
-
-function renderPodcast(postData, container) {
-    if (!postData || !postData.episodes || postData.episodes.length === 0) return;
-    const episodesHtml = postData.episodes.map((episode, i) => `
-        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
-            <h4 class="font-bold text-xl text-slate-800">${i + 1}. ${episode.title}</h4>
-            <div class="mt-4 text-slate-600 prose">
-                ${episode.script.replace(/\n/g, '<br>')}
-            </div>
-        </div>
-    `).join('');
-    container.innerHTML = `
-        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Podcast & Materiály</h2>
-        ${episodesHtml}
+        <button id="generate-takeaways-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900">Vygenerovat klíčové body</button>
+        <div id="takeaways-result" class="mt-4"></div>
     `;
+    
+    container.querySelector('#generate-takeaways-btn').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        const resultContainer = container.querySelector('#takeaways-result');
+        btn.disabled = true;
+        btn.textContent = 'Generuji...';
+        try {
+            const result = await getLessonKeyTakeaways({ lessonText: lessonData.content });
+            resultContainer.innerHTML = `<div class="prose max-w-none">${result.data.takeaways.replace(/\n/g, '<br>')}</div>`;
+        } catch (error) {
+            resultContainer.innerHTML = `<p class="text-red-500">Chyba: ${error.message}</p>`;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Vygenerovat znovu';
+        }
+    });
+}
+
+function initializeAiAssistant(container, lessonData) {
+    container.innerHTML = `
+        <div id="ai-assistant-chat-history" class="h-96 overflow-y-auto border rounded-lg p-4 mb-4"></div>
+        <div class="flex gap-2">
+            <input id="ai-assistant-input" type="text" class="flex-grow border-slate-300 rounded-lg" placeholder="Zeptejte se na něco k lekci...">
+            <button id="ai-assistant-send-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold">Odeslat</button>
+        </div>
+    `;
+
+    const sendBtn = container.querySelector('#ai-assistant-send-btn');
+    const input = container.querySelector('#ai-assistant-input');
+    const historyContainer = container.querySelector('#ai-assistant-chat-history');
+    
+    const addMessage = (text, sender) => {
+        const div = document.createElement('div');
+        div.textContent = `${sender}: ${text}`;
+        historyContainer.appendChild(div);
+        historyContainer.scrollTop = historyContainer.scrollHeight;
+    };
+
+    sendBtn.addEventListener('click', async () => {
+        const userQuestion = input.value.trim();
+        if (!userQuestion) return;
+        addMessage(userQuestion, 'Vy');
+        input.value = '';
+        try {
+            const result = await getAiAssistantResponse({ lessonText: lessonData.content, userQuestion });
+            addMessage(result.data.answer, 'AI Asistent');
+        } catch (error) {
+            addMessage(`Chyba: ${error.message}`, 'Systém');
+        }
+    });
 }
