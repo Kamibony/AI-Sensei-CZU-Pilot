@@ -335,13 +335,27 @@ async function handleGeneration(viewId) {
         
         // --- TOTO JE KĽÚČOVÁ OPRAVA: Pridávame presné inštrukcie pre každý typ JSONu ---
         if (isJson) {
-            const jsonSchemas = {
-                presentation: `Vytvoř prezentaci na téma "${userPrompt}" s přesně ${document.getElementById('slide-count-input').value} slidy. Odpověď musí být JSON objekt s klíčem 'slides', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů).`,
-                quiz: `Vytvoř kvíz na základě zadání: "${userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number).`,
-                test: `Vytvoř test na téma "${userPrompt}" s ${document.getElementById('question-count-input').value} otázkami. Obtížnost: ${document.getElementById('difficulty-select').value}. Typy otázek: ${document.getElementById('type-select').value}. Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string, buď 'multiple_choice' alebo 'true_false'), 'options' (pole stringů) a 'correct_option_index' (number).`,
-                post: `Vytvoř sérii ${document.getElementById('episode-count-input').value} podcast epizod na téma "${userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string).`
-            };
-            finalPrompt = jsonSchemas[viewId] || userPrompt;
+            let jsonPrompt = userPrompt;
+            switch(viewId) {
+                case 'presentation':
+                    const slideCount = document.getElementById('slide-count-input').value;
+                    jsonPrompt = `Vytvoř prezentaci na téma "${userPrompt}" s přesně ${slideCount} slidy. Odpověď musí být JSON objekt s klíčem 'slides', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů).`;
+                    break;
+                case 'quiz':
+                    jsonPrompt = `Vytvoř kvíz na základě zadání: "${userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
+                    break;
+                case 'test':
+                    const questionCount = document.getElementById('question-count-input').value;
+                    const difficulty = document.getElementById('difficulty-select').value;
+                    const questionTypes = document.getElementById('type-select').value;
+                    jsonPrompt = `Vytvoř test na téma "${userPrompt}" s ${questionCount} otázkami. Obtížnost: ${difficulty}. Typy otázek: ${questionTypes}. Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string, buď 'multiple_choice' alebo 'true_false'), 'options' (pole stringů) a 'correct_option_index' (number).`;
+                    break;
+                case 'post':
+                     const episodeCount = document.getElementById('episode-count-input').value;
+                     jsonPrompt = `Vytvoř sérii ${episodeCount} podcast epizod na téma "${userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string).`;
+                     break;
+            }
+            finalPrompt = jsonPrompt;
         }
         
         if (filePaths.length > 0) {
