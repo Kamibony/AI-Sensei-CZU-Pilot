@@ -1,8 +1,13 @@
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
-import { db } from './firebase-init.js';
+import { db, auth } from './firebase-init.js';
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { functions } from './firebase-init.js';
 
 let lessonsData = [];
+const getLessonKeyTakeaways = httpsCallable(functions, 'getLessonKeyTakeaways');
+const getAiAssistantResponse = httpsCallable(functions, 'getAiAssistantResponse');
+const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor');
 
 async function fetchLessons() {
     try {
@@ -16,6 +21,43 @@ async function fetchLessons() {
         return false;
     }
 }
+
+function setupStudentNav() {
+    const nav = document.getElementById('main-nav');
+    const user = auth.currentUser;
+    if (!nav || !user) return;
+    
+    // Získame token pre Telegram z Firestore
+    getDoc(doc(db, "students", user.uid)).then(studentDoc => {
+        if (studentDoc.exists()) {
+            const studentData = studentDoc.data();
+            const token = studentData.telegramConnectionToken;
+            const botUsername = 'ai_sensei_czu_bot'; // Toto by malo byť v konfigurácii
+            
+            let telegramHtml = '';
+            if (token) {
+                 const connectionLink = `https://t.me/${botUsername}?start=${token}`;
+                 telegramHtml = `
+                    <li>
+                        <a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Propojit s Telegramem">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-send"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </a>
+                    </li>
+                 `;
+            }
+
+            nav.innerHTML = `
+                <li>
+                    <button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    </button>
+                </li>
+                ${telegramHtml}
+            `;
+        }
+    });
+}
+
 
 function renderStudentDashboard(container) {
     let lessonsContent;
@@ -57,6 +99,8 @@ export async function initStudentDashboard() {
         roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat.</div>`;
         return;
     }
+    
+    setupStudentNav();
 
     roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50 h-screen"></div>`;
     const studentContentArea = document.getElementById('student-content-area');
@@ -78,7 +122,6 @@ export async function initStudentDashboard() {
 function showStudentLesson(lessonData) {
     const studentContentArea = document.getElementById('student-content-area');
     
-    // Vytvoríme zoznam dostupných materiálov pre menu
     const menuItems = [];
     if (lessonData.content) menuItems.push({ id: 'text', label: 'Text lekce', icon: '✍️' });
     if (lessonData.presentationData) menuItems.push({ id: 'presentation', label: 'Prezentace', icon: '🖼️' });
@@ -93,7 +136,6 @@ function showStudentLesson(lessonData) {
         </a>
     `).join('');
 
-    // Vykreslíme novú štruktúru s menu vľavo a obsahom vpravo
     studentContentArea.innerHTML = `
         <div>
             <button id="back-to-overview-btn" class="mb-6 text-green-700 font-semibold hover:underline">&larr; Zpět na přehled</button>
@@ -121,7 +163,6 @@ function showStudentLesson(lessonData) {
 
     const contentDisplay = document.getElementById('lesson-content-display');
 
-    // Pridáme event listenery na položky menu
     studentContentArea.querySelectorAll('.lesson-menu-item').forEach(item => {
         item.addEventListener('click', e => {
             e.preventDefault();
@@ -133,7 +174,6 @@ function showStudentLesson(lessonData) {
         });
     });
 
-    // Automaticky zobrazíme prvú dostupnú položku z menu
     if (menuItems.length > 0) {
         studentContentArea.querySelector('.lesson-menu-item').click();
     } else {
@@ -141,7 +181,6 @@ function showStudentLesson(lessonData) {
     }
 }
 
-// Nová funkcia na zobrazenie konkrétneho obsahu
 function renderLessonContent(viewId, lessonData, container) {
     switch(viewId) {
         case 'text':
@@ -175,6 +214,8 @@ function renderVideo(videoUrl, container) {
             <div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-4xl shadow-lg">
                 <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe>
             </div>`;
+    } else {
+        container.innerHTML = `<p class="text-red-500">Neplatná URL adresa videa.</p>`;
     }
 }
 
