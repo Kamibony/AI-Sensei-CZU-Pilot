@@ -3,14 +3,11 @@ import { onCall, HttpsError, onRequest } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import axios from "axios";
-import cors from "cors";
 import * as GeminiAPI from "./gemini-api";
+import { PromptData } from "./prompts";
 
-// --- CENTRALIZOVANÁ KONFIGURACE REGIONU ---
+// --- CONFIGURATION ---
 const DEPLOY_REGION = "europe-west1";
-
-// --- CORS Configuration ---
 const allowedOrigins = [
     "https://ai-sensei-czu-pilot.web.app",
     "http://localhost:5000",
@@ -20,7 +17,35 @@ const allowedOrigins = [
 initializeApp();
 const db = getFirestore();
 
-// --- Auth/User Functions ---
+// --- REFACTORED AI CONTENT GENERATION FUNCTION ---
+export const generateContent = onCall(
+    { region: DEPLOY_REGION, cors: allowedOrigins },
+    async (request) => {
+        const { contentType, promptData, filePaths } = request.data;
+
+        if (!contentType || !promptData || !promptData.userPrompt) {
+            throw new HttpsError("invalid-argument", "The 'contentType' and 'promptData.userPrompt' fields are required.");
+        }
+
+        try {
+            const result = await GeminiAPI.generateContent(contentType, promptData as PromptData, filePaths as string[]);
+            return result;
+        } catch (error) {
+            console.error(`generateContent Cloud Function failed for contentType: ${contentType}`, error);
+            if (error instanceof GeminiAPI.AIVisualizationError) {
+                 throw new HttpsError("internal", "AI_VALIDATION_ERROR: " + error.message, error.issues);
+            }
+            if (error instanceof Error) {
+                throw new HttpsError("internal", error.message);
+            }
+            throw new HttpsError("internal", "An unknown error occurred during content generation.");
+        }
+    }
+);
+
+
+// --- EXISTING AUTH/USER/TELEGRAM FUNCTIONS ---
+
 export const onStudentCreate = onDocumentCreated(
     { document: "students/{studentId}", region: DEPLOY_REGION },
     async (event) => {
@@ -40,86 +65,11 @@ export const onStudentCreate = onDocumentCreated(
     }
 );
 
-// --- Refactored AI Functions ---
-export const generateText = onCall(
-    { region: DEPLOY_REGION, cors: allowedOrigins },
-    async (request) => {
-        const prompt = request.data.prompt;
-        if (!prompt) {
-            throw new HttpsError("invalid-argument", "The 'prompt' field is required.");
-        }
-        try {
-            const text = await GeminiAPI.generateTextFromPrompt(prompt);
-            return { text };
-        } catch (error) {
-            console.error("generateText Cloud Function failed:", error);
-            throw new HttpsError("internal", (error as Error).message);
-        }
-    }
-);
+// --- NOTE: The old AI functions (generateText, generateJson, etc.) are now removed. ---
+// --- All other functions (Telegram, etc.) remain untouched. ---
 
-export const generateJson = onCall(
-    { region: DEPLOY_REGION, cors: allowedOrigins },
-    async (request) => {
-        const prompt = request.data.prompt;
-        if (!prompt) {
-            throw new HttpsError("invalid-argument", "The 'prompt' field is required.");
-        }
-        try {
-            const json = await GeminiAPI.generateJsonFromPrompt(prompt);
-            return json;
-        } catch (error) {
-            console.error("generateJson Cloud Function failed:", error);
-            throw new HttpsError("internal", (error as Error).message);
-        }
-    }
-);
-
-export const generateFromDocument = onCall(
-    { region: DEPLOY_REGION, cors: allowedOrigins },
-    async (request) => {
-        console.log("--- generateFromDocument invoked ---");
-        console.log("Request Data:", JSON.stringify(request.data));
-
-        const { filePaths, prompt } = request.data;
-
-        if (!Array.isArray(filePaths) || filePaths.length === 0 || !prompt) {
-            console.error("Invalid arguments received:", request.data);
-            throw new HttpsError("invalid-argument", "The function must be called with a 'filePaths' array and a 'prompt'.");
-        }
-
-        try {
-            const text = await GeminiAPI.generateTextFromDocuments(filePaths, prompt);
-            console.log("Successfully generated text from document(s).");
-            return { text };
-        } catch (error) {
-            console.error("generateFromDocument Cloud Function failed:", error);
-            throw new HttpsError("internal", (error as Error).message);
-        }
-    }
-);
-
-// --- NOVÁ CLOUD FUNKCIA PRE JSON Z DOKUMENTOV ---
-export const generateJsonFromDocument = onCall(
-    { region: DEPLOY_REGION, cors: allowedOrigins },
-    async (request) => {
-        console.log("--- generateJsonFromDocument invoked ---");
-        console.log("Request Data:", JSON.stringify(request.data));
-
-        const { filePaths, prompt } = request.data;
-        if (!Array.isArray(filePaths) || filePaths.length === 0 || !prompt) {
-            throw new HttpsError("invalid-argument", "The function must be called with a 'filePaths' array and a 'prompt'.");
-        }
-        try {
-            const json = await GeminiAPI.generateJsonFromDocuments(filePaths, prompt);
-            return json;
-        } catch (error) {
-            console.error("generateJsonFromDocument Cloud Function failed:", error);
-            throw new HttpsError("internal", (error as Error).message);
-        }
-    }
-);
-
+import axios from "axios";
+import cors from "cors";
 
 export const getLessonKeyTakeaways = onCall(
     { region: DEPLOY_REGION, cors: allowedOrigins },
@@ -130,8 +80,10 @@ export const getLessonKeyTakeaways = onCall(
         }
         const prompt = `Based on the following lesson text, please identify and summarize the top 3 key takeaways. Present them as a numbered list.\n\n---\n\n${lessonText}`;
         try {
-            const takeaways = await GeminiAPI.generateTextFromPrompt(prompt);
-            return { takeaways };
+            // This still uses the old text-only generation, which can be refactored to use the new `generateContent`
+            const result = await GeminiAPI.generateContent('text', { userPrompt: prompt });
+            // The result from generateContent is an object { text: '...' }, so we extract it
+            return { takeaways: (result as { text: string }).text };
         } catch (error) {
             console.error("getLessonKeyTakeaways Cloud Function failed:", error);
             throw new HttpsError("internal", (error as Error).message);
@@ -148,8 +100,9 @@ export const getAiAssistantResponse = onCall(
         }
         const prompt = `You are an AI assistant for a student. Your task is to answer the student's question based *only* on the provided lesson text. Do not use any external knowledge. If the answer is not in the text, say that you cannot find the answer in the provided materials.\n\nLesson Text:\n---\n${lessonText}\n---\n\nStudent's Question: "${userQuestion}"`;
         try {
-            const answer = await GeminiAPI.generateTextFromPrompt(prompt);
-            return { answer };
+            // This also uses the new `generateContent`
+            const result = await GeminiAPI.generateContent('text', { userPrompt: prompt });
+            return { answer: (result as { text: string }).text };
         } catch (error) {
             console.error("getAiAssistantResponse Cloud Function failed:", error);
             throw new HttpsError("internal", (error as Error).message);
