@@ -11,10 +11,13 @@ const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor'
 async function fetchLessons() {
     try {
         const lessonsCollection = collection(db, 'lessons');
-        const querySnapshot = await getDocs(lessonsCollection);
+        // Pridanie query na načítanie iba aktívnych lekcií pre študenta
+        const q = query(lessonsCollection, where("status", "==", "active"));
+        const querySnapshot = await getDocs(q);
         lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         return true;
-    } catch (error) {
+    } catch (error)
+    {
         console.error("Error fetching lessons:", error);
         showToast("Nepodařilo se načíst data lekcí.", true);
         return false;
@@ -30,11 +33,12 @@ async function setupStudentNav() {
     nav.innerHTML = `
         <li>
             <button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium">
-                <svg xmlns="http://www.w.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             </button>
         </li>
     `;
 }
+
 
 function renderStudentDashboard(container) {
     let lessonsContent;
@@ -84,17 +88,17 @@ export async function initStudentDashboard() {
 
     renderStudentDashboard(studentContentArea);
 
-    // --- SPRÁVNE PRIDANÝ BLOK KÓDU PRE TELEGRAM BANNER ---
+    // --- FINÁLNY KÓD PRE TELEGRAM BANNER ---
     const user = auth.currentUser;
     if (user) {
         try {
-            // Správne sa odkazujeme na kolekciu 'users', nie 'students'
-            const userDoc = await getDoc(doc(db, "users", user.uid));
+            // Používame kolekciu 'students', ako je to v tvojej verzii
+            const userDoc = await getDoc(doc(db, "students", user.uid));
             if (userDoc.exists()) {
                 const userData = userDoc.data();
-                const token = userData.telegramToken;
+                // Názov tokenu je 'telegramConnectionToken' podľa tvojej verzie
+                const token = userData.telegramConnectionToken;
                 
-                // Banner sa zobrazí len ak token existuje a chatId ešte nie je priradený
                 if (token && !userData.telegramChatId) {
                     const connectSection = document.getElementById('telegram-connect-section');
                     if (connectSection) {
@@ -103,7 +107,7 @@ export async function initStudentDashboard() {
                         connectSection.innerHTML = `
                             <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-lg mb-6" role="alert">
                                 <p class="font-bold">Propojte svůj účet s Telegramem!</p>
-                                <a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="font-semibold underline">Pripojiť sa k AI Sensei cez Telegram</a>
+                                <a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="font-semibold underline">Klikněte zde pro připojení k AI Sensei přes Telegram</a>
                             </div>
                         `;
                     }
@@ -114,7 +118,7 @@ export async function initStudentDashboard() {
             showToast("Nepodařilo se zkontrolovat stav propojení s Telegramem.", true);
         }
     }
-    // --- KONIEC PRIDANÉHO BLOKU ---
+    // --- KONIEC KÓDU PRE BANNER ---
 
     studentContentArea.addEventListener('click', (e) => {
         const lessonCard = e.target.closest('.student-lesson-card');
@@ -138,7 +142,7 @@ function showStudentLesson(lessonData) {
     if (lessonData.quizData) menuItems.push({ id: 'quiz', label: 'Kvíz', icon: '❓' });
     if (lessonData.testData) menuItems.push({ id: 'test', label: 'Test', icon: '✅' });
     if (lessonData.postData) menuItems.push({ id: 'post', label: 'Podcast & Materiály', icon: '🎙️' });
-    menuItems.push({ id: 'telegram', label: 'AI Asistent', icon: '🤖' });
+    menuItems.push({ id: 'assistant', label: 'AI Asistent', icon: '🤖' });
 
     const menuHtml = menuItems.map(item => `
         <a href="#" data-view="${item.id}" class="lesson-menu-item flex items-center p-3 text-sm font-medium rounded-md hover:bg-slate-100 transition-colors">
@@ -168,10 +172,8 @@ function showStudentLesson(lessonData) {
     `;
 
     document.getElementById('back-to-overview-btn').addEventListener('click', () => {
-        // Oprava: renderStudentDashboard potrebuje argument, kam sa má vykresliť
-        renderStudentDashboard(studentContentArea);
-        // Po navrate na dashboard znova skontrolujeme zobrazenie Telegram linku
-        initStudentDashboard(); 
+        // Oprava: Po návrate na dashboard ho reinicializujeme, aby sa znova načítal stav Telegramu
+        initStudentDashboard();
     });
 
     const contentDisplay = document.getElementById('lesson-content-display');
@@ -214,7 +216,7 @@ function renderLessonContent(viewId, lessonData, container) {
         case 'post':
             renderPodcast(lessonData.postData, container);
             break;
-        case 'telegram':
+        case 'assistant':
             renderAIAssistantChat(lessonData, container);
             break;
         default:
@@ -308,7 +310,10 @@ function renderVideo(videoUrl, container) {
 }
 
 function renderPresentation(presentationData, container) {
-    if (!presentationData || !Array.isArray(presentationData.slides) || presentationData.slides.length === 0) return;
+    if (!presentationData || !Array.isArray(presentationData.slides) || presentationData.slides.length === 0) {
+        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pre túto lekciu nie je k dispozícii žiadna prezentácia.</p>`;
+        return;
+    }
     let currentSlide = 0;
     const render = () => {
         const slide = presentationData.slides[currentSlide];
