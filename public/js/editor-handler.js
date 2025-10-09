@@ -2,7 +2,8 @@ import { doc, addDoc, updateDoc, collection, serverTimestamp } from "https://www
 import { ref, listAll } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { db, storage } from './firebase-init.js';
 import { showToast } from './utils.js';
-import { callGeminiApi, callGeminiForJson, callGenerateFromDocument, callGenerateJsonFromDocument } from './gemini-api.js';
+// Import the single, refactored API call function
+import { callGenerateContent } from './gemini-api.js';
 
 let currentLesson = null;
 const MAIN_COURSE_ID = "main-course"; 
@@ -322,7 +323,7 @@ async function handleGeneration(viewId) {
     const outputEl = document.getElementById('generation-output');
     const promptInput = document.getElementById('prompt-input');
     const generateBtn = document.getElementById('generate-btn');
-    let userPrompt = promptInput ? promptInput.value.trim() : 'general prompt for ' + viewId;
+    const userPrompt = promptInput ? promptInput.value.trim() : '';
 
     if (promptInput && !userPrompt) {
         outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Prosím, zadejte text do promptu.</div>`;
@@ -335,73 +336,68 @@ async function handleGeneration(viewId) {
     if (promptInput) promptInput.disabled = true;
     outputEl.innerHTML = `<div class="p-8 text-center pulse-loader text-slate-500">🤖 AI Sensei přemýšlí a tvoří obsah...</div>`;
 
-    let result;
     let rawResultForSaving = null;
 
     try {
+        // 1. Collect all necessary data from the UI
         const checkedBoxes = document.querySelectorAll('.document-checkbox:checked');
         const filePaths = Array.from(checkedBoxes).map(cb => cb.value);
-        const isJson = ['presentation', 'quiz', 'test', 'post'].includes(viewId);
-        let finalPrompt = userPrompt;
-        
-        if (isJson) {
-            let jsonPrompt = userPrompt;
-            switch(viewId) {
-                case 'presentation':
-                    const slideCount = document.getElementById('slide-count-input').value;
-                    jsonPrompt = `Vytvoř prezentaci na téma "${userPrompt}" s přesně ${slideCount} slidy. Odpověď musí být JSON objekt s klíčem 'slides', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů).`;
-                    break;
-                case 'quiz':
-                    jsonPrompt = `Vytvoř kvíz na základě zadání: "${userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
-                    break;
-                case 'test':
-                    const questionCount = document.getElementById('question-count-input').value;
-                    const difficulty = document.getElementById('difficulty-select').value;
-                    const questionTypes = document.getElementById('type-select').value;
-                    jsonPrompt = `Vytvoř test na téma "${userPrompt}" s ${questionCount} otázkami. Obtížnost: ${difficulty}. Typy otázek: ${questionTypes}. Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string, buď 'multiple_choice' alebo 'true_false'), 'options' (pole stringů) a 'correct_option_index' (number).`;
-                    break;
-                case 'post':
-                     const episodeCount = document.getElementById('episode-count-input').value;
-                     jsonPrompt = `Vytvoř sérii ${episodeCount} podcast epizod na téma "${userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string).`;
-                     break;
-            }
-            finalPrompt = jsonPrompt;
-        }
-        
-        if (filePaths.length > 0) {
-            if (isJson) {
-                result = await callGenerateJsonFromDocument({ filePaths, prompt: finalPrompt });
-            } else {
-                result = await callGenerateFromDocument({ filePaths, prompt: finalPrompt });
-            }
-        } else {
-            if (isJson) {
-                result = await callGeminiForJson(finalPrompt);
-            } else {
-                result = await callGeminiApi(finalPrompt);
-            }
-        }
 
-        if (result.error) throw new Error(result.error);
+        // Create a structured promptData object
+        const promptData = {
+            userPrompt,
+            slideCount: document.getElementById('slide-count-input')?.value,
+            questionCount: document.getElementById('question-count-input')?.value,
+            difficulty: document.getElementById('difficulty-select')?.value,
+            questionTypes: document.getElementById('type-select')?.value,
+            episodeCount: document.getElementById('episode-count-input')?.value,
+            length: document.getElementById('length-select')?.value,
+        };
+
+        // 2. Call the single, unified backend function
+        const result = await callGenerateContent({
+            contentType: viewId,
+            promptData,
+            filePaths,
+        });
+
+        // 3. Handle the response (error or success)
+        if (result.error) {
+            throw new Error(result.error);
+        }
         
-        rawResultForSaving = isJson ? result : result.text;
+        rawResultForSaving = result; // The result is now the clean, validated JSON or text object
         
         renderGeneratedContent(viewId, result, outputEl);
 
+        // 4. Set up the save button with the validated data
         const saveBtn = document.getElementById('save-content-btn');
         if (saveBtn) {
             saveBtn.classList.remove('hidden');
+            // Clone and replace to remove old event listeners
             const newSaveBtn = saveBtn.cloneNode(true);
             saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
             newSaveBtn.addEventListener('click', () => {
                 const fieldMapping = { 'text': 'content', 'presentation': 'presentationData', 'quiz': 'quizData', 'test': 'testData', 'post': 'postData' };
-                const contentToSave = (viewId === 'text' && !isJson) ? outputEl.innerHTML : rawResultForSaving;
+                const contentToSave = (viewId === 'text') ? result.text : rawResultForSaving;
                 handleSaveGeneratedContent(currentLesson, fieldMapping[viewId], contentToSave);
             });
         }
 
     } catch (e) {
-        outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě: ${e.message}</div>`;
+        let errorMessage = `Došlo k chybě: ${e.message}`;
+        // Check for the specific validation error from the backend
+        if (e.message && e.message.includes("AI_VALIDATION_ERROR")) {
+            errorMessage = `
+                <p class="font-semibold">Chyba: Odpověď od AI neodpovídá požadované struktuře.</p>
+                <p class="text-sm mt-2">Model vrátil data, která nebylo možné správně zpracovat. Zkuste prosím upravit prompt nebo to zkuste později.</p>
+                <details class="mt-2 text-xs">
+                    <summary>Technické detaily</summary>
+                    <pre class="mt-1 p-2 bg-slate-100 rounded text-slate-600 whitespace-pre-wrap">${e.message}</pre>
+                </details>
+            `;
+        }
+        outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">${errorMessage}</div>`;
     } finally {
         generateBtn.innerHTML = originalText;
         generateBtn.disabled = false;
@@ -420,18 +416,18 @@ function renderGeneratedContent(viewId, result, outputEl) {
     try {
         switch(viewId) {
             case 'text':
-                if (!result.text) throw new Error("Odpověď neobsahuje vlastnost 'text'.");
+                // The backend now returns { text: "..." } for text content
+                if (typeof result.text !== 'string') throw new Error("Odpověď neobsahuje platný text.");
                 outputEl.innerHTML = `<div class="prose max-w-none">${result.text.replace(/\n/g, '<br>')}</div>`;
                 break;
             case 'presentation':
-                if (!Array.isArray(result.slides)) throw new Error("Odpověď neobsahuje pole 'slides'.");
-                const slidesHtml = result.slides.map((slide, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${(slide.points || []).map(p => `<li>${p}</li>`).join('')}</ul></div>`).join('');
+                // Data is now guaranteed to be valid by the backend's Zod schema
+                const slidesHtml = result.slides.map((slide, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${slide.points.map(p => `<li>${p}</li>`).join('')}</ul></div>`).join('');
                 outputEl.innerHTML = slidesHtml;
                 break;
             case 'quiz':
-                if (!Array.isArray(result.questions)) throw new Error("Odpověď neobsahuje pole 'questions'.");
                 const questionsHtml = result.questions.map((q, i) => {
-                    const optionsHtml = (q.options || []).map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
+                    const optionsHtml = q.options.map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
                     return `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
                                 <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text}</h4>
                                 <div class="mt-2 space-y-2">${optionsHtml}</div>
@@ -440,9 +436,8 @@ function renderGeneratedContent(viewId, result, outputEl) {
                 outputEl.innerHTML = questionsHtml;
                 break;
             case 'test':
-                if (!Array.isArray(result.questions)) throw new Error("Odpověď neobsahuje pole 'questions'.");
                 const testQuestionsHtml = result.questions.map((q, i) => {
-                    const optionsHtml = (q.options || []).map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
+                    const optionsHtml = q.options.map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
                     return `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
                                 <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text} (${q.type === 'true_false' ? 'Pravda/Nepravda' : 'Výběr z možností'})</h4>
                                 <div class="mt-2 space-y-2">${optionsHtml}</div>
@@ -451,12 +446,16 @@ function renderGeneratedContent(viewId, result, outputEl) {
                 outputEl.innerHTML = testQuestionsHtml;
                 break;
             case 'post':
-                 if (!Array.isArray(result.episodes)) throw new Error("Odpověď neobsahuje pole 'episodes'.");
                 const episodesHtml = result.episodes.map((episode, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Epizoda ${i+1}: ${episode.title}</h4><p class="mt-2 text-sm text-slate-600">${episode.script.replace(/\n/g, '<br>')}</p></div>`).join('');
                 outputEl.innerHTML = episodesHtml;
                 break;
             default:
-                 outputEl.innerHTML = `<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Neznámý typ obsahu pro zobrazení.</div>`;
+                 // This case handles the mock response from the emulator for JSON
+                 if (result.mock) {
+                    outputEl.innerHTML = `<div class="p-4 bg-blue-100 text-blue-700 rounded-lg"><strong>Mock Response from Emulator:</strong><pre>${JSON.stringify(result, null, 2)}</pre></div>`;
+                 } else {
+                    outputEl.innerHTML = `<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Neznámý typ obsahu pro zobrazení.</div>`;
+                 }
         }
     } catch(e) {
         console.error("Error rendering content:", e);
@@ -480,17 +479,13 @@ async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) 
     }
 
     try {
-        await updateDoc(lessonRef, { [fieldToUpdate]: contentToSave });
+        // For text content, we save the raw HTML from the editor. For JSON, we save the raw JSON object.
+        const dataToSave = (fieldToUpdate === 'content') ? contentToSave.replace(/<br>/g, '\n') : contentToSave;
+        await updateDoc(lessonRef, { [fieldToUpdate]: dataToSave });
+
         showToast("Obsah byl úspěšně uložen do lekce.");
-        if (lesson) {
-            lesson[fieldToUpdate] = contentToSave; 
-        }
-        if (currentLesson && currentLesson.id === lesson.id) {
-            currentLesson[fieldToUpdate] = contentToSave;
-        }
-        if (saveBtn) {
-            saveBtn.classList.add('hidden');
-        }
+        if (lesson) lesson[fieldToUpdate] = dataToSave;
+        if (saveBtn) saveBtn.classList.add('hidden');
     } catch (error) {
         console.error(`Chyba při ukládání obsahu (${fieldToUpdate}) do lekce:`, error);
         showToast("Při ukládání obsahu došlo k chybě.", true);
