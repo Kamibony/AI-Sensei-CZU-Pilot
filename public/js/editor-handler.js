@@ -7,7 +7,6 @@ import { callGeminiApi, callGeminiForJson, callGenerateFromDocument, callGenerat
 let currentLesson = null;
 const MAIN_COURSE_ID = "main-course"; 
 
-// UPRAVENÉ: Zobrazí zaškrtávacie políčka
 async function createDocumentSelector() {
     const documentsRef = ref(storage, `courses/${MAIN_COURSE_ID}/media`);
     try {
@@ -334,7 +333,6 @@ async function handleGeneration(viewId) {
 
         let finalPrompt = userPrompt;
         
-        // Prispôsobenie promptu pre špecifické JSON štruktúry
         if (isJson) {
             switch(viewId) {
                 case 'presentation':
@@ -355,14 +353,12 @@ async function handleGeneration(viewId) {
         }
         
         if (filePaths.length > 0) {
-            // Generovanie s RAG
             if (isJson) {
                 result = await callGenerateJsonFromDocument({ filePaths, prompt: finalPrompt });
             } else {
                 result = await callGenerateFromDocument({ filePaths, prompt: finalPrompt });
             }
         } else {
-            // Generovanie bez RAG
             if (isJson) {
                 result = await callGeminiForJson(finalPrompt);
             } else {
@@ -372,7 +368,6 @@ async function handleGeneration(viewId) {
 
         if (result.error) throw new Error(result.error);
         
-        // Rôzne spôsoby ukladania pre text vs JSON
         rawResultForSaving = isJson ? result : result.text;
         
         renderGeneratedContent(viewId, result, outputEl);
@@ -399,44 +394,59 @@ async function handleGeneration(viewId) {
 }
 
 function renderGeneratedContent(viewId, result, outputEl) {
-    // V prípade chyby pri parsovaní JSONu môže byť 'result' nedefinovaný
+    console.log("AI Response for view:", viewId, result); // Pridáme log pre ladenie
+
     if (!result) {
-        outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě: AI vrátila neočakávanú odpoveď.</div>`;
+        outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě: AI vrátila prázdnou odpověď.</div>`;
         return;
     }
 
-    switch(viewId) {
-        case 'text':
-            outputEl.innerHTML = `<div class="prose max-w-none">${result.text.replace(/\n/g, '<br>')}</div>`;
-            break;
-        case 'presentation':
-            const slidesHtml = result.slides.map((slide, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${slide.points.map(p => `<li>${p}</li>`).join('')}</ul></div>`).join('');
-            outputEl.innerHTML = slidesHtml;
-            break;
-        case 'quiz':
-            const questionsHtml = result.questions.map((q, i) => {
-                const optionsHtml = q.options.map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
-                return `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
-                            <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text}</h4>
-                            <div class="mt-2 space-y-2">${optionsHtml}</div>
-                        </div>`;
-            }).join('');
-            outputEl.innerHTML = questionsHtml;
-            break;
-        case 'test':
-            const testQuestionsHtml = result.questions.map((q, i) => {
-                const optionsHtml = q.options.map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
-                return `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
-                            <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text} (${q.type === 'true_false' ? 'Pravda/Nepravda' : 'Výběr z možností'})</h4>
-                            <div class="mt-2 space-y-2">${optionsHtml}</div>
-                        </div>`;
-            }).join('');
-            outputEl.innerHTML = testQuestionsHtml;
-            break;
-        case 'post':
-            const episodesHtml = result.episodes.map((episode, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Epizoda ${i+1}: ${episode.title}</h4><p class="mt-2 text-sm text-slate-600">${episode.script.replace(/\n/g, '<br>')}</p></div>`).join('');
-            outputEl.innerHTML = episodesHtml;
-            break;
+    try {
+        switch(viewId) {
+            case 'text':
+                if (!result.text) throw new Error("Odpověď neobsahuje vlastnost 'text'.");
+                outputEl.innerHTML = `<div class="prose max-w-none">${result.text.replace(/\n/g, '<br>')}</div>`;
+                break;
+            case 'presentation':
+                if (!Array.isArray(result.slides)) throw new Error("Odpověď neobsahuje pole 'slides'.");
+                const slidesHtml = result.slides.map((slide, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${slide.points.map(p => `<li>${p}</li>`).join('')}</ul></div>`).join('');
+                outputEl.innerHTML = slidesHtml;
+                break;
+            case 'quiz':
+                if (!Array.isArray(result.questions)) throw new Error("Odpověď neobsahuje pole 'questions'.");
+                const questionsHtml = result.questions.map((q, i) => {
+                    const optionsHtml = q.options.map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
+                    return `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
+                                <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text}</h4>
+                                <div class="mt-2 space-y-2">${optionsHtml}</div>
+                            </div>`;
+                }).join('');
+                outputEl.innerHTML = questionsHtml;
+                break;
+            case 'test':
+                if (!Array.isArray(result.questions)) throw new Error("Odpověď neobsahuje pole 'questions'.");
+                const testQuestionsHtml = result.questions.map((q, i) => {
+                    const optionsHtml = q.options.map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
+                    return `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
+                                <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text} (${q.type === 'true_false' ? 'Pravda/Nepravda' : 'Výběr z možností'})</h4>
+                                <div class="mt-2 space-y-2">${optionsHtml}</div>
+                            </div>`;
+                }).join('');
+                outputEl.innerHTML = testQuestionsHtml;
+                break;
+            case 'post':
+                 if (!Array.isArray(result.episodes)) throw new Error("Odpověď neobsahuje pole 'episodes'.");
+                const episodesHtml = result.episodes.map((episode, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Epizoda ${i+1}: ${episode.title}</h4><p class="mt-2 text-sm text-slate-600">${episode.script.replace(/\n/g, '<br>')}</p></div>`).join('');
+                outputEl.innerHTML = episodesHtml;
+                break;
+            default:
+                 outputEl.innerHTML = `<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Neznámý typ obsahu pro zobrazení.</div>`;
+        }
+    } catch(e) {
+        // Toto zachytí chybu 'Cannot read properties of undefined (reading 'map')'
+        console.error("Error rendering content:", e);
+        console.error("Received AI result that caused the error:", result);
+        outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě při zobrazování odpovědi od AI: ${e.message}</div>`;
     }
 }
 
