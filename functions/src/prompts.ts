@@ -7,7 +7,12 @@
 // Interface for dynamic prompt data, allowing for type-safe data passing.
 interface PromptData {
     userPrompt: string;
-    [key: string]: any; // Allow other properties like slideCount, questionCount, etc.
+    slideCount?: number;
+    questionCount?: number;
+    difficulty?: string;
+    questionTypes?: string;
+    episodeCount?: number;
+    length?: string;
 }
 
 // A function that returns a detailed, structured prompt for a given content type.
@@ -22,12 +27,12 @@ const getPromptForContentType = (type: string, data: PromptData): string => {
     `;
 
     switch (type) {
-        case 'text':
+        case "text":
             // For plain text, we just use the user's prompt directly.
             // Additional context like length could be added here in the future.
             return userPrompt;
 
-        case 'presentation':
+        case "presentation":
             return `
                 ${baseJsonInstruction}
 
@@ -40,7 +45,7 @@ const getPromptForContentType = (type: string, data: PromptData): string => {
                 - 'points': An array of strings, where each string is a bullet point for the slide.
             `;
 
-        case 'quiz':
+        case "quiz":
             return `
                 ${baseJsonInstruction}
 
@@ -53,14 +58,14 @@ const getPromptForContentType = (type: string, data: PromptData): string => {
                 - 'correct_option_index': The zero-based index of the correct answer in the 'options' array.
             `;
 
-        case 'test':
+        case "test":
             return `
                 ${baseJsonInstruction}
 
                 Please create a test on the topic: "${userPrompt}".
                 The test must have exactly ${data.questionCount || 5} questions.
-                The difficulty level should be: ${data.difficulty || 'Medium'}.
-                The questions should be a mix of the following types: ${data.questionTypes || 'Multiple Choice and True/False'}.
+                The difficulty level should be: ${data.difficulty || "Medium"}.
+                The questions should be a mix of the following types: ${data.questionTypes || "Multiple Choice and True/False"}.
 
                 The JSON object must have a key 'questions', which is an array of objects.
                 Each object in the array represents a question and must have the following keys:
@@ -70,7 +75,7 @@ const getPromptForContentType = (type: string, data: PromptData): string => {
                 - 'correct_option_index': The zero-based index of the correct answer in the 'options' array.
             `;
 
-        case 'post': // Corresponds to the Podcast feature
+        case "post": // Corresponds to the Podcast feature
             return `
                 ${baseJsonInstruction}
 

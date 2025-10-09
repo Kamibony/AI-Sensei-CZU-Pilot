@@ -81,7 +81,7 @@ export const getLessonKeyTakeaways = onCall(
         const prompt = `Based on the following lesson text, please identify and summarize the top 3 key takeaways. Present them as a numbered list.\n\n---\n\n${lessonText}`;
         try {
             // This still uses the old text-only generation, which can be refactored to use the new `generateContent`
-            const result = await GeminiAPI.generateContent('text', { userPrompt: prompt });
+            const result = await GeminiAPI.generateContent("text", { userPrompt: prompt });
             // The result from generateContent is an object { text: '...' }, so we extract it
             return { takeaways: (result as { text: string }).text };
         } catch (error) {
@@ -101,7 +101,7 @@ export const getAiAssistantResponse = onCall(
         const prompt = `You are an AI assistant for a student. Your task is to answer the student's question based *only* on the provided lesson text. Do not use any external knowledge. If the answer is not in the text, say that you cannot find the answer in the provided materials.\n\nLesson Text:\n---\n${lessonText}\n---\n\nStudent's Question: "${userQuestion}"`;
         try {
             // This also uses the new `generateContent`
-            const result = await GeminiAPI.generateContent('text', { userPrompt: prompt });
+            const result = await GeminiAPI.generateContent("text", { userPrompt: prompt });
             return { answer: (result as { text: string }).text };
         } catch (error) {
             console.error("getAiAssistantResponse Cloud Function failed:", error);

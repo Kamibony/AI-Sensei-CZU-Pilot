@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 // Schema for a single slide in a presentation
 const slideSchema = z.object({
@@ -16,7 +16,7 @@ const questionSchema = z.object({
   question_text: z.string().min(1, "Question text cannot be empty."),
   options: z.array(z.string().min(1, "Option text cannot be empty.")).min(2, "Each question must have at least two options."),
   correct_option_index: z.number().int().min(0, "Correct option index must be a non-negative integer."),
-  type: z.enum(['multiple_choice', 'true_false']).optional(), // Optional for quiz, required for test
+  type: z.enum(["multiple_choice", "true_false"]).optional(), // Optional for quiz, required for test
 });
 
 // Schema for a quiz
@@ -31,7 +31,7 @@ export const testSchema = z.object({
             // The 'type' field is made required for tests by overriding it
             // from the base questionSchema and removing the `.optional()` modifier.
             // The invalid `required_error` parameter has been removed to fix the build.
-            type: z.enum(['multiple_choice', 'true_false']),
+            type: z.enum(["multiple_choice", "true_false"]),
         })
     ).min(1, "A test must have at least one question."),
 });

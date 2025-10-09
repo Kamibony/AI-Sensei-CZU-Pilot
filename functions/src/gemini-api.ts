@@ -6,9 +6,9 @@ import {
   Part,
 } from "@google-cloud/vertexai";
 import { getStorage } from "firebase-admin/storage";
-import { ZodError } from 'zod';
-import { schemas, JsonContentType } from './schemas';
-import { getPromptForContentType, PromptData } from './prompts';
+import { ZodError } from "zod";
+import { schemas, JsonContentType } from "./schemas";
+import { getPromptForContentType, PromptData } from "./prompts";
 
 // --- CONFIGURATION ---
 const GCLOUD_PROJECT = process.env.GCLOUD_PROJECT;
@@ -31,9 +31,9 @@ const model = vertex_ai.getGenerativeModel({
  * A custom error class for AI response validation issues.
  */
 export class AIVisualizationError extends Error {
-    constructor(message: string, public issues?: ZodError['issues']) {
+    constructor(message: string, public issues?: ZodError["issues"]) {
         super(message);
-        this.name = 'AIVisualizationError';
+        this.name = "AIVisualizationError";
     }
 }
 
@@ -44,7 +44,7 @@ export class AIVisualizationError extends Error {
  * @returns Cleaned text ready for JSON parsing.
  */
 function cleanJsonString(rawText: string): string {
-    return rawText.replace(/^```json\s*|```$/g, '').trim();
+    return rawText.replace(/^```json\s*|```$/g, "").trim();
 }
 
 /**
@@ -56,9 +56,11 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
     const isJson = requestBody.generationConfig?.responseMimeType === "application/json";
 
     if (process.env.FUNCTIONS_EMULATOR === "true") {
-        console.log(`EMULATOR_MOCK for ${isJson ? 'JSON' : 'Text'}: Bypassing real API call.`);
+        console.log(`EMULATOR_MOCK for ${isJson ? "JSON" : "Text"}: Bypassing real API call.`);
         if (isJson) {
-            // Updated mock data to conform to the `presentationSchema` for verification.
+            // This mock data is specifically for the 'presentation' content type.
+            // It is used for local emulator verification to ensure the frontend
+            // correctly renders a valid schema-compliant response.
             const mockPresentation = {
                 slides: [
                     {
@@ -73,7 +75,7 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
             };
             return JSON.stringify(mockPresentation);
         }
-        return `This is a mock response from the emulator for a text prompt.`;
+        return "This is a mock response from the emulator for a text prompt.";
     }
 
     try {
@@ -87,11 +89,11 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
             }
         }
 
-        console.log(`[gemini-api] Successfully received and aggregated stream response.`);
+        console.log("[gemini-api] Successfully received and aggregated stream response.");
         return fullText;
 
     } catch (error) {
-        console.error(`[gemini-api] Error calling Vertex AI API:`, error);
+        console.error("[gemini-api] Error calling Vertex AI API:", error);
         if (error instanceof Error) {
             throw new Error(`Vertex AI API call failed: ${error.message}`);
         }
