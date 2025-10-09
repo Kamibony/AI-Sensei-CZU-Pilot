@@ -12,7 +12,7 @@ async function createDocumentSelector() {
     try {
         const res = await listAll(documentsRef);
         if (res.items.length === 0) {
-            return `<div class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg text-sm">Pre využití RAG prosím nahrajte nejprve nějaký dokument v sekci 'Knihovna médií'.</div>`;
+            return `<div class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg text-sm">Pro využití RAG prosím nahrajte nejprve nějaký dokument v sekci 'Knihovna médií'.</div>`;
         }
         const options = res.items.map(itemRef => `
             <label class="flex items-center space-x-3 p-2 rounded-lg hover:bg-slate-50">
@@ -99,9 +99,9 @@ export async function showEditorContent(viewId, lesson) {
             break;
         case 'text':
             contentHTML = renderWrapper('Text pro studenty', `
-                <p class="text-slate-500 mb-4">Zadejte AI prompt a vygenerujte hlavní studijní text pro tuto lekci. Můžete vybrat dokument, ze kterého bude AI čerpat informace (RAG).</p>
+                <p class="text-slate-500 mb-4">Zadejte AI prompt a vygenerujte hlavní studijní text pro tuto lekci. Můžete vybrat dokumenty, ze kterých bude AI čerpat informace (RAG).</p>
                 ${await createDocumentSelector()}
-                <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Např. 'Vytvoř poutavý úvodní text o principech kvantové mechaniky pro úplné začátečníky. Zmiň Schrödingera, Heisenberga a princip superpozice.'"></textarea>
+                <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Např. 'Vytvoř poutavý úvodní text o principech kvantové mechaniky pro úplné začátečníky.'"></textarea>
                 <div class="flex items-center justify-between mt-4">
                     <div class="flex items-center space-x-4">
                         <label class="font-medium">Délka:</label>
@@ -121,7 +121,7 @@ export async function showEditorContent(viewId, lesson) {
                 ${await createDocumentSelector()}
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="md:col-span-2"><label class="block font-medium text-slate-600">Téma prezentace</label><input id="prompt-input" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" placeholder="Např. Klíčové momenty Římské republiky"></div>
-                    <div><label class="block font-medium text-slate-600">Počet slidů</label><input id="slide-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="3"></div>
+                    <div><label class="block font-medium text-slate-600">Počet slidů</label><input id="slide-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="5"></div>
                 </div>
                 <div class="text-right mt-4">
                      <button id="generate-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ml-auto ai-glow">✨<span class="ml-2">Generovat prezentaci</span></button>
@@ -143,9 +143,9 @@ export async function showEditorContent(viewId, lesson) {
             break;
         case 'quiz':
             contentHTML = renderWrapper('Interaktivní Kvíz', `
-                <p class="text-slate-500 mb-4">Vytvořte rychlý kvíz pro studenty. Otázky se objeví v jejich chatovacím rozhraní. Můžete vybrat dokumenty, ze kterých bude AI čerpat informace (RAG).</p>
+                <p class="text-slate-500 mb-4">Vytvořte rychlý kvíz pro studenty. Můžete vybrat dokumenty, ze kterých bude AI čerpat informace (RAG).</p>
                 ${await createDocumentSelector()}
-                <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Např. 'Vytvoř 1 otázku s výběrem ze 3 možností na téma kvantová mechanika. Označ správnou odpověď.'"></textarea>
+                <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Např. 'Vytvoř 3 otázky s výběrem ze 4 možností na téma kvantová mechanika. U každé uveď správnou odpověď.'"></textarea>
                 <div class="text-right mt-4">
                      <button id="generate-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ml-auto ai-glow">✨<span class="ml-2">Vygenerovat kvíz</span></button>
                 </div>
@@ -160,7 +160,7 @@ export async function showEditorContent(viewId, lesson) {
                 <p class="text-slate-500 mb-4">Navrhněte komplexnější test pro studenty. Můžete vybrat dokumenty, ze kterých bude AI čerpat informace (RAG).</p>
                 ${await createDocumentSelector()}
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div><label class="block font-medium text-slate-600">Počet otázek</label><input id="question-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="2"></div>
+                    <div><label class="block font-medium text-slate-600">Počet otázek</label><input id="question-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="5"></div>
                     <div>
                         <label class="block font-medium text-slate-600">Obtížnost</label>
                         <select id="difficulty-select" class="w-full border-slate-300 rounded-lg p-2 mt-1"><option>Lehká</option><option selected>Střední</option><option>Těžká</option></select>
@@ -170,7 +170,7 @@ export async function showEditorContent(viewId, lesson) {
                         <select id="type-select" class="w-full border-slate-300 rounded-lg p-2 mt-1"><option>Mix (výběr + pravda/nepravda)</option><option>Výběr z možností</option><option>Pravda/Nepravda</option></select>
                     </div>
                 </div>
-                <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Zadejte hlavní téma testu, např. 'Klíčové události a postavy Římské republiky od jejího založení po vznik císařství.'"></textarea>
+                <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Zadejte hlavní téma testu, např. 'Klíčové události a postavy Římské republiky'"></textarea>
                 <div class="text-right mt-4">
                      <button id="generate-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ml-auto ai-glow">✨<span class="ml-2">Vygenerovat test</span></button>
                 </div>
@@ -333,23 +333,15 @@ async function handleGeneration(viewId) {
 
         let finalPrompt = userPrompt;
         
+        // --- TOTO JE KĽÚČOVÁ OPRAVA: Pridávame presné inštrukcie pre každý typ JSONu ---
         if (isJson) {
-            switch(viewId) {
-                case 'presentation':
-                    const slideCount = document.getElementById('slide-count-input').value;
-                    finalPrompt = `Vytvoř prezentaci na téma "${userPrompt}" s přesně ${slideCount} slidy.`;
-                    break;
-                case 'test':
-                    const questionCount = document.getElementById('question-count-input').value;
-                    const difficulty = document.getElementById('difficulty-select').value;
-                    const questionTypes = document.getElementById('type-select').value;
-                    finalPrompt = `Vytvoř test na téma "${userPrompt}" s ${questionCount} otázkami. Obtížnost: ${difficulty}. Typy otázek: ${questionTypes}.`;
-                    break;
-                case 'post':
-                     const episodeCount = document.getElementById('episode-count-input').value;
-                     finalPrompt = `Vytvoř sérii ${episodeCount} podcast epizod na téma "${userPrompt}".`;
-                     break;
-            }
+            const jsonSchemas = {
+                presentation: `Vytvoř prezentaci na téma "${userPrompt}" s přesně ${document.getElementById('slide-count-input').value} slidy. Odpověď musí být JSON objekt s klíčem 'slides', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů).`,
+                quiz: `Vytvoř kvíz na základě zadání: "${userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number).`,
+                test: `Vytvoř test na téma "${userPrompt}" s ${document.getElementById('question-count-input').value} otázkami. Obtížnost: ${document.getElementById('difficulty-select').value}. Typy otázek: ${document.getElementById('type-select').value}. Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string, buď 'multiple_choice' alebo 'true_false'), 'options' (pole stringů) a 'correct_option_index' (number).`,
+                post: `Vytvoř sérii ${document.getElementById('episode-count-input').value} podcast epizod na téma "${userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string).`
+            };
+            finalPrompt = jsonSchemas[viewId] || userPrompt;
         }
         
         if (filePaths.length > 0) {
@@ -394,7 +386,7 @@ async function handleGeneration(viewId) {
 }
 
 function renderGeneratedContent(viewId, result, outputEl) {
-    console.log("AI Response for view:", viewId, result); // Pridáme log pre ladenie
+    console.log("AI Response for view:", viewId, result);
 
     if (!result) {
         outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě: AI vrátila prázdnou odpověď.</div>`;
@@ -409,13 +401,13 @@ function renderGeneratedContent(viewId, result, outputEl) {
                 break;
             case 'presentation':
                 if (!Array.isArray(result.slides)) throw new Error("Odpověď neobsahuje pole 'slides'.");
-                const slidesHtml = result.slides.map((slide, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${slide.points.map(p => `<li>${p}</li>`).join('')}</ul></div>`).join('');
+                const slidesHtml = result.slides.map((slide, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${(slide.points || []).map(p => `<li>${p}</li>`).join('')}</ul></div>`).join('');
                 outputEl.innerHTML = slidesHtml;
                 break;
             case 'quiz':
                 if (!Array.isArray(result.questions)) throw new Error("Odpověď neobsahuje pole 'questions'.");
                 const questionsHtml = result.questions.map((q, i) => {
-                    const optionsHtml = q.options.map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
+                    const optionsHtml = (q.options || []).map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
                     return `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
                                 <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text}</h4>
                                 <div class="mt-2 space-y-2">${optionsHtml}</div>
@@ -426,7 +418,7 @@ function renderGeneratedContent(viewId, result, outputEl) {
             case 'test':
                 if (!Array.isArray(result.questions)) throw new Error("Odpověď neobsahuje pole 'questions'.");
                 const testQuestionsHtml = result.questions.map((q, i) => {
-                    const optionsHtml = q.options.map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
+                    const optionsHtml = (q.options || []).map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
                     return `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
                                 <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text} (${q.type === 'true_false' ? 'Pravda/Nepravda' : 'Výběr z možností'})</h4>
                                 <div class="mt-2 space-y-2">${optionsHtml}</div>
@@ -443,7 +435,6 @@ function renderGeneratedContent(viewId, result, outputEl) {
                  outputEl.innerHTML = `<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Neznámý typ obsahu pro zobrazení.</div>`;
         }
     } catch(e) {
-        // Toto zachytí chybu 'Cannot read properties of undefined (reading 'map')'
         console.error("Error rendering content:", e);
         console.error("Received AI result that caused the error:", result);
         outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě při zobrazování odpovědi od AI: ${e.message}</div>`;
