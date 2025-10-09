@@ -35,6 +35,7 @@ function setupStudentNav() {
             const botUsername = 'ai_sensei_czu_bot'; // Toto by malo byť v konfigurácii
             
             let telegramHtml = '';
+            // Zobrazíme ikonu, len ak študent ešte nie je prepojený (má token)
             if (token) {
                  const connectionLink = `https://t.me/${botUsername}?start=${token}`;
                  telegramHtml = `
@@ -57,7 +58,6 @@ function setupStudentNav() {
         }
     });
 }
-
 
 function renderStudentDashboard(container) {
     let lessonsContent;
@@ -207,7 +207,10 @@ function renderLessonContent(viewId, lessonData, container) {
 }
 
 function renderVideo(videoUrl, container) {
-    const videoId = videoUrl.split('v=')[1]?.split('&')[0];
+    // Robustnejší regex, ktorý zvládne rôzne formáty YouTube URL
+    const videoIdMatch = videoUrl.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    const videoId = videoIdMatch ? videoIdMatch[1] : null;
+
     if (videoId) {
         container.innerHTML = `
             <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Video k lekci</h2>
@@ -215,9 +218,10 @@ function renderVideo(videoUrl, container) {
                 <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe>
             </div>`;
     } else {
-        container.innerHTML = `<p class="text-red-500">Neplatná URL adresa videa.</p>`;
+        container.innerHTML = `<p class="text-red-500 text-center font-semibold p-8">Vložená URL adresa videa (${videoUrl}) není platná.</p>`;
     }
 }
+
 
 function renderPresentation(presentationData, container) {
     if (!presentationData || !Array.isArray(presentationData.slides) || presentationData.slides.length === 0) return;
