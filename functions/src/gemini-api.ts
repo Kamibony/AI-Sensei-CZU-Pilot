@@ -7,17 +7,18 @@ import {
   HarmBlockThreshold,
 } from "@google-cloud/vertexai";
 
+// --- KONFIGURACE MODELU ---
 const GCLOUD_PROJECT = process.env.GCLOUD_PROJECT;
 if (!GCLOUD_PROJECT) {
     throw new Error("GCLOUD_PROJECT environment variable not set.");
 }
 
-// 1. Správny región je tu
+// 1. Správny región
 const LOCATION = "europe-west1"; 
 
 const vertex_ai = new VertexAI({ project: GCLOUD_PROJECT, location: LOCATION });
 
-// 2. Správny model je tu
+// 2. Správny model
 const model = vertex_ai.getGenerativeModel({
     model: "gemini-2.5-pro", 
     safetySettings: [
@@ -28,8 +29,7 @@ const model = vertex_ai.getGenerativeModel({
     ],
 });
 
-// --- Zvyšok súboru zostáva bez zmeny ---
-
+// --- HLAVNÍ FUNKCE PRO KOMUNIKACI S GEMINI ---
 async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
     const functionName = requestBody.generationConfig?.responseMimeType === "application/json"
         ? "generateJson"
@@ -66,6 +66,8 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
     }
 }
 
+// --- EXPORTOVANÉ FUNKCIE ---
+
 export async function generateTextFromPrompt(prompt: string): Promise<string> {
   const request: GenerateContentRequest = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -73,7 +75,8 @@ export async function generateTextFromPrompt(prompt: string): Promise<string> {
   return await streamGeminiResponse(request);
 }
 
-export async function generateJsonFromPrompt(prompt: string): Promise<any> {
+// OPRAVA: Nahradili sme `Promise<any>` za `Promise<unknown>`
+export async function generateJsonFromPrompt(prompt: string): Promise<unknown> {
   const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
   const request: GenerateContentRequest = {
     contents: [{ role: "user", parts: [{ text: jsonPrompt }] }],
@@ -86,6 +89,7 @@ export async function generateJsonFromPrompt(prompt: string): Promise<any> {
 
   try {
     const parsedJson = JSON.parse(rawJsonText);
+    console.log("[gemini-api:generateJson] Successfully parsed JSON response.");
     return parsedJson;
   } catch (_e) {
     console.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText);
