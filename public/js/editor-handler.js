@@ -2,7 +2,7 @@ import { doc, addDoc, updateDoc, collection, serverTimestamp } from "https://www
 import { ref, listAll } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { db, storage } from './firebase-init.js';
 import { showToast } from './utils.js';
-import { callGeminiApi, callGeminiForJson, callGenerateFromDocument } from './gemini-api.js';
+import { callGeminiApi, callGeminiForJson, callGenerateFromDocument, callGenerateJsonFromDocument } from './gemini-api.js';
 
 let currentLesson = null;
 const MAIN_COURSE_ID = "main-course"; 
@@ -13,7 +13,7 @@ async function createDocumentSelector() {
     try {
         const res = await listAll(documentsRef);
         if (res.items.length === 0) {
-            return `<div class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg text-sm">Pro využití RAG prosím nahrajte nejprve nějaký dokument v sekci 'Knihovna médií'.</div>`;
+            return `<div class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg text-sm">Pre využití RAG prosím nahrajte nejprve nějaký dokument v sekci 'Knihovna médií'.</div>`;
         }
         const options = res.items.map(itemRef => `
             <label class="flex items-center space-x-3 p-2 rounded-lg hover:bg-slate-50">
@@ -220,7 +220,6 @@ export async function showEditorContent(viewId, lesson) {
     attachEditorEventListeners(viewId);
 }
 
-// --- INTERNÉ FUNKCIE ---
 function attachEditorEventListeners(viewId) {
     if (viewId === 'details') {
         document.getElementById('save-lesson-btn')?.addEventListener('click', handleSaveLesson);
@@ -329,49 +328,53 @@ async function handleGeneration(viewId) {
     let rawResultForSaving = null;
 
     try {
-        // Získame všetky zaškrtnuté súbory
         const checkedBoxes = document.querySelectorAll('.document-checkbox:checked');
         const filePaths = Array.from(checkedBoxes).map(cb => cb.value);
-        let isJson = ['presentation', 'quiz', 'test', 'post'].includes(viewId);
+        const isJson = ['presentation', 'quiz', 'test', 'post'].includes(viewId);
 
-        if (filePaths.length > 0) {
-            let finalPrompt = `Na základě poskytnutých dokumentů vygeneruj obsah pro: ${userPrompt}`;
-            
-            const ragResult = await callGenerateFromDocument({ filePaths: filePaths, prompt: finalPrompt });
-
-            if (ragResult.error) throw new Error(ragResult.error);
-            
-            const resultText = ragResult.text;
-            rawResultForSaving = resultText;
-            
-            if (isJson) {
-                try {
-                    result = JSON.parse(resultText);
-                } catch (e) {
-                    throw new Error("AI vrátila neplatný JSON formát.");
-                }
-            } else {
-                 result = { text: resultText };
-            }
-
-        } else {
-            // Generovanie bez RAG
+        let finalPrompt = userPrompt;
+        
+        // Prispôsobenie promptu pre špecifické JSON štruktúry
+        if (isJson) {
             switch(viewId) {
-                case 'text':
-                    const length = document.getElementById('length-select').value;
-                    result = await callGeminiApi(`Vytvoř studijní text... Zadání: "${userPrompt}"`);
-                    rawResultForSaving = result.text;
-                    break;
                 case 'presentation':
                     const slideCount = document.getElementById('slide-count-input').value;
-                    result = await callGeminiForJson(`Vytvoř prezentaci na téma "${userPrompt}" s ${slideCount} slidy.`, { type: "OBJECT", properties: { slides: { type: "ARRAY", items: { type: "OBJECT", properties: { title: { type: "STRING" }, points: { type: "ARRAY", items: { type: "STRING" } } }, required: ["title", "points"] } } } });
-                    rawResultForSaving = result;
+                    finalPrompt = `Vytvoř prezentaci na téma "${userPrompt}" s přesně ${slideCount} slidy.`;
                     break;
-                 // ... ďalšie case bloky pre quiz, test, post
+                case 'test':
+                    const questionCount = document.getElementById('question-count-input').value;
+                    const difficulty = document.getElementById('difficulty-select').value;
+                    const questionTypes = document.getElementById('type-select').value;
+                    finalPrompt = `Vytvoř test na téma "${userPrompt}" s ${questionCount} otázkami. Obtížnost: ${difficulty}. Typy otázek: ${questionTypes}.`;
+                    break;
+                case 'post':
+                     const episodeCount = document.getElementById('episode-count-input').value;
+                     finalPrompt = `Vytvoř sérii ${episodeCount} podcast epizod na téma "${userPrompt}".`;
+                     break;
+            }
+        }
+        
+        if (filePaths.length > 0) {
+            // Generovanie s RAG
+            if (isJson) {
+                result = await callGenerateJsonFromDocument({ filePaths, prompt: finalPrompt });
+            } else {
+                result = await callGenerateFromDocument({ filePaths, prompt: finalPrompt });
+            }
+        } else {
+            // Generovanie bez RAG
+            if (isJson) {
+                result = await callGeminiForJson(finalPrompt);
+            } else {
+                result = await callGeminiApi(finalPrompt);
             }
         }
 
         if (result.error) throw new Error(result.error);
+        
+        // Rôzne spôsoby ukladania pre text vs JSON
+        rawResultForSaving = isJson ? result : result.text;
+        
         renderGeneratedContent(viewId, result, outputEl);
 
         const saveBtn = document.getElementById('save-content-btn');
@@ -396,6 +399,12 @@ async function handleGeneration(viewId) {
 }
 
 function renderGeneratedContent(viewId, result, outputEl) {
+    // V prípade chyby pri parsovaní JSONu môže byť 'result' nedefinovaný
+    if (!result) {
+        outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě: AI vrátila neočakávanú odpoveď.</div>`;
+        return;
+    }
+
     switch(viewId) {
         case 'text':
             outputEl.innerHTML = `<div class="prose max-w-none">${result.text.replace(/\n/g, '<br>')}</div>`;
