@@ -75,29 +75,24 @@ export const generateJson = onCall(
     }
 );
 
-// --- TOTO JE OPRAVENÁ FUNKCIA ---
+// --- UPRAVENÁ FUNKCIA PRE VIACERO SÚBOROV ---
 export const generateFromDocument = onCall(
     { region: DEPLOY_REGION, cors: allowedOrigins },
     async (request) => {
         console.log("--- generateFromDocument invoked ---");
-        console.log("Request Auth:", JSON.stringify(request.auth));
         console.log("Request Data:", JSON.stringify(request.data));
 
-        // ZMENA: Očakávame 'filePath' (string) namiesto 'filePaths' (pole)
-        const { filePath, prompt } = request.data;
+        const { filePaths, prompt } = request.data;
 
-        // ZMENA: Zjednodušená validácia
-        if (typeof filePath !== 'string' || !filePath || !prompt) {
+        if (!Array.isArray(filePaths) || filePaths.length === 0 || !prompt) {
             console.error("Invalid arguments received:", request.data);
-            throw new HttpsError("invalid-argument", "The function must be called with a 'filePath' string and a 'prompt'.");
+            throw new HttpsError("invalid-argument", "The function must be called with a 'filePaths' array and a 'prompt'.");
         }
 
-        console.log(`Attempting to process file: ${filePath}`);
-
         try {
-            // ZMENA: Posielame 'filePath' priamo
-            const text = await GeminiAPI.generateTextFromDocument(filePath, prompt);
-            console.log("Successfully generated text from document.");
+            // Voláme novú funkciu, ktorá spracuje pole súborov
+            const text = await GeminiAPI.generateTextFromDocuments(filePaths, prompt);
+            console.log("Successfully generated text from document(s).");
             return { text };
         } catch (error) {
             console.error("generateFromDocument Cloud Function failed:", error);
@@ -105,7 +100,6 @@ export const generateFromDocument = onCall(
         }
     }
 );
-
 
 export const getLessonKeyTakeaways = onCall(
     { region: DEPLOY_REGION, cors: allowedOrigins },
