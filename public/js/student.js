@@ -86,6 +86,7 @@ function renderStudentDashboard(container) {
 
     container.innerHTML = `
         <h1 class="text-3xl font-extrabold text-slate-800 mb-6">Váš přehled</h1>
+        <div id="telegram-connect-section"></div>
         ${lessonsContent}
     `;
 }
@@ -105,6 +106,35 @@ export async function initStudentDashboard() {
     const studentContentArea = document.getElementById('student-content-area');
 
     renderStudentDashboard(studentContentArea);
+
+    // Fetch user data and display Telegram connection link
+    const user = auth.currentUser;
+    if (user) {
+        try {
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                const token = userData.telegramToken;
+                // Only show the link if the token exists and the user is not yet connected
+                if (token && !userData.telegramChatId) {
+                    const connectSection = document.getElementById('telegram-connect-section');
+                    if (connectSection) {
+                        const botUsername = 'ai_sensei_czu_bot';
+                        const connectionLink = `https://t.me/${botUsername}?start=${token}`;
+                        connectSection.innerHTML = `
+                            <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-lg mb-6" role="alert">
+                                <p class="font-bold">Propojte svůj účet s Telegramem!</p>
+                                <a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="font-semibold underline">Pripojiť sa k AI Sensei cez Telegram</a>
+                            </div>
+                        `;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching user data for Telegram link:", error);
+            showToast("Nepodařilo se zkontrolovat stav propojení s Telegramem.", true);
+        }
+    }
 
     studentContentArea.addEventListener('click', (e) => {
         const lessonCard = e.target.closest('.student-lesson-card');
