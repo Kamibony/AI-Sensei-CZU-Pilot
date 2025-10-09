@@ -4,6 +4,8 @@ import { functions } from './firebase-init.js';
 const generateTextFunction = httpsCallable(functions, 'generateText');
 const generateJsonFunction = httpsCallable(functions, 'generateJson');
 const generateFromDocumentFunction = httpsCallable(functions, 'generateFromDocument');
+// --- NOVÁ FUNKCIA ---
+const generateJsonFromDocumentFunction = httpsCallable(functions, 'generateJsonFromDocument');
 
 export async function callGeminiApi(prompt, systemInstruction = null) {
     try {
@@ -27,11 +29,21 @@ export async function callGeminiForJson(prompt, schema) {
 
 export async function callGenerateFromDocument(data) {
     try {
-        // 'data' objekt by mal byť v tvare { filePath: 'cesta/k/suboru', prompt: '...' }
         const result = await generateFromDocumentFunction(data);
         return result.data;
     } catch (error) {
         console.error("Error calling 'generateFromDocument' function:", error);
         return { error: `Backend Error during document generation: ${error.message}` };
+    }
+}
+
+// --- NOVÁ FUNKCIA ---
+export async function callGenerateJsonFromDocument(data) {
+    try {
+        const result = await generateJsonFromDocumentFunction(data);
+        return result.data; // Pri JSONe vraciame priamo dáta, nie result.data.text
+    } catch (error) {
+        console.error("Error calling 'generateJsonFromDocument' function:", error);
+        return { error: `Backend Error during JSON document generation: ${error.message}` };
     }
 }
