@@ -5,8 +5,9 @@ import {
   GenerateContentRequest,
   HarmCategory,
   HarmBlockThreshold,
+  Part, // Importujeme typ 'Part'
 } from "@google-cloud/vertexai";
-import { getStorage } from "firebase-admin/storage"; // <-- PRIDANÝ IMPORT
+import { getStorage } from "firebase-admin/storage";
 
 // --- KONFIGURACE MODELU ---
 const GCLOUD_PROJECT = process.env.GCLOUD_PROJECT;
@@ -15,6 +16,7 @@ if (!GCLOUD_PROJECT) {
 }
 
 const LOCATION = "europe-west1"; 
+
 const vertex_ai = new VertexAI({ project: GCLOUD_PROJECT, location: LOCATION });
 
 const model = vertex_ai.getGenerativeModel({
@@ -27,9 +29,7 @@ const model = vertex_ai.getGenerativeModel({
     ],
 });
 
-// --- Zvyšok súboru je rovnaký až po funkciu generateTextFromDocument ---
-// ... (streamGeminiResponse, generateTextFromPrompt, generateJsonFromPrompt zostávajú nezmenené) ...
-
+// --- HLAVNÍ FUNKCE PRO KOMUNIKACI S GEMINI ---
 async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
     const functionName = requestBody.generationConfig?.responseMimeType === "application/json"
         ? "generateJson"
@@ -66,6 +66,8 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
     }
 }
 
+// --- EXPORTOVANÉ FUNKCIE ---
+
 export async function generateTextFromPrompt(prompt: string): Promise<string> {
   const request: GenerateContentRequest = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -86,7 +88,6 @@ export async function generateJsonFromPrompt(prompt: string): Promise<unknown> {
 
   try {
     const parsedJson = JSON.parse(rawJsonText);
-    console.log("[gemini-api:generateJson] Successfully parsed JSON response.");
     return parsedJson;
   } catch (_e) {
     console.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText);
@@ -94,39 +95,39 @@ export async function generateJsonFromPrompt(prompt: string): Promise<unknown> {
   }
 }
 
-
-// --- TOTO JE KOMPLETNE PREPRACOVANÁ FUNKCIA ---
-export async function generateTextFromDocument(filePath: string, prompt: string): Promise<string> {
+// --- UPRAVENÁ FUNKCIA PRE VIACERO SÚBOROV ---
+export async function generateTextFromDocuments(filePaths: string[], prompt: string): Promise<string> {
     const bucketName = `${GCLOUD_PROJECT}.appspot.com`;
     const bucket = getStorage().bucket(bucketName);
-    const file = bucket.file(filePath);
-
-    console.log(`[gemini-api:generateTextFromDocument] Reading file from gs://${bucketName}/${filePath}`);
-
-    // Stiahneme súbor do pamäte (buffer)
-    const [fileBuffer] = await file.download();
     
-    // Prevedieme ho na base64 reťazec, ktorému Gemini rozumie
-    const fileBase64 = fileBuffer.toString("base64");
+    // Vytvoríme pole "parts", ktoré bude obsahovať všetky súbory a nakoniec prompt
+    const parts: Part[] = [];
 
+    // Prejdeme všetky cesty k súborom
+    for (const filePath of filePaths) {
+        const file = bucket.file(filePath);
+        console.log(`[gemini-api:generateTextFromDocuments] Reading file from gs://${bucketName}/${filePath}`);
+
+        // Stiahneme súbor do pamäte
+        const [fileBuffer] = await file.download();
+        
+        // Prevedieme ho na base64 a pridáme do poľa 'parts'
+        parts.push({
+            inlineData: {
+                mimeType: "application/pdf", // Predpokladáme PDF, pre iné typy by bolo potrebné rozšírenie
+                data: fileBuffer.toString("base64"),
+            }
+        });
+    }
+
+    // Na koniec poľa pridáme textový prompt
+    parts.push({ text: prompt });
+
+    // Vytvoríme finálnu požiadavku
     const request: GenerateContentRequest = {
-        contents: [
-            {
-                role: "user",
-                parts: [
-                    // Namiesto fileUri použijeme inlineData
-                    { 
-                        inlineData: {
-                            mimeType: "application/pdf",
-                            data: fileBase64,
-                        } 
-                    },
-                    { text: prompt },
-                ],
-            },
-        ],
+        contents: [{ role: "user", parts: parts }],
     };
 
-    // Pošleme požiadavku s dátami súboru priamo v tele
+    // Pošleme požiadavku s dátami všetkých súborov priamo v tele
     return await streamGeminiResponse(request);
 }
