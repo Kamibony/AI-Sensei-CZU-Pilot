@@ -5,7 +5,7 @@ import {
   GenerateContentRequest,
   HarmCategory,
   HarmBlockThreshold,
-  Part, // Importujeme typ 'Part'
+  Part,
 } from "@google-cloud/vertexai";
 import { getStorage } from "firebase-admin/storage";
 
@@ -16,7 +16,6 @@ if (!GCLOUD_PROJECT) {
 }
 
 const LOCATION = "europe-west1"; 
-
 const vertex_ai = new VertexAI({ project: GCLOUD_PROJECT, location: LOCATION });
 
 const model = vertex_ai.getGenerativeModel({
@@ -29,7 +28,6 @@ const model = vertex_ai.getGenerativeModel({
     ],
 });
 
-// --- HLAVNÍ FUNKCE PRO KOMUNIKACI S GEMINI ---
 async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
     const functionName = requestBody.generationConfig?.responseMimeType === "application/json"
         ? "generateJson"
@@ -66,8 +64,6 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
     }
 }
 
-// --- EXPORTOVANÉ FUNKCIE ---
-
 export async function generateTextFromPrompt(prompt: string): Promise<string> {
   const request: GenerateContentRequest = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -95,39 +91,32 @@ export async function generateJsonFromPrompt(prompt: string): Promise<unknown> {
   }
 }
 
-// --- UPRAVENÁ FUNKCIA PRE VIACERO SÚBOROV ---
+// --- FINÁLNE OPRAVENÁ FUNKCIA ---
 export async function generateTextFromDocuments(filePaths: string[], prompt: string): Promise<string> {
-    const bucketName = `${GCLOUD_PROJECT}.appspot.com`;
-    const bucket = getStorage().bucket(bucketName);
+    // ZMENA: Namiesto skladania názvu si necháme Admin SDK nájsť predvolený bucket.
+    const bucket = getStorage().bucket();
     
-    // Vytvoríme pole "parts", ktoré bude obsahovať všetky súbory a nakoniec prompt
     const parts: Part[] = [];
 
-    // Prejdeme všetky cesty k súborom
     for (const filePath of filePaths) {
         const file = bucket.file(filePath);
-        console.log(`[gemini-api:generateTextFromDocuments] Reading file from gs://${bucketName}/${filePath}`);
+        console.log(`[gemini-api:generateTextFromDocuments] Reading file from gs://${bucket.name}/${filePath}`);
 
-        // Stiahneme súbor do pamäte
         const [fileBuffer] = await file.download();
         
-        // Prevedieme ho na base64 a pridáme do poľa 'parts'
         parts.push({
             inlineData: {
-                mimeType: "application/pdf", // Predpokladáme PDF, pre iné typy by bolo potrebné rozšírenie
+                mimeType: "application/pdf",
                 data: fileBuffer.toString("base64"),
             }
         });
     }
 
-    // Na koniec poľa pridáme textový prompt
     parts.push({ text: prompt });
 
-    // Vytvoríme finálnu požiadavku
     const request: GenerateContentRequest = {
         contents: [{ role: "user", parts: parts }],
     };
 
-    // Pošleme požiadavku s dátami všetkých súborov priamo v tele
     return await streamGeminiResponse(request);
 }
