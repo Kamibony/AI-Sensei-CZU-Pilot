@@ -10,6 +10,7 @@ const getLessonAssistantResponse = httpsCallable(functions, 'getLessonAssistantR
 async function fetchLessons() {
     try {
         const lessonsCollection = collection(db, 'lessons');
+        // Načítavame iba lekcie, ktoré majú status 'active'
         const q = query(lessonsCollection, where("status", "==", "active"));
         const querySnapshot = await getDocs(q);
         lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -26,6 +27,7 @@ async function setupStudentNav() {
     const user = auth.currentUser;
     if (!nav || !user) return;
     
+    // Logika pre Telegram je teraz v banneri, takže navigácia je statická
     nav.innerHTML = `
         <li>
             <button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium">
@@ -68,7 +70,7 @@ function renderStudentDashboard(container) {
 }
 
 export async function initStudentDashboard() {
-    await setupStudentNav(); 
+    await setupStudentNav();
     const lessonsLoaded = await fetchLessons();
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
