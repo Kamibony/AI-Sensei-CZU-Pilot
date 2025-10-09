@@ -224,24 +224,35 @@ function attachEditorEventListeners(viewId) {
         document.getElementById('save-lesson-btn')?.addEventListener('click', handleSaveLesson);
     }
     
+    // --- TOTO JE KĽÚČOVÁ OPRAVA PRE VIDEO ---
     if (viewId === 'video') {
         const embedBtn = document.getElementById('embed-video-btn');
-        embedBtn?.addEventListener('click', () => {
-            const urlInput = document.getElementById('youtube-url');
-            const url = urlInput.value;
-            handleSaveGeneratedContent(currentLesson, 'videoUrl', url);
+        const urlInput = document.getElementById('youtube-url');
+        const preview = document.getElementById('video-preview');
+
+        const showPreview = (url) => {
             const videoId = url.split('v=')[1]?.split('&')[0];
-            const preview = document.getElementById('video-preview');
             if (videoId) {
                 preview.innerHTML = `<div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-2xl shadow-lg"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe></div>`;
+                return true;
             } else {
                 preview.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg text-center">Neplatná YouTube URL.</div>`;
+                return false;
+            }
+        };
+
+        embedBtn?.addEventListener('click', async () => {
+            const url = urlInput.value;
+            if (showPreview(url)) {
+                await handleSaveGeneratedContent(currentLesson, 'videoUrl', url);
+                // Po úspešnom uložení sa hodnota v currentLesson aktualizuje
+                // a pri ďalšom zobrazení bude už načítaná správne.
             }
         });
-        const existingUrl = document.getElementById('youtube-url')?.value;
-        if (existingUrl) {
-            const existingVideoId = existingUrl.split('v=')[1]?.split('&')[0];
-            if (existingVideoId) document.getElementById('video-preview').innerHTML = `<div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-2xl shadow-lg"><iframe src="https://www.youtube.com/embed/${existingVideoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe></div>`;
+
+        // Zobrazíme náhľad, ak už URL existuje
+        if (currentLesson?.videoUrl) {
+            showPreview(currentLesson.videoUrl);
         }
     }
 
@@ -333,7 +344,6 @@ async function handleGeneration(viewId) {
 
         let finalPrompt = userPrompt;
         
-        // --- TOTO JE KĽÚČOVÁ OPRAVA: Pridávame presné inštrukcie pre každý typ JSONu ---
         if (isJson) {
             let jsonPrompt = userPrompt;
             switch(viewId) {
@@ -472,7 +482,10 @@ async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) 
     try {
         await updateDoc(lessonRef, { [fieldToUpdate]: contentToSave });
         showToast("Obsah byl úspěšně uložen do lekce.");
-        if (lesson) lesson[fieldToUpdate] = contentToSave;
+        if (lesson) lesson[fieldToUpdate] = contentToSave; // Update local state
+        if (currentLesson && currentLesson.id === lesson.id) {
+            currentLesson[fieldToUpdate] = contentToSave;
+        }
         if (saveBtn) saveBtn.classList.add('hidden');
     } catch (error) {
         console.error(`Chyba při ukládání obsahu (${fieldToUpdate}) do lekce:`, error);
