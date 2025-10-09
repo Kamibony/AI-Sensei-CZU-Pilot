@@ -6,9 +6,6 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import axios from "axios";
 import cors from "cors";
 import * as GeminiAPI from "./gemini-api";
-import {
-  generateContent,
-} from "./prompts";
 
 const DEPLOY_REGION = "europe-west1";
 const allowedOrigins = [
@@ -35,7 +32,6 @@ export const onStudentCreate = onDocumentCreated(
     }
 );
 
-export { generateContent };
 
 // --- NOVÁ INTELIGENTNÁ FUNKCIA PRE ŠTUDENTSKÝ CHAT ---
 export const getLessonAssistantResponse = onCall(
