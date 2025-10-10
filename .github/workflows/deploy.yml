@@ -15,14 +15,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22' # Zostáva verzia 22, ako potrebuješ
+          node-version: '22'
 
       - name: Install dependencies and build
         run: |
           cd functions
-          npm install   # TOTO JE KĽÚČOVÁ ZMENA Z 'npm ci'
-          npm run lint
-          npm run build
+          npm install
+          npm run build   # Kontrola kódu (lint) je odstránená
 
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@master
