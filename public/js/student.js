@@ -362,7 +362,7 @@ function renderQuiz(quizData, container) {
                     feedbackEl.textContent = 'Správně!';
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700';
                 } else {
-                    feedbackEl.textContent = \`Špatně. Správná odpověď: \${q.options[q.correct_option_index]}\`;
+                    feedbackEl.textContent = `Špatně. Správná odpověď: \${q.options[q.correct_option_index]}\`;
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700';
                 }
             } else {
