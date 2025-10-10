@@ -1,12 +1,15 @@
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { functions } from './firebase-init.js';
 
+// Definujeme odkazy na VŠETKY cloudové funkcie, ktoré frontend potrebuje
 const generateTextFunction = httpsCallable(functions, 'generateText');
 const generateJsonFunction = httpsCallable(functions, 'generateJson');
 const generateFromDocumentFunction = httpsCallable(functions, 'generateFromDocument');
-// --- NOVÁ FUNKCIA ---
 const generateJsonFromDocumentFunction = httpsCallable(functions, 'generateJsonFromDocument');
+const getLessonKeyTakeawaysFunction = httpsCallable(functions, 'getLessonKeyTakeaways');
+const getAiAssistantResponseFunction = httpsCallable(functions, 'getAiAssistantResponse'); // TOTO CHÝBALO
 
+// --- Funkcie pre Profesora ---
 export async function callGeminiApi(prompt, systemInstruction = null) {
     try {
         const result = await generateTextFunction({ prompt, systemInstruction });
@@ -37,13 +40,24 @@ export async function callGenerateFromDocument(data) {
     }
 }
 
-// --- NOVÁ FUNKCIA ---
 export async function callGenerateJsonFromDocument(data) {
     try {
         const result = await generateJsonFromDocumentFunction(data);
-        return result.data; // Pri JSONe vraciame priamo dáta, nie result.data.text
+        return result.data;
     } catch (error) {
         console.error("Error calling 'generateJsonFromDocument' function:", error);
         return { error: `Backend Error during JSON document generation: ${error.message}` };
+    }
+}
+
+// --- Funkcia pre Študenta (TÁTO CHÝBALA) ---
+export async function getLessonAssistantResponse(lessonId, userQuestion, lessonText) {
+    try {
+        // Voláme novú cloud funkciu a posielame jej potrebné dáta
+        const result = await getAiAssistantResponseFunction({ lessonId, userQuestion, lessonText });
+        return result.data; // Očakávame objekt, napr. { answer: '...' }
+    } catch (error) {
+        console.error("Error calling 'getAiAssistantResponse' function:", error);
+        return { error: `Backend Error: ${error.message}` };
     }
 }
