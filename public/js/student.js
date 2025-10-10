@@ -1,352 +1,421 @@
-import { db } from './firebase-init.js';
-import { getDoc, setDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { getLessonAssistantResponse } from './gemini-api.js';
+import { collection, getDocs, doc, getDoc, query, where } from "[https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js](https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js)";
+import { showToast } from './utils.js';
+import { db, auth } from './firebase-init.js';
+import { getLessonAssistantResponse } from './gemini-api.js'; // Tento import teraz bude fungovať
 
-// Globálne premenné
-let currentStudentId = null;
-let currentLessonId = null;
+let lessonsData = [];
 
-// --- Helper funkcie ---
-function getQueryParam(param) {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get(param);
+async function fetchLessons() {
+    try {
+        const lessonsCollection = collection(db, 'lessons');
+        const q = query(lessonsCollection, where("status", "==", "active"));
+        const querySnapshot = await getDocs(q);
+        lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return true;
+    } catch (error) {
+        console.warn("Query for active lessons failed, fetching all lessons.", error);
+        try {
+            const lessonsCollection = collection(db, 'lessons');
+            const querySnapshot = await getDocs(lessonsCollection);
+            lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            return true;
+        } catch (fallbackError) {
+            console.error("Error fetching all lessons after fallback:", fallbackError);
+            showToast("Nepodařilo se načíst data lekcí.", true);
+            return false;
+        }
+    }
 }
 
-function showLoader(elementId) {
-    document.getElementById(elementId).innerHTML = '<div class="loader"></div>';
+async function setupStudentNav() {
+    const nav = document.getElementById('main-nav');
+    if (!nav) return;
+    
+    nav.innerHTML = `
+        <li>
+            <button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium">
+                <svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            </button>
+        </li>
+    `;
 }
 
-// --- Inicializácia ---
+function renderStudentDashboard(container) {
+    let lessonsContent;
+    if (lessonsData.length === 0) {
+        lessonsContent = `<div class="p-8 text-center text-slate-500">Pro vás zatím nebyly připraveny žádné lekce.</div>`;
+    } else {
+        const sortedLessons = [...lessonsData].sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+        const lessonsHtml = sortedLessons.map(lesson => `
+            <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
+                <div class="p-6">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <p class="text-sm font-semibold text-green-600">${lesson.number || ' '}</p>
+                            <h2 class="text-2xl font-bold text-slate-800 mt-1">${lesson.title}</h2>
+                            <p class="text-slate-500">${lesson.subtitle}</p>
+                        </div>
+                        <span class="text-4xl">${lesson.icon}</span>
+                    </div>
+                </div>
+            </div>`).join('');
+        lessonsContent = `
+            <h2 class="text-2xl font-bold text-slate-800 mb-4">Dostupné lekce</h2>
+            ${lessonsHtml}
+        `;
+    }
+
+    container.innerHTML = `
+        <h1 class="text-3xl font-extrabold text-slate-800 mb-6">Váš přehled</h1>
+        <div id="telegram-connect-section"></div>
+        ${lessonsContent}
+    `;
+}
+
 export async function initStudentDashboard() {
-    const studentId = getQueryParam('studentId');
-    if (!studentId) {
-        document.getElementById('student-dashboard').innerHTML = '<p class="error">Chýba ID študenta.</p>';
+    await setupStudentNav(); 
+    const lessonsLoaded = await fetchLessons();
+    const roleContentWrapper = document.getElementById('role-content-wrapper');
+    if (!roleContentWrapper) return;
+
+    if (!lessonsLoaded) {
+        roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat.</div>`;
         return;
     }
-    currentStudentId = studentId;
-    displayStudentInfo(studentId);
-    loadLessons(studentId);
-}
 
-// --- Načítanie dát ---
-async function displayStudentInfo(studentId) {
-    const studentRef = doc(db, "students", studentId);
-    const studentSnap = await getDoc(studentRef);
-    if (studentSnap.exists()) {
-        document.getElementById('student-name').textContent = studentSnap.data().name;
+    roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50 h-screen"></div>`;
+    const studentContentArea = document.getElementById('student-content-area');
+
+    renderStudentDashboard(studentContentArea);
+
+    const user = auth.currentUser;
+    if (user) {
+        try {
+            const userDoc = await getDoc(doc(db, "students", user.uid));
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                const token = userData.telegramConnectionToken;
+                
+                if (token && !userData.telegramChatId) {
+                    const connectSection = document.getElementById('telegram-connect-section');
+                    if (connectSection) {
+                        const botUsername = 'ai_sensei_czu_bot'; // Nahraďte menom vášho bota
+                        const connectionLink = `https://t.me/${botUsername}?start=${token}`;
+                        connectSection.innerHTML = `
+                            <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-lg mb-6" role="alert">
+                                <p class="font-bold">Propojte svůj účet s Telegramem!</p>
+                                <a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="font-semibold underline">Klikněte zde pro připojení k AI Sensei přes Telegram</a>
+                            </div>
+                        `;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching user data for Telegram link:", error);
+            showToast("Nepodařilo se zkontrolovat stav propojení s Telegramem.", true);
+        }
     }
+
+    studentContentArea.addEventListener('click', (e) => {
+        const lessonCard = e.target.closest('.student-lesson-card');
+        if (lessonCard) {
+            const lessonId = lessonCard.dataset.lessonId;
+            const lesson = lessonsData.find(l => l.id === lessonId);
+            if (lesson) {
+                showStudentLesson(lesson);
+            }
+        }
+    });
 }
 
-async function loadLessons(studentId) {
-    showLoader('lessons-list');
-    const studentRef = doc(db, "students", studentId);
-    const studentSnap = await getDoc(studentRef);
-    const lessonsList = document.getElementById('lessons-list');
-    lessonsList.innerHTML = '';
+function showStudentLesson(lessonData) {
+    const studentContentArea = document.getElementById('student-content-area');
+    
+    const menuItems = [];
+    if (lessonData.content) menuItems.push({ id: 'text', label: 'Text lekce', icon: '✍️' });
+    if (lessonData.presentationData) menuItems.push({ id: 'presentation', label: 'Prezentace', icon: '🖼️' });
+    if (lessonData.videoUrl) menuItems.push({ id: 'video', label: 'Video', icon: '▶️' });
+    if (lessonData.quizData) menuItems.push({ id: 'quiz', label: 'Kvíz', icon: '❓' });
+    if (lessonData.testData) menuItems.push({ id: 'test', label: 'Test', icon: '✅' });
+    if (lessonData.postData) menuItems.push({ id: 'post', label: 'Podcast & Materiály', icon: '🎙️' });
+    menuItems.push({ id: 'assistant', label: 'AI Asistent', icon: '🤖' });
 
-    if (studentSnap.exists() && studentSnap.data().lessons?.length > 0) {
-        for (const lessonId of studentSnap.data().lessons) {
-            const lessonRef = doc(db, "lessons", lessonId);
-            const lessonSnap = await getDoc(lessonRef);
+    const menuHtml = menuItems.map(item => `
+        <a href="#" data-view="${item.id}" class="lesson-menu-item flex items-center p-3 text-sm font-medium rounded-md hover:bg-slate-100 transition-colors">
+            ${item.icon}<span class="ml-3">${item.label}</span>
+        </a>
+    `).join('');
+
+    studentContentArea.innerHTML = `
+        <div>
+            <button id="back-to-overview-btn" class="mb-6 text-green-700 font-semibold hover:underline">&larr; Zpět na přehled</button>
+            <header class="mb-8 text-center">
+                <span class="text-5xl">${lessonData.icon}</span>
+                <h1 class="text-4xl font-extrabold text-slate-800 mt-2">${lessonData.title}</h1>
+                <p class="text-xl text-slate-500">${lessonData.subtitle}</p>
+            </header>
             
-            const progressRef = doc(db, `students/${studentId}/progress/${lessonId}`);
-            const progressSnap = await getDoc(progressRef);
-            const isCompleted = progressSnap.exists() && progressSnap.data().completed;
+            <div class="flex flex-col md:flex-row gap-8">
+                <aside class="w-full md:w-64 flex-shrink-0">
+                    <div class="p-4 bg-white rounded-2xl shadow-lg">
+                         <h3 class="font-bold text-slate-800 mb-2 px-2">Obsah lekce</h3>
+                         <nav class="flex flex-col space-y-1">${menuHtml}</nav>
+                    </div>
+                </aside>
+                <main id="lesson-content-display" class="flex-grow bg-white rounded-2xl shadow-lg p-6 md:p-8 min-h-[400px]"></main>
+            </div>
+        </div>
+    `;
 
-            if (lessonSnap.exists()) {
-                const listItem = document.createElement('li');
-                listItem.textContent = lessonSnap.data().title;
-                listItem.dataset.lessonId = lessonId;
-                if (isCompleted) {
-                    listItem.classList.add('completed');
-                }
-                listItem.addEventListener('click', () => {
-                    document.querySelectorAll('#lessons-list li').forEach(li => li.classList.remove('active'));
-                    listItem.classList.add('active');
-                    loadLessonContent(lessonId);
-                });
-                lessonsList.appendChild(listItem);
-            }
-        }
-    } else {
-        lessonsList.innerHTML = '<p>Zatiaľ nemáte priradené žiadne lekcie.</p>';
-    }
-}
+    document.getElementById('back-to-overview-btn').addEventListener('click', () => {
+        initStudentDashboard();
+    });
 
-async function loadLessonContent(lessonId) {
-    currentLessonId = lessonId;
-    showLoader('lesson-content');
-    const lessonRef = doc(db, "lessons", lessonId);
-    const lessonSnap = await getDoc(lessonRef);
-    const lessonContentDiv = document.getElementById('lesson-content');
-    
-    if (lessonSnap.exists()) {
-        const lessonData = lessonSnap.data();
-        lessonContentDiv.innerHTML = `<h2>${lessonData.title}</h2>`;
+    const contentDisplay = document.getElementById('lesson-content-display');
 
-        switch (lessonData.type) {
-            case 'text':
-                renderText(lessonContentDiv, lessonData.content);
-                break;
-            case 'presentation':
-                renderPresentation(lessonContentDiv, lessonData.content);
-                break;
-            case 'video':
-                renderVideo(lessonContentDiv, lessonData.content);
-                break;
-            case 'quiz':
-            case 'test':
-                const progressRef = doc(db, `students/${currentStudentId}/progress/${lessonId}`);
-                const progressSnap = await getDoc(progressRef);
-                if (progressSnap.exists()) {
-                    renderQuizResult(lessonContentDiv, progressSnap.data(), lessonData.content.questions.length);
-                } else {
-                    renderQuiz(lessonContentDiv, lessonData.content);
-                }
-                break;
-            case 'podcast':
-                renderPodcast(lessonContentDiv, lessonData.content);
-                break;
-            case 'ai_assistant':
-                renderAIAssistantChat(lessonContentDiv, lessonData.content);
-                break;
-            default:
-                lessonContentDiv.innerHTML += '<p>Neznámy typ obsahu.</p>';
-        }
-    } else {
-        lessonContentDiv.innerHTML = '<p class="error">Nepodarilo sa načítať obsah lekcie.</p>';
-    }
-}
-
-// --- Ukladanie pokroku ---
-async function saveQuizResult(lessonId, score, totalQuestions) {
-    if (!currentStudentId) return;
-    
-    const progressRef = doc(db, `students/${currentStudentId}/progress/${lessonId}`);
-    const result = {
-        score,
-        totalQuestions,
-        completed: (score / totalQuestions) >= 0.8, // Lekcia je dokončená pri 80%
-        timestamp: new Date()
-    };
-    
-    try {
-        await setDoc(progressRef, result);
-        console.log("Quiz result saved!");
-        if (result.completed) {
-            const lessonItem = document.querySelector(`li[data-lesson-id="${lessonId}"]`);
-            if (lessonItem) {
-                lessonItem.classList.add('completed');
-            }
-        }
-    } catch (error) {
-        console.error("Error saving quiz result: ", error);
-    }
-}
-
-// --- Renderovacie funkcie ---
-function renderText(container, content) {
-    const textElement = document.createElement('div');
-    textElement.className = 'text-content';
-    textElement.innerHTML = content;
-    container.appendChild(textElement);
-}
-
-function renderPresentation(container, content) {
-    const urlMatch = content.match(/src="([^"]+)"/);
-    const url = urlMatch ? urlMatch[1] : content;
-    if (url) {
-        const iframe = document.createElement('iframe');
-        iframe.src = url;
-        iframe.width = '100%';
-        iframe.height = '500px';
-        iframe.frameBorder = '0';
-        iframe.allowFullscreen = true;
-        container.appendChild(iframe);
-    } else {
-        container.innerHTML += '<p class="error">Nepodarilo sa načítať prezentáciu.</p>';
-    }
-}
-
-function renderVideo(container, content) {
-    function getYouTubeID(url) {
-        const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-        const match = url.match(regex);
-        return match ? match[1] : null;
-    }
-    const videoId = getYouTubeID(content);
-    if (videoId) {
-        const iframe = document.createElement('iframe');
-        iframe.src = `https://www.youtube.com/embed/${videoId}`;
-        iframe.width = '100%';
-        iframe.height = '450px';
-        iframe.frameBorder = '0';
-        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
-        iframe.allowFullscreen = true;
-        container.appendChild(iframe);
-    } else {
-        container.innerHTML += '<p class="error">Nepodarilo sa načítať video.</p>';
-    }
-}
-
-function renderQuiz(container, content) {
-    const quizContainer = document.createElement('div');
-    quizContainer.className = 'quiz-container';
-
-    content.questions.forEach((q, index) => {
-        const questionElement = document.createElement('div');
-        questionElement.className = 'quiz-question';
-        questionElement.innerHTML = `<p><strong>${index + 1}. ${q.question}</strong></p>`;
-        const optionsElement = document.createElement('ul');
-        optionsElement.className = 'quiz-options';
-        q.options.forEach(option => {
-            const li = document.createElement('li');
-            const input = document.createElement('input');
-            input.type = 'radio';
-            input.name = `question-${index}`;
-            input.value = option;
-            input.id = `q${index}-${option.replace(/\s+/g, '-')}`;
-            const label = document.createElement('label');
-            label.htmlFor = input.id;
-            label.textContent = option;
-            li.appendChild(input);
-            li.appendChild(label);
-            optionsElement.appendChild(li);
+    studentContentArea.querySelectorAll('.lesson-menu-item').forEach(item => {
+        item.addEventListener('click', e => {
+            e.preventDefault();
+            studentContentArea.querySelectorAll('.lesson-menu-item').forEach(i => i.classList.remove('bg-green-100', 'text-green-800', 'font-semibold'));
+            item.classList.add('bg-green-100', 'text-green-800', 'font-semibold');
+            
+            const viewId = item.dataset.view;
+            renderLessonContent(viewId, lessonData, contentDisplay);
         });
-        questionElement.appendChild(optionsElement);
-        quizContainer.appendChild(questionElement);
     });
 
-    const submitButton = document.createElement('button');
-    submitButton.textContent = 'Odoslať kvíz';
-    submitButton.className = 'quiz-submit-btn';
-    submitButton.addEventListener('click', () => {
-        evaluateQuiz(content.questions, quizContainer);
-    });
-    quizContainer.appendChild(submitButton);
-    container.appendChild(quizContainer);
-}
-
-function evaluateQuiz(questions, container) {
-    let score = 0;
-    questions.forEach((q, index) => {
-        const selectedOption = container.querySelector(`input[name="question-${index}"]:checked`);
-        if (selectedOption && selectedOption.value === q.answer) {
-            score++;
-            selectedOption.parentElement.classList.add('correct');
-        } else if (selectedOption) {
-            selectedOption.parentElement.classList.add('incorrect');
-        }
-    });
-
-    container.querySelectorAll('input[type="radio"]').forEach(input => input.disabled = true);
-    container.querySelector('.quiz-submit-btn').style.display = 'none';
-
-    saveQuizResult(currentLessonId, score, questions.length);
-    renderQuizResult(container, { score }, questions.length, true);
-}
-
-function renderQuizResult(container, resultData, totalQuestions, isNew = false) {
-    const resultElement = document.createElement('div');
-    resultElement.className = 'quiz-result';
-    const message = isNew ? 'Váš výsledok:' : 'Váš posledný výsledok:';
-    resultElement.innerHTML = `<h3>${message} ${resultData.score} / ${totalQuestions}</h3>`;
-    
-    if ((resultData.score / totalQuestions) >= 0.8) {
-        resultElement.innerHTML += '<p class="success">Gratulujeme, úspešne ste dokončili túto lekciu!</p>';
+    if (menuItems.length > 0) {
+        studentContentArea.querySelector('.lesson-menu-item').click();
     } else {
-        resultElement.innerHTML += '<p class="warning">Pre dokončenie lekcie je potrebné dosiahnuť aspoň 80% úspešnosť.</p>';
-    }
-    
-    if (isNew) {
-        container.appendChild(resultElement);
-    } else {
-        container.prepend(resultElement);
+        contentDisplay.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci zatím není k dispozici žádný obsah.</p>`;
     }
 }
 
-function renderPodcast(container, content) {
-    const urlMatch = content.match(/src="([^"]+)"/);
-    let url = urlMatch ? urlMatch[1] : content;
-    if (url.includes('open.spotify.com')) {
-        url = url.replace('open.spotify.com', 'open.spotify.com/embed');
-    }
-    if (url) {
-        const iframe = document.createElement('iframe');
-        iframe.src = url;
-        iframe.width = '100%';
-        iframe.height = '152';
-        iframe.frameBorder = '0';
-        iframe.allow = 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture';
-        container.appendChild(iframe);
-    } else {
-        container.innerHTML += '<p class="error">Nepodarilo sa načítať podcast.</p>';
+function renderLessonContent(viewId, lessonData, container) {
+    switch(viewId) {
+        case 'text':
+            container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${lessonData.content || ''}</div>`;
+            break;
+        case 'presentation':
+            renderPresentation(lessonData.presentationData, container);
+            break;
+        case 'video':
+            renderVideo(lessonData.videoUrl, container);
+            break;
+        case 'quiz':
+            renderQuiz(lessonData.quizData, container);
+            break;
+        case 'test':
+            renderTest(lessonData.testData, container); // Použijeme rovnakú funkciu ako pre kvíz
+            break;
+        case 'post':
+            renderPodcast(lessonData.postData, container); // Použijeme renderPodcast
+            break;
+        case 'assistant':
+            renderAIAssistantChat(lessonData, container);
+            break;
+        default:
+            container.innerHTML = `<p>Obsah se připravuje.</p>`;
     }
 }
 
-function renderAIAssistantChat(container, content) {
-    const chatContainer = document.createElement('div');
-    chatContainer.className = 'ai-chat-container';
-    chatContainer.innerHTML = `
-        <div class="virtual-mobile">
-            <div class="mobile-screen">
-                <div class="chat-header">AI Sensei Asistent</div>
-                <div class="chat-messages" id="chat-messages">
-                    <div class="message received"><p>Ahoj! Som tvoj AI asistent. Ako ti môžem pomôcť?</p></div>
-                </div>
-                <div class="chat-input-area">
-                    <input type="text" id="chat-input" placeholder="Napíš svoju otázku...">
-                    <button id="chat-send-btn">Odoslať</button>
+function renderAIAssistantChat(lessonData, container) {
+    container.innerHTML = `
+        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">AI Asistent Lekce</h2>
+        <div class="w-full max-w-md mx-auto bg-slate-900 rounded-[40px] border-[14px] border-slate-900 shadow-2xl relative">
+            <div class="w-full h-full bg-blue-100 bg-[url('[https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg](https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg)')] bg-center bg-cover rounded-[26px]">
+                <div class="h-[600px] flex flex-col p-4">
+                    <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2">
+                        <div class="flex justify-start"><div class="bg-white p-3 rounded-r-xl rounded-t-xl max-w-xs text-sm">Ahoj! Zeptej se mě na cokoliv ohledně této lekce.</div></div>
+                    </div>
+                    <footer class="mt-4 flex-shrink-0">
+                        <div class="flex items-center bg-white rounded-full p-2 shadow-inner">
+                            <textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu..."></textarea>
+                            <button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors">
+                                <svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                            </button>
+                        </div>
+                    </footer>
                 </div>
             </div>
         </div>
     `;
-    container.appendChild(chatContainer);
 
-    const sendBtn = document.getElementById('chat-send-btn');
-    const chatInput = document.getElementById('chat-input');
-    const messagesContainer = document.getElementById('chat-messages');
+    const sendBtn = container.querySelector('#student-send-btn');
+    const input = container.querySelector('#student-chat-input');
+    const historyContainer = container.querySelector('#student-chat-history');
 
-    sendBtn.addEventListener('click', sendMessage);
-    chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendMessage();
-    });
+    const addMessage = (text, sender) => {
+        const messageEl = document.createElement('div');
+        messageEl.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+        messageEl.innerHTML = `<div class="${sender === 'user' ? 'bg-green-200' : 'bg-white'} p-3 rounded-xl max-w-xs text-sm">${text.replace(/\n/g, '<br>')}</div>`;
+        historyContainer.appendChild(messageEl);
+        historyContainer.scrollTop = historyContainer.scrollHeight;
+        return messageEl;
+    };
 
-    async function sendMessage() {
-        const messageText = chatInput.value.trim();
-        if (messageText === '' || !currentLessonId) return;
+    const handleSend = async () => {
+        const userQuestion = input.value.trim();
+        if (!userQuestion) return;
+        
+        input.value = '';
+        input.style.height = 'auto';
+        sendBtn.disabled = true;
+        addMessage(userQuestion, 'user');
 
-        const sentMessage = document.createElement('div');
-        sentMessage.className = 'message sent';
-        sentMessage.innerHTML = `<p>${messageText}</p>`;
-        messagesContainer.appendChild(sentMessage);
-        chatInput.value = '';
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-        const thinkingIndicator = document.createElement('div');
-        thinkingIndicator.className = 'message received typing-indicator';
-        thinkingIndicator.innerHTML = `<p><span>.</span><span>.</span><span>.</span></p>`;
-        messagesContainer.appendChild(thinkingIndicator);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
+        const thinkingBubble = addMessage("...", 'ai');
+        
         try {
-            const response = await getLessonAssistantResponse(currentLessonId, messageText);
-            messagesContainer.removeChild(thinkingIndicator);
-            const receivedMessage = document.createElement('div');
-            receivedMessage.className = 'message received';
-            const p = document.createElement('p');
-            p.textContent = response;
-            receivedMessage.appendChild(p);
-            messagesContainer.appendChild(receivedMessage);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            // *** TOTO JE KĽÚČOVÁ ZMENA ***
+            const result = await getLessonAssistantResponse(lessonData.id, userQuestion, lessonData.content || '');
+            if (result.error) throw new Error(result.error);
+            
+            // Backend vracia { answer: '...' }, preto pristupujeme k result.answer
+            thinkingBubble.querySelector('div').innerHTML = result.answer.replace(/\n/g, '<br>');
+
         } catch (error) {
-            messagesContainer.removeChild(thinkingIndicator);
-            const errorMessage = document.createElement('div');
-            errorMessage.className = 'message received';
-            errorMessage.innerHTML = `<p class="error">Prepáč, nastala chyba.</p>`;
-            messagesContainer.appendChild(errorMessage);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            console.error("Error getting AI response:", error);
+            console.error("Error getting AI assistant response:", error);
+            thinkingBubble.querySelector('div').innerHTML = `<p class="text-red-500">Omlouvám se, došlo k chybě.</p>`;
+        } finally {
+            sendBtn.disabled = false;
         }
+    };
+    
+    sendBtn.addEventListener('click', handleSend);
+    input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSend();
+        }
+    });
+    input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = (input.scrollHeight) + 'px';
+    });
+}
+
+function renderVideo(videoUrl, container) {
+    let videoId = null;
+    try {
+        const url = new URL(videoUrl);
+        if (url.hostname === 'youtu.be') {
+            videoId = url.pathname.slice(1);
+        } else if (url.hostname.includes('youtube.com')) {
+            videoId = url.searchParams.get('v');
+        }
+    } catch (e) {
+        const match = videoUrl.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+        videoId = match ? match[1] : null;
     }
+
+    if (videoId) {
+        container.innerHTML = `
+            <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Video k lekci</h2>
+            <div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-4xl shadow-lg">
+                <iframe src="[https://www.youtube.com/embed/$](https://www.youtube.com/embed/$){videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>
+            </div>`;
+    } else {
+        container.innerHTML = `<p class="text-red-500 text-center font-semibold p-8">Vložená URL adresa videa není platná.</p>`;
+    }
+}
+
+function renderPresentation(presentationData, container) {
+    if (!presentationData || !Array.isArray(presentationData.slides) || presentationData.slides.length === 0) {
+        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádná prezentace.</p>`;
+        return;
+    }
+    let currentSlide = 0;
+    const render = () => {
+        const slide = presentationData.slides[currentSlide];
+        container.innerHTML = `
+            <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Prezentace</h2>
+            <div class="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden max-w-4xl mx-auto">
+                <div class="bg-slate-700 text-white p-4 text-center"><h3 class="text-2xl font-bold">${slide.title}</h3></div>
+                <div class="p-8"><ul class="list-disc list-inside space-y-4 text-xl">${(slide.points || []).map(p => `<li>${p}</li>`).join('')}</ul></div>
+                <div class="p-4 bg-slate-100 border-t flex justify-between items-center">
+                    <button id="prev-slide-btn" class="px-4 py-2 bg-slate-300 rounded-lg font-semibold hover:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed">Předchozí</button>
+                    <span>${currentSlide + 1} / ${presentationData.slides.length}</span>
+                    <button id="next-slide-btn" class="px-4 py-2 bg-slate-300 rounded-lg font-semibold hover:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed">Další</button>
+                </div>
+            </div>`;
+
+        const prevBtn = document.getElementById('prev-slide-btn');
+        const nextBtn = document.getElementById('next-slide-btn');
+        prevBtn.disabled = currentSlide === 0;
+        nextBtn.disabled = currentSlide === presentationData.slides.length - 1;
+
+        prevBtn.addEventListener('click', () => { if (currentSlide > 0) { currentSlide--; render(); } });
+        nextBtn.addEventListener('click', () => { if (currentSlide < presentationData.slides.length - 1) { currentSlide++; render(); } });
+    };
+    render();
+}
+
+function renderQuiz(quizData, container) {
+    if (!quizData || !Array.isArray(quizData.questions) || quizData.questions.length === 0) return;
+    const questionsHtml = quizData.questions.map((q, index) => {
+        const optionsHtml = (q.options || []).map((option, i) => `
+            <label class="block p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                <input type="radio" name="question-${index}" value="${i}" class="mr-3"><span>${option}</span>
+            </label>`).join('');
+        return `<div class="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-6" data-q-index="${index}">
+                    <p class="font-semibold text-lg mb-4">${index + 1}. ${q.question_text}</p>
+                    <div class="space-y-3">${optionsHtml}</div>
+                    <div class="mt-4 p-3 rounded-lg text-sm hidden result-feedback"></div>
+                </div>`;
+    }).join('');
+    container.innerHTML = `
+        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Interaktivní Kvíz</h2>
+        <form id="quiz-form">${questionsHtml}</form>
+        <div class="text-center mt-6"><button id="check-quiz-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-700">Vyhodnotit</button></div>
+        <div id="quiz-summary" class="hidden mt-8 text-center font-bold text-xl p-4 rounded-lg"></div>`;
+
+    document.getElementById('check-quiz-btn').addEventListener('click', (e) => {
+        e.preventDefault();
+        let score = 0;
+        quizData.questions.forEach((q, index) => {
+            const qEl = container.querySelector(`[data-q-index="${index}"]`);
+            const feedbackEl = qEl.querySelector('.result-feedback');
+            const selected = qEl.querySelector('input:checked');
+            feedbackEl.classList.remove('hidden');
+            if (selected) {
+                if (parseInt(selected.value) === q.correct_option_index) {
+                    score++;
+                    feedbackEl.textContent = 'Správně!';
+                    feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700 result-feedback';
+                } else {
+                    feedbackEl.textContent = `Špatně. Správná odpověď: ${q.options[q.correct_option_index]}`;
+                    feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700 result-feedback';
+                }
+            } else {
+                feedbackEl.textContent = 'Nevybrali jste odpověď.';
+                feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-yellow-100 text-yellow-800 result-feedback';
+            }
+        });
+        const summaryEl = document.getElementById('quiz-summary');
+        summaryEl.textContent = `Vaše skóre: ${score} z ${quizData.questions.length}`;
+        summaryEl.classList.remove('hidden');
+    });
+}
+
+function renderTest(testData, container) {
+    renderQuiz(testData, container); // Dočasne použijeme rovnakú logiku
+}
+
+function renderPodcast(postData, container) {
+    if (!postData || !Array.isArray(postData.episodes) || postData.episodes.length === 0) {
+        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný podcast.</p>`;
+        return;
+    };
+    const episodesHtml = postData.episodes.map((episode, i) => `
+        <div class="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-6">
+            <h4 class="font-bold text-xl text-slate-800">${i + 1}. ${episode.title}</h4>
+            <div class="mt-4 text-slate-600 prose">
+                ${episode.script.replace(/\n/g, '<br>')}
+            </div>
+        </div>
+    `).join('');
+    container.innerHTML = `
+        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Podcast & Materiály</h2>
+        ${episodesHtml}
+    `;
 }
