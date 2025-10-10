@@ -5,21 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Sensei</title>
     <link rel="stylesheet" href="styles.css">
-    <style>
-        /* Základné štýly, kým sa nenačíta Tailwind CSS */
-        body { font-family: sans-serif; background-color: #f1f5f9; }
-        .hidden { display: none; }
-    </style>
 </head>
-<body class="bg-slate-100 flex items-center justify-center min-h-screen">
+<body class="bg-slate-100">
 
-    <div id="app-container" class="w-full">
+    <div id="toast-container"></div>
+    <div id="app-container"></div>
 
-        <template id="login-template">
+    <template id="login-template">
+        <div class="flex items-center justify-center min-h-screen">
             <div class="w-full max-w-md mx-auto p-8">
                 <div class="bg-white rounded-2xl shadow-lg p-8">
                     <h1 class="text-3xl font-bold text-center text-slate-800 mb-6">AI Sensei Login</h1>
-
                     <div id="student-login-container">
                         <div id="login-form">
                             <h2 class="text-xl font-semibold text-slate-600 mb-4 text-center">Prihlásenie pre študentov</h2>
@@ -32,7 +28,6 @@
                                 Nemáte účet? <a href="#" id="show-register-form" class="font-semibold text-green-700 hover:underline">Zaregistrujte sa</a>
                             </p>
                         </div>
-
                         <div id="register-form" class="hidden">
                             <h2 class="text-xl font-semibold text-slate-600 mb-4 text-center">Registrácia pre študentov</h2>
                             <div class="space-y-4">
@@ -45,13 +40,11 @@
                             </p>
                         </div>
                     </div>
-
                     <div class="my-6 flex items-center">
                         <div class="flex-grow border-t border-slate-300"></div>
                         <span class="flex-shrink mx-4 text-slate-400 text-sm">alebo</span>
                         <div class="flex-grow border-t border-slate-300"></div>
                     </div>
-
                     <div>
                         <button id="login-professor" class="w-full bg-slate-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-slate-800 transition-colors">Vstúpiť ako profesor</button>
                     </div>
@@ -59,24 +52,19 @@
             </div>
         </template>
 
-        <template id="main-app-template">
-            <div id="main-app" class="flex h-screen bg-slate-100">
-                <nav id="main-nav" class="bg-green-800 p-2 flex flex-col items-center space-y-4">
-                    </nav>
-                <div id="role-content-wrapper" class="flex-grow">
-                    </div>
-                <div class="p-4 bg-white border-l border-slate-200 flex flex-col items-center">
-                    <div id="user-info" class="text-center mb-4">
-                        <span id="user-email" class="text-sm text-slate-600 block"></span>
-                    </div>
-                    <button id="logout-btn" title="Odhlásiť sa" class="mt-auto p-3 rounded-lg text-slate-500 hover:bg-red-100 hover:text-red-600 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                    </button>
+    <template id="main-app-template">
+        <div id="main-app" class="flex h-screen bg-slate-100">
+            <nav id="main-nav" class="bg-green-800 p-2 flex flex-col items-center space-y-4">
+                </nav>
+            <div id="role-content-wrapper" class="flex-grow flex flex-col">
                 </div>
+            <div class="p-4 bg-white border-l border-slate-200 flex flex-col items-center">
+                <button id="logout-btn" title="Odhlásiť sa" class="mt-auto p-3 rounded-lg text-slate-500 hover:bg-red-100 hover:text-red-600 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                </button>
             </div>
-        </template>
-
-    </div>
+        </div>
+    </template>
 
     <script type="module" src="js/app.js"></script>
 </body>
