@@ -1,45 +1,35 @@
-name: Build and Deploy to Firebase
+name: Deploy to Firebase
 
 on:
   push:
     branches:
-      - main
+      - main  # Alebo názov tvojej hlavnej vetvy
 
 jobs:
-  build_and_deploy:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js v22
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm' # Use npm's built-in caching for the root directory
-          cache-dependency-path: '**/package-lock.json'
+          node-version: '22'  # Použije sa Node.js v22
 
-      - name: Install root dependencies
-        run: npm install
-
-      - name: Clean previous build artifacts
-        run: rm -rf functions/lib
-
-      - name: Install Functions dependencies and build
-        working-directory: ./functions
+      - name: Install dependencies and build
         run: |
+          cd functions
           npm ci
           npm run lint
           npm run build
 
-      - name: Authenticate to Google Cloud
-        id: 'auth'
-        uses: 'google-github-actions/auth@v2'
-        with:
-          credentials_json: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_AI_SENSEI_CZU_PILOT }}'
-
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools
-
       - name: Deploy to Firebase
-        run: firebase deploy --only functions,hosting --project ai-sensei-czu-pilot --force
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only functions
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          PROJECT_ID: ${{ secrets.PROJECT_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          PROFESSOR_TELEGRAM_CHAT_ID: ${{ secrets.PROFESSOR_TELEGRAM_CHAT_ID }}
