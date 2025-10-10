@@ -352,7 +352,7 @@ function renderQuiz(quizData, container) {
     document.getElementById('check-quiz-btn').addEventListener('click', () => {
         let score = 0;
         quizData.questions.forEach((q, index) => {
-            const qEl = container.querySelector(\`[data-q-index="${index}"]\`);
+            const qEl = container.querySelector(`[data-q-index="${index}"]`);
             const feedbackEl = qEl.querySelector('.result-feedback');
             const selected = qEl.querySelector('input:checked');
             feedbackEl.classList.remove('hidden');
@@ -362,7 +362,7 @@ function renderQuiz(quizData, container) {
                     feedbackEl.textContent = 'Správně!';
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700';
                 } else {
-                    feedbackEl.textContent = \`Špatně. Správná odpověď: \${q.options[q.correct_option_index]}\`;
+                    feedbackEl.textContent = `Špatně. Správná odpověď: ${q.options[q.correct_option_index]}`;
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700';
                 }
             } else {
@@ -371,7 +371,7 @@ function renderQuiz(quizData, container) {
             }
         });
         const summaryEl = document.getElementById('quiz-summary');
-        summaryEl.textContent = \`Vaše skóre: \${score} z \${quizData.questions.length}\`;
+        summaryEl.textContent = `Vaše skóre: ${score} z ${quizData.questions.length}`;
         summaryEl.classList.remove('hidden');
     });
 }
@@ -398,7 +398,7 @@ function renderTest(testData, container) {
     document.getElementById('check-test-btn').addEventListener('click', () => {
         let score = 0;
         testData.questions.forEach((q, index) => {
-            const qEl = container.querySelector(\`[data-q-index="${index}"]\`);
+            const qEl = container.querySelector(`[data-q-index="${index}"]`);
             const feedbackEl = qEl.querySelector('.result-feedback');
             const selected = qEl.querySelector('input:checked');
             feedbackEl.classList.remove('hidden');
@@ -408,7 +408,7 @@ function renderTest(testData, container) {
                     feedbackEl.textContent = 'Správně!';
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700';
                 } else {
-                    feedbackEl.textContent = \`Špatně. Správná odpověď: \${q.options[q.correct_option_index]}\`;
+                    feedbackEl.textContent = `Špatně. Správná odpověď: ${q.options[q.correct_option_index]}`;
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700';
                 }
             } else {
@@ -417,7 +417,7 @@ function renderTest(testData, container) {
             }
         });
         const summaryEl = document.getElementById('test-summary');
-        summaryEl.textContent = \`Vaše skóre: \${score} z \${testData.questions.length}\`;
+        summaryEl.textContent = `Vaše skóre: ${score} z ${testData.questions.length}`;
         summaryEl.classList.remove('hidden');
     });
 }
