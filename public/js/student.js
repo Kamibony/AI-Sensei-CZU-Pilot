@@ -1,7 +1,7 @@
-import { collection, getDocs, doc, getDoc, query, where } from "[https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js](https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js)";
+import { collection, getDocs, doc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { db, auth } from './firebase-init.js';
-import { getLessonAssistantResponse } from './gemini-api.js'; // Tento import teraz bude fungovať
+import { getLessonAssistantResponse } from './gemini-api.js'; // Tento import bude fungovať s opraveným gemini-api.js
 
 let lessonsData = [];
 
@@ -34,7 +34,7 @@ async function setupStudentNav() {
     nav.innerHTML = `
         <li>
             <button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium">
-                <svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             </button>
         </li>
     `;
@@ -206,10 +206,10 @@ function renderLessonContent(viewId, lessonData, container) {
             renderQuiz(lessonData.quizData, container);
             break;
         case 'test':
-            renderTest(lessonData.testData, container); // Použijeme rovnakú funkciu ako pre kvíz
+            renderTest(lessonData.testData, container);
             break;
         case 'post':
-            renderPodcast(lessonData.postData, container); // Použijeme renderPodcast
+            renderPodcast(lessonData.postData, container);
             break;
         case 'assistant':
             renderAIAssistantChat(lessonData, container);
@@ -223,7 +223,7 @@ function renderAIAssistantChat(lessonData, container) {
     container.innerHTML = `
         <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">AI Asistent Lekce</h2>
         <div class="w-full max-w-md mx-auto bg-slate-900 rounded-[40px] border-[14px] border-slate-900 shadow-2xl relative">
-            <div class="w-full h-full bg-blue-100 bg-[url('[https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg](https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg)')] bg-center bg-cover rounded-[26px]">
+            <div class="w-full h-full bg-blue-100 bg-[url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')] bg-center bg-cover rounded-[26px]">
                 <div class="h-[600px] flex flex-col p-4">
                     <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2">
                         <div class="flex justify-start"><div class="bg-white p-3 rounded-r-xl rounded-t-xl max-w-xs text-sm">Ahoj! Zeptej se mě na cokoliv ohledně této lekce.</div></div>
@@ -232,7 +232,7 @@ function renderAIAssistantChat(lessonData, container) {
                         <div class="flex items-center bg-white rounded-full p-2 shadow-inner">
                             <textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu..."></textarea>
                             <button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors">
-                                <svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                             </button>
                         </div>
                     </footer>
@@ -266,13 +266,10 @@ function renderAIAssistantChat(lessonData, container) {
         const thinkingBubble = addMessage("...", 'ai');
         
         try {
-            // *** TOTO JE KĽÚČOVÁ ZMENA ***
             const result = await getLessonAssistantResponse(lessonData.id, userQuestion, lessonData.content || '');
             if (result.error) throw new Error(result.error);
             
-            // Backend vracia { answer: '...' }, preto pristupujeme k result.answer
             thinkingBubble.querySelector('div').innerHTML = result.answer.replace(/\n/g, '<br>');
-
         } catch (error) {
             console.error("Error getting AI assistant response:", error);
             thinkingBubble.querySelector('div').innerHTML = `<p class="text-red-500">Omlouvám se, došlo k chybě.</p>`;
@@ -312,7 +309,7 @@ function renderVideo(videoUrl, container) {
         container.innerHTML = `
             <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Video k lekci</h2>
             <div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-4xl shadow-lg">
-                <iframe src="[https://www.youtube.com/embed/$](https://www.youtube.com/embed/$){videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>
+                <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>
             </div>`;
     } else {
         container.innerHTML = `<p class="text-red-500 text-center font-semibold p-8">Vložená URL adresa videa není platná.</p>`;
@@ -398,7 +395,7 @@ function renderQuiz(quizData, container) {
 }
 
 function renderTest(testData, container) {
-    renderQuiz(testData, container); // Dočasne použijeme rovnakú logiku
+    renderQuiz(testData, container);
 }
 
 function renderPodcast(postData, container) {
