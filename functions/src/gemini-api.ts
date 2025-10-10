@@ -6,7 +6,8 @@ import {
   Part,
 } from "@google-cloud/vertexai";
 import { getStorage } from "firebase-admin/storage";
-import mammoth from "mammoth"; // <-- PRIDANÝ IMPORT
+import mammoth from "mammoth";
+import pdf from "pdf-parse";
 
 // --- KONFIGURACE MODELU ---
 const GCLOUD_PROJECT = process.env.GCLOUD_PROJECT;
@@ -95,11 +96,13 @@ async function processDocuments(filePaths: string[]): Promise<Part[]> {
         const [fileBuffer] = await file.download();
 
         if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-            // Extrahujeme text z DOCX a pridáme ho do spoločného textového kontextu
             const textResult = await mammoth.extractRawText({ buffer: fileBuffer });
             extractedText += textResult.value + "\n\n";
+        } else if (mimeType === "application/pdf") {
+            const data = await pdf(fileBuffer);
+            extractedText += data.text + "\n\n";
         } else {
-            // Ostatné podporované typy pošleme priamo ako súbory
+            // Other supported types (images) are sent directly as files
             parts.push({
                 inlineData: {
                     mimeType: mimeType,
@@ -109,7 +112,7 @@ async function processDocuments(filePaths: string[]): Promise<Part[]> {
         }
     }
 
-    // Ak sme extrahovali nejaký text, pridáme ho ako jeden textový part
+    // If any text was extracted, add it as a single text part
     if (extractedText) {
         parts.unshift({ text: `Kontext z dokumentů:\n${extractedText}\n---\n` });
     }

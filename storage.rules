@@ -8,10 +8,13 @@ service firebase.storage {
     }
 
     // Course media is publicly readable so students can access it.
-    // Only professors can upload/delete course media.
+    // Only professors can upload/delete course media of specific types.
     match /courses/{courseId}/media/{allPaths=**} {
       allow read;
-      allow write: if isProfessor();
+      allow write: if isProfessor() && (
+        request.resource.contentType == 'application/pdf' ||
+        request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      );
     }
 
     // Allow students to upload files only to a designated 'submissions' folder

@@ -296,9 +296,9 @@ function renderMediaLibrary(container) {
         </header>
         <div class="flex-grow overflow-y-auto p-4 md:p-6">
             <div class="bg-white p-6 rounded-2xl shadow-lg">
-                <p class="text-slate-500 mb-4">Nahrajte soubory, které chcete sdílet napříč všemi lekcemi.</p>
+                <p class="text-slate-500 mb-4">Nahrajte soubory (.pdf, .docx), které chcete sdílet napříč všemi lekcemi.</p>
                 <div id="course-media-upload-area" class="upload-zone rounded-lg p-10 text-center text-slate-500 cursor-pointer"><p class="font-semibold">Přetáhněte soubory sem nebo klikněte pro výběr</p></div>
-                <input type="file" id="course-media-file-input" multiple class="hidden">
+                <input type="file" id="course-media-file-input" multiple class="hidden" accept=".pdf, .docx, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document">
                 <h3 class="font-bold text-slate-700 mt-6 mb-2">Nahrané soubory:</h3>
                 <ul id="course-media-list" class="space-y-2"></ul>
             </div>
