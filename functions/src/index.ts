@@ -106,61 +106,63 @@ export const sendMessageToProfessor = onCall(
 // --- HTTP Request Functions ---
 export const telegramBotWebhook = onRequest(
     { region: DEPLOY_REGION, secrets: ["TELEGRAM_BOT_TOKEN"] },
-    async (req, res) => {
-        if (req.method !== 'POST') {
-            res.status(405).send('Method Not Allowed');
-            return;
-        }
-
-        const update = req.body;
-        if (!update || !update.message) {
-            res.status(200).send('OK');
-            return;
-        }
-
-        const message = update.message;
-        const chatId = message.chat.id;
-        const text = message.text;
-
-        try {
-            if (text && text.startsWith("/start")) {
-                const token = text.split(' ')[1];
-                if (token) {
-                    const q = db.collection("students").where("telegramToken", "==", token).limit(1);
-                    const querySnapshot = await q.get();
-                    if (!querySnapshot.empty) {
-                        const studentDoc = querySnapshot.docs[0];
-                        await studentDoc.ref.update({ telegramChatId: chatId });
-                        await sendTelegramMessage(chatId, "Váš účet bol úspešne prepojený!");
+    (req, res) => {
+        corsHandler(req, res, async () => {
+            if (req.method !== 'POST') {
+                res.status(405).send('Method Not Allowed');
+                return;
+            }
+    
+            const update = req.body;
+            if (!update || !update.message) {
+                res.status(200).send('OK');
+                return;
+            }
+    
+            const message = update.message;
+            const chatId = message.chat.id;
+            const text = message.text;
+    
+            try {
+                if (text && text.startsWith("/start")) {
+                    const token = text.split(' ')[1];
+                    if (token) {
+                        const q = db.collection("students").where("telegramToken", "==", token).limit(1);
+                        const querySnapshot = await q.get();
+                        if (!querySnapshot.empty) {
+                            const studentDoc = querySnapshot.docs[0];
+                            await studentDoc.ref.update({ telegramChatId: chatId });
+                            await sendTelegramMessage(chatId, "Váš účet bol úspešne prepojený!");
+                        } else {
+                            await sendTelegramMessage(chatId, "Neplatný alebo expirovaný token.");
+                        }
                     } else {
-                        await sendTelegramMessage(chatId, "Neplatný alebo expirovaný token.");
+                        await sendTelegramMessage(chatId, "Pre prepojenie účtu použite príkaz /start s vaším unikátnym tokenom.");
                     }
-                } else {
-                    await sendTelegramMessage(chatId, "Pre prepojenie účtu použite príkaz /start s vaším unikátnym tokenom.");
+                    res.status(200).send("OK");
+                    return;
                 }
+    
+                const q = db.collection("students").where("telegramChatId", "==", chatId).limit(1);
+                const querySnapshot = await q.get();
+    
+                if (querySnapshot.empty) {
+                    await sendTelegramMessage(chatId, "Váš účet nie je prepojený.");
+                    res.status(200).send("OK");
+                    return;
+                }
+    
+                const studentQuestion = text;
+                const prompt = `Si AI Sensei, nápomocný asistent pre študenta. Odpovedz na nasledujúcu otázku stručne a jasne: "${studentQuestion}"`;
+                const answer = await GeminiAPI.generateTextFromPrompt(prompt);
+                await sendTelegramMessage(chatId, answer);
                 res.status(200).send("OK");
-                return;
+    
+            } catch (error) {
+                logger.error("Error in Telegram webhook:", error);
+                await sendTelegramMessage(chatId, "Ospravedlňujem sa, nastala neočakávaná chyba.");
+                res.status(500).send("Internal Server Error");
             }
-
-            const q = db.collection("students").where("telegramChatId", "==", chatId).limit(1);
-            const querySnapshot = await q.get();
-
-            if (querySnapshot.empty) {
-                await sendTelegramMessage(chatId, "Váš účet nie je prepojený.");
-                res.status(200).send("OK");
-                return;
-            }
-
-            const studentQuestion = text;
-            const prompt = `Si AI Sensei, nápomocný asistent pre študenta. Odpovedz na nasledujúcu otázku stručne a jasne: "${studentQuestion}"`;
-            const answer = await GeminiAPI.generateTextFromPrompt(prompt);
-            await sendTelegramMessage(chatId, answer);
-            res.status(200).send("OK");
-
-        } catch (error) {
-            logger.error("Error in Telegram webhook:", error);
-            await sendTelegramMessage(chatId, "Ospravedlňujem sa, nastala neočakávaná chyba.");
-            res.status(500).send("Internal Server Error");
-        }
+        });
     }
 );
