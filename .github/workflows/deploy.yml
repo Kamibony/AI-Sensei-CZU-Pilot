@@ -17,25 +17,36 @@ jobs:
         with:
           node-version: '22'
 
-      # --- NOVÁ ČASŤ: INŠTALÁCIA A VYTVORENIE FRONTENDU ---
       - name: Install Frontend Dependencies
         run: npm install
 
-      - name: Build CSS from Tailwind
-        run: npm run build:css -- --minify  # Pridali sme --minify pre menší súbor
+      # --- NOVÝ DIAGNOSTICKÝ KROK ---
+      - name: List files BEFORE build
+        run: ls -lR public
 
-      # --- PÔVODNÁ ČASŤ: INŠTALÁCIA A BUILD BACKENDU ---
+      - name: Build CSS from Tailwind
+        run: npm run build:css
+
+      # --- NOVÝ DIAGNOSTICKÝ KROK ---
+      - name: List files AFTER build
+        run: ls -lR public
+
+      # --- NOVÝ DIAGNOSTICKÝ KROK: Uloženie výsledku ---
+      - name: Archive public folder as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-folder
+          path: public
+
       - name: Install and Build Functions
         run: |
           cd functions
           npm install
           npm run build
 
-      # --- FINÁLNE NASADENIE ---
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@master
         with:
-          # Nasadí VŠETKO (hosting s vygenerovaným CSS aj funkcie)
           args: deploy --force
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
