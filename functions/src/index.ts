@@ -73,7 +73,6 @@ export const generateContent = onCall({ region: "europe-west1" }, async (request
 
     } catch (error) {
         logger.error(`Error in generateContent for type ${contentType}:`, error);
-        // --- OPRAVA CHYBY TS18046 ---
         let message = "An unknown error occurred.";
         if (error instanceof Error) {
             message = error.message;
