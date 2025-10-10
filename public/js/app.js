@@ -1,47 +1,33 @@
-import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { functions } from './firebase-init.js';
+import { initializeFirebase } from './firebase-init.js';
+import { startAuthFlow, handleLogout } from './auth.js';
 
-const generateTextFunction = httpsCallable(functions, 'generateText');
-const generateJsonFunction = httpsCallable(functions, 'generateJson');
-const generateFromDocumentFunction = httpsCallable(functions, 'generateFromDocument');
-const getLessonAssistantResponseFunction = httpsCallable(functions, 'getLessonAssistantResponse');
+function initializeAppUI() {
+    const appContainer = document.getElementById('app-container');
 
-export async function callGeminiApi(prompt) {
-    try {
-        const result = await generateTextFunction({ prompt });
-        return result.data;
-    } catch (error) {
-        console.error("Error calling 'generateText' function:", error);
-        return { error: `Backend Error: ${error.message}` };
-    }
+    const login = async (role) => {
+        if (!appContainer) return;
+        const template = document.getElementById('main-app-template');
+        if (!template) return;
+
+        appContainer.innerHTML = '';
+        appContainer.appendChild(template.content.cloneNode(true));
+        
+        if (role === 'professor') {
+            const { initProfessorDashboard } = await import('./professor.js');
+            await initProfessorDashboard();
+        } else {
+            const { initStudentDashboard } = await import('./student.js');
+            await initStudentDashboard();
+        }
+    };
+    
+    startAuthFlow(login);
 }
 
-export async function callGeminiForJson(prompt) {
-    try {
-        const result = await generateJsonFunction({ prompt });
-        return result.data;
-    } catch (error) {
-        console.error("Error calling 'generateJson' function:", error);
-        return { error: `Backend Error during JSON generation: ${error.message}` };
-    }
-}
-
-export async function callGenerateFromDocument(data) {
-    try {
-        const result = await generateFromDocumentFunction(data);
-        return result.data;
-    } catch (error) {
-        console.error("Error calling 'generateFromDocument' function:", error);
-        return { error: `Backend Error during document generation: ${error.message}` };
-    }
-}
-
-export async function getLessonAssistantResponse(data) {
-    try {
-        const result = await getLessonAssistantResponseFunction(data);
-        return result.data;
-    } catch (error) {
-        console.error("Error calling 'getLessonAssistantResponse' function:", error);
-        return { error: `Backend Error: ${error.message}` };
-    }
-}
+// Spustenie celej aplikácie
+initializeFirebase().then(() => {
+    initializeAppUI();
+}).catch(error => {
+    console.error("Firebase initialization failed:", error);
+    document.body.innerHTML = '<p style="color: red; text-align: center; margin-top: 50px;">Critical error: Could not initialize Firebase.</p>';
+});
