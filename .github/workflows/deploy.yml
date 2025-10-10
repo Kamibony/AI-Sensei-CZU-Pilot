@@ -1,4 +1,4 @@
-name: Deploy to Firebase
+name: Build and Deploy to Firebase
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  deploy:
+  build_and_deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -17,17 +17,25 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install dependencies and build
+      # --- NOVÁ ČASŤ: INŠTALÁCIA A VYTVORENIE FRONTENDU ---
+      - name: Install Frontend Dependencies
+        run: npm install
+
+      - name: Build CSS from Tailwind
+        run: npm run build:css -- --minify  # Pridali sme --minify pre menší súbor
+
+      # --- PÔVODNÁ ČASŤ: INŠTALÁCIA A BUILD BACKENDU ---
+      - name: Install and Build Functions
         run: |
           cd functions
           npm install
           npm run build
 
+      # --- FINÁLNE NASADENIE ---
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@master
         with:
-          # TOTO JE KĽÚČOVÁ ZMENA -> Odstránili sme "--only functions"
-          # Teraz sa nasadí VŠETKO (hosting aj funkcie)
+          # Nasadí VŠETKO (hosting s vygenerovaným CSS aj funkcie)
           args: deploy --force
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
