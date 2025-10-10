@@ -4,8 +4,8 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onRequest } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { defineString } from "firebase-functions/params";
-import * as GeminiAPI from "./gemini-api";
-import * as cors from "cors";
+import * as GeminiAPI from "./gemini-api.js";
+import cors from "cors";
 import fetch from "node-fetch";
 
 // Initialize Firebase Admin SDK
@@ -25,15 +25,13 @@ async function sendTelegramMessage(chatId: number, text: string) {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
     try {
-        const response = await fetch(url, {
+        await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chat_id: chatId, text: text }),
         });
-        return response.json();
     } catch (error) {
         logger.error("Error sending Telegram message:", error);
-        return null;
     }
 }
 
