@@ -6,12 +6,6 @@
     <title>AI Sensei</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" defer></script>
-    <style>
-        .dev-only {
-            /* Pre finálnu verziu odkomentujte nasledujúci riadok, aby sa skrylo prihlásenie pre profesora */
-            /* display: none; */
-        }
-    </style>
 </head>
 <body class="bg-slate-100">
 
@@ -52,7 +46,7 @@
                         <span class="flex-shrink mx-4 text-slate-400 text-sm">alebo</span>
                         <div class="flex-grow border-t border-slate-300"></div>
                     </div>
-                    <div class="dev-only">
+                    <div>
                         <button id="login-professor" class="w-full bg-slate-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-slate-800 transition-colors">Vstúpiť ako profesor</button>
                     </div>
                 </div>
@@ -63,7 +57,7 @@
         <div id="main-app" class="flex h-screen bg-slate-100">
             <nav id="main-nav" class="bg-green-800 p-2 flex flex-col items-center">
                 </nav>
-            <div id="role-content-wrapper" class="flex-grow flex flex-col">
+            <div id="role-content-wrapper" class="flex-grow flex flex-col overflow-y-auto">
                 </div>
         </div>
     </template>
