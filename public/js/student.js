@@ -5,7 +5,6 @@ import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { functions } from './firebase-init.js';
 
 let lessonsData = [];
-const getLessonAssistantResponse = httpsCallable(functions, 'getLessonAssistantResponse');
 const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor');
 
 async function fetchLessons() {
@@ -91,7 +90,7 @@ function renderStudentDashboard(container) {
 }
 
 export async function initStudentDashboard() {
-    await setupStudentNav(); 
+    await setupStudentNav();
     const lessonsLoaded = await fetchLessons();
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
@@ -128,7 +127,7 @@ function showStudentLesson(lessonData) {
     if (lessonData.quizData) menuItems.push({ id: 'quiz', label: 'Kvíz', icon: '❓' });
     if (lessonData.testData) menuItems.push({ id: 'test', label: 'Test', icon: '✅' });
     if (lessonData.postData) menuItems.push({ id: 'post', label: 'Podcast & Materiály', icon: '🎙️' });
-    menuItems.push({ id: 'assistant', label: 'AI Asistent', icon: '🤖' });
+    menuItems.push({ id: 'telegram', label: 'Konzultace', icon: '💬' });
 
     const menuHtml = menuItems.map(item => `
         <a href="#" data-view="${item.id}" class="lesson-menu-item flex items-center p-3 text-sm font-medium rounded-md hover:bg-slate-100 transition-colors">
@@ -201,23 +200,26 @@ function renderLessonContent(viewId, lessonData, container) {
         case 'post':
             renderPodcast(lessonData.postData, container);
             break;
-        case 'assistant':
-            renderAIAssistantChat(lessonData, container);
+        case 'telegram':
+            renderProfessorChat(lessonData, container);
             break;
         default:
             container.innerHTML = `<p>Obsah se připravuje.</p>`;
     }
 }
 
-function renderAIAssistantChat(lessonData, container) {
+function renderProfessorChat(lessonData, container) {
     container.innerHTML = `
-        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">AI Asistent Lekce</h2>
+        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Konzultace k lekci</h2>
         <div class="w-full max-w-md mx-auto bg-slate-900 rounded-[40px] border-[14px] border-slate-900 shadow-2xl relative">
             <div class="w-full h-full bg-blue-100 bg-[url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')] bg-center bg-cover rounded-[26px]">
                 <div class="h-[600px] flex flex-col p-4">
+                    <header class="text-center mb-4 flex-shrink-0">
+                        <p class="font-bold text-slate-800">Profesor</p>
+                        <p class="text-xs text-slate-500">Odpoví, jakmile to bude možné</p>
+                    </header>
                     <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2">
-                        <div class="flex justify-start"><div class="bg-white p-3 rounded-r-xl rounded-t-xl max-w-xs text-sm">Ahoj! Zeptej se mě na cokoliv ohledně této lekce.</div></div>
-                    </div>
+                        </div>
                     <footer class="mt-4 flex-shrink-0">
                         <div class="flex items-center bg-white rounded-full p-2 shadow-inner">
                             <textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu..."></textarea>
@@ -235,31 +237,26 @@ function renderAIAssistantChat(lessonData, container) {
     const input = container.querySelector('#student-chat-input');
     const historyContainer = container.querySelector('#student-chat-history');
 
-    const addMessage = (text, sender) => {
-        const messageEl = document.createElement('div');
-        messageEl.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
-        messageEl.innerHTML = `<div class="${sender === 'user' ? 'bg-green-200' : 'bg-white'} p-3 rounded-xl max-w-xs text-sm">${text}</div>`;
-        historyContainer.appendChild(messageEl);
-        historyContainer.scrollTop = historyContainer.scrollHeight;
-        return messageEl;
-    };
-
     const handleSend = async () => {
-        const userQuestion = input.value.trim();
-        if (!userQuestion) return;
+        const text = input.value.trim();
+        if (!text) return;
         
         input.value = '';
         sendBtn.disabled = true;
-        addMessage(userQuestion, 'user');
 
-        const thinkingBubble = addMessage("...", 'ai');
-        
+        const messageEl = document.createElement('div');
+        messageEl.className = 'flex justify-end';
+        messageEl.innerHTML = `<div class="bg-green-200 p-3 rounded-l-xl rounded-t-xl max-w-xs text-sm">${text}</div>`;
+        historyContainer.appendChild(messageEl);
+        historyContainer.scrollTop = historyContainer.scrollHeight;
+
         try {
-            const result = await getLessonAssistantResponse({ lessonId: lessonData.id, userQuestion });
-            thinkingBubble.querySelector('div').innerHTML = result.data.answer.replace(/\n/g, '<br>');
+            await sendMessageToProfessor({ lessonId: lessonData.id, text });
+            showToast("Zpráva byla úspěšně odeslána.");
         } catch (error) {
-            console.error("Error getting AI assistant response:", error);
-            thinkingBubble.querySelector('div').innerHTML = `<p class="text-red-500">Omlouvám se, došlo k chybě.</p>`;
+            console.error("Error sending message:", error);
+            showToast(`Odeslání zprávy selhalo: ${error.message}`, true);
+            messageEl.innerHTML += `<p class="text-xs text-red-500 text-right mt-1">Odeslání selhalo</p>`;
         } finally {
             sendBtn.disabled = false;
         }
@@ -288,6 +285,7 @@ function renderVideo(videoUrl, container) {
         container.innerHTML = `<p class="text-red-500 text-center font-semibold p-8">Vložená URL adresa videa (${videoUrl}) není platná.</p>`;
     }
 }
+
 
 function renderPresentation(presentationData, container) {
     if (!presentationData || !Array.isArray(presentationData.slides) || presentationData.slides.length === 0) {
