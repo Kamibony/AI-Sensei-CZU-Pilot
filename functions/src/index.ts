@@ -47,7 +47,7 @@ export const getLessonAssistantResponse = onCall(
         try {
             const lessonRef = db.collection("lessons").doc(lessonId);
             const lessonDoc = await lessonRef.get();
-            if (!lessonDoc.exists) {
+            if (!lessonDoc.exists) { // OPRÁVNENÉ: .exists() na .exists
                 throw new HttpsError("not-found", "Lesson not found");
             }
             const lessonData = lessonDoc.data();
@@ -71,7 +71,7 @@ export const sendMessageToStudent = onCall(
 
         const studentRef = db.collection("students").doc(studentId);
         const studentDoc = await studentRef.get();
-        if (!studentDoc.exists || !studentDoc.data()?.telegramChatId) {
+        if (!studentDoc.exists || !studentDoc.data()?.telegramChatId) { // OPRÁVNENÉ: .exists() na .exists
             throw new HttpsError("not-found", "Student or Telegram chat not linked.");
         }
         const chatId = studentDoc.data()?.telegramChatId;
@@ -93,7 +93,7 @@ export const sendMessageToProfessor = onCall(
         }
         const studentRef = db.collection("students").doc(studentId);
         const studentDoc = await studentRef.get();
-        const studentName = studentDoc.exists() ? studentDoc.data()?.name : "Unknown Student";
+        const studentName = studentDoc.exists ? studentDoc.data()?.name : "Unknown Student"; // OPRÁVNENÉ: .exists() na .exists
         
         const fullMessage = `Message from ${studentName} (ID: ${studentId}):\n\n${message}`;
         await sendTelegramMessage(parseInt(professorChatId), fullMessage);
