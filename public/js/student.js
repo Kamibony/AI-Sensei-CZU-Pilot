@@ -1,9 +1,46 @@
-import { collection, getDocs, doc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc, query, where, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { db, auth } from './firebase-init.js';
-import { getLessonAssistantResponse } from './gemini-api.js'; // Tento import bude fungovať s opraveným gemini-api.js
+import { getLessonAssistantResponse } from './gemini-api.js';
 
 let lessonsData = [];
+
+// --- TASK: Nová funkcia na zobrazenie formulára pre meno ---
+function promptForStudentName(userId) {
+    const roleContentWrapper = document.getElementById('role-content-wrapper');
+    if (!roleContentWrapper) return;
+
+    roleContentWrapper.innerHTML = `
+        <div class="flex items-center justify-center h-screen bg-slate-50">
+            <div class="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md text-center">
+                <h1 class="text-2xl font-bold text-slate-800 mb-4">Vitajte v AI Sensei!</h1>
+                <p class="text-slate-600 mb-6">Prosím, zadajte svoje meno, aby sme vedeli, ako vás oslovovať.</p>
+                <input type="text" id="student-name-input" placeholder="Vaše meno a priezvisko" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                <button id="save-name-btn" class="w-full mt-4 bg-green-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-800 transition-colors">Uložiť a pokračovať</button>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('save-name-btn').addEventListener('click', async () => {
+        const nameInput = document.getElementById('student-name-input');
+        const name = nameInput.value.trim();
+        if (!name) {
+            showToast('Meno nemôže byť prázdne.', true);
+            return;
+        }
+
+        try {
+            const studentRef = doc(db, 'students', userId);
+            await updateDoc(studentRef, { name: name });
+            showToast('Meno úspešne uložené!');
+            await initStudentDashboard(); // Znova načítať dashboard
+        } catch (error) {
+            console.error("Error saving student name:", error);
+            showToast('Nepodarilo sa uložiť meno.', true);
+        }
+    });
+}
+
 
 async function fetchLessons() {
     try {
@@ -73,20 +110,8 @@ function renderStudentDashboard(container) {
 }
 
 export async function initStudentDashboard() {
-    await setupStudentNav(); 
-    const lessonsLoaded = await fetchLessons();
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
-
-    if (!lessonsLoaded) {
-        roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat.</div>`;
-        return;
-    }
-
-    roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50 h-screen"></div>`;
-    const studentContentArea = document.getElementById('student-content-area');
-
-    renderStudentDashboard(studentContentArea);
 
     const user = auth.currentUser;
     if (user) {
@@ -94,12 +119,30 @@ export async function initStudentDashboard() {
             const userDoc = await getDoc(doc(db, "students", user.uid));
             if (userDoc.exists()) {
                 const userData = userDoc.data();
+                // --- TASK: Kontrola, či má študent zadané meno ---
+                if (!userData.name) {
+                    promptForStudentName(user.uid);
+                    return; // Zastaviť ďalšie vykresľovanie, kým nezadá meno
+                }
+
+                // Ak meno existuje, pokračujeme v normálnom vykresľovaní
+                await setupStudentNav(); 
+                const lessonsLoaded = await fetchLessons();
+
+                if (!lessonsLoaded) {
+                    roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat.</div>`;
+                    return;
+                }
+
+                roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50 h-screen"></div>`;
+                const studentContentArea = document.getElementById('student-content-area');
+                renderStudentDashboard(studentContentArea);
+
                 const token = userData.telegramConnectionToken;
-                
                 if (token && !userData.telegramChatId) {
                     const connectSection = document.getElementById('telegram-connect-section');
                     if (connectSection) {
-                        const botUsername = 'ai_sensei_czu_bot'; // Nahraďte menom vášho bota
+                        const botUsername = 'ai_sensei_czu_bot';
                         const connectionLink = `https://t.me/${botUsername}?start=${token}`;
                         connectSection.innerHTML = `
                             <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-lg mb-6" role="alert">
@@ -109,23 +152,23 @@ export async function initStudentDashboard() {
                         `;
                     }
                 }
+
+                studentContentArea.addEventListener('click', (e) => {
+                    const lessonCard = e.target.closest('.student-lesson-card');
+                    if (lessonCard) {
+                        const lessonId = lessonCard.dataset.lessonId;
+                        const lesson = lessonsData.find(l => l.id === lessonId);
+                        if (lesson) {
+                            showStudentLesson(lesson);
+                        }
+                    }
+                });
             }
         } catch (error) {
-            console.error("Error fetching user data for Telegram link:", error);
-            showToast("Nepodařilo se zkontrolovat stav propojení s Telegramem.", true);
+            console.error("Error initializing student dashboard:", error);
+            roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Vyskytla sa kritická chyba pri načítaní vášho profilu.</div>`;
         }
     }
-
-    studentContentArea.addEventListener('click', (e) => {
-        const lessonCard = e.target.closest('.student-lesson-card');
-        if (lessonCard) {
-            const lessonId = lessonCard.dataset.lessonId;
-            const lesson = lessonsData.find(l => l.id === lessonId);
-            if (lesson) {
-                showStudentLesson(lesson);
-            }
-        }
-    });
 }
 
 function showStudentLesson(lessonData) {
