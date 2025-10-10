@@ -85,13 +85,16 @@ async function handleStudentRegister() {
     try {
         sessionStorage.setItem('userRole', 'student');
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+
+        // VRÁTENÉ: Generovanie a uloženie Telegram tokenu
         const telegramToken = 'tg_' + Date.now() + Math.random().toString(36).substring(2, 8);
 
         await setDoc(doc(db, "students", userCredential.user.uid), { 
             email: userCredential.user.email, 
             createdAt: serverTimestamp(),
-            telegramConnectionToken: telegramToken
+            telegramConnectionToken: telegramToken // Pridaný token
         });
+        
     } catch (error) {
         sessionStorage.removeItem('userRole');
         console.error("Student account creation failed:", error);
@@ -102,5 +105,6 @@ async function handleStudentRegister() {
 export async function handleLogout() {
     await signOut(auth);
     sessionStorage.removeItem('userRole');
-    renderLogin(); // Explicitne vykreslíme login po odhlásení
+    // onAuthStateChanged sa postará o vykreslenie login obrazovky
+    window.location.reload(); // Pre istotu obnovíme stránku
 }
