@@ -12,8 +12,7 @@ service firebase.storage {
     match /courses/{courseId}/media/{allPaths=**} {
       allow read;
       allow write: if isProfessor() && (
-        request.resource.contentType == 'application/pdf' ||
-        request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        request.resource.contentType == 'application/pdf'
       );
     }
 

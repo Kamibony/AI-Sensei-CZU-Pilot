@@ -6,7 +6,6 @@ import {
   Part,
 } from "@google-cloud/vertexai";
 import { getStorage } from "firebase-admin/storage";
-import mammoth from "mammoth";
 import pdf from "pdf-parse";
 
 // --- KONFIGURACE MODELU ---
@@ -36,8 +35,6 @@ function getMimeTypeFromPath(filePath: string): string {
         case "png": return "image/png";
         case "jpg": case "jpeg": return "image/jpeg";
         case "webp": return "image/webp";
-        // Pre .docx vrátime špeciálny typ, aby sme ho spracovali inak
-        case "docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
         default: return "unsupported/type";
     }
 }
@@ -69,7 +66,7 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
         console.error(`[gemini-api:${functionName}] Error calling Vertex AI API:`, error);
         if (error instanceof Error) {
              if (error.message.includes("unsupported/type")) {
-                throw new Error("Nepodporovaný typ souboru. Prosím, použijte PDF, DOCX, PNG, JPG, nebo WEBP.");
+                throw new Error("Nepodporovaný typ souboru. Prosím, použijte PDF, PNG, JPG, nebo WEBP.");
             }
             throw new Error(`Vertex AI API call failed: ${error.message}`);
         }
@@ -90,15 +87,12 @@ async function processDocuments(filePaths: string[]): Promise<Part[]> {
         console.log(`[gemini-api:processDocuments] Processing file: ${filePath} with MIME type: ${mimeType}`);
 
         if (mimeType === "unsupported/type") {
-            throw new Error(`Nepodporovaný typ souboru: ${filePath.split("/").pop()}. Prosím, použijte PDF, DOCX, PNG, JPG, nebo WEBP.`);
+            throw new Error(`Nepodporovaný typ souboru: ${filePath.split("/").pop()}. Prosím, použijte PDF, PNG, JPG, nebo WEBP.`);
         }
         
         const [fileBuffer] = await file.download();
 
-        if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-            const textResult = await mammoth.extractRawText({ buffer: fileBuffer });
-            extractedText += textResult.value + "\n\n";
-        } else if (mimeType === "application/pdf") {
+        if (mimeType === "application/pdf") {
             const data = await pdf(fileBuffer);
             extractedText += data.text + "\n\n";
         } else {
