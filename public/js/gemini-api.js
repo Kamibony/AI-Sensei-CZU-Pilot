@@ -7,7 +7,8 @@ const generateJsonFunction = httpsCallable(functions, 'generateJson');
 const generateFromDocumentFunction = httpsCallable(functions, 'generateFromDocument');
 const generateJsonFromDocumentFunction = httpsCallable(functions, 'generateJsonFromDocument');
 const getLessonKeyTakeawaysFunction = httpsCallable(functions, 'getLessonKeyTakeaways');
-const getAiAssistantResponseFunction = httpsCallable(functions, 'getAiAssistantResponse'); // TOTO CHÝBALO
+// TÁTO FUNKCIA CHÝBALA A SPÔSOBOVALA CHYBU
+const getAiAssistantResponseFunction = httpsCallable(functions, 'getAiAssistantResponse');
 
 // --- Funkcie pre Profesora ---
 export async function callGeminiApi(prompt, systemInstruction = null) {
@@ -43,17 +44,17 @@ export async function callGenerateFromDocument(data) {
 export async function callGenerateJsonFromDocument(data) {
     try {
         const result = await generateJsonFromDocumentFunction(data);
-        return result.data;
+        return result.data; // Pri JSONe vraciame priamo dáta, nie result.data.text
     } catch (error) {
         console.error("Error calling 'generateJsonFromDocument' function:", error);
         return { error: `Backend Error during JSON document generation: ${error.message}` };
     }
 }
 
-// --- Funkcia pre Študenta (TÁTO CHÝBALA) ---
+// --- Funkcia pre Študenta (TOTO SME DOPLNILI) ---
 export async function getLessonAssistantResponse(lessonId, userQuestion, lessonText) {
     try {
-        // Voláme novú cloud funkciu a posielame jej potrebné dáta
+        // Voláme správnu cloud funkciu a posielame jej potrebné dáta
         const result = await getAiAssistantResponseFunction({ lessonId, userQuestion, lessonText });
         return result.data; // Očakávame objekt, napr. { answer: '...' }
     } catch (error) {
