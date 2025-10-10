@@ -1,24 +1,9 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Helper function to check if the user is a professor (anonymous auth)
-    function isProfessor() {
-      // Allow access if there is an auth object and the sign-in provider is 'anonymous'
-      return request.auth != null && request.auth.token.firebase.sign_in_provider == 'anonymous';
-    }
-
-    // Course media is publicly readable so students can access it.
-    // Only professors can upload/delete course media.
-    match /courses/{courseId}/media/{allPaths=**} {
-      allow read;
-      allow write: if isProfessor();
-    }
-
-    // Allow students to upload files only to a designated 'submissions' folder
-    // under their own user ID. This is a secure pattern for student uploads.
-    match /students/{userId}/submissions/{allPaths=**} {
-      allow write: if request.auth != null && request.auth.uid == userId;
-      allow read: if isProfessor() || (request.auth != null && request.auth.uid == userId);
+    match /{allPaths=**} {
+      // Umožní čítanie a zápis každému prihlásenému používateľovi
+      allow read, write: if request.auth != null;
     }
   }
 }
