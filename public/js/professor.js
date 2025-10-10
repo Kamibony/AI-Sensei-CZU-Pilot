@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { renderEditorMenu } from './editor-handler.js';
 import { showToast } from './utils.js';
 import { db } from './firebase-init.js';
@@ -6,7 +6,6 @@ import { initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-h
 import { handleLogout } from './auth.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { functions } from './firebase-init.js';
-
 
 let lessonsData = [];
 const MAIN_COURSE_ID = "main-course"; 
@@ -50,7 +49,6 @@ export async function initProfessorDashboard() {
 
     showProfessorContent('timeline');
 }
-
 
 function setupProfessorNav() {
     const nav = document.getElementById('main-nav');
