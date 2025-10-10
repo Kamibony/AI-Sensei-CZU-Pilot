@@ -5,7 +5,8 @@ import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { functions } from './firebase-init.js';
 
 let lessonsData = [];
-const getLessonAssistantResponse = httpsCallable(functions, 'getLessonAssistantResponse');
+const getLessonKeyTakeaways = httpsCallable(functions, 'getLessonKeyTakeaways');
+const getAiAssistantResponse = httpsCallable(functions, 'getAiAssistantResponse');
 const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor');
 
 async function fetchLessons() {
@@ -21,20 +22,21 @@ async function fetchLessons() {
     }
 }
 
-async function setupStudentNav() {
+function setupStudentNav() {
     const nav = document.getElementById('main-nav');
     const user = auth.currentUser;
     if (!nav || !user) return;
     
-    try {
-        const studentDoc = await getDoc(doc(db, "students", user.uid));
+    // Získame token pre Telegram z Firestore
+    getDoc(doc(db, "students", user.uid)).then(studentDoc => {
         if (studentDoc.exists()) {
             const studentData = studentDoc.data();
             const token = studentData.telegramConnectionToken;
-            const botUsername = 'ai_sensei_czu_bot';
+            const botUsername = 'ai_sensei_czu_bot'; // Toto by malo byť v konfigurácii
             
             let telegramHtml = '';
-            if (token && !studentData.telegramChatId) {
+            // Zobrazíme ikonu, len ak študent ešte nie je prepojený (má token)
+            if (token) {
                  const connectionLink = `https://t.me/${botUsername}?start=${token}`;
                  telegramHtml = `
                     <li>
@@ -54,9 +56,7 @@ async function setupStudentNav() {
                 ${telegramHtml}
             `;
         }
-    } catch (error) {
-        console.error("Error setting up student nav:", error);
-    }
+    });
 }
 
 function renderStudentDashboard(container) {
@@ -91,7 +91,6 @@ function renderStudentDashboard(container) {
 }
 
 export async function initStudentDashboard() {
-    await setupStudentNav(); 
     const lessonsLoaded = await fetchLessons();
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
@@ -100,6 +99,8 @@ export async function initStudentDashboard() {
         roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat.</div>`;
         return;
     }
+    
+    setupStudentNav();
 
     roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50 h-screen"></div>`;
     const studentContentArea = document.getElementById('student-content-area');
@@ -128,7 +129,6 @@ function showStudentLesson(lessonData) {
     if (lessonData.quizData) menuItems.push({ id: 'quiz', label: 'Kvíz', icon: '❓' });
     if (lessonData.testData) menuItems.push({ id: 'test', label: 'Test', icon: '✅' });
     if (lessonData.postData) menuItems.push({ id: 'post', label: 'Podcast & Materiály', icon: '🎙️' });
-    menuItems.push({ id: 'assistant', label: 'AI Asistent', icon: '🤖' });
 
     const menuHtml = menuItems.map(item => `
         <a href="#" data-view="${item.id}" class="lesson-menu-item flex items-center p-3 text-sm font-medium rounded-md hover:bg-slate-100 transition-colors">
@@ -184,7 +184,7 @@ function showStudentLesson(lessonData) {
 function renderLessonContent(viewId, lessonData, container) {
     switch(viewId) {
         case 'text':
-            container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${lessonData.content || ''}</div>`;
+            container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${lessonData.content}</div>`;
             break;
         case 'presentation':
             renderPresentation(lessonData.presentationData, container);
@@ -201,80 +201,13 @@ function renderLessonContent(viewId, lessonData, container) {
         case 'post':
             renderPodcast(lessonData.postData, container);
             break;
-        case 'assistant':
-            renderAIAssistantChat(lessonData, container);
-            break;
         default:
             container.innerHTML = `<p>Obsah se připravuje.</p>`;
     }
 }
 
-function renderAIAssistantChat(lessonData, container) {
-    container.innerHTML = `
-        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">AI Asistent Lekce</h2>
-        <div class="w-full max-w-md mx-auto bg-slate-900 rounded-[40px] border-[14px] border-slate-900 shadow-2xl relative">
-            <div class="w-full h-full bg-blue-100 bg-[url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')] bg-center bg-cover rounded-[26px]">
-                <div class="h-[600px] flex flex-col p-4">
-                    <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2">
-                        <div class="flex justify-start"><div class="bg-white p-3 rounded-r-xl rounded-t-xl max-w-xs text-sm">Ahoj! Zeptej se mě na cokoliv ohledně této lekce.</div></div>
-                    </div>
-                    <footer class="mt-4 flex-shrink-0">
-                        <div class="flex items-center bg-white rounded-full p-2 shadow-inner">
-                            <textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu..."></textarea>
-                            <button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                            </button>
-                        </div>
-                    </footer>
-                </div>
-            </div>
-        </div>
-    `;
-
-    const sendBtn = container.querySelector('#student-send-btn');
-    const input = container.querySelector('#student-chat-input');
-    const historyContainer = container.querySelector('#student-chat-history');
-
-    const addMessage = (text, sender) => {
-        const messageEl = document.createElement('div');
-        messageEl.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
-        messageEl.innerHTML = `<div class="${sender === 'user' ? 'bg-green-200' : 'bg-white'} p-3 rounded-xl max-w-xs text-sm">${text}</div>`;
-        historyContainer.appendChild(messageEl);
-        historyContainer.scrollTop = historyContainer.scrollHeight;
-        return messageEl;
-    };
-
-    const handleSend = async () => {
-        const userQuestion = input.value.trim();
-        if (!userQuestion) return;
-        
-        input.value = '';
-        sendBtn.disabled = true;
-        addMessage(userQuestion, 'user');
-
-        const thinkingBubble = addMessage("...", 'ai');
-        
-        try {
-            const result = await getLessonAssistantResponse({ lessonId: lessonData.id, userQuestion });
-            thinkingBubble.querySelector('div').innerHTML = result.data.answer.replace(/\n/g, '<br>');
-        } catch (error) {
-            console.error("Error getting AI assistant response:", error);
-            thinkingBubble.querySelector('div').innerHTML = `<p class="text-red-500">Omlouvám se, došlo k chybě.</p>`;
-        } finally {
-            sendBtn.disabled = false;
-        }
-    };
-
-    sendBtn.addEventListener('click', handleSend);
-    input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-        }
-    });
-}
-
 function renderVideo(videoUrl, container) {
+    // Robustnejší regex, ktorý zvládne rôzne formáty YouTube URL
     const videoIdMatch = videoUrl.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
     const videoId = videoIdMatch ? videoIdMatch[1] : null;
 
@@ -289,11 +222,9 @@ function renderVideo(videoUrl, container) {
     }
 }
 
+
 function renderPresentation(presentationData, container) {
-    if (!presentationData || !Array.isArray(presentationData.slides) || presentationData.slides.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pre túto lekciu nie je k dispozícii žiadna prezentácia.</p>`;
-        return;
-    }
+    if (!presentationData || !Array.isArray(presentationData.slides) || presentationData.slides.length === 0) return;
     let currentSlide = 0;
     const render = () => {
         const slide = presentationData.slides[currentSlide];
@@ -321,10 +252,7 @@ function renderPresentation(presentationData, container) {
 }
 
 function renderQuiz(quizData, container) {
-    if (!quizData || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pre túto lekciu nie je k dispozícii žiadny kvíz.</p>`;
-        return;
-    }
+    if (!quizData || !Array.isArray(quizData.questions) || quizData.questions.length === 0) return;
     const questionsHtml = quizData.questions.map((q, index) => {
         const optionsHtml = (q.options || []).map((option, i) => `
             <label class="block p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
@@ -348,19 +276,19 @@ function renderQuiz(quizData, container) {
             const qEl = container.querySelector(`[data-q-index="${index}"]`);
             const feedbackEl = qEl.querySelector('.result-feedback');
             const selected = qEl.querySelector(`input:checked`);
-            feedbackEl.classList.remove('hidden');
+            feedbackEl.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
             if (selected) {
                 if (parseInt(selected.value) === q.correct_option_index) {
                     score++;
                     feedbackEl.textContent = 'Správně!';
-                    feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700';
+                    feedbackEl.classList.add('bg-green-100', 'text-green-700');
                 } else {
                     feedbackEl.textContent = `Špatně. Správná odpověď: ${q.options[q.correct_option_index]}`;
-                    feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700';
+                    feedbackEl.classList.add('bg-red-100', 'text-red-700');
                 }
             } else {
                 feedbackEl.textContent = 'Nevybrali jste odpověď.';
-                feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                feedbackEl.classList.add('bg-yellow-100', 'text-yellow-800');
             }
         });
         const summaryEl = document.getElementById('quiz-summary');
@@ -370,10 +298,7 @@ function renderQuiz(quizData, container) {
 }
 
 function renderTest(testData, container) {
-    if (!testData || !Array.isArray(testData.questions) || testData.questions.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pre túto lekciu nie je k dispozícii žiadny test.</p>`;
-        return;
-    }
+    if (!testData || !Array.isArray(testData.questions) || testData.questions.length === 0) return;
     const questionsHtml = testData.questions.map((q, index) => {
         const optionsHtml = (q.options || []).map((option, i) => `
             <label class="block p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
@@ -397,19 +322,19 @@ function renderTest(testData, container) {
             const qEl = container.querySelector(`[data-q-index="${index}"]`);
             const feedbackEl = qEl.querySelector('.result-feedback');
             const selected = qEl.querySelector(`input:checked`);
-            feedbackEl.classList.remove('hidden');
+            feedbackEl.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
             if (selected) {
                 if (parseInt(selected.value) === q.correct_option_index) {
                     score++;
                     feedbackEl.textContent = 'Správně!';
-                    feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700';
+                    feedbackEl.classList.add('bg-green-100', 'text-green-700');
                 } else {
                     feedbackEl.textContent = `Špatně. Správná odpověď: ${q.options[q.correct_option_index]}`;
-                    feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700';
+                    feedbackEl.classList.add('bg-red-100', 'text-red-700');
                 }
             } else {
                 feedbackEl.textContent = 'Nevybrali jste odpověď.';
-                 feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                 feedbackEl.classList.add('bg-yellow-100', 'text-yellow-800');
             }
         });
         const summaryEl = document.getElementById('test-summary');
@@ -419,10 +344,7 @@ function renderTest(testData, container) {
 }
 
 function renderPodcast(postData, container) {
-    if (!postData || !Array.isArray(postData.episodes) || postData.episodes.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pre túto lekciu nie je k dispozícii žiadny podcast.</p>`;
-        return;
-    }
+    if (!postData || !Array.isArray(postData.episodes) || postData.episodes.length === 0) return;
     const episodesHtml = postData.episodes.map((episode, i) => `
         <div class="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-6">
             <h4 class="font-bold text-xl text-slate-800">${i + 1}. ${episode.title}</h4>
