@@ -15,12 +15,12 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'  # Použije sa Node.js v22
+          node-version: '22' # Zostáva verzia 22, ako potrebuješ
 
       - name: Install dependencies and build
         run: |
           cd functions
-          npm ci
+          npm install   # TOTO JE KĽÚČOVÁ ZMENA Z 'npm ci'
           npm run lint
           npm run build
 
