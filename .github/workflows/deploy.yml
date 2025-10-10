@@ -21,12 +21,13 @@ jobs:
         run: |
           cd functions
           npm install
-          npm run build   # Kontrola kódu (lint) je odstránená
+          npm run build
 
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --only functions
+          # TOTO JE JEDINÁ ZMENA -> pridané --force
+          args: deploy --only functions --force
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
           PROJECT_ID: ${{ secrets.PROJECT_ID }}
