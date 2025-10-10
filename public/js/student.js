@@ -1,7 +1,7 @@
 import { collection, getDocs, doc, getDoc, query, where, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { db, auth } from './firebase-init.js';
-import { getLessonAssistantResponse } from './gemini-api.js';
+import { getAiAssistantResponse } from './gemini-api.js'; // OPRAVA: Správny import
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { functions } from './firebase-init.js';
 import { handleLogout } from './auth.js';
@@ -12,7 +12,6 @@ const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor'
 function promptForStudentName(userId) {
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
-
     roleContentWrapper.innerHTML = `
         <div class="flex items-center justify-center h-screen bg-slate-50">
             <div class="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md text-center">
@@ -23,7 +22,6 @@ function promptForStudentName(userId) {
             </div>
         </div>
     `;
-
     document.getElementById('save-name-btn').addEventListener('click', async () => {
         const nameInput = document.getElementById('student-name-input');
         const name = nameInput.value.trim();
@@ -31,7 +29,6 @@ function promptForStudentName(userId) {
             showToast('Meno nemôže byť prázdne.', true);
             return;
         }
-
         try {
             const studentRef = doc(db, 'students', userId);
             await updateDoc(studentRef, { name: name });
@@ -60,7 +57,6 @@ async function fetchLessons() {
 async function setupStudentNav() {
     const nav = document.getElementById('main-nav');
     if (!nav) return;
-    
     nav.innerHTML = `
         <div class="flex flex-col h-full">
             <div class="flex-grow space-y-4">
@@ -73,7 +69,7 @@ async function setupStudentNav() {
             <div>
                 <li>
                     <button id="logout-btn-nav" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white" title="Odhlásiť sa">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                     </button>
                 </li>
             </div>
@@ -100,12 +96,8 @@ function renderStudentDashboard(container) {
                     </div>
                 </div>
             </div>`).join('');
-        lessonsContent = `
-            <h2 class="text-2xl font-bold text-slate-800 mb-4">Dostupné lekce</h2>
-            ${lessonsHtml}
-        `;
+        lessonsContent = `<h2 class="text-2xl font-bold text-slate-800 mb-4">Dostupné lekce</h2>${lessonsHtml}`;
     }
-
     container.innerHTML = `
         <div class="p-4 sm:p-6 md:p-8">
             <h1 class="text-3xl font-extrabold text-slate-800 mb-6">Váš přehled</h1>
@@ -138,7 +130,6 @@ export async function initStudentDashboard() {
             document.getElementById('logout-btn-nav').addEventListener('click', handleLogout);
 
             const lessonsLoaded = await fetchLessons();
-
             if (!lessonsLoaded) {
                 roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat lekcí.</div>`;
                 return;
@@ -168,13 +159,11 @@ export async function initStudentDashboard() {
                 if (lessonCard) {
                     const lessonId = lessonCard.dataset.lessonId;
                     const lesson = lessonsData.find(l => l.id === lessonId);
-                    if (lesson) {
-                        showStudentLesson(lesson);
-                    }
+                    if (lesson) showStudentLesson(lesson);
                 }
             });
         } else {
-            roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Nepodarilo sa nájsť váš študentský profil.</div>`;
+            roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Nepodařilo se najít váš študentský profil.</div>`;
         }
     } catch (error) {
         console.error("Error initializing student dashboard:", error);
@@ -184,7 +173,6 @@ export async function initStudentDashboard() {
 
 function showStudentLesson(lessonData) {
     const studentContentArea = document.getElementById('student-content-area');
-    
     const menuItems = [
         { id: 'text', label: 'Text lekce', icon: '✍️', available: !!lessonData.content },
         { id: 'presentation', label: 'Prezentace', icon: '🖼️', available: !!lessonData.presentationData },
@@ -197,12 +185,7 @@ function showStudentLesson(lessonData) {
     ];
 
     const availableMenuItems = menuItems.filter(item => item.available);
-
-    const menuHtml = availableMenuItems.map(item => `
-        <a href="#" data-view="${item.id}" class="lesson-menu-item flex items-center p-3 text-sm font-medium rounded-md hover:bg-slate-100 transition-colors">
-            ${item.icon}<span class="ml-3">${item.label}</span>
-        </a>
-    `).join('');
+    const menuHtml = availableMenuItems.map(item => `<a href="#" data-view="${item.id}" class="lesson-menu-item flex items-center p-3 text-sm font-medium rounded-md hover:bg-slate-100 transition-colors">${item.icon}<span class="ml-3">${item.label}</span></a>`).join('');
 
     studentContentArea.innerHTML = `
         <div class="p-4 sm:p-6 md:p-8">
@@ -212,7 +195,6 @@ function showStudentLesson(lessonData) {
                 <h1 class="text-4xl font-extrabold text-slate-800 mt-2">${lessonData.title}</h1>
                 <p class="text-xl text-slate-500">${lessonData.subtitle}</p>
             </header>
-            
             <div class="flex flex-col md:flex-row gap-8">
                 <aside class="w-full md:w-64 flex-shrink-0">
                     <div class="p-4 bg-white rounded-2xl shadow-lg">
@@ -225,20 +207,14 @@ function showStudentLesson(lessonData) {
         </div>
     `;
 
-    document.getElementById('back-to-overview-btn').addEventListener('click', () => {
-        initStudentDashboard();
-    });
-
+    document.getElementById('back-to-overview-btn').addEventListener('click', initStudentDashboard);
     const contentDisplay = document.getElementById('lesson-content-display');
-
     studentContentArea.querySelectorAll('.lesson-menu-item').forEach(item => {
         item.addEventListener('click', e => {
             e.preventDefault();
             studentContentArea.querySelectorAll('.lesson-menu-item').forEach(i => i.classList.remove('bg-green-100', 'text-green-800', 'font-semibold'));
             item.classList.add('bg-green-100', 'text-green-800', 'font-semibold');
-            
-            const viewId = item.dataset.view;
-            renderLessonContent(viewId, lessonData, contentDisplay);
+            renderLessonContent(item.dataset.view, lessonData, contentDisplay);
         });
     });
 
@@ -251,32 +227,15 @@ function showStudentLesson(lessonData) {
 
 function renderLessonContent(viewId, lessonData, container) {
     switch(viewId) {
-        case 'text':
-            container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${lessonData.content || ''}</div>`;
-            break;
-        case 'presentation':
-            renderPresentation(lessonData.presentationData, container);
-            break;
-        case 'video':
-            renderVideo(lessonData.videoUrl, container);
-            break;
-        case 'quiz':
-            renderQuiz(lessonData.quizData, container);
-            break;
-        case 'test':
-            renderTest(lessonData.testData, container);
-            break;
-        case 'post':
-            renderPodcast(lessonData.postData, container);
-            break;
-        case 'assistant':
-            renderAIAssistantChat(lessonData, container);
-            break;
-        case 'consultation':
-            renderProfessorChat(lessonData, container);
-            break;
-        default:
-            container.innerHTML = `<p>Obsah se připravuje.</p>`;
+        case 'text': container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${lessonData.content || ''}</div>`; break;
+        case 'presentation': renderPresentation(lessonData.presentationData, container); break;
+        case 'video': renderVideo(lessonData.videoUrl, container); break;
+        case 'quiz': renderQuiz(lessonData.quizData, container); break;
+        case 'test': renderTest(lessonData.testData, container); break;
+        case 'post': renderPodcast(lessonData.postData, container); break;
+        case 'assistant': renderAIAssistantChat(lessonData, container); break;
+        case 'consultation': renderProfessorChat(lessonData, container); break;
+        default: container.innerHTML = `<p>Obsah se připravuje.</p>`;
     }
 }
 
@@ -286,21 +245,16 @@ function renderAIAssistantChat(lessonData, container) {
         <div class="w-full max-w-md mx-auto bg-slate-900 rounded-[40px] border-[14px] border-slate-900 shadow-2xl relative">
             <div class="w-full h-full bg-blue-100 bg-[url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')] bg-center bg-cover rounded-[26px]">
                 <div class="h-[600px] flex flex-col p-4">
-                    <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2">
-                        <div class="flex justify-start"><div class="bg-white p-3 rounded-r-xl rounded-t-xl max-w-xs text-sm">Ahoj! Zeptej se mě na cokoliv ohledně této lekce.</div></div>
-                    </div>
+                    <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2"><div class="flex justify-start"><div class="bg-white p-3 rounded-r-xl rounded-t-xl max-w-xs text-sm">Ahoj! Zeptej se mě na cokoliv ohledně této lekce.</div></div></div>
                     <footer class="mt-4 flex-shrink-0">
                         <div class="flex items-center bg-white rounded-full p-2 shadow-inner">
                             <textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu..."></textarea>
-                            <button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                            </button>
+                            <button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button>
                         </div>
                     </footer>
                 </div>
             </div>
-        </div>
-    `;
+        </div>`;
 
     const sendBtn = container.querySelector('#student-send-btn');
     const input = container.querySelector('#student-chat-input');
@@ -327,7 +281,8 @@ function renderAIAssistantChat(lessonData, container) {
         const thinkingBubble = addMessage("...", 'ai');
         
         try {
-            const result = await getLessonAssistantResponse(lessonData.id, userQuestion);
+            // OPRAVA: Voláme správnu, importovanú funkciu
+            const result = await getAiAssistantResponse(lessonData.id, userQuestion);
             if (result.error) throw new Error(result.error);
             
             thinkingBubble.querySelector('div').innerHTML = result.answer.replace(/\n/g, '<br>');
@@ -354,17 +309,12 @@ function renderProfessorChat(lessonData, container) {
         <div class="w-full max-w-md mx-auto bg-slate-900 rounded-[40px] border-[14px] border-slate-900 shadow-2xl relative">
             <div class="w-full h-full bg-blue-100 bg-[url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')] bg-center bg-cover rounded-[26px]">
                 <div class="h-[600px] flex flex-col p-4">
-                     <header class="text-center mb-4 flex-shrink-0">
-                         <p class="font-bold text-slate-800">Profesor</p>
-                         <p class="text-xs text-slate-500">Odpoví, jakmile to bude možné</p>
-                     </header>
+                     <header class="text-center mb-4 flex-shrink-0"><p class="font-bold text-slate-800">Profesor</p><p class="text-xs text-slate-500">Odpoví, jakmile to bude možné</p></header>
                     <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2"></div>
                     <footer class="mt-4 flex-shrink-0">
                         <div class="flex items-center bg-white rounded-full p-2 shadow-inner">
                             <textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu profesorovi..."></textarea>
-                            <button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                            </button>
+                            <button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button>
                         </div>
                     </footer>
                 </div>
@@ -414,11 +364,7 @@ function renderVideo(videoUrl, container) {
     let videoId = null;
     try {
         const url = new URL(videoUrl);
-        if (url.hostname === 'youtu.be') {
-            videoId = url.pathname.slice(1);
-        } else if (url.hostname.includes('youtube.com')) {
-            videoId = url.searchParams.get('v');
-        }
+        videoId = url.hostname === 'youtu.be' ? url.pathname.slice(1) : url.searchParams.get('v');
     } catch (e) {
         const match = videoUrl.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
         videoId = match ? match[1] : null;
@@ -433,8 +379,7 @@ function renderVideo(videoUrl, container) {
 
 function renderPresentation(presentationData, container) {
     if (!presentationData || !Array.isArray(presentationData.slides) || presentationData.slides.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádná prezentace.</p>`;
-        return;
+        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádná prezentace.</p>`; return;
     }
     let currentSlide = 0;
     const render = () => {
@@ -452,8 +397,7 @@ function renderPresentation(presentationData, container) {
 
 function renderQuiz(quizData, container) {
     if (!quizData || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný kvíz.</p>`;
-        return;
+        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný kvíz.</p>`; return;
     }
     const questionsHtml = quizData.questions.map((q, index) => {
         const optionsHtml = (q.options || []).map((option, i) => `<label class="block p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer"><input type="radio" name="question-${index}" value="${i}" class="mr-3"><span>${option}</span></label>`).join('');
@@ -488,14 +432,10 @@ function renderQuiz(quizData, container) {
     });
 }
 
-function renderTest(testData, container) {
-    renderQuiz(testData, container); // Pre zjednodušenie test používa rovnakú renderovaciu logiku ako kvíz
-}
-
+function renderTest(testData, container) { renderQuiz(testData, container); }
 function renderPodcast(postData, container) {
     if (!postData || !Array.isArray(postData.episodes) || postData.episodes.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný podcast.</p>`;
-        return;
+        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný podcast.</p>`; return;
     };
     const episodesHtml = postData.episodes.map((episode, i) => `<div class="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-6"><h4 class="font-bold text-xl text-slate-800">${i + 1}. ${episode.title}</h4><div class="mt-4 text-slate-600 prose">${episode.script.replace(/\n/g, '<br>')}</div></div>`).join('');
     container.innerHTML = `<h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Podcast & Materiály</h2>${episodesHtml}`;
