@@ -1,18 +1,17 @@
-import { collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { db, auth } from './firebase-init.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { functions } from './firebase-init.js';
 
 let lessonsData = [];
-// Inicializujeme callable funkcie, ktoré budeme potrebovať v tomto module
-const getLessonKeyTakeaways = httpsCallable(functions, 'getLessonKeyTakeaways');
-const getAiAssistantResponse = httpsCallable(functions, 'getAiAssistantResponse');
-const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor');
+// Používame jednotný názov funkcie pre AI asistenta
+const getLessonAssistantResponse = httpsCallable(functions, 'getLessonAssistantResponse');
 
 async function fetchLessons() {
     try {
         const lessonsCollection = collection(db, 'lessons');
+        // V budúcnosti tu môžeme pridať filtrovanie len pre 'active' lekcie
         const querySnapshot = await getDocs(lessonsCollection);
         lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         return true;
@@ -23,27 +22,30 @@ async function fetchLessons() {
     }
 }
 
-function setupStudentNav() {
+async function setupStudentNav() {
     const nav = document.getElementById('main-nav');
     const user = auth.currentUser;
     if (!nav || !user) return;
 
-    getDoc(doc(db, "students", user.uid)).then(studentDoc => {
+    try {
+        // Správne sa odkazujeme na kolekciu 'students', kde je token
+        const studentDoc = await getDoc(doc(db, "students", user.uid));
         if (studentDoc.exists()) {
             const studentData = studentDoc.data();
             const token = studentData.telegramConnectionToken;
             const botUsername = 'ai_sensei_czu_bot';
 
             let telegramHtml = '';
-            if (token) {
-                 const connectionLink = `https://t.me/${botUsername}?start=${token}`;
-                 telegramHtml = `
-                     <li>
-                         <a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Propojit s Telegramem">
-                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-send"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                         </a>
-                     </li>
-                 `;
+            // Ikonka sa zobrazí, len ak existuje token a účet ešte nie je prepojený
+            if (token && !studentData.telegramChatId) {
+                const connectionLink = `https://t.me/${botUsername}?start=${token}`;
+                telegramHtml = `
+                    <li>
+                        <a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Propojit s Telegramem">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-send"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </a>
+                    </li>
+                `;
             }
 
             nav.innerHTML = `
@@ -55,7 +57,9 @@ function setupStudentNav() {
                 ${telegramHtml}
             `;
         }
-    });
+    } catch (error) {
+        console.error("Error setting up student nav:", error);
+    }
 }
 
 function renderStudentDashboard(container) {
@@ -90,6 +94,7 @@ function renderStudentDashboard(container) {
 }
 
 export async function initStudentDashboard() {
+    await setupStudentNav(); 
     const lessonsLoaded = await fetchLessons();
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
@@ -98,8 +103,6 @@ export async function initStudentDashboard() {
         roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat.</div>`;
         return;
     }
-
-    setupStudentNav();
 
     roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50 h-screen"></div>`;
     const studentContentArea = document.getElementById('student-content-area');
@@ -120,7 +123,7 @@ export async function initStudentDashboard() {
 
 function showStudentLesson(lessonData) {
     const studentContentArea = document.getElementById('student-content-area');
-
+    
     const menuItems = [];
     if (lessonData.content) menuItems.push({ id: 'text', label: 'Text lekce', icon: '✍️' });
     if (lessonData.presentationData) menuItems.push({ id: 'presentation', label: 'Prezentace', icon: '🖼️' });
@@ -128,7 +131,7 @@ function showStudentLesson(lessonData) {
     if (lessonData.quizData) menuItems.push({ id: 'quiz', label: 'Kvíz', icon: '❓' });
     if (lessonData.testData) menuItems.push({ id: 'test', label: 'Test', icon: '✅' });
     if (lessonData.postData) menuItems.push({ id: 'post', label: 'Podcast & Materiály', icon: '🎙️' });
-    menuItems.push({ id: 'telegram', label: 'Konzultace', icon: '💬' });
+    menuItems.push({ id: 'assistant', label: 'AI Asistent', icon: '🤖' });
 
     const menuHtml = menuItems.map(item => `
         <a href="#" data-view="${item.id}" class="lesson-menu-item flex items-center p-3 text-sm font-medium rounded-md hover:bg-slate-100 transition-colors">
@@ -144,7 +147,7 @@ function showStudentLesson(lessonData) {
                 <h1 class="text-4xl font-extrabold text-slate-800 mt-2">${lessonData.title}</h1>
                 <p class="text-xl text-slate-500">${lessonData.subtitle}</p>
             </header>
-
+            
             <div class="flex flex-col md:flex-row gap-8">
                 <aside class="w-full md:w-64 flex-shrink-0">
                     <div class="p-4 bg-white rounded-2xl shadow-lg">
@@ -158,7 +161,7 @@ function showStudentLesson(lessonData) {
     `;
 
     document.getElementById('back-to-overview-btn').addEventListener('click', () => {
-        renderStudentDashboard(studentContentArea);
+        initStudentDashboard();
     });
 
     const contentDisplay = document.getElementById('lesson-content-display');
@@ -168,7 +171,7 @@ function showStudentLesson(lessonData) {
             e.preventDefault();
             studentContentArea.querySelectorAll('.lesson-menu-item').forEach(i => i.classList.remove('bg-green-100', 'text-green-800', 'font-semibold'));
             item.classList.add('bg-green-100', 'text-green-800', 'font-semibold');
-
+            
             const viewId = item.dataset.view;
             renderLessonContent(viewId, lessonData, contentDisplay);
         });
@@ -184,7 +187,7 @@ function showStudentLesson(lessonData) {
 function renderLessonContent(viewId, lessonData, container) {
     switch(viewId) {
         case 'text':
-            container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${lessonData.content}</div>`;
+            container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${lessonData.content || ''}</div>`;
             break;
         case 'presentation':
             renderPresentation(lessonData.presentationData, container);
@@ -201,26 +204,23 @@ function renderLessonContent(viewId, lessonData, container) {
         case 'post':
             renderPodcast(lessonData.postData, container);
             break;
-        case 'telegram':
-            renderProfessorChat(lessonData, container);
+        case 'assistant':
+            renderAIAssistantChat(lessonData, container);
             break;
         default:
             container.innerHTML = `<p>Obsah se připravuje.</p>`;
     }
 }
 
-function renderProfessorChat(lessonData, container) {
+function renderAIAssistantChat(lessonData, container) {
     container.innerHTML = `
-        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Konzultace k lekci</h2>
+        <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">AI Asistent Lekce</h2>
         <div class="w-full max-w-md mx-auto bg-slate-900 rounded-[40px] border-[14px] border-slate-900 shadow-2xl relative">
             <div class="w-full h-full bg-blue-100 bg-[url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')] bg-center bg-cover rounded-[26px]">
                 <div class="h-[600px] flex flex-col p-4">
-                    <header class="text-center mb-4 flex-shrink-0">
-                        <p class="font-bold text-slate-800">Profesor</p>
-                        <p class="text-xs text-slate-500">Odpoví, jakmile to bude možné</p>
-                    </header>
                     <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2">
-                        </div>
+                        <div class="flex justify-start"><div class="bg-white p-3 rounded-r-xl rounded-t-xl max-w-xs text-sm">Ahoj! Zeptej se mě na cokoliv ohledně této lekce.</div></div>
+                    </div>
                     <footer class="mt-4 flex-shrink-0">
                         <div class="flex items-center bg-white rounded-full p-2 shadow-inner">
                             <textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu..."></textarea>
@@ -238,37 +238,48 @@ function renderProfessorChat(lessonData, container) {
     const input = container.querySelector('#student-chat-input');
     const historyContainer = container.querySelector('#student-chat-history');
 
-    const handleSend = async () => {
-        const text = input.value.trim();
-        if (!text) return;
-
-        input.value = '';
-        sendBtn.disabled = true;
-
+    const addMessage = (text, sender) => {
         const messageEl = document.createElement('div');
-        messageEl.className = 'flex justify-end';
-        messageEl.innerHTML = `<div class="bg-green-200 p-3 rounded-l-xl rounded-t-xl max-w-xs text-sm">${text}</div>`;
+        messageEl.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+        messageEl.innerHTML = `<div class="${sender === 'user' ? 'bg-green-200' : 'bg-white'} p-3 rounded-xl max-w-xs text-sm">${text.replace(/\n/g, '<br>')}</div>`;
         historyContainer.appendChild(messageEl);
         historyContainer.scrollTop = historyContainer.scrollHeight;
+        return messageEl;
+    };
 
+    const handleSend = async () => {
+        const userQuestion = input.value.trim();
+        if (!userQuestion) return;
+        
+        input.value = '';
+        input.style.height = 'auto';
+        sendBtn.disabled = true;
+        addMessage(userQuestion, 'user');
+
+        const thinkingBubble = addMessage("...", 'ai');
+        
         try {
-            await sendMessageToProfessor({ lessonId: lessonData.id, text });
-            showToast("Zpráva byla úspěšně odeslána.");
+            // Používame správny názov funkcie
+            const result = await getLessonAssistantResponse({ lessonId: lessonData.id, userQuestion });
+            thinkingBubble.querySelector('div').innerHTML = result.data.answer.replace(/\n/g, '<br>');
         } catch (error) {
-            console.error("Error sending message:", error);
-            showToast(`Odeslání zprávy selhalo: ${error.message}`, true);
-            messageEl.innerHTML += `<p class="text-xs text-red-500 text-right mt-1">Odeslání selhalo</p>`;
+            console.error("Error getting AI assistant response:", error);
+            thinkingBubble.querySelector('div').innerHTML = `<p class="text-red-500">Omlouvám se, došlo k chybě.</p>`;
         } finally {
             sendBtn.disabled = false;
         }
     };
-
+    
     sendBtn.addEventListener('click', handleSend);
     input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSend();
         }
+    });
+    input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = (input.scrollHeight) + 'px';
     });
 }
 
@@ -337,9 +348,9 @@ function renderQuiz(quizData, container) {
     document.getElementById('check-quiz-btn').addEventListener('click', () => {
         let score = 0;
         quizData.questions.forEach((q, index) => {
-            const qEl = container.querySelector(`[data-q-index="${index}"]`);
+            const qEl = container.querySelector(\`[data-q-index="${index}"]\`);
             const feedbackEl = qEl.querySelector('.result-feedback');
-            const selected = qEl.querySelector(`input:checked`);
+            const selected = qEl.querySelector('input:checked');
             feedbackEl.classList.remove('hidden');
             if (selected) {
                 if (parseInt(selected.value) === q.correct_option_index) {
@@ -347,7 +358,7 @@ function renderQuiz(quizData, container) {
                     feedbackEl.textContent = 'Správně!';
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700';
                 } else {
-                    feedbackEl.textContent = \`Špatně. Správná odpověď: ${q.options[q.correct_option_index]}\`;
+                    feedbackEl.textContent = \`Špatně. Správná odpověď: \${q.options[q.correct_option_index]}\`;
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700';
                 }
             } else {
@@ -356,7 +367,7 @@ function renderQuiz(quizData, container) {
             }
         });
         const summaryEl = document.getElementById('quiz-summary');
-        summaryEl.textContent = \`Vaše skóre: ${score} z ${quizData.questions.length}\`;
+        summaryEl.textContent = \`Vaše skóre: \${score} z \${quizData.questions.length}\`;
         summaryEl.classList.remove('hidden');
     });
 }
@@ -383,9 +394,9 @@ function renderTest(testData, container) {
     document.getElementById('check-test-btn').addEventListener('click', () => {
         let score = 0;
         testData.questions.forEach((q, index) => {
-            const qEl = container.querySelector(`[data-q-index="${index}"]`);
+            const qEl = container.querySelector(\`[data-q-index="${index}"]\`);
             const feedbackEl = qEl.querySelector('.result-feedback');
-            const selected = qEl.querySelector(`input:checked`);
+            const selected = qEl.querySelector('input:checked');
             feedbackEl.classList.remove('hidden');
             if (selected) {
                 if (parseInt(selected.value) === q.correct_option_index) {
@@ -393,16 +404,16 @@ function renderTest(testData, container) {
                     feedbackEl.textContent = 'Správně!';
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700';
                 } else {
-                    feedbackEl.textContent = \`Špatně. Správná odpověď: ${q.options[q.correct_option_index]}\`;
+                    feedbackEl.textContent = \`Špatně. Správná odpověď: \${q.options[q.correct_option_index]}\`;
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700';
                 }
             } else {
                 feedbackEl.textContent = 'Nevybrali jste odpověď.';
-                 feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-yellow-100 text-yellow-800';
             }
         });
         const summaryEl = document.getElementById('test-summary');
-        summaryEl.textContent = \`Vaše skóre: ${score} z ${testData.questions.length}\`;
+        summaryEl.textContent = \`Vaše skóre: \${score} z \${testData.questions.length}\`;
         summaryEl.classList.remove('hidden');
     });
 }
