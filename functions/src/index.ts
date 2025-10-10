@@ -16,6 +16,10 @@ const corsHandler = cors({ origin: true });
 // --- Helper Functions ---
 async function sendTelegramMessage(chatId: number, text: string) {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+        logger.error("TELEGRAM_BOT_TOKEN is not set.");
+        return;
+    }
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
     try {
         await fetch(url, {
@@ -69,9 +73,42 @@ export const generateContent = onCall({ region: "europe-west1" }, async (request
 
     } catch (error) {
         logger.error(`Error in generateContent for type ${contentType}:`, error);
-        throw new HttpsError("internal", `Failed to generate content: ${error.message}`);
+        // --- OPRAVA CHYBY TS18046 ---
+        let message = "An unknown error occurred.";
+        if (error instanceof Error) {
+            message = error.message;
+        }
+        throw new HttpsError("internal", `Failed to generate content: ${message}`);
     }
 });
+
+export const getAiAssistantResponse = onCall(
+    { region: "europe-west1" },
+    async (request) => {
+        const { lessonId, userQuestion } = request.data;
+        if (!lessonId || !userQuestion) {
+            throw new HttpsError("invalid-argument", "Missing lessonId or userQuestion");
+        }
+        try {
+            const lessonRef = db.collection("lessons").doc(lessonId);
+            const lessonDoc = await lessonRef.get();
+            if (!lessonDoc.exists) {
+                throw new HttpsError("not-found", "Lesson not found");
+            }
+            const lessonData = lessonDoc.data();
+            const prompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${userQuestion}"`;
+            const answer = await GeminiAPI.generateTextFromPrompt(prompt);
+            return { answer };
+        } catch (error) {
+            logger.error("Error in getAiAssistantResponse:", error);
+            let message = "Failed to get AI response";
+            if (error instanceof Error) {
+                message = error.message;
+            }
+            throw new HttpsError("internal", message);
+        }
+    }
+);
 
 
 export const sendMessageToStudent = onCall(
@@ -111,31 +148,6 @@ export const sendMessageToProfessor = onCall(
         return { success: true };
     }
 );
-
-export const getAiAssistantResponse = onCall(
-    { region: "europe-west1" },
-    async (request) => {
-        const { lessonId, userQuestion } = request.data;
-        if (!lessonId || !userQuestion) {
-            throw new HttpsError("invalid-argument", "Missing lessonId or userMessage");
-        }
-        try {
-            const lessonRef = db.collection("lessons").doc(lessonId);
-            const lessonDoc = await lessonRef.get();
-            if (!lessonDoc.exists) {
-                throw new HttpsError("not-found", "Lesson not found");
-            }
-            const lessonData = lessonDoc.data();
-            const prompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${userQuestion}"`;
-            const answer = await GeminiAPI.generateTextFromPrompt(prompt);
-            return { answer };
-        } catch (error) {
-            logger.error("Error in getAiAssistantResponse:", error);
-            throw new HttpsError("internal", "Failed to get AI response");
-        }
-    }
-);
-
 
 export const telegramBotWebhook = onRequest(
     { region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] },
