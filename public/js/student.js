@@ -4,6 +4,7 @@ import { db, auth } from './firebase-init.js';
 import { getLessonAssistantResponse } from './gemini-api.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { functions } from './firebase-init.js';
+import { handleLogout } from './auth.js'; // <-- NOVÝ IMPORT
 
 let lessonsData = [];
 const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor');
@@ -46,7 +47,7 @@ function promptForStudentName(userId) {
 async function fetchLessons() {
     try {
         const lessonsCollection = collection(db, 'lessons');
-        const querySnapshot = await getDocs(lessonsCollection);
+        const querySnapshot = await getDocs(query(lessonsCollection, orderBy("createdAt")));
         lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         return true;
     } catch (error) {
@@ -63,7 +64,12 @@ async function setupStudentNav() {
     nav.innerHTML = `
         <li>
             <button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            </button>
+        </li>
+        <li class="mt-auto">
+            <button id="logout-btn-nav" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white" title="Odhlásiť sa">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
             </button>
         </li>
     `;
@@ -123,6 +129,9 @@ export async function initStudentDashboard() {
             }
 
             await setupStudentNav(); 
+            // <-- PRIDANÉ PRIPOJENIE LOGOUT FUNKCIE
+            document.getElementById('logout-btn-nav').addEventListener('click', handleLogout);
+
             const lessonsLoaded = await fetchLessons();
 
             if (!lessonsLoaded) {
@@ -396,8 +405,6 @@ function renderProfessorChat(lessonData, container) {
     });
 }
 
-
-// Ostatné render funkcie (renderVideo, renderPresentation, atď.) zostávajú rovnaké
 function renderVideo(videoUrl, container) {
     let videoId = null;
     try {
@@ -477,7 +484,7 @@ function renderQuiz(quizData, container) {
 }
 
 function renderTest(testData, container) {
-    renderQuiz(testData, container); // Pre zjednodušenie test používa rovnakú renderovaciu logiku ako kvíz
+    renderQuiz(testData, container);
 }
 
 function renderPodcast(postData, container) {
