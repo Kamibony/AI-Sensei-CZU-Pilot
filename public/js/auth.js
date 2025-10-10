@@ -55,39 +55,50 @@ function renderLogin() {
 
 async function handleProfessorLogin() {
     try {
-        await signInAnonymously(auth);
+        // Set role first to prevent race condition with onAuthStateChanged
         sessionStorage.setItem('userRole', 'professor');
-        await loginSuccessCallback('professor');
+        await signInAnonymously(auth);
+        // onAuthStateChanged will now handle the UI transition.
     } catch (error) {
+        // Clear the role if login fails
+        sessionStorage.removeItem('userRole');
         console.error("Professor anonymous sign-in failed:", error);
         showToast("Přihlášení pro profesora selhalo.", true);
     }
 }
 
 async function handleStudentLogin() {
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value.trim();
+    const email = document.getElementById('login-email')?.value.trim();
+    const password = document.getElementById('login-password')?.value.trim();
     if (!email || !password) { showToast('Prosím, zadejte email a heslo.', true); return; }
+
     try {
-        await signInWithEmailAndPassword(auth, email, password);
+        // Set role first to prevent race condition
         sessionStorage.setItem('userRole', 'student');
-        await loginSuccessCallback('student');
+        await signInWithEmailAndPassword(auth, email, password);
+        // onAuthStateChanged will now handle the UI transition.
     } catch (error) {
+        // Clear the role if login fails
+        sessionStorage.removeItem('userRole');
         console.error("Student sign-in failed:", error);
         showToast('Přihlášení selhalo: Nesprávný email nebo heslo.', true);
     }
 }
 
 async function handleStudentRegister() {
-    const email = document.getElementById('register-email').value.trim();
-    const password = document.getElementById('register-password').value.trim();
+    const email = document.getElementById('register-email')?.value.trim();
+    const password = document.getElementById('register-password')?.value.trim();
     if (!email || !password) { showToast('Prosím, zadejte email a heslo.', true); return; }
+
     try {
+        // Set role first to prevent race condition
+        sessionStorage.setItem('userRole', 'student');
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         await setDoc(doc(db, "students", userCredential.user.uid), { email: userCredential.user.email, createdAt: serverTimestamp() });
-        sessionStorage.setItem('userRole', 'student');
-        await loginSuccessCallback('student');
+        // onAuthStateChanged will now handle the UI transition.
     } catch (error) {
+        // Clear the role if registration fails
+        sessionStorage.removeItem('userRole');
         console.error("Student account creation failed:", error);
         showToast(`Registrace se nezdařila: ${error.message}`, true);
     }
