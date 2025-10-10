@@ -1,5 +1,5 @@
 import { initializeFirebase } from './firebase-init.js';
-import { startAuthFlow, handleLogout } from './auth.js';
+import { startAuthFlow } from './auth.js';
 
 function initializeAppUI() {
     const appContainer = document.getElementById('app-container');
@@ -9,7 +9,9 @@ function initializeAppUI() {
         const template = document.getElementById('main-app-template');
         appContainer.innerHTML = '';
         appContainer.appendChild(template.content.cloneNode(true));
-        document.getElementById('logout-btn').addEventListener('click', handleLogout);
+        
+        // Tento riadok spôsoboval chybu a bol odstránený, pretože logout sa teraz rieši v professor.js a student.js
+        // document.getElementById('logout-btn').addEventListener('click', handleLogout);
 
         if (role === 'professor') {
             const { initProfessorDashboard } = await import('./professor.js');
