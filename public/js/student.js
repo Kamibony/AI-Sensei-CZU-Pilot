@@ -352,9 +352,9 @@ function renderQuiz(quizData, container) {
     document.getElementById('check-quiz-btn').addEventListener('click', () => {
         let score = 0;
         quizData.questions.forEach((q, index) => {
-            const qEl = container.querySelector(`[data-q-index="${index}"]`);
+            const qEl = container.querySelector(\`[data-q-index="${index}"]\`);
             const feedbackEl = qEl.querySelector('.result-feedback');
-            const selected = qEl.querySelector(`input:checked`);
+            const selected = qEl.querySelector('input:checked');
             feedbackEl.classList.remove('hidden');
             if (selected) {
                 if (parseInt(selected.value) === q.correct_option_index) {
@@ -362,7 +362,7 @@ function renderQuiz(quizData, container) {
                     feedbackEl.textContent = 'Správně!';
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700';
                 } else {
-                    feedbackEl.textContent = `Špatně. Správná odpověď: \${q.options[q.correct_option_index]}\`;
+                    feedbackEl.textContent = \`Špatně. Správná odpověď: \${q.options[q.correct_option_index]}\`;
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700';
                 }
             } else {
@@ -398,9 +398,9 @@ function renderTest(testData, container) {
     document.getElementById('check-test-btn').addEventListener('click', () => {
         let score = 0;
         testData.questions.forEach((q, index) => {
-            const qEl = container.querySelector(`[data-q-index="${index}"]`);
+            const qEl = container.querySelector(\`[data-q-index="${index}"]\`);
             const feedbackEl = qEl.querySelector('.result-feedback');
-            const selected = qEl.querySelector(`input:checked`);
+            const selected = qEl.querySelector('input:checked');
             feedbackEl.classList.remove('hidden');
             if (selected) {
                 if (parseInt(selected.value) === q.correct_option_index) {
@@ -413,7 +413,7 @@ function renderTest(testData, container) {
                 }
             } else {
                 feedbackEl.textContent = 'Nevybrali jste odpověď.';
-                 feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-yellow-100 text-yellow-800';
             }
         });
         const summaryEl = document.getElementById('test-summary');
