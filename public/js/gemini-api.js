@@ -5,7 +5,7 @@ import { functions } from './firebase-init.js';
 const generateContentFunction = httpsCallable(functions, 'generateContent');
 
 /**
- * Univerzálna funkcia na volanie AI na backende.
+ * Univerzálna funkcia na volanie AI na backende pre generovanie obsahu.
  * @param {object} data - Objekt obsahujúci contentType, promptData a voliteľne filePaths.
  * @returns {Promise<object>} - Sľub, ktorý vráti vygenerovaný obsah alebo objekt s chybou.
  */
