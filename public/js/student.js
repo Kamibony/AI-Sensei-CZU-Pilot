@@ -27,13 +27,13 @@ function setupStudentNav() {
     const nav = document.getElementById('main-nav');
     const user = auth.currentUser;
     if (!nav || !user) return;
-    
+
     getDoc(doc(db, "students", user.uid)).then(studentDoc => {
         if (studentDoc.exists()) {
             const studentData = studentDoc.data();
             const token = studentData.telegramConnectionToken;
             const botUsername = 'ai_sensei_czu_bot';
-            
+
             let telegramHtml = '';
             if (token) {
                  const connectionLink = `https://t.me/${botUsername}?start=${token}`;
@@ -98,7 +98,7 @@ export async function initStudentDashboard() {
         roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat.</div>`;
         return;
     }
-    
+
     setupStudentNav();
 
     roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50 h-screen"></div>`;
@@ -120,7 +120,7 @@ export async function initStudentDashboard() {
 
 function showStudentLesson(lessonData) {
     const studentContentArea = document.getElementById('student-content-area');
-    
+
     const menuItems = [];
     if (lessonData.content) menuItems.push({ id: 'text', label: 'Text lekce', icon: '✍️' });
     if (lessonData.presentationData) menuItems.push({ id: 'presentation', label: 'Prezentace', icon: '🖼️' });
@@ -128,7 +128,6 @@ function showStudentLesson(lessonData) {
     if (lessonData.quizData) menuItems.push({ id: 'quiz', label: 'Kvíz', icon: '❓' });
     if (lessonData.testData) menuItems.push({ id: 'test', label: 'Test', icon: '✅' });
     if (lessonData.postData) menuItems.push({ id: 'post', label: 'Podcast & Materiály', icon: '🎙️' });
-    // --- NOVÁ POLOŽKA V MENU ---
     menuItems.push({ id: 'telegram', label: 'Konzultace', icon: '💬' });
 
     const menuHtml = menuItems.map(item => `
@@ -145,7 +144,7 @@ function showStudentLesson(lessonData) {
                 <h1 class="text-4xl font-extrabold text-slate-800 mt-2">${lessonData.title}</h1>
                 <p class="text-xl text-slate-500">${lessonData.subtitle}</p>
             </header>
-            
+
             <div class="flex flex-col md:flex-row gap-8">
                 <aside class="w-full md:w-64 flex-shrink-0">
                     <div class="p-4 bg-white rounded-2xl shadow-lg">
@@ -169,7 +168,7 @@ function showStudentLesson(lessonData) {
             e.preventDefault();
             studentContentArea.querySelectorAll('.lesson-menu-item').forEach(i => i.classList.remove('bg-green-100', 'text-green-800', 'font-semibold'));
             item.classList.add('bg-green-100', 'text-green-800', 'font-semibold');
-            
+
             const viewId = item.dataset.view;
             renderLessonContent(viewId, lessonData, contentDisplay);
         });
@@ -202,7 +201,6 @@ function renderLessonContent(viewId, lessonData, container) {
         case 'post':
             renderPodcast(lessonData.postData, container);
             break;
-        // --- NOVÝ CASE PRE TELEGRAM CHAT ---
         case 'telegram':
             renderProfessorChat(lessonData, container);
             break;
@@ -211,7 +209,6 @@ function renderLessonContent(viewId, lessonData, container) {
     }
 }
 
-// --- NOVÁ FUNKCIA PRE ZOBRAZENIE CHATU ---
 function renderProfessorChat(lessonData, container) {
     container.innerHTML = `
         <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Konzultace k lekci</h2>
@@ -244,11 +241,10 @@ function renderProfessorChat(lessonData, container) {
     const handleSend = async () => {
         const text = input.value.trim();
         if (!text) return;
-        
+
         input.value = '';
         sendBtn.disabled = true;
 
-        // Zobrazíme správu lokálne
         const messageEl = document.createElement('div');
         messageEl.className = 'flex justify-end';
         messageEl.innerHTML = `<div class="bg-green-200 p-3 rounded-l-xl rounded-t-xl max-w-xs text-sm">${text}</div>`;
@@ -276,7 +272,6 @@ function renderProfessorChat(lessonData, container) {
     });
 }
 
-
 function renderVideo(videoUrl, container) {
     const videoIdMatch = videoUrl.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
     const videoId = videoIdMatch ? videoIdMatch[1] : null;
@@ -291,7 +286,6 @@ function renderVideo(videoUrl, container) {
         container.innerHTML = `<p class="text-red-500 text-center font-semibold p-8">Vložená URL adresa videa (${videoUrl}) není platná.</p>`;
     }
 }
-
 
 function renderPresentation(presentationData, container) {
     if (!presentationData || !Array.isArray(presentationData.slides) || presentationData.slides.length === 0) return;
