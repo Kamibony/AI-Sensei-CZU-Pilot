@@ -28,33 +28,54 @@ async function sendTelegramMessage(chatId: number, text: string) {
     }
 }
 
-// --- Callable Functions ---
-export const getLessonAssistantResponse = onCall(
-    { region: "europe-west1" }, // REGIÓN NAPÍSANÝ NAPEVNO
-    async (request) => {
-        const { lessonId, userMessage } = request.data;
-        if (!lessonId || !userMessage) {
-            throw new HttpsError("invalid-argument", "Missing lessonId or userMessage");
-        }
-        try {
-            const lessonRef = db.collection("lessons").doc(lessonId);
-            const lessonDoc = await lessonRef.get();
-            if (!lessonDoc.exists) {
-                throw new HttpsError("not-found", "Lesson not found");
-            }
-            const lessonData = lessonDoc.data();
-            const prompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${userMessage}"`;
-            const response = await GeminiAPI.generateTextFromPrompt(prompt);
-            return { response };
-        } catch (error) {
-            logger.error("Error in getLessonAssistantResponse:", error);
-            throw new HttpsError("internal", "Failed to get AI response");
-        }
+// --- ZJEDNOTENÁ FUNKCIA PRE VŠETKY AI OPERÁCIE ---
+export const generateContent = onCall({ region: "europe-west1" }, async (request) => {
+    const { contentType, promptData, filePaths } = request.data;
+
+    if (!contentType || !promptData) {
+        throw new HttpsError("invalid-argument", "Missing contentType or promptData.");
     }
-);
+
+    try {
+        let finalPrompt = promptData.userPrompt;
+        const isJson = ['presentation', 'quiz', 'test', 'post'].includes(contentType);
+
+        if (isJson) {
+            switch(contentType) {
+                case 'presentation':
+                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${promptData.slideCount || 5} slidy. Odpověď musí být JSON objekt s klíčem 'slides', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů).`;
+                    break;
+                case 'quiz':
+                    finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
+                    break;
+                case 'test':
+                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${promptData.questionCount || 5} otázkami. Obtížnost: ${promptData.difficulty || 'Střední'}. Typy otázek: ${promptData.questionTypes || 'Mix'}. Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
+                    break;
+                case 'post':
+                     finalPrompt = `Vytvoř sérii ${promptData.episodeCount || 3} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string).`;
+                     break;
+            }
+        }
+        
+        if (filePaths && filePaths.length > 0) {
+            return isJson 
+                ? await GeminiAPI.generateJsonFromDocuments(filePaths, finalPrompt)
+                : { text: await GeminiAPI.generateTextFromDocuments(filePaths, finalPrompt) };
+        } else {
+            return isJson
+                ? await GeminiAPI.generateJsonFromPrompt(finalPrompt)
+                : { text: await GeminiAPI.generateTextFromPrompt(finalPrompt) };
+        }
+
+    } catch (error) {
+        logger.error(`Error in generateContent for type ${contentType}:`, error);
+        throw new HttpsError("internal", `Failed to generate content: ${error.message}`);
+    }
+});
+
 
 export const sendMessageToStudent = onCall(
-    { region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, // REGIÓN NAPÍSANÝ NAPEVNO
+    { region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] },
     async (request) => {
         const { studentId, message } = request.data;
         if (!studentId || !message) {
@@ -72,7 +93,7 @@ export const sendMessageToStudent = onCall(
 );
 
 export const sendMessageToProfessor = onCall(
-    { region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN", "PROFESSOR_TELEGRAM_CHAT_ID"] }, // REGIÓN NAPÍSANÝ NAPEVNO
+    { region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN", "PROFESSOR_TELEGRAM_CHAT_ID"] },
     async (request) => {
         const { studentId, message } = request.data;
         if (!studentId || !message) {
@@ -91,9 +112,33 @@ export const sendMessageToProfessor = onCall(
     }
 );
 
-// --- HTTP Request Functions ---
+export const getAiAssistantResponse = onCall(
+    { region: "europe-west1" },
+    async (request) => {
+        const { lessonId, userQuestion } = request.data;
+        if (!lessonId || !userQuestion) {
+            throw new HttpsError("invalid-argument", "Missing lessonId or userMessage");
+        }
+        try {
+            const lessonRef = db.collection("lessons").doc(lessonId);
+            const lessonDoc = await lessonRef.get();
+            if (!lessonDoc.exists) {
+                throw new HttpsError("not-found", "Lesson not found");
+            }
+            const lessonData = lessonDoc.data();
+            const prompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${userQuestion}"`;
+            const answer = await GeminiAPI.generateTextFromPrompt(prompt);
+            return { answer };
+        } catch (error) {
+            logger.error("Error in getAiAssistantResponse:", error);
+            throw new HttpsError("internal", "Failed to get AI response");
+        }
+    }
+);
+
+
 export const telegramBotWebhook = onRequest(
-    { region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, // REGIÓN NAPÍSANÝ NAPEVNO
+    { region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] },
     (req, res) => {
         corsHandler(req, res, async () => {
             if (req.method !== 'POST') {
@@ -112,7 +157,7 @@ export const telegramBotWebhook = onRequest(
                 if (text && text.startsWith("/start")) {
                     const token = text.split(' ')[1];
                     if (token) {
-                        const q = db.collection("students").where("telegramToken", "==", token).limit(1);
+                        const q = db.collection("students").where("telegramConnectionToken", "==", token).limit(1);
                         const querySnapshot = await q.get();
                         if (!querySnapshot.empty) {
                             const studentDoc = querySnapshot.docs[0];
@@ -130,7 +175,7 @@ export const telegramBotWebhook = onRequest(
                 const q = db.collection("students").where("telegramChatId", "==", chatId).limit(1);
                 const querySnapshot = await q.get();
                 if (querySnapshot.empty) {
-                    await sendTelegramMessage(chatId, "Váš účet nie je prepojený.");
+                    await sendTelegramMessage(chatId, "Váš účet nie je prepojený. Prosím, prihláste sa do aplikácie a použite váš unikátny link.");
                     res.status(200).send("OK");
                     return;
                 }
