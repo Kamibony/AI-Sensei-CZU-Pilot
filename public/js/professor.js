@@ -4,9 +4,13 @@ import { showToast } from './utils.js';
 import { db } from './firebase-init.js';
 import { initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-handler.js';
 import { handleLogout } from './auth.js';
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { functions } from './firebase-init.js';
+
 
 let lessonsData = [];
 const MAIN_COURSE_ID = "main-course"; 
+const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
 
 async function fetchLessons() {
     try {
@@ -47,6 +51,7 @@ export async function initProfessorDashboard() {
     showProfessorContent('timeline');
 }
 
+
 function setupProfessorNav() {
     const nav = document.getElementById('main-nav');
     if (nav) {
@@ -55,24 +60,29 @@ function setupProfessorNav() {
                 <div class="flex-grow space-y-4">
                     <li>
                         <button data-view="timeline" class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Plán výuky">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                         </button>
                     </li>
                     <li>
                         <button data-view="media" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Knihovna médií">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                        </button>
+                    </li>
+                    <li>
+                        <button data-view="interactions" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Interakce se studenty">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                         </button>
                     </li>
                      <li>
                         <button data-view="students" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Studenti">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                         </button>
                     </li>
                 </div>
                 <div>
                     <li>
                          <button id="logout-btn-nav" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white" title="Odhlásiť sa">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                          </button>
                     </li>
                 </div>
@@ -97,18 +107,18 @@ async function showProfessorContent(view, lesson = null) {
     const sidebar = document.getElementById('professor-sidebar');
     const mainArea = document.getElementById('main-content-area');
     
-    document.getElementById('dashboard-professor').style.display = 'flex';
+    if (!sidebar || !mainArea) return;
+
     sidebar.style.display = 'flex';
     mainArea.style.display = 'flex';
 
     if (view === 'editor') {
         renderEditorMenu(sidebar, lesson);
-    } else if (view === 'media') {
+    } else if (view === 'media' || view === 'students' || view === 'interactions') {
         sidebar.style.display = 'none';
-        renderMediaLibrary(mainArea);
-    } else if (view === 'students') {
-        sidebar.style.display = 'none';
-        renderStudentsView(mainArea);
+        if (view === 'media') renderMediaLibrary(mainArea);
+        if (view === 'students') renderStudentsView(mainArea);
+        if (view === 'interactions') renderTelegramInteractionView(mainArea);
     } else { 
         await fetchLessons();
         renderLessonLibrary(sidebar);
@@ -337,5 +347,77 @@ async function renderStudentsView(container) {
     } catch (error) {
         console.error("Error fetching students:", error);
         document.getElementById('students-list-container').innerHTML = '<p class="text-center p-8 text-red-500">Nepodařilo se načíst studenty.</p>';
+    }
+}
+
+async function renderTelegramInteractionView(container) {
+    container.innerHTML = `
+        <header class="text-center p-6 border-b border-slate-200 bg-white">
+            <h1 class="text-3xl font-extrabold text-slate-800">Interakce se studenty</h1>
+            <p class="text-slate-500 mt-1">Odesílejte zprávy studentům připojeným přes Telegram.</p>
+        </header>
+        <div id="student-telegram-list" class="flex-grow overflow-y-auto p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="p-8 text-center text-slate-500 col-span-full">Načítám studenty...</div>
+        </div>
+    `;
+
+    const listContainer = document.getElementById('student-telegram-list');
+
+    try {
+        const studentsCollection = collection(db, 'students');
+        const querySnapshot = await getDocs(query(studentsCollection, where("telegramChatId", "!=", null)));
+        const connectedStudents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        if (connectedStudents.length === 0) {
+            listContainer.innerHTML = `<div class="bg-white p-6 rounded-lg shadow-sm text-center col-span-full"><p class="text-slate-500">Zatím se žádný student nepřipojil přes Telegram.</p></div>`;
+            return;
+        }
+
+        const studentCardsHtml = connectedStudents.map(student => `
+            <div class="bg-white rounded-2xl shadow-lg p-6 flex flex-col" data-student-id="${student.id}">
+                <div class="flex items-center mb-4">
+                    <p class="font-semibold text-slate-700 truncate">${student.name || student.email}</p>
+                </div>
+                <textarea class="message-input w-full border-slate-300 rounded-lg p-2 h-28 flex-grow" placeholder="Napište zprávu..."></textarea>
+                <button class="send-telegram-btn mt-4 w-full px-4 py-2 bg-sky-500 text-white font-semibold rounded-lg hover:bg-sky-600 transition-colors">Odeslat zprávu</button>
+            </div>
+        `).join('');
+        listContainer.innerHTML = studentCardsHtml;
+
+        document.querySelectorAll('.send-telegram-btn').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                const card = e.target.closest('[data-student-id]');
+                const studentId = card.dataset.studentId;
+                const textarea = card.querySelector('.message-input');
+                const message = textarea.value.trim();
+
+                if (!message) {
+                    showToast("Zpráva nemůže být prázdná.", true);
+                    return;
+                }
+
+                const originalButtonText = button.innerHTML;
+                button.disabled = true;
+                textarea.disabled = true;
+                button.innerHTML = `Odesílám...`;
+
+                try {
+                    await sendMessageToStudent({ studentId, message });
+                    showToast("Zpráva byla úspěšně odeslána.");
+                    textarea.value = '';
+                } catch (error) {
+                    console.error("Error sending message to student:", error);
+                    showToast(`Odeslání selhalo: ${error.message}`, true);
+                } finally {
+                    button.disabled = false;
+                    textarea.disabled = false;
+                    button.innerHTML = originalButtonText;
+                }
+            });
+        });
+
+    } catch (error) {
+        console.error("Error fetching students for Telegram:", error);
+        listContainer.innerHTML = '<div class="p-4 bg-red-100 text-red-700 rounded-lg col-span-full">Nepodařilo se načíst studenty.</div>';
     }
 }
