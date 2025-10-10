@@ -4,7 +4,7 @@ import { db, auth } from './firebase-init.js';
 import { getLessonAssistantResponse } from './gemini-api.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { functions } from './firebase-init.js';
-import { handleLogout } from './auth.js'; // <-- NOVÝ IMPORT
+import { handleLogout } from './auth.js';
 
 let lessonsData = [];
 const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor');
@@ -47,7 +47,7 @@ function promptForStudentName(userId) {
 async function fetchLessons() {
     try {
         const lessonsCollection = collection(db, 'lessons');
-        const querySnapshot = await getDocs(query(lessonsCollection, orderBy("createdAt")));
+        const querySnapshot = await getDocs(query(lessonsCollection));
         lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         return true;
     } catch (error) {
@@ -62,16 +62,22 @@ async function setupStudentNav() {
     if (!nav) return;
     
     nav.innerHTML = `
-        <li>
-            <button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-            </button>
-        </li>
-        <li class="mt-auto">
-            <button id="logout-btn-nav" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white" title="Odhlásiť sa">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-            </button>
-        </li>
+        <div class="flex flex-col h-full">
+            <div class="flex-grow space-y-4">
+                <li>
+                    <button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    </button>
+                </li>
+            </div>
+            <div>
+                <li>
+                    <button id="logout-btn-nav" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white" title="Odhlásiť sa">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    </button>
+                </li>
+            </div>
+        </div>
     `;
 }
 
@@ -129,7 +135,6 @@ export async function initStudentDashboard() {
             }
 
             await setupStudentNav(); 
-            // <-- PRIDANÉ PRIPOJENIE LOGOUT FUNKCIE
             document.getElementById('logout-btn-nav').addEventListener('click', handleLogout);
 
             const lessonsLoaded = await fetchLessons();
@@ -358,7 +363,7 @@ function renderProfessorChat(lessonData, container) {
                         <div class="flex items-center bg-white rounded-full p-2 shadow-inner">
                             <textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu profesorovi..."></textarea>
                             <button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                             </button>
                         </div>
                     </footer>
@@ -484,7 +489,7 @@ function renderQuiz(quizData, container) {
 }
 
 function renderTest(testData, container) {
-    renderQuiz(testData, container);
+    renderQuiz(testData, container); // Pre zjednodušenie test používa rovnakú renderovaciu logiku ako kvíz
 }
 
 function renderPodcast(postData, container) {
