@@ -3,7 +3,7 @@ name: Deploy to Firebase
 on:
   push:
     branches:
-      - main  # Alebo názov tvojej hlavnej vetvy
+      - main
 
 jobs:
   deploy:
@@ -26,8 +26,9 @@ jobs:
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@master
         with:
-          # TOTO JE JEDINÁ ZMENA -> pridané --force
-          args: deploy --only functions --force
+          # TOTO JE KĽÚČOVÁ ZMENA -> Odstránili sme "--only functions"
+          # Teraz sa nasadí VŠETKO (hosting aj funkcie)
+          args: deploy --force
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
           PROJECT_ID: ${{ secrets.PROJECT_ID }}
