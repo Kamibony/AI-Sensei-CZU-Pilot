@@ -48,18 +48,22 @@ async function fetchLessons() {
         const timelineSnapshot = await getDocs(timelineQuery);
         const scheduledLessonIds = timelineSnapshot.docs.map(doc => doc.data().lessonId);
 
-        if (scheduledLessonIds.length === 0) {
+        // --- KĽÚČOVÁ ZMENA: Odstránenie duplicitných ID lekcií ---
+        const uniqueLessonIds = [...new Set(scheduledLessonIds)];
+
+        if (uniqueLessonIds.length === 0) {
             lessonsData = [];
             return true;
         }
 
         const lessonsCollection = collection(db, 'lessons');
-        const lessonsQuery = query(lessonsCollection, where("__name__", "in", scheduledLessonIds));
+        const lessonsQuery = query(lessonsCollection, where("__name__", "in", uniqueLessonIds));
         const lessonsSnapshot = await getDocs(lessonsQuery);
         
         const lessonsMap = new Map(lessonsSnapshot.docs.map(doc => [doc.id, { id: doc.id, ...doc.data() }]));
         
-        lessonsData = scheduledLessonIds.map(id => lessonsMap.get(id)).filter(Boolean);
+        // Zoradíme lekcie podľa poradia unikátnych ID
+        lessonsData = uniqueLessonIds.map(id => lessonsMap.get(id)).filter(Boolean);
 
         return true;
     } catch (error) {
