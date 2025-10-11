@@ -100,8 +100,8 @@ async function showProfessorContent(view, lesson = null) {
 
 function renderLessonLibrary(container) {
     const lessonsHtml = lessonsData.map(lesson => `
-        <div class="lesson-bubble-wrapper group p-1">
-            <div class="lesson-bubble-in-library p-4 bg-slate-50 rounded-lg cursor-pointer hover:bg-green-100 flex justify-between items-center" data-lesson-id="${lesson.id}">
+        <div class="lesson-bubble-wrapper group p-1" data-lesson-id="${lesson.id}">
+            <div class="lesson-bubble-in-library p-4 bg-slate-50 rounded-lg cursor-pointer hover:bg-green-100 flex justify-between items-center">
                 <div>
                     <h3 class="font-semibold text-slate-800">${lesson.title}</h3>
                     <p class="text-sm text-slate-500">${lesson.subtitle || ' '}</p>
@@ -122,7 +122,7 @@ function renderLessonLibrary(container) {
     container.querySelectorAll('.lesson-bubble-in-library').forEach(el => {
         el.addEventListener('click', (e) => {
             if (e.target.closest('.delete-lesson-btn')) return;
-            const lessonId = el.dataset.lessonId;
+            const lessonId = e.closest('.lesson-bubble-wrapper').dataset.lessonId;
             const selectedLesson = lessonsData.find(l => l.id === lessonId);
             showProfessorContent('editor', selectedLesson);
         });
@@ -137,7 +137,7 @@ function renderLessonLibrary(container) {
                 try {
                     await deleteDoc(doc(db, 'lessons', lessonId));
                     showToast('Lekce byla smazána.');
-                    await initProfessorDashboard(); // Refresh the entire view
+                    await initProfessorDashboard();
                 } catch (error) {
                     console.error("Error deleting lesson:", error);
                     showToast("Chyba při mazání lekce.", true);
