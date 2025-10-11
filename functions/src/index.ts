@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onRequest } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
@@ -7,13 +7,10 @@ import * as GeminiAPI from "./gemini-api.js";
 import cors from "cors";
 import fetch from "node-fetch";
 
-// Initialize Firebase Admin SDK
 initializeApp();
 const db = getFirestore();
-
 const corsHandler = cors({ origin: true });
 
-// --- Helper Functions ---
 async function sendTelegramMessage(chatId: number, text: string) {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     if (!botToken) {
@@ -25,25 +22,23 @@ async function sendTelegramMessage(chatId: number, text: string) {
         await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: text }),
+            body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: "Markdown" }),
         });
     } catch (error) {
         logger.error("Error sending Telegram message:", error);
     }
 }
 
-// --- ZJEDNOTENÁ FUNKCIA PRE VŠETKY AI OPERÁCIE ---
+// ZJEDNOTENÁ FUNKCIA PRE VŠETKY AI OPERÁCIE
 export const generateContent = onCall({ region: "europe-west1" }, async (request) => {
+    // ... (táto funkcia zostáva bez zmeny)
     const { contentType, promptData, filePaths } = request.data;
-
     if (!contentType || !promptData) {
         throw new HttpsError("invalid-argument", "Missing contentType or promptData.");
     }
-
     try {
         let finalPrompt = promptData.userPrompt;
         const isJson = ['presentation', 'quiz', 'test', 'post'].includes(contentType);
-
         if (isJson) {
             switch(contentType) {
                 case 'presentation':
@@ -60,7 +55,6 @@ export const generateContent = onCall({ region: "europe-west1" }, async (request
                      break;
             }
         }
-        
         if (filePaths && filePaths.length > 0) {
             return isJson 
                 ? await GeminiAPI.generateJsonFromDocuments(filePaths, finalPrompt)
@@ -70,166 +64,200 @@ export const generateContent = onCall({ region: "europe-west1" }, async (request
                 ? await GeminiAPI.generateJsonFromPrompt(finalPrompt)
                 : { text: await GeminiAPI.generateTextFromPrompt(finalPrompt) };
         }
-
     } catch (error) {
         logger.error(`Error in generateContent for type ${contentType}:`, error);
         let message = "An unknown error occurred.";
-        if (error instanceof Error) {
-            message = error.message;
-        }
+        if (error instanceof Error) { message = error.message; }
         throw new HttpsError("internal", `Failed to generate content: ${message}`);
     }
 });
 
-export const getAiAssistantResponse = onCall(
-    { region: "europe-west1" },
-    async (request) => {
-        const { lessonId, userQuestion } = request.data;
-        if (!lessonId || !userQuestion) {
-            throw new HttpsError("invalid-argument", "Missing lessonId or userQuestion");
-        }
-        try {
-            const lessonRef = db.collection("lessons").doc(lessonId);
-            const lessonDoc = await lessonRef.get();
-            if (!lessonDoc.exists) {
-                throw new HttpsError("not-found", "Lesson not found");
-            }
-            const lessonData = lessonDoc.data();
-            const prompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${userQuestion}"`;
-            const answer = await GeminiAPI.generateTextFromPrompt(prompt);
-            return { answer };
-        } catch (error) {
-            logger.error("Error in getAiAssistantResponse:", error);
-            let message = "Failed to get AI response";
-            if (error instanceof Error) {
-                message = error.message;
-            }
-            throw new HttpsError("internal", message);
-        }
+export const getAiAssistantResponse = onCall({ region: "europe-west1" }, async (request) => {
+    // ... (táto funkcia zostáva bez zmeny)
+    const { lessonId, userQuestion } = request.data;
+    if (!lessonId || !userQuestion) {
+        throw new HttpsError("invalid-argument", "Missing lessonId or userQuestion");
     }
-);
-
-
-export const sendMessageToStudent = onCall(
-    { region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] },
-    async (request) => {
-        const { studentId, message } = request.data;
-        if (!studentId || !message) {
-            throw new HttpsError("invalid-argument", "Missing studentId or message");
+    try {
+        const lessonRef = db.collection("lessons").doc(lessonId);
+        const lessonDoc = await lessonRef.get();
+        if (!lessonDoc.exists) {
+            throw new HttpsError("not-found", "Lesson not found");
         }
-        const studentRef = db.collection("students").doc(studentId);
-        const studentDoc = await studentRef.get();
-        if (!studentDoc.exists || !studentDoc.data()?.telegramChatId) {
-            throw new HttpsError("not-found", "Student or Telegram chat not linked.");
-        }
-        const chatId = studentDoc.data()?.telegramChatId;
-        await sendTelegramMessage(chatId, message);
-        return { success: true };
+        const lessonData = lessonDoc.data();
+        const prompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${userQuestion}"`;
+        const answer = await GeminiAPI.generateTextFromPrompt(prompt);
+        return { answer };
+    } catch (error) {
+        logger.error("Error in getAiAssistantResponse:", error);
+        let message = "Failed to get AI response";
+        if (error instanceof Error) { message = error.message; }
+        throw new HttpsError("internal", message);
     }
-);
+});
 
-export const sendMessageToProfessor = onCall(
-    { region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN", "PROFESSOR_TELEGRAM_CHAT_ID"] },
-    async (request) => {
-        const { studentId, message } = request.data;
-        if (!studentId || !message) {
-            throw new HttpsError("invalid-argument", "Missing studentId or message");
-        }
-        const professorChatId = process.env.PROFESSOR_TELEGRAM_CHAT_ID;
-        if (!professorChatId) {
-             throw new HttpsError("internal", "Professor chat ID not configured.");
-        }
-        const studentRef = db.collection("students").doc(studentId);
-        const studentDoc = await studentRef.get();
-        const studentName = studentDoc.exists ? studentDoc.data()?.name : "Unknown Student";
-        const fullMessage = `Message from ${studentName} (ID: ${studentId}):\n\n${message}`;
-        await sendTelegramMessage(parseInt(professorChatId), fullMessage);
-        return { success: true };
+// --- NOVÁ FUNKCIA: sendMessageFromStudent ---
+export const sendMessageFromStudent = onCall({ region: "europe-west1" }, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
     }
-);
+    const { text } = request.data;
+    const studentId = request.auth.uid;
 
-export const telegramBotWebhook = onRequest(
-    { region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] },
-    (req, res) => {
-        corsHandler(req, res, async () => {
-            if (req.method !== 'POST') {
-                res.status(405).send('Method Not Allowed');
-                return;
-            }
-            const update = req.body;
-            if (!update || !update.message) {
-                res.status(200).send('OK'); // Not a message update, ignore
-                return;
-            }
-            const message = update.message;
-            const chatId = message.chat.id;
-            const text = message.text;
+    if (!text) {
+        throw new HttpsError("invalid-argument", "Zpráva nemůže být prázdná.");
+    }
 
-            try {
-                // Handle /start command for account linking
-                if (text && text.startsWith("/start")) {
-                    const token = text.split(' ')[1];
-                    if (token) {
-                        const q = db.collection("students").where("telegramConnectionToken", "==", token).limit(1);
-                        const querySnapshot = await q.get();
-                        if (!querySnapshot.empty) {
-                            const studentDoc = querySnapshot.docs[0];
-                            await studentDoc.ref.update({ telegramChatId: chatId });
-                            await sendTelegramMessage(chatId, "Váš účet byl úspešně prepojený! Od teraz môžete klásť otázky k lekciám.");
-                        } else {
-                            await sendTelegramMessage(chatId, "Neplatný alebo expirovaný token.");
-                        }
-                    } else {
-                        await sendTelegramMessage(chatId, "Pre prepojenie účtu použite príkaz /start s vaším unikátnym tokenom z aplikácie.");
-                    }
-                    res.status(200).send("OK");
-                    return;
-                }
+    try {
+        const studentDoc = await db.collection("students").doc(studentId).get();
+        if (!studentDoc.exists) {
+            throw new HttpsError("not-found", "Profil studenta nebyl nalezen.");
+        }
+        const studentName = studentDoc.data()?.name || "Neznámý student";
 
-                // Find student by their chat ID
-                const q = db.collection("students").where("telegramChatId", "==", chatId).limit(1);
-                const querySnapshot = await q.get();
-                if (querySnapshot.empty) {
-                    await sendTelegramMessage(chatId, "Váš účet nie je prepojený. Prosím, prihláste sa do aplikácie a použite váš unikátny link.");
-                    res.status(200).send("OK");
-                    return;
-                }
+        // ID konverzace je ID studenta, aby byla unikátní
+        const conversationRef = db.collection("conversations").doc(studentId);
+        
+        // Vytvoří nebo aktualizuje metadata konverzace
+        await conversationRef.set({
+            studentId: studentId,
+            studentName: studentName,
+            lastMessage: text,
+            lastMessageTimestamp: FieldValue.serverTimestamp(),
+            professorHasUnread: true,
+        }, { merge: true });
 
-                const studentDoc = querySnapshot.docs[0];
-                const studentData = studentDoc.data();
-                const userQuestion = text;
-
-                // Check if student has an active lesson context
-                const lessonId = studentData.lastActiveLessonId;
-                if (!lessonId) {
-                    await sendTelegramMessage(chatId, "Aby som vám mohol odpovedať, otvorte prosím najprv lekciu v aplikácii AI Sensei. Potom sa budem môcť zamerať na jej obsah.");
-                    res.status(200).send("OK");
-                    return;
-                }
-
-                // Fetch the lesson data using the stored ID
-                const lessonRef = db.collection("lessons").doc(lessonId);
-                const lessonDoc = await lessonRef.get();
-                if (!lessonDoc.exists) {
-                    await sendTelegramMessage(chatId, "Zdá sa, že lekcia, ktorú ste mali otvorenú, už neexistuje. Otvorte prosím inú lekciu v aplikácii.");
-                    res.status(200).send("OK");
-                    return;
-                }
-                
-                const lessonData = lessonDoc.data();
-                
-                // Logic identical to getAiAssistantResponse
-                const prompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${userQuestion}"`;
-                const answer = await GeminiAPI.generateTextFromPrompt(prompt);
-                
-                await sendTelegramMessage(chatId, answer);
-                res.status(200).send("OK");
-
-            } catch (error) {
-                logger.error("Error in Telegram webhook:", error);
-                await sendTelegramMessage(chatId, "Ospravedlňujem sa, nastala neočakávaná chyba pri spracovaní vašej požiadavky.");
-                res.status(500).send("Internal Server Error");
-            }
+        // Přidá novou zprávu do podkolekce
+        await conversationRef.collection("messages").add({
+            senderId: studentId,
+            text: text,
+            timestamp: FieldValue.serverTimestamp(),
         });
+
+        return { success: true };
+    } catch (error) {
+        logger.error("Error in sendMessageFromStudent:", error);
+        throw new HttpsError("internal", "Nepodařilo se odeslat zprávu.");
     }
-);
+});
+
+// --- UPRAVENÁ FUNKCIA: sendMessageToStudent (teraz od profesora) ---
+export const sendMessageToStudent = onCall({ region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, async (request) => {
+    const { studentId, text } = request.data;
+    if (!studentId || !text) {
+        throw new HttpsError("invalid-argument", "Chybí ID studenta nebo text zprávy.");
+    }
+
+    try {
+        const conversationRef = db.collection("conversations").doc(studentId);
+        
+        // Přidá zprávu od profesora
+        await conversationRef.collection("messages").add({
+            senderId: "professor", // Pevně daný identifikátor pro profesora
+            text: text,
+            timestamp: FieldValue.serverTimestamp(),
+        });
+
+        // Aktualizuje metadata
+        await conversationRef.update({
+            lastMessage: text,
+            lastMessageTimestamp: FieldValue.serverTimestamp(),
+            professorHasUnread: false, // Profesor právě odpověděl
+        });
+
+        // Odošle notifikáciu do Telegramu
+        const studentDoc = await db.collection("students").doc(studentId).get();
+        if (studentDoc.exists && studentDoc.data()?.telegramChatId) {
+            const chatId = studentDoc.data()?.telegramChatId;
+            const notificationText = `*Nová zpráva od profesora:*\n\n${text}`;
+            await sendTelegramMessage(chatId, notificationText);
+        }
+
+        return { success: true };
+
+    } catch (error) {
+        logger.error("Error sending message to student:", error);
+        throw new HttpsError("internal", "Odeslání selhalo.");
+    }
+});
+
+
+// --- UPRAVENÁ FUNKCIA: telegramBotWebhook ---
+export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, (req, res) => {
+    corsHandler(req, res, async () => {
+        if (req.method !== 'POST') {
+            res.status(405).send('Method Not Allowed');
+            return;
+        }
+        const update = req.body;
+        if (!update || !update.message) {
+            res.status(200).send('OK');
+            return;
+        }
+
+        const message = update.message;
+        const chatId = message.chat.id;
+        const text = message.text;
+
+        try {
+            // Spracovanie príkazu /start pre prepojenie účtu
+            if (text && text.startsWith("/start")) {
+                const token = text.split(' ')[1];
+                if (token) {
+                    const q = db.collection("students").where("telegramConnectionToken", "==", token).limit(1);
+                    const querySnapshot = await q.get();
+                    if (!querySnapshot.empty) {
+                        const studentDoc = querySnapshot.docs[0];
+                        await studentDoc.ref.update({ telegramChatId: chatId });
+                        await sendTelegramMessage(chatId, "Váš účet byl úspešně prepojený!");
+                    } else {
+                        await sendTelegramMessage(chatId, "Neplatný nebo expirovaný token.");
+                    }
+                } else {
+                    await sendTelegramMessage(chatId, "Pro propojení účtu použijte příkaz /start s vaším unikátním tokenem.");
+                }
+                res.status(200).send("OK");
+                return;
+            }
+
+            // Nájdenie študenta podľa chat ID
+            const q = db.collection("students").where("telegramChatId", "==", chatId).limit(1);
+            const querySnapshot = await q.get();
+            if (querySnapshot.empty) {
+                await sendTelegramMessage(chatId, "Váš účet není propojen. Prosím, přihlaste se do aplikace a použijte váš unikátní link.");
+                res.status(200).send("OK");
+                return;
+            }
+
+            // Uloženie správy do databázy (namiesto volania AI)
+            const studentDoc = querySnapshot.docs[0];
+            const studentId = studentDoc.id;
+            const studentName = studentDoc.data()?.name || "Neznámý student";
+            const conversationRef = db.collection("conversations").doc(studentId);
+
+            await conversationRef.set({
+                studentId: studentId,
+                studentName: studentName,
+                lastMessage: text,
+                lastMessageTimestamp: FieldValue.serverTimestamp(),
+                professorHasUnread: true,
+            }, { merge: true });
+
+            await conversationRef.collection("messages").add({
+                senderId: studentId,
+                text: text,
+                timestamp: FieldValue.serverTimestamp(),
+            });
+
+            await sendTelegramMessage(chatId, "Vaše zpráva byla odeslána profesorovi.");
+            res.status(200).send("OK");
+
+        } catch (error) {
+            logger.error("Error in Telegram webhook:", error);
+            await sendTelegramMessage(chatId, "Omlouvám se, nastala neočekávaná chyba.");
+            res.status(500).send("Internal Server Error");
+        }
+    });
+});
+
+// Stará funkcia sendMessageToProfessor je odstránená
