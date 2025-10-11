@@ -217,7 +217,7 @@ function showStudentLesson(lessonData) {
     if (availableMenuItems.length > 0) {
         studentContentArea.querySelector('.lesson-menu-item').click();
     } else {
-        contentDisplay.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci zatím není k dispozici žiadny obsah.</p>`;
+        contentDisplay.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci zatím není k dispozici žádný obsah.</p>`;
     }
 }
 
@@ -368,7 +368,7 @@ function renderPresentation(presentationData, container) {
 
 function renderQuiz(quizData, container) {
     if (!quizData || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žiadny kvíz.</p>`; return;
+        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný kvíz.</p>`; return;
     }
     const questionsHtml = quizData.questions.map((q, index) => {
         const optionsHtml = (q.options || []).map((option, i) => `<label class="block p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer"><input type="radio" name="question-${index}" value="${i}" class="mr-3"><span>${option}</span></label>`).join('');
@@ -406,7 +406,7 @@ function renderQuiz(quizData, container) {
 function renderTest(testData, container) { renderQuiz(testData, container); }
 function renderPodcast(postData, container) {
     if (!postData || !Array.isArray(postData.episodes) || postData.episodes.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádny podcast.</p>`; return;
+        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný podcast.</p>`; return;
     };
     const episodesHtml = postData.episodes.map((episode, i) => `<div class="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-6"><h4 class="font-bold text-xl text-slate-800">${i + 1}. ${episode.title}</h4><div class="mt-4 text-slate-600 prose">${episode.script.replace(/\n/g, '<br>')}</div></div>`).join('');
     container.innerHTML = `<h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Podcast & Materiály</h2>${episodesHtml}`;
