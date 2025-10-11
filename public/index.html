@@ -54,11 +54,10 @@
         </template>
 
     <template id="main-app-template">
-        <div id="main-app" class="flex h-screen bg-slate-100">
-            <nav id="main-nav" class="bg-green-800 p-2 flex flex-col items-center">
-                </nav>
-            <div id="role-content-wrapper" class="flex-grow flex flex-col overflow-y-auto">
-                </div>
+        <div id="main-app" class="flex flex-col md:flex-row h-screen bg-slate-100">
+            <nav id="main-nav" class="bg-green-800 p-2 md:flex flex-col items-center hidden"></nav>
+            <div id="role-content-wrapper" class="flex-grow flex flex-col overflow-y-auto"></div>
+            <nav id="mobile-bottom-nav" class="md:hidden w-full bg-white border-t border-slate-200 flex justify-around p-2"></nav>
         </div>
     </template>
 
