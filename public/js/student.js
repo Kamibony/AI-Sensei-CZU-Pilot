@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, getDoc, query, where, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc, query, where, updateDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { db, auth } from './firebase-init.js';
 import { getAiAssistantResponse } from './gemini-api.js';
@@ -43,14 +43,24 @@ function promptForStudentName(userId) {
 
 async function fetchLessons() {
     try {
+        // FINÁLNA OPRAVA: Načítavame všetky lekcie zoradené podľa dátumu vytvorenia, rovnako ako v profesorskom paneli.
         const lessonsCollection = collection(db, 'lessons');
-        const querySnapshot = await getDocs(query(lessonsCollection));
+        const querySnapshot = await getDocs(query(lessonsCollection, orderBy("createdAt")));
         lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         return true;
     } catch (error) {
-        console.error("Error fetching lessons:", error);
-        showToast("Nepodařilo se načíst data lekcí.", true);
-        return false;
+        console.error("Error fetching lessons for student:", error);
+        // Záchranný mechanizmus, ak by zlyhalo triedenie
+        try {
+            const lessonsCollection = collection(db, 'lessons');
+            const querySnapshot = await getDocs(lessonsCollection);
+            lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            return true;
+        } catch (fallbackError) {
+            console.error("Error fetching lessons after fallback:", fallbackError);
+            showToast("Nepodařilo se načíst data lekcí.", true);
+            return false;
+        }
     }
 }
 
@@ -60,10 +70,10 @@ async function setupStudentNav() {
     nav.innerHTML = `
         <div class="flex flex-col h-full">
             <div class="flex-grow space-y-4">
-                <li><button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></button></li>
+                <li><button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></button></li>
             </div>
             <div>
-                <li><button id="logout-btn-nav" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white" title="Odhlásit se"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></button></li>
+                <li><button id="logout-btn-nav" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white" title="Odhlásit se"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></button></li>
             </div>
         </div>
     `;
@@ -74,7 +84,8 @@ function renderStudentDashboard(container) {
     if (lessonsData.length === 0) {
         lessonsContent = `<div class="p-8 text-center text-slate-500">Pro vás zatím nebyly připraveny žádné lekce.</div>`;
     } else {
-        const sortedLessons = [...lessonsData].sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+        // Triedenie podľa poradia v časovej osi, ak existuje, inak podľa dátumu vytvorenia
+        const sortedLessons = [...lessonsData].sort((a, b) => (a.orderIndex || a.createdAt) - (b.orderIndex || b.createdAt));
         const lessonsHtml = sortedLessons.map(lesson => `
             <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
                 <div class="p-6">
