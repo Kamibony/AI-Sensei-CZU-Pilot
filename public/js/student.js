@@ -69,7 +69,6 @@ async function fetchLessons() {
 }
 
 async function setupStudentNav() {
-    // Desktop navigácia (skrytá na mobile)
     const nav = document.getElementById('main-nav');
     if(nav) {
         nav.classList.add('hidden', 'md:flex');
@@ -85,7 +84,6 @@ async function setupStudentNav() {
         document.getElementById('logout-btn-nav').addEventListener('click', handleLogout);
     }
     
-    // Nová mobilná navigácia
     const mobileNav = document.getElementById('mobile-bottom-nav');
     if (mobileNav) {
         mobileNav.innerHTML = `
@@ -133,7 +131,6 @@ function renderStudentDashboard(container, userData) {
         telegramButtonHtml = `<a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-3 w-full p-4 mb-6 font-semibold text-white bg-sky-500 rounded-xl hover:bg-sky-600 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>Pripojiť účet k Telegramu</a>`;
     }
     
-    // Zmena: zväčšené paddingy pre mobil p-4 sm:p-6 md:p-8
     container.innerHTML = `
         <div class="p-4 sm:p-6 md:p-8">
             <h1 class="text-3xl md:text-4xl font-extrabold text-slate-800 mb-6">Váš přehled</h1>
@@ -142,8 +139,6 @@ function renderStudentDashboard(container, userData) {
         </div>
     `;
 }
-
-// ... (funkcia initStudentDashboard a ďalšie zostávajú skoro rovnaké)
 
 export async function initStudentDashboard() {
     const roleContentWrapper = document.getElementById('role-content-wrapper');
@@ -191,7 +186,6 @@ export async function initStudentDashboard() {
     }
 }
 
-
 function showStudentLesson(lessonData) {
     const studentContentArea = document.getElementById('student-content-area');
     const menuItems = [
@@ -199,11 +193,13 @@ function showStudentLesson(lessonData) {
         { id: 'presentation', label: 'Prezentace', icon: '🖼️', available: !!lessonData.presentationData },
         { id: 'video', label: 'Video', icon: '▶️', available: !!lessonData.videoUrl },
         { id: 'quiz', label: 'Kvíz', icon: '❓', available: !!lessonData.quizData },
+        { id: 'test', label: 'Test', icon: '✅', available: !!lessonData.testData },
+        { id: 'post', label: 'Podcast', icon: '🎙️', available: !!lessonData.postData },
         { id: 'assistant', label: 'AI Asistent', icon: '🤖', available: true },
+        { id: 'consultation', label: 'Konzultace', icon: '💬', available: true }
     ];
     const availableMenuItems = menuItems.filter(item => item.available);
     
-    // Zmena: Horizontálne menu pre mobil
     const menuHtml = availableMenuItems.map(item => `
         <a href="#" data-view="${item.id}" class="lesson-menu-item flex-1 text-center p-3 text-sm font-medium border-b-2 border-transparent text-slate-500">
             ${item.label}
@@ -251,9 +247,6 @@ function showStudentLesson(lessonData) {
     }
 }
 
-// ... (ostatné funkcie renderLessonContent, renderAIAssistantChat atď. zostávajú bez zmeny)
-
-// Zvyšok súboru odtiaľto zostáva rovnaký
 function renderLessonContent(viewId, lessonData, container) {
     switch(viewId) {
         case 'text': container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${lessonData.content || ''}</div>`; break;
@@ -269,7 +262,6 @@ function renderLessonContent(viewId, lessonData, container) {
 }
 
 function renderAIAssistantChat(lessonData, container) {
-    // Zmena: responzívny mockup
     container.innerHTML = `
         <h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-6 text-center">AI Asistent Lekce</h2>
         <div class="w-full max-w-md mx-auto bg-slate-900 rounded-[40px] border-[14px] border-slate-900 shadow-2xl relative">
