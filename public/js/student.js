@@ -50,8 +50,9 @@ async function fetchLessons() {
         return true;
     } catch (error) {
         console.error("Error fetching lessons for student:", error);
-        // Záchranný mechanizmus, ak by zlyhalo triedenie
+        // Záchranný mechanizmus, ak by zlyhalo triedenie (napr. chýbajúci index)
         try {
+            console.warn("OrderBy failed, fetching without sorting.");
             const lessonsCollection = collection(db, 'lessons');
             const querySnapshot = await getDocs(lessonsCollection);
             lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -84,8 +85,7 @@ function renderStudentDashboard(container) {
     if (lessonsData.length === 0) {
         lessonsContent = `<div class="p-8 text-center text-slate-500">Pro vás zatím nebyly připraveny žádné lekce.</div>`;
     } else {
-        // Triedenie podľa poradia v časovej osi, ak existuje, inak podľa dátumu vytvorenia
-        const sortedLessons = [...lessonsData].sort((a, b) => (a.orderIndex || a.createdAt) - (b.orderIndex || b.createdAt));
+        const sortedLessons = [...lessonsData]; // Lekcie sú už zoradené z fetchLessons
         const lessonsHtml = sortedLessons.map(lesson => `
             <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
                 <div class="p-6">
