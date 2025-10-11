@@ -43,18 +43,38 @@ function promptForStudentName(userId) {
 
 async function fetchLessons() {
     try {
-        // FINÁLNA OPRAVA: Načítavame VŠETKY lekcie, bez zbytočných filtrov a záchranných mechanizmov.
-        // Toto teraz presne zodpovedá logike v profesorskom paneli.
+        // Krok 1: Načítaj všetky naplánované udalosti (eventy) z timeline, zoradené podľa poradia
+        const timelineCollection = collection(db, 'timeline_events');
+        const timelineQuery = query(timelineCollection, orderBy("orderIndex"));
+        const timelineSnapshot = await getDocs(timelineQuery);
+        const scheduledLessonIds = timelineSnapshot.docs.map(doc => doc.data().lessonId);
+
+        if (scheduledLessonIds.length === 0) {
+            lessonsData = [];
+            return true; // Žiadne lekcie nie sú naplánované, vrátime prázdne pole
+        }
+
+        // Krok 2: Načítaj iba tie lekcie, ktoré sú v pláne výuky (timeline)
         const lessonsCollection = collection(db, 'lessons');
-        const querySnapshot = await getDocs(lessonsCollection);
-        lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Použijeme klauzulu 'in' na efektívne načítanie viacerých dokumentov naraz
+        const lessonsQuery = query(lessonsCollection, where("__name__", "in", scheduledLessonIds));
+        const lessonsSnapshot = await getDocs(lessonsQuery);
+        
+        // Vytvoríme mapu pre jednoduché a rýchle vyhľadávanie dát lekcií podľa ich ID
+        const lessonsMap = new Map(lessonsSnapshot.docs.map(doc => [doc.id, { id: doc.id, ...doc.data() }]));
+        
+        // Krok 3: Zoradíme načítané lekcie presne podľa poradia, ktoré určil profesor v timeline
+        // .filter(Boolean) odstráni prípadné 'undefined' hodnoty, ak by lekcia bola zmazaná, ale v timeline by zostal jej odkaz
+        lessonsData = scheduledLessonIds.map(id => lessonsMap.get(id)).filter(Boolean);
+
         return true;
     } catch (error) {
-        console.error("Error fetching lessons for student:", error);
+        console.error("Error fetching scheduled lessons for student:", error);
         showToast("Nepodařilo se načíst data lekcí.", true);
         return false;
     }
 }
+
 
 async function setupStudentNav() {
     const nav = document.getElementById('main-nav');
@@ -74,10 +94,10 @@ async function setupStudentNav() {
 function renderStudentDashboard(container) {
     let lessonsContent;
     if (lessonsData.length === 0) {
-        lessonsContent = `<div class="p-8 text-center text-slate-500">Pro vás zatím nebyly připraveny žádné lekce.</div>`;
+        lessonsContent = `<div class="p-8 text-center text-slate-500">Profesor zatiaľ nenaplánoval žiadne lekcie.</div>`;
     } else {
-        const sortedLessons = [...lessonsData].sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-        const lessonsHtml = sortedLessons.map(lesson => `
+        // Lekcie sú už zoradené správne z funkcie fetchLessons
+        const lessonsHtml = lessonsData.map(lesson => `
             <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
                 <div class="p-6">
                     <div class="flex items-start justify-between">
@@ -147,7 +167,11 @@ export async function initStudentDashboard() {
                 if (lessonCard) {
                     const lessonId = lessonCard.dataset.lessonId;
                     const lesson = lessonsData.find(l => l.id === lessonId);
-                    if (lesson) showStudentLesson(lesson);
+                    if (lesson) {
+                        // Pri zobrazení lekcie si uložíme jej ID pre bota
+                        updateDoc(doc(db, 'students', user.uid), { lastActiveLessonId: lessonId });
+                        showStudentLesson(lesson);
+                    }
                 }
             });
         } else {
@@ -251,7 +275,7 @@ function renderAIAssistantChat(lessonData, container) {
         addMessage(userQuestion, 'user');
         const thinkingBubble = addMessage("...", 'ai');
         try {
-            const result = await getAiAssistantResponse(lessonData.id, userQuestion);
+            const result = await getAiAssistantResponse({ lessonId: lessonData.id, userQuestion });
             if (result.error) throw new Error(result.error);
             thinkingBubble.querySelector('div').innerHTML = result.answer.replace(/\n/g, '<br>');
         } catch (error) {
