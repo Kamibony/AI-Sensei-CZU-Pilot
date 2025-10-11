@@ -11,6 +11,13 @@ let lessonsData = [];
 const MAIN_COURSE_ID = "main-course"; 
 const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
 
+// --- Helper Functions ---
+function getLocalizedDate(offsetDays = 0) {
+    const date = new Date();
+    date.setDate(date.getDate() + offsetDays);
+    return date.toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'numeric' });
+}
+
 async function fetchLessons() {
     try {
         const lessonsCollection = collection(db, 'lessons');
@@ -101,7 +108,7 @@ async function showProfessorContent(view, lesson = null) {
 function renderLessonLibrary(container) {
     const lessonsHtml = lessonsData.map(lesson => `
         <div class="lesson-bubble-wrapper group p-1" data-lesson-id="${lesson.id}">
-            <div class="lesson-bubble-in-library p-4 bg-slate-50 rounded-lg cursor-pointer hover:bg-green-100 flex justify-between items-center">
+            <div class="lesson-bubble-in-library p-4 bg-white border rounded-lg cursor-pointer hover:shadow-md flex justify-between items-center">
                 <div>
                     <h3 class="font-semibold text-slate-800">${lesson.title}</h3>
                     <p class="text-sm text-slate-500">${lesson.subtitle || ' '}</p>
@@ -160,87 +167,161 @@ function renderLessonLibrary(container) {
 
 async function renderTimeline(container) {
     container.innerHTML = `
-        <header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Plán výuky</h1><p class="text-slate-500 mt-1">Naplánujte lekce přetažením z knihovny vlevo.</p></header>
-        <div class="flex-grow overflow-y-auto p-4 md:p-6"><div id="timeline-dropzone" class="p-4 min-h-[400px] bg-white rounded-lg border-2 border-dashed border-slate-300 space-y-2"></div></div>
+        <header class="text-center p-6 border-b border-slate-200 bg-white">
+            <h1 class="text-3xl font-extrabold text-slate-800">Plán výuky</h1>
+            <p class="text-slate-500 mt-1">Naplánujte lekce přetažením z knihovny vlevo.</p>
+        </header>
+        <div class="flex-grow overflow-y-auto p-4 md:p-6">
+            <div id="timeline-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4"></div>
+        </div>
     `;
-    const dropzone = container.querySelector('#timeline-dropzone');
+
+    const timelineContainer = container.querySelector('#timeline-container');
     const q = query(collection(db, 'timeline_events'), orderBy("orderIndex"));
     const querySnapshot = await getDocs(q);
     const timelineEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    dropzone.innerHTML = timelineEvents.map(renderScheduledEvent).join('');
-    attachDeleteListeners(dropzone);
 
-    if (typeof Sortable !== 'undefined') {
-        new Sortable(dropzone, {
-            group: 'lessons', animation: 150, handle: '.handle', ghostClass: 'opacity-50',
-            onAdd: async (evt) => {
-                const lessonId = evt.item.dataset.lessonId;
-                const lesson = lessonsData.find(l => l.id === lessonId);
-                const tempEl = evt.item;
-                tempEl.innerHTML = `<div class="p-3">Načítám...</div>`;
-                const newEventData = { lessonId: lesson.id, orderIndex: evt.newIndex, createdAt: serverTimestamp() };
-                try {
-                    const docRef = await addDoc(collection(db, 'timeline_events'), newEventData);
-                    const newEvent = { id: docRef.id, ...newEventData };
-                    const newElement = document.createElement('div');
-                    newElement.innerHTML = renderScheduledEvent(newEvent);
-                    tempEl.parentNode.replaceChild(newElement.firstElementChild, tempEl);
-                    await updateAllOrderIndexes(dropzone);
-                    attachDeleteListeners(dropzone);
-                    showToast("Lekce naplánována.");
-                } catch (error) {
-                    console.error("Error scheduling lesson:", error);
-                    showToast("Chyba při plánování lekce.", true);
-                    tempEl.remove();
-                }
-            },
-            onUpdate: async (evt) => { await updateAllOrderIndexes(evt.to); }
-        });
+    // Vytvoříme 10 dnů pro vizuální plán
+    for (let i = 0; i < 10; i++) {
+        const dayWrapper = document.createElement('div');
+        dayWrapper.className = 'day-slot bg-white rounded-xl p-3 border-2 border-transparent transition-colors min-h-[200px] shadow-sm flex flex-col';
+        dayWrapper.dataset.dayIndex = i;
+        
+        const dateStr = getLocalizedDate(i);
+        dayWrapper.innerHTML = `
+            <div class="text-center pb-2 mb-2 border-b border-slate-200">
+                <p class="font-bold text-slate-700">${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}</p>
+            </div>
+            <div class="lessons-container flex-grow space-y-2"></div>
+        `;
+        timelineContainer.appendChild(dayWrapper);
     }
+    
+    // Rozdelíme naplánované lekcie do dnů
+    timelineEvents.forEach(event => {
+        const dayIndex = event.dayIndex || 0; // Pokud den není uložen, dáme ho do prvního
+        const daySlot = timelineContainer.querySelector(`.day-slot[data-day-index='${dayIndex}'] .lessons-container`);
+        if (daySlot) {
+            daySlot.appendChild(renderScheduledEvent(event));
+        }
+    });
+
+    // Inicializujeme Drag & Drop pro každý den
+    timelineContainer.querySelectorAll('.day-slot .lessons-container').forEach(lessonsContainer => {
+        if (typeof Sortable !== 'undefined') {
+            new Sortable(lessonsContainer, {
+                group: 'lessons',
+                animation: 150,
+                ghostClass: 'opacity-50',
+                onAdd: (evt) => handleLessonDrop(evt),
+                onUpdate: (evt) => handleLessonMove(evt)
+            });
+        }
+    });
 }
 
 function renderScheduledEvent(event) {
     const lesson = lessonsData.find(l => l.id === event.lessonId);
-    if (!lesson) return '';
-    return `<div class="lesson-bubble p-3 rounded-lg shadow-sm flex items-center justify-between border bg-green-50 text-green-800 border-green-200" data-event-id="${event.id}"><div class="flex items-center space-x-3 flex-grow"><span class="handle cursor-grab text-slate-400 hover:text-slate-600"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></span><span class="text-xl">${lesson.icon}</span><span class="font-semibold text-sm">${lesson.title}</span></div><button class="delete-event-btn p-1 rounded-full hover:bg-red-200 text-slate-400 hover:text-red-600 transition-colors" title="Odebrat z plánu"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>`;
+    if (!lesson) return document.createElement('div'); // Return empty div if lesson not found
+
+    const el = document.createElement('div');
+    el.className = 'lesson-bubble p-3 rounded-lg shadow-sm flex items-center justify-between border bg-green-50 text-green-800 border-green-200 cursor-grab';
+    el.dataset.eventId = event.id;
+    el.dataset.lessonId = event.lessonId;
+    el.innerHTML = `
+        <div class="flex items-center space-x-3 flex-grow">
+            <span class="text-xl">${lesson.icon}</span>
+            <span class="font-semibold text-sm">${lesson.title}</span>
+        </div>
+        <button class="delete-event-btn p-1 rounded-full hover:bg-red-200 text-slate-400 hover:text-red-600 transition-colors" title="Odebrat z plánu">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>`;
+
+    el.querySelector('.delete-event-btn').addEventListener('click', async () => {
+        if (confirm('Opravdu chcete odebrat tuto lekci z plánu?')) {
+            try {
+                await deleteDoc(doc(db, 'timeline_events', event.id));
+                el.remove();
+                showToast("Lekce byla odebrána z plánu.");
+                await updateAllOrderIndexes();
+            } catch (error) {
+                console.error("Error deleting timeline event:", error);
+                showToast("Chyba při odstraňování události.", true);
+            }
+        }
+    });
+    return el;
 }
 
-async function updateAllOrderIndexes(container) {
-    const items = container.querySelectorAll('.lesson-bubble');
+async function handleLessonDrop(evt) {
+    const lessonId = evt.item.dataset.lessonId;
+    const dayIndex = evt.to.closest('.day-slot').dataset.dayIndex;
+    const tempEl = evt.item;
+    
+    tempEl.innerHTML = `Načítám...`;
+
+    try {
+        const newEventData = {
+            lessonId: lessonId,
+            dayIndex: parseInt(dayIndex),
+            createdAt: serverTimestamp(),
+            orderIndex: 0 // Bude aktualizováno níže
+        };
+        const docRef = await addDoc(collection(db, 'timeline_events'), newEventData);
+        
+        // Vyměníme dočasný prvek za finální s správnými daty
+        const newElement = renderScheduledEvent({ id: docRef.id, ...newEventData });
+        evt.item.parentNode.replaceChild(newElement, evt.item);
+
+        showToast("Lekce naplánována.");
+        await updateAllOrderIndexes();
+
+    } catch (error) {
+        console.error("Error scheduling lesson:", error);
+        showToast("Chyba při plánování lekce.", true);
+        tempEl.remove();
+    }
+}
+
+async function handleLessonMove(evt) {
+    const eventId = evt.item.dataset.eventId;
+    const newDayIndex = evt.to.closest('.day-slot').dataset.dayIndex;
+    
+    try {
+        const docRef = doc(db, 'timeline_events', eventId);
+        await updateDoc(docRef, { dayIndex: parseInt(newDayIndex) });
+        await updateAllOrderIndexes();
+    } catch (error) {
+        console.error("Error moving lesson:", error);
+        showToast("Chyba při přesouvání lekce.", true);
+    }
+}
+
+async function updateAllOrderIndexes() {
+    const timelineContainer = document.getElementById('timeline-container');
+    if (!timelineContainer) return;
+    
+    const allEvents = Array.from(timelineContainer.querySelectorAll('.lesson-bubble'));
     const batch = writeBatch(db);
-    items.forEach((item, index) => {
+    
+    allEvents.forEach((item, index) => {
         const eventId = item.dataset.eventId;
         if (eventId) {
             const docRef = doc(db, 'timeline_events', eventId);
             batch.update(docRef, { orderIndex: index });
         }
     });
-    try { await batch.commit(); } catch (error) {
+
+    try {
+        await batch.commit();
+    } catch (error) {
         console.error("Error updating order indexes:", error);
         showToast("Nepodařilo se uložit nové pořadí.", true);
     }
 }
 
-function attachDeleteListeners(container) {
-    container.querySelectorAll('.delete-event-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            const eventElement = e.target.closest('.lesson-bubble');
-            const eventId = eventElement.dataset.eventId;
-            if (confirm('Opravdu chcete odebrat tuto lekci z plánu?')) {
-                try {
-                    await deleteDoc(doc(db, 'timeline_events', eventId));
-                    eventElement.remove();
-                    await updateAllOrderIndexes(container);
-                    showToast("Lekce byla odebrána z plánu.");
-                } catch (error) {
-                    console.error("Error deleting timeline event:", error);
-                    showToast("Chyba při odstraňování události.", true);
-                }
-            }
-        });
-    });
-}
+
+// --- OSTATNÍ FUNKCE ZŮSTÁVAJÍ BEZE ZMĚNY ---
 
 function renderMediaLibrary(container) {
     container.innerHTML = `
