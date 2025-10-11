@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, getDoc, query, where, updateDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc, query, where, updateDoc, orderBy, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { db, auth } from './firebase-init.js';
 import { getAiAssistantResponse } from './gemini-api.js';
@@ -7,7 +7,7 @@ import { functions } from './firebase-init.js';
 import { handleLogout } from './auth.js';
 
 let lessonsData = [];
-const sendMessageToProfessor = httpsCallable(functions, 'sendMessageToProfessor');
+const sendMessageFromStudent = httpsCallable(functions, 'sendMessageFromStudent');
 
 function promptForStudentName(userId) {
     const roleContentWrapper = document.getElementById('role-content-wrapper');
@@ -200,7 +200,6 @@ function showStudentLesson(lessonData) {
     ];
     const availableMenuItems = menuItems.filter(item => item.available);
     
-    // Zmena: Rozdielne menu pre mobil a desktop
     const menuHtml = availableMenuItems.map(item => `
         <a href="#" data-view="${item.id}" class="lesson-menu-item p-3 text-sm font-medium border-b-2 border-transparent text-slate-500 md:flex-1 md:text-center">
             ${item.label}
@@ -216,7 +215,7 @@ function showStudentLesson(lessonData) {
             </header>
             
             <div class="border-b border-slate-200 mb-6">
-                 <nav class="md:flex md:-mb-px scrollable-tabs" id="lesson-tabs-menu">
+                <nav class="md:flex md:-mb-px scrollable-tabs" id="lesson-tabs-menu">
                     ${menuHtml}
                 </nav>
             </div>
@@ -312,6 +311,7 @@ function renderAIAssistantChat(lessonData, container) {
         }
     });
 }
+
 function renderProfessorChat(lessonData, container) {
     container.innerHTML = `
         <h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-6 text-center">Konzultace k lekci</h2>
@@ -319,7 +319,7 @@ function renderProfessorChat(lessonData, container) {
             <div class="w-full h-full bg-blue-100 bg-[url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c/949e91d20548b.jpg')] bg-center bg-cover rounded-[26px]">
                 <div class="h-[600px] flex flex-col p-4">
                      <header class="text-center mb-4 flex-shrink-0"><p class="font-bold text-slate-800">Profesor</p><p class="text-xs text-slate-500">Odpoví, jakmile to bude možné</p></header>
-                    <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2"></div>
+                    <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2">Načítám zprávy...</div>
                     <footer class="mt-4 flex-shrink-0"><div class="flex items-center bg-white rounded-full p-2 shadow-inner"><textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu profesorovi..."></textarea><button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button></div></footer>
                 </div>
             </div>
@@ -328,23 +328,36 @@ function renderProfessorChat(lessonData, container) {
     const sendBtn = container.querySelector('#student-send-btn');
     const input = container.querySelector('#student-chat-input');
     const historyContainer = container.querySelector('#student-chat-history');
+    const studentId = auth.currentUser.uid;
+
+    const messagesQuery = query(collection(db, "conversations", studentId, "messages"), orderBy("timestamp"));
+    const unsubscribe = onSnapshot(messagesQuery, (querySnapshot) => {
+        historyContainer.innerHTML = '';
+        querySnapshot.forEach((doc) => {
+            const msg = doc.data();
+            const messageEl = document.createElement('div');
+            const sender = msg.senderId === studentId ? 'user' : 'professor';
+            messageEl.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+            messageEl.innerHTML = `<div class="${sender === 'user' ? 'bg-green-200' : 'bg-white'} p-3 rounded-xl max-w-xs text-sm">${msg.text}</div>`;
+            historyContainer.appendChild(messageEl);
+        });
+        historyContainer.scrollTop = historyContainer.scrollHeight;
+    });
+
     const handleSend = async () => {
-        const message = input.value.trim();
-        if (!message) return;
+        const text = input.value.trim();
+        if (!text) return;
+        
+        const tempInputVal = input.value;
         input.value = '';
         sendBtn.disabled = true;
-        const messageEl = document.createElement('div');
-        messageEl.className = 'flex justify-end';
-        messageEl.innerHTML = `<div class="bg-green-200 p-3 rounded-l-xl rounded-t-xl max-w-xs text-sm">${message}</div>`;
-        historyContainer.appendChild(messageEl);
-        historyContainer.scrollTop = historyContainer.scrollHeight;
+
         try {
-            const studentId = auth.currentUser.uid;
-            await sendMessageToProfessor({ studentId, message });
-            showToast("Zpráva byla úspěšně odeslána.");
+            await sendMessageFromStudent({ text: tempInputVal });
         } catch (error) {
-            console.error("Error sending message to professor:", error);
+            console.error("Error sending message:", error);
             showToast(`Odeslání zprávy selhalo: ${error.message}`, true);
+            input.value = tempInputVal;
         } finally {
             sendBtn.disabled = false;
         }
@@ -357,6 +370,7 @@ function renderProfessorChat(lessonData, container) {
         }
     });
 }
+
 function renderVideo(videoUrl, container) {
     let videoId = null;
     try {
@@ -372,6 +386,7 @@ function renderVideo(videoUrl, container) {
         container.innerHTML = `<p class="text-red-500 text-center font-semibold p-8">Vložená URL adresa videa není platná.</p>`;
     }
 }
+
 function renderPresentation(presentationData, container) {
     if (!presentationData || !Array.isArray(presentationData.slides) || presentationData.slides.length === 0) {
         container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádná prezentace.</p>`; return;
@@ -389,6 +404,7 @@ function renderPresentation(presentationData, container) {
     };
     render();
 }
+
 function renderQuiz(quizData, container) {
     if (!quizData || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
         container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný kvíz.</p>`; return;
@@ -425,7 +441,9 @@ function renderQuiz(quizData, container) {
         summaryEl.classList.remove('hidden');
     });
 }
+
 function renderTest(testData, container) { renderQuiz(testData, container); }
+
 function renderPodcast(postData, container) {
     if (!postData || !Array.isArray(postData.episodes) || postData.episodes.length === 0) {
         container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný podcast.</p>`; return;
