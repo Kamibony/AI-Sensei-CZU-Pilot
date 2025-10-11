@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { renderEditorMenu } from './editor-handler.js';
 import { showToast } from './utils.js';
 import { db } from './firebase-init.js';
@@ -10,8 +10,8 @@ import { functions } from './firebase-init.js';
 let lessonsData = [];
 const MAIN_COURSE_ID = "main-course"; 
 const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
+let conversationsUnsubscribe = null;
 
-// --- Helper Functions ---
 function getLocalizedDate(offsetDays = 0) {
     const date = new Date();
     date.setDate(date.getDate() + offsetDays);
@@ -348,62 +348,55 @@ async function renderStudentsView(container) {
     }
 }
 
-// --- NOVÁ FUNKCIA: renderStudentInteractions ---
 async function renderStudentInteractions(container) {
-    container.className = 'flex-grow flex h-screen bg-white view-transition'; // Pridaná class view-transition
-    container.innerHTML = `<p class="p-8">Načítám konverzace...</p>`;
-
-    // Mock data pre ukážku
-    const mockConversations = [
-        { name: 'Jana Nováková', lastMessage: 'Dobrý den, nerozumím principu superpozice.', unread: true, messages: [ {sender: 'student', text: 'Dobrý den, nerozumím principu superpozice. Můžete mi to prosím zjednodušeně vysvětlit?'}, {sender: 'prof', text: 'Dobrý den, Jano, jistě. Představte si minci, která se točí...'} ]},
-        { name: 'Petr Dvořák', lastMessage: 'Děkuji za vysvětlení!', unread: false, messages: [ {sender: 'student', text: 'Super, děkuji!'} ]},
-    ];
-
-    const convListHtml = mockConversations.map((conv, index) => `
-        <div class="p-4 flex items-center space-x-3 border-b border-slate-100 cursor-pointer hover:bg-slate-50 ${conv.unread ? 'bg-green-50' : ''}" data-conv-index="${index}">
-            <div>
-                <p class="font-semibold text-sm text-slate-800">${conv.name}</p>
-                <p class="text-xs ${conv.unread ? 'text-green-600 font-bold' : 'text-slate-500'}">${conv.lastMessage.substring(0, 30)}...</p>
-            </div>
-        </div>
-    `).join('');
-
+    container.className = 'flex-grow flex h-screen bg-white view-transition';
     container.innerHTML = `
         <aside class="w-full md:w-1/3 border-r border-slate-200 flex flex-col">
             <header class="p-4 border-b border-slate-200 flex-shrink-0"><h2 class="font-bold text-slate-800">Konverzace se studenty</h2></header>
-            <div id="conversations-list" class="overflow-y-auto">${convListHtml}</div>
+            <div id="conversations-list" class="overflow-y-auto"><p class="p-4 text-slate-400">Načítám konverzace...</p></div>
         </aside>
         <main id="chat-window" class="w-full md:w-2/3 flex flex-col bg-slate-50">
             <div class="flex-grow flex items-center justify-center text-slate-400">Vyberte konverzaci ze seznamu vlevo</div>
         </main>
     `;
 
-    document.getElementById('conversations-list').addEventListener('click', (e) => {
-        const convItem = e.target.closest('[data-conv-index]');
-        if (convItem) {
-            const index = convItem.dataset.convIndex;
-            const convData = mockConversations[index];
-            renderChatWindow(convData);
+    const conversationsListEl = document.getElementById('conversations-list');
+    
+    if (conversationsUnsubscribe) conversationsUnsubscribe();
+
+    const convQuery = query(collection(db, "conversations"), orderBy("lastMessageTimestamp", "desc"));
+    conversationsUnsubscribe = onSnapshot(convQuery, (querySnapshot) => {
+        if (querySnapshot.empty) {
+            conversationsListEl.innerHTML = `<p class="p-4 text-slate-400">Zatím zde nejsou žádné konverzace.</p>`;
+            return;
         }
+        
+        conversationsListEl.innerHTML = '';
+        querySnapshot.forEach((doc) => {
+            const conv = doc.data();
+            const convEl = document.createElement('div');
+            convEl.className = `p-4 flex items-center space-x-3 border-b border-slate-100 cursor-pointer hover:bg-slate-50 ${conv.professorHasUnread ? 'bg-green-50' : ''}`;
+            convEl.dataset.studentId = conv.studentId;
+
+            convEl.innerHTML = `
+                <div>
+                    <p class="font-semibold text-sm text-slate-800">${conv.studentName}</p>
+                    <p class="text-xs ${conv.professorHasUnread ? 'text-green-600 font-bold' : 'text-slate-500'}">${(conv.lastMessage || "").substring(0, 30)}...</p>
+                </div>
+            `;
+            convEl.addEventListener('click', () => renderChatWindow(conv.studentId, conv.studentName));
+            conversationsListEl.appendChild(convEl);
+        });
     });
 }
 
-function renderChatWindow(convData) {
+function renderChatWindow(studentId, studentName) {
     const chatWindow = document.getElementById('chat-window');
-    
-    const messagesHtml = convData.messages.map(msg => `
-        <div class="flex ${msg.sender === 'student' ? 'justify-start' : 'justify-end'}">
-            <div class="max-w-md p-3 rounded-xl ${msg.sender === 'student' ? 'bg-white shadow-sm' : 'bg-green-700 text-white'}">
-                ${msg.text}
-            </div>
-        </div>
-    `).join('');
-
     chatWindow.innerHTML = `
         <header class="p-4 border-b border-slate-200 flex items-center space-x-3 bg-white flex-shrink-0">
-            <h3 class="font-bold text-slate-800">${convData.name}</h3>
+            <h3 class="font-bold text-slate-800">${studentName}</h3>
         </header>
-        <div class="flex-grow p-4 overflow-y-auto space-y-4">${messagesHtml}</div>
+        <div id="messages-container" class="flex-grow p-4 overflow-y-auto space-y-4">Načítám zprávy...</div>
         <footer class="p-4 bg-white border-t border-slate-200 flex-shrink-0">
             <div class="relative">
                 <textarea id="chat-input" placeholder="Napište odpověď..." class="w-full bg-slate-100 border-transparent rounded-lg p-3 pr-28 focus:ring-2 focus:ring-green-500 resize-none" rows="1"></textarea>
@@ -415,13 +408,60 @@ function renderChatWindow(convData) {
         </footer>
     `;
 
+    updateDoc(doc(db, "conversations", studentId), { professorHasUnread: false });
+
+    const messagesContainer = document.getElementById('messages-container');
+    const messagesQuery = query(collection(db, "conversations", studentId, "messages"), orderBy("timestamp"));
+    
+    onSnapshot(messagesQuery, (querySnapshot) => {
+        messagesContainer.innerHTML = '';
+        querySnapshot.forEach((doc) => {
+            const msg = doc.data();
+            const msgEl = document.createElement('div');
+            const sender = msg.senderId === 'professor' ? 'prof' : 'student';
+            msgEl.className = `flex ${sender === 'prof' ? 'justify-end' : 'justify-start'}`;
+            msgEl.innerHTML = `<div class="max-w-md p-3 rounded-xl ${sender === 'prof' ? 'bg-green-700 text-white' : 'bg-white shadow-sm'}">${msg.text}</div>`;
+            messagesContainer.appendChild(msgEl);
+        });
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    });
+
     const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-reply-btn');
+
+    const handleSend = async () => {
+        const text = chatInput.value.trim();
+        if (!text) return;
+
+        chatInput.disabled = true;
+        sendBtn.disabled = true;
+
+        try {
+            await sendMessageToStudent({ studentId: studentId, text: text });
+            chatInput.value = '';
+        } catch (error) {
+            console.error("Error sending message:", error);
+            showToast(`Odeslání selhalo: ${error.message}`, true);
+        } finally {
+            chatInput.disabled = false;
+            sendBtn.disabled = false;
+            chatInput.focus();
+        }
+    };
+    
+    sendBtn.addEventListener('click', handleSend);
+    chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSend();
+        }
+    });
+
     document.getElementById('ai-reply-btn').addEventListener('click', () => {
-        chatInput.value = "Děkuji za dotaz! Princip superpozice si můžete představit jako minci, která se točí ve vzduchu. Dokud nedopadne, není ani panna, ani orel - je v obou stavech najednou. Teprve měřením (dopadem) ji donutíme vybrat si jeden stav. Doufám, že to pomohlo!";
+        chatInput.value = "AI návrh: Děkuji za Váš dotaz, podívám se na to a dám Vám vědět.";
     });
 }
 
-// --- NOVÁ FUNKCIA: renderAnalytics ---
 function renderAnalytics(container) {
     container.className = 'flex-grow bg-slate-50 p-4 sm:p-6 md:p-8 overflow-y-auto view-transition';
     container.innerHTML = `
@@ -429,8 +469,7 @@ function renderAnalytics(container) {
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="bg-white p-6 rounded-2xl shadow-lg col-span-1 lg:col-span-2">
                 <h2 class="font-bold text-lg mb-4">Zapojení studentů v čase</h2>
-                <div class="h-64 bg-slate-50 rounded-lg flex items-end justify-around p-4" id="chart-container">
-                    </div>
+                <div class="h-64 bg-slate-50 rounded-lg flex items-end justify-around p-4" id="chart-container"></div>
             </div>
              <div class="bg-white p-6 rounded-2xl shadow-lg space-y-4">
                 <h2 class="font-bold text-lg mb-2">Klíčové metriky</h2>
@@ -466,9 +505,8 @@ function renderAnalytics(container) {
         </div>
      `;
      
-    // Animácia grafu
     const chartContainer = document.getElementById('chart-container');
-    const chartData = [60, 75, 50, 85, 95, 70, 80]; // Mock data
+    const chartData = [60, 75, 50, 85, 95, 70, 80];
     chartData.forEach((height, index) => {
         const bar = document.createElement('div');
         bar.className = 'w-8 bg-green-400 rounded-t-lg';
