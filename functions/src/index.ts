@@ -158,13 +158,15 @@ export const telegramBotWebhook = onRequest(
             }
             const update = req.body;
             if (!update || !update.message) {
-                res.status(200).send('OK');
+                res.status(200).send('OK'); // Not a message update, ignore
                 return;
             }
             const message = update.message;
             const chatId = message.chat.id;
             const text = message.text;
+
             try {
+                // Handle /start command for account linking
                 if (text && text.startsWith("/start")) {
                     const token = text.split(' ')[1];
                     if (token) {
@@ -173,16 +175,18 @@ export const telegramBotWebhook = onRequest(
                         if (!querySnapshot.empty) {
                             const studentDoc = querySnapshot.docs[0];
                             await studentDoc.ref.update({ telegramChatId: chatId });
-                            await sendTelegramMessage(chatId, "Váš účet bol úspešne prepojený!");
+                            await sendTelegramMessage(chatId, "Váš účet byl úspešně prepojený! Od teraz môžete klásť otázky k lekciám.");
                         } else {
                             await sendTelegramMessage(chatId, "Neplatný alebo expirovaný token.");
                         }
                     } else {
-                        await sendTelegramMessage(chatId, "Pre prepojenie účtu použite príkaz /start s vaším unikátnym tokenom.");
+                        await sendTelegramMessage(chatId, "Pre prepojenie účtu použite príkaz /start s vaším unikátnym tokenom z aplikácie.");
                     }
                     res.status(200).send("OK");
                     return;
                 }
+
+                // Find student by their chat ID
                 const q = db.collection("students").where("telegramChatId", "==", chatId).limit(1);
                 const querySnapshot = await q.get();
                 if (querySnapshot.empty) {
@@ -190,14 +194,40 @@ export const telegramBotWebhook = onRequest(
                     res.status(200).send("OK");
                     return;
                 }
-                const studentQuestion = text;
-                const prompt = `Si AI Sensei, nápomocný asistent pre študenta. Odpovedz na nasledujúcu otázku stručne a jasne: "${studentQuestion}"`;
+
+                const studentDoc = querySnapshot.docs[0];
+                const studentData = studentDoc.data();
+                const userQuestion = text;
+
+                // Check if student has an active lesson context
+                const lessonId = studentData.lastActiveLessonId;
+                if (!lessonId) {
+                    await sendTelegramMessage(chatId, "Aby som vám mohol odpovedať, otvorte prosím najprv lekciu v aplikácii AI Sensei. Potom sa budem môcť zamerať na jej obsah.");
+                    res.status(200).send("OK");
+                    return;
+                }
+
+                // Fetch the lesson data using the stored ID
+                const lessonRef = db.collection("lessons").doc(lessonId);
+                const lessonDoc = await lessonRef.get();
+                if (!lessonDoc.exists) {
+                    await sendTelegramMessage(chatId, "Zdá sa, že lekcia, ktorú ste mali otvorenú, už neexistuje. Otvorte prosím inú lekciu v aplikácii.");
+                    res.status(200).send("OK");
+                    return;
+                }
+                
+                const lessonData = lessonDoc.data();
+                
+                // Logic identical to getAiAssistantResponse
+                const prompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${userQuestion}"`;
                 const answer = await GeminiAPI.generateTextFromPrompt(prompt);
+                
                 await sendTelegramMessage(chatId, answer);
                 res.status(200).send("OK");
+
             } catch (error) {
                 logger.error("Error in Telegram webhook:", error);
-                await sendTelegramMessage(chatId, "Ospravedlňujem sa, nastala neočakávaná chyba.");
+                await sendTelegramMessage(chatId, "Ospravedlňujem sa, nastala neočakávaná chyba pri spracovaní vašej požiadavky.");
                 res.status(500).send("Internal Server Error");
             }
         });
