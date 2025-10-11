@@ -8,3 +8,19 @@
 .mobile-nav-active span {
     @apply text-green-700;
 }
+
+/* Nové triedy pre posuvné menu na mobile */
+.scrollable-tabs {
+    display: flex;
+    overflow-x: auto;
+    /* Skrytie posuvníka pre rôzne prehliadače */
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+.scrollable-tabs::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, and Opera */
+}
+.scrollable-tabs > a {
+    flex-shrink: 0; /* Zabezpečí, že sa položky nebudú zmenšovať */
+    white-space: nowrap; /* Zabezpečí, že text sa nezalomí */
+}
