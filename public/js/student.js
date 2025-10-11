@@ -43,7 +43,6 @@ function promptForStudentName(userId) {
 
 async function fetchLessons() {
     try {
-        // Krok 1: Načítaj všetky naplánované udalosti (eventy) z timeline, zoradené podľa poradia
         const timelineCollection = collection(db, 'timeline_events');
         const timelineQuery = query(timelineCollection, orderBy("orderIndex"));
         const timelineSnapshot = await getDocs(timelineQuery);
@@ -51,20 +50,15 @@ async function fetchLessons() {
 
         if (scheduledLessonIds.length === 0) {
             lessonsData = [];
-            return true; // Žiadne lekcie nie sú naplánované, vrátime prázdne pole
+            return true;
         }
 
-        // Krok 2: Načítaj iba tie lekcie, ktoré sú v pláne výuky (timeline)
         const lessonsCollection = collection(db, 'lessons');
-        // Použijeme klauzulu 'in' na efektívne načítanie viacerých dokumentov naraz
         const lessonsQuery = query(lessonsCollection, where("__name__", "in", scheduledLessonIds));
         const lessonsSnapshot = await getDocs(lessonsQuery);
         
-        // Vytvoríme mapu pre jednoduché a rýchle vyhľadávanie dát lekcií podľa ich ID
         const lessonsMap = new Map(lessonsSnapshot.docs.map(doc => [doc.id, { id: doc.id, ...doc.data() }]));
         
-        // Krok 3: Zoradíme načítané lekcie presne podľa poradia, ktoré určil profesor v timeline
-        // .filter(Boolean) odstráni prípadné 'undefined' hodnoty, ak by lekcia bola zmazaná, ale v timeline by zostal jej odkaz
         lessonsData = scheduledLessonIds.map(id => lessonsMap.get(id)).filter(Boolean);
 
         return true;
@@ -82,10 +76,10 @@ async function setupStudentNav() {
     nav.innerHTML = `
         <div class="flex flex-col h-full">
             <div class="flex-grow space-y-4">
-                <li><button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></button></li>
+                <li><button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></button></li>
             </div>
             <div>
-                <li><button id="logout-btn-nav" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white" title="Odhlásit se"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></button></li>
+                <li><button id="logout-btn-nav" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white" title="Odhlásit se"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></button></li>
             </div>
         </div>
     `;
@@ -96,7 +90,6 @@ function renderStudentDashboard(container) {
     if (lessonsData.length === 0) {
         lessonsContent = `<div class="p-8 text-center text-slate-500">Profesor zatiaľ nenaplánoval žiadne lekcie.</div>`;
     } else {
-        // Lekcie sú už zoradené správne z funkcie fetchLessons
         const lessonsHtml = lessonsData.map(lesson => `
             <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
                 <div class="p-6">
@@ -168,7 +161,6 @@ export async function initStudentDashboard() {
                     const lessonId = lessonCard.dataset.lessonId;
                     const lesson = lessonsData.find(l => l.id === lessonId);
                     if (lesson) {
-                        // Pri zobrazení lekcie si uložíme jej ID pre bota
                         updateDoc(doc(db, 'students', user.uid), { lastActiveLessonId: lessonId });
                         showStudentLesson(lesson);
                     }
@@ -225,7 +217,7 @@ function showStudentLesson(lessonData) {
     if (availableMenuItems.length > 0) {
         studentContentArea.querySelector('.lesson-menu-item').click();
     } else {
-        contentDisplay.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci zatím není k dispozici žádný obsah.</p>`;
+        contentDisplay.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci zatím není k dispozici žiadny obsah.</p>`;
     }
 }
 
@@ -250,7 +242,7 @@ function renderAIAssistantChat(lessonData, container) {
             <div class="w-full h-full bg-blue-100 bg-[url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')] bg-center bg-cover rounded-[26px]">
                 <div class="h-[600px] flex flex-col p-4">
                     <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2"><div class="flex justify-start"><div class="bg-white p-3 rounded-r-xl rounded-t-xl max-w-xs text-sm">Ahoj! Zeptej se mě na cokoliv ohledně této lekce.</div></div></div>
-                    <footer class="mt-4 flex-shrink-0"><div class="flex items-center bg-white rounded-full p-2 shadow-inner"><textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu..."></textarea><button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button></div></footer>
+                    <footer class="mt-4 flex-shrink-0"><div class="flex items-center bg-white rounded-full p-2 shadow-inner"><textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu..."></textarea><button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button></div></footer>
                 </div>
             </div>
         </div>
@@ -302,7 +294,7 @@ function renderProfessorChat(lessonData, container) {
                 <div class="h-[600px] flex flex-col p-4">
                      <header class="text-center mb-4 flex-shrink-0"><p class="font-bold text-slate-800">Profesor</p><p class="text-xs text-slate-500">Odpoví, jakmile to bude možné</p></header>
                     <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2"></div>
-                    <footer class="mt-4 flex-shrink-0"><div class="flex items-center bg-white rounded-full p-2 shadow-inner"><textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu profesorovi..."></textarea><button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button></div></footer>
+                    <footer class="mt-4 flex-shrink-0"><div class="flex items-center bg-white rounded-full p-2 shadow-inner"><textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu profesorovi..."></textarea><button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button></div></footer>
                 </div>
             </div>
         </div>
@@ -376,7 +368,7 @@ function renderPresentation(presentationData, container) {
 
 function renderQuiz(quizData, container) {
     if (!quizData || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný kvíz.</p>`; return;
+        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žiadny kvíz.</p>`; return;
     }
     const questionsHtml = quizData.questions.map((q, index) => {
         const optionsHtml = (q.options || []).map((option, i) => `<label class="block p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer"><input type="radio" name="question-${index}" value="${i}" class="mr-3"><span>${option}</span></label>`).join('');
@@ -414,7 +406,7 @@ function renderQuiz(quizData, container) {
 function renderTest(testData, container) { renderQuiz(testData, container); }
 function renderPodcast(postData, container) {
     if (!postData || !Array.isArray(postData.episodes) || postData.episodes.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný podcast.</p>`; return;
+        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádny podcast.</p>`; return;
     };
     const episodesHtml = postData.episodes.map((episode, i) => `<div class="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-6"><h4 class="font-bold text-xl text-slate-800">${i + 1}. ${episode.title}</h4><div class="mt-4 text-slate-600 prose">${episode.script.replace(/\n/g, '<br>')}</div></div>`).join('');
     container.innerHTML = `<h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">Podcast & Materiály</h2>${episodesHtml}`;
