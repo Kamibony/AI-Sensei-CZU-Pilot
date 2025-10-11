@@ -43,25 +43,16 @@ function promptForStudentName(userId) {
 
 async function fetchLessons() {
     try {
-        // FINÁLNA OPRAVA: Načítavame všetky lekcie zoradené podľa dátumu vytvorenia, rovnako ako v profesorskom paneli.
+        // FINÁLNA OPRAVA: Načítavame VŠETKY lekcie, bez zbytočných filtrov a záchranných mechanizmov.
+        // Toto teraz presne zodpovedá logike v profesorskom paneli.
         const lessonsCollection = collection(db, 'lessons');
-        const querySnapshot = await getDocs(query(lessonsCollection, orderBy("createdAt")));
+        const querySnapshot = await getDocs(lessonsCollection);
         lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         return true;
     } catch (error) {
         console.error("Error fetching lessons for student:", error);
-        // Záchranný mechanizmus, ak by zlyhalo triedenie (napr. chýbajúci index)
-        try {
-            console.warn("OrderBy failed, fetching without sorting.");
-            const lessonsCollection = collection(db, 'lessons');
-            const querySnapshot = await getDocs(lessonsCollection);
-            lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            return true;
-        } catch (fallbackError) {
-            console.error("Error fetching lessons after fallback:", fallbackError);
-            showToast("Nepodařilo se načíst data lekcí.", true);
-            return false;
-        }
+        showToast("Nepodařilo se načíst data lekcí.", true);
+        return false;
     }
 }
 
@@ -71,10 +62,10 @@ async function setupStudentNav() {
     nav.innerHTML = `
         <div class="flex flex-col h-full">
             <div class="flex-grow space-y-4">
-                <li><button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></button></li>
+                <li><button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></button></li>
             </div>
             <div>
-                <li><button id="logout-btn-nav" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white" title="Odhlásit se"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></button></li>
+                <li><button id="logout-btn-nav" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white" title="Odhlásit se"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></button></li>
             </div>
         </div>
     `;
@@ -85,7 +76,7 @@ function renderStudentDashboard(container) {
     if (lessonsData.length === 0) {
         lessonsContent = `<div class="p-8 text-center text-slate-500">Pro vás zatím nebyly připraveny žádné lekce.</div>`;
     } else {
-        const sortedLessons = [...lessonsData]; // Lekcie sú už zoradené z fetchLessons
+        const sortedLessons = [...lessonsData].sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
         const lessonsHtml = sortedLessons.map(lesson => `
             <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer student-lesson-card" data-lesson-id="${lesson.id}">
                 <div class="p-6">
@@ -235,7 +226,7 @@ function renderAIAssistantChat(lessonData, container) {
             <div class="w-full h-full bg-blue-100 bg-[url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')] bg-center bg-cover rounded-[26px]">
                 <div class="h-[600px] flex flex-col p-4">
                     <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2"><div class="flex justify-start"><div class="bg-white p-3 rounded-r-xl rounded-t-xl max-w-xs text-sm">Ahoj! Zeptej se mě na cokoliv ohledně této lekce.</div></div></div>
-                    <footer class="mt-4 flex-shrink-0"><div class="flex items-center bg-white rounded-full p-2 shadow-inner"><textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu..."></textarea><button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button></div></footer>
+                    <footer class="mt-4 flex-shrink-0"><div class="flex items-center bg-white rounded-full p-2 shadow-inner"><textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu..."></textarea><button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button></div></footer>
                 </div>
             </div>
         </div>
