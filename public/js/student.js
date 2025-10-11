@@ -48,7 +48,6 @@ async function fetchLessons() {
         const timelineSnapshot = await getDocs(timelineQuery);
         const scheduledLessonIds = timelineSnapshot.docs.map(doc => doc.data().lessonId);
 
-        // --- KĽÚČOVÁ ZMENA: Odstránenie duplicitných ID lekcií ---
         const uniqueLessonIds = [...new Set(scheduledLessonIds)];
 
         if (uniqueLessonIds.length === 0) {
@@ -62,7 +61,6 @@ async function fetchLessons() {
         
         const lessonsMap = new Map(lessonsSnapshot.docs.map(doc => [doc.id, { id: doc.id, ...doc.data() }]));
         
-        // Zoradíme lekcie podľa poradia unikátnych ID
         lessonsData = uniqueLessonIds.map(id => lessonsMap.get(id)).filter(Boolean);
 
         return true;
@@ -89,7 +87,7 @@ async function setupStudentNav() {
     `;
 }
 
-function renderStudentDashboard(container) {
+function renderStudentDashboard(container, userData) {
     let lessonsContent;
     if (lessonsData.length === 0) {
         lessonsContent = `<div class="p-8 text-center text-slate-500">Profesor zatiaľ nenaplánoval žiadne lekcie.</div>`;
@@ -109,10 +107,34 @@ function renderStudentDashboard(container) {
             </div>`).join('');
         lessonsContent = `<h2 class="text-2xl font-bold text-slate-800 mb-4">Dostupné lekce</h2>${lessonsHtml}`;
     }
+
+    // --- KĽÚČOVÁ ZMENA: Vytvorenie inteligentného Telegram tlačidla ---
+    const botUsername = 'ai_sensei_czu_bot';
+    let telegramButtonHtml = '';
+    if (userData.telegramChatId) {
+        // Ak je študent pripojený
+        const connectionLink = `https://t.me/${botUsername}`;
+        telegramButtonHtml = `
+            <a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-3 w-full p-4 mb-6 text-sm font-semibold text-sky-700 bg-sky-100 rounded-xl hover:bg-sky-200 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                Váš účet je prepojený. Otvoriť AI Sensei v Telegrame
+            </a>
+        `;
+    } else if (userData.telegramConnectionToken) {
+        // Ak študent nie je pripojený, ale má token
+        const connectionLink = `https://t.me/${botUsername}?start=${userData.telegramConnectionToken}`;
+        telegramButtonHtml = `
+            <a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-3 w-full p-4 mb-6 font-semibold text-white bg-sky-500 rounded-xl hover:bg-sky-600 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                Pripojiť účet k Telegramu
+            </a>
+        `;
+    }
+    
     container.innerHTML = `
         <div class="p-4 sm:p-6 md:p-8">
             <h1 class="text-3xl font-extrabold text-slate-800 mb-6">Váš přehled</h1>
-            <div id="telegram-connect-section"></div>
+            ${telegramButtonHtml}
             ${lessonsContent}
         </div>
     `;
@@ -143,22 +165,8 @@ export async function initStudentDashboard() {
             }
             roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow overflow-y-auto bg-slate-50 h-full"></div>`;
             const studentContentArea = document.getElementById('student-content-area');
-            renderStudentDashboard(studentContentArea);
+            renderStudentDashboard(studentContentArea, userData); // Posielame userData do funkcie
 
-            const token = userData.telegramConnectionToken;
-            if (token && !userData.telegramChatId) {
-                const connectSection = document.getElementById('telegram-connect-section');
-                if (connectSection) {
-                    const botUsername = 'ai_sensei_czu_bot';
-                    const connectionLink = `https://t.me/${botUsername}?start=${token}`;
-                    connectSection.innerHTML = `
-                        <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-lg mb-6" role="alert">
-                            <p class="font-bold">Propojte svůj účet s Telegramem!</p>
-                            <a href="${connectionLink}" target="_blank" rel="noopener noreferrer" class="font-semibold underline">Klikněte zde pro připojení k AI Sensei přes Telegram</a>
-                        </div>
-                    `;
-                }
-            }
             studentContentArea.addEventListener('click', (e) => {
                 const lessonCard = e.target.closest('.student-lesson-card');
                 if (lessonCard) {
@@ -243,7 +251,7 @@ function renderAIAssistantChat(lessonData, container) {
     container.innerHTML = `
         <h2 class="text-3xl font-extrabold text-slate-800 mb-6 text-center">AI Asistent Lekce</h2>
         <div class="w-full max-w-md mx-auto bg-slate-900 rounded-[40px] border-[14px] border-slate-900 shadow-2xl relative">
-            <div class="w-full h-full bg-blue-100 bg-[url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')] bg-center bg-cover rounded-[26px]">
+            <div class="w-full h-full bg-blue-100 bg-[url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c/949e91d20548b.jpg')] bg-center bg-cover rounded-[26px]">
                 <div class="h-[600px] flex flex-col p-4">
                     <div id="student-chat-history" class="flex-grow space-y-4 overflow-y-auto p-2"><div class="flex justify-start"><div class="bg-white p-3 rounded-r-xl rounded-t-xl max-w-xs text-sm">Ahoj! Zeptej se mě na cokoliv ohledně této lekce.</div></div></div>
                     <footer class="mt-4 flex-shrink-0"><div class="flex items-center bg-white rounded-full p-2 shadow-inner"><textarea id="student-chat-input" class="flex-grow bg-transparent p-2 text-sm focus:outline-none resize-none" rows="1" placeholder="Napište zprávu..."></textarea><button id="student-send-btn" class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-600 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button></div></footer>
