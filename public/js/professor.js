@@ -62,6 +62,7 @@ function setupProfessorNav() {
                     <li><button data-view="timeline" class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Plán výuky"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button></li>
                     <li><button data-view="media" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Knihovna médií"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></button></li>
                     <li><button data-view="interactions" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Interakce se studenty"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button></li>
+                    <li><button data-view="analytics" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Analýza studentů"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6l6.1 2.4-4.2 6L2.5 22"/><path d="M21.5 2v6l-6.1 2.4 4.2 6L21.5 22"/><path d="M12 2v20"/></svg></button></li>
                     <li><button data-view="students" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Správa studentů"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></button></li>
                 </div>
                 <div>
@@ -93,11 +94,12 @@ async function showProfessorContent(view, lesson = null) {
 
     if (view === 'editor') {
         renderEditorMenu(sidebar, lesson);
-    } else if (['media', 'students', 'interactions'].includes(view)) {
+    } else if (['media', 'students', 'interactions', 'analytics'].includes(view)) {
         sidebar.style.display = 'none';
         if (view === 'media') renderMediaLibrary(mainArea);
         if (view === 'students') renderStudentsView(mainArea);
-        if (view === 'interactions') renderTelegramInteractionView(mainArea);
+        if (view === 'interactions') renderStudentInteractions(mainArea);
+        if (view === 'analytics') renderAnalytics(mainArea);
     } else { 
         await fetchLessons();
         renderLessonLibrary(sidebar);
@@ -181,7 +183,6 @@ async function renderTimeline(container) {
     const querySnapshot = await getDocs(q);
     const timelineEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // Vytvoříme 10 dnů pro vizuální plán
     for (let i = 0; i < 10; i++) {
         const dayWrapper = document.createElement('div');
         dayWrapper.className = 'day-slot bg-white rounded-xl p-3 border-2 border-transparent transition-colors min-h-[200px] shadow-sm flex flex-col';
@@ -197,16 +198,14 @@ async function renderTimeline(container) {
         timelineContainer.appendChild(dayWrapper);
     }
     
-    // Rozdelíme naplánované lekcie do dnů
     timelineEvents.forEach(event => {
-        const dayIndex = event.dayIndex || 0; // Pokud den není uložen, dáme ho do prvního
+        const dayIndex = event.dayIndex || 0;
         const daySlot = timelineContainer.querySelector(`.day-slot[data-day-index='${dayIndex}'] .lessons-container`);
         if (daySlot) {
             daySlot.appendChild(renderScheduledEvent(event));
         }
     });
 
-    // Inicializujeme Drag & Drop pro každý den
     timelineContainer.querySelectorAll('.day-slot .lessons-container').forEach(lessonsContainer => {
         if (typeof Sortable !== 'undefined') {
             new Sortable(lessonsContainer, {
@@ -222,7 +221,7 @@ async function renderTimeline(container) {
 
 function renderScheduledEvent(event) {
     const lesson = lessonsData.find(l => l.id === event.lessonId);
-    if (!lesson) return document.createElement('div'); // Return empty div if lesson not found
+    if (!lesson) return document.createElement('div');
 
     const el = document.createElement('div');
     el.className = 'lesson-bubble p-3 rounded-lg shadow-sm flex items-center justify-between border bg-green-50 text-green-800 border-green-200 cursor-grab';
@@ -265,11 +264,10 @@ async function handleLessonDrop(evt) {
             lessonId: lessonId,
             dayIndex: parseInt(dayIndex),
             createdAt: serverTimestamp(),
-            orderIndex: 0 // Bude aktualizováno níže
+            orderIndex: 0 
         };
         const docRef = await addDoc(collection(db, 'timeline_events'), newEventData);
         
-        // Vyměníme dočasný prvek za finální s správnými daty
         const newElement = renderScheduledEvent({ id: docRef.id, ...newEventData });
         evt.item.parentNode.replaceChild(newElement, evt.item);
 
@@ -316,12 +314,8 @@ async function updateAllOrderIndexes() {
         await batch.commit();
     } catch (error) {
         console.error("Error updating order indexes:", error);
-        showToast("Nepodařilo se uložit nové pořadí.", true);
     }
 }
-
-
-// --- OSTATNÍ FUNKCE ZŮSTÁVAJÍ BEZE ZMĚNY ---
 
 function renderMediaLibrary(container) {
     container.innerHTML = `
@@ -354,52 +348,134 @@ async function renderStudentsView(container) {
     }
 }
 
-async function renderTelegramInteractionView(container) {
+// --- NOVÁ FUNKCIA: renderStudentInteractions ---
+async function renderStudentInteractions(container) {
+    container.className = 'flex-grow flex h-screen bg-white view-transition'; // Pridaná class view-transition
+    container.innerHTML = `<p class="p-8">Načítám konverzace...</p>`;
+
+    // Mock data pre ukážku
+    const mockConversations = [
+        { name: 'Jana Nováková', lastMessage: 'Dobrý den, nerozumím principu superpozice.', unread: true, messages: [ {sender: 'student', text: 'Dobrý den, nerozumím principu superpozice. Můžete mi to prosím zjednodušeně vysvětlit?'}, {sender: 'prof', text: 'Dobrý den, Jano, jistě. Představte si minci, která se točí...'} ]},
+        { name: 'Petr Dvořák', lastMessage: 'Děkuji za vysvětlení!', unread: false, messages: [ {sender: 'student', text: 'Super, děkuji!'} ]},
+    ];
+
+    const convListHtml = mockConversations.map((conv, index) => `
+        <div class="p-4 flex items-center space-x-3 border-b border-slate-100 cursor-pointer hover:bg-slate-50 ${conv.unread ? 'bg-green-50' : ''}" data-conv-index="${index}">
+            <div>
+                <p class="font-semibold text-sm text-slate-800">${conv.name}</p>
+                <p class="text-xs ${conv.unread ? 'text-green-600 font-bold' : 'text-slate-500'}">${conv.lastMessage.substring(0, 30)}...</p>
+            </div>
+        </div>
+    `).join('');
+
     container.innerHTML = `
-        <header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Interakce se studenty</h1><p class="text-slate-500 mt-1">Odesílejte zprávy studentům připojeným přes Telegram.</p></header>
-        <div id="student-telegram-list" class="flex-grow overflow-y-auto p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"><div class="p-8 text-center text-slate-500 col-span-full">Načítám studenty...</div></div>`;
-    const listContainer = document.getElementById('student-telegram-list');
-    try {
-        const q = query(collection(db, 'students'), where("telegramChatId", "!=", null));
-        const studentsSnapshot = await getDocs(q);
-        const connectedStudents = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        if (connectedStudents.length === 0) {
-            listContainer.innerHTML = `<div class="bg-white p-6 rounded-lg shadow-sm text-center col-span-full"><p class="text-slate-500">Zatím se žádný student nepřipojil přes Telegram.</p></div>`; return;
+        <aside class="w-full md:w-1/3 border-r border-slate-200 flex flex-col">
+            <header class="p-4 border-b border-slate-200 flex-shrink-0"><h2 class="font-bold text-slate-800">Konverzace se studenty</h2></header>
+            <div id="conversations-list" class="overflow-y-auto">${convListHtml}</div>
+        </aside>
+        <main id="chat-window" class="w-full md:w-2/3 flex flex-col bg-slate-50">
+            <div class="flex-grow flex items-center justify-center text-slate-400">Vyberte konverzaci ze seznamu vlevo</div>
+        </main>
+    `;
+
+    document.getElementById('conversations-list').addEventListener('click', (e) => {
+        const convItem = e.target.closest('[data-conv-index]');
+        if (convItem) {
+            const index = convItem.dataset.convIndex;
+            const convData = mockConversations[index];
+            renderChatWindow(convData);
         }
-        const studentCardsHtml = connectedStudents.map(student => `
-            <div class="bg-white rounded-2xl shadow-lg p-6 flex flex-col" data-student-id="${student.id}">
-                <div class="flex items-center mb-4"><p class="font-semibold text-slate-700 truncate">${student.name || student.email}</p></div>
-                <textarea class="message-input w-full border-slate-300 rounded-lg p-2 h-28 flex-grow" placeholder="Napište zprávu..."></textarea>
-                <button class="send-telegram-btn mt-4 w-full px-4 py-2 bg-sky-500 text-white font-semibold rounded-lg hover:bg-sky-600 transition-colors">Odeslat zprávu</button>
-            </div>`).join('');
-        listContainer.innerHTML = studentCardsHtml;
-        document.querySelectorAll('.send-telegram-btn').forEach(button => {
-            button.addEventListener('click', async (e) => {
-                const card = e.target.closest('[data-student-id]');
-                const studentId = card.dataset.studentId;
-                const textarea = card.querySelector('.message-input');
-                const message = textarea.value.trim();
-                if (!message) { showToast("Zpráva nemůže být prázdná.", true); return; }
-                const originalButtonText = button.innerHTML;
-                button.disabled = true;
-                textarea.disabled = true;
-                button.innerHTML = `Odesílám...`;
-                try {
-                    await sendMessageToStudent({ studentId, message });
-                    showToast("Zpráva byla úspěšně odeslána.");
-                    textarea.value = '';
-                } catch (error) {
-                    console.error("Error sending message to student:", error);
-                    showToast(`Odeslání selhalo: ${error.message}`, true);
-                } finally {
-                    button.disabled = false;
-                    textarea.disabled = false;
-                    button.innerHTML = originalButtonText;
-                }
-            });
-        });
-    } catch (error) {
-        console.error("Error fetching students for Telegram:", error);
-        listContainer.innerHTML = '<div class="p-4 bg-red-100 text-red-700 rounded-lg col-span-full">Nepodařilo se načíst studenty.</div>';
-    }
+    });
+}
+
+function renderChatWindow(convData) {
+    const chatWindow = document.getElementById('chat-window');
+    
+    const messagesHtml = convData.messages.map(msg => `
+        <div class="flex ${msg.sender === 'student' ? 'justify-start' : 'justify-end'}">
+            <div class="max-w-md p-3 rounded-xl ${msg.sender === 'student' ? 'bg-white shadow-sm' : 'bg-green-700 text-white'}">
+                ${msg.text}
+            </div>
+        </div>
+    `).join('');
+
+    chatWindow.innerHTML = `
+        <header class="p-4 border-b border-slate-200 flex items-center space-x-3 bg-white flex-shrink-0">
+            <h3 class="font-bold text-slate-800">${convData.name}</h3>
+        </header>
+        <div class="flex-grow p-4 overflow-y-auto space-y-4">${messagesHtml}</div>
+        <footer class="p-4 bg-white border-t border-slate-200 flex-shrink-0">
+            <div class="relative">
+                <textarea id="chat-input" placeholder="Napište odpověď..." class="w-full bg-slate-100 border-transparent rounded-lg p-3 pr-28 focus:ring-2 focus:ring-green-500 resize-none" rows="1"></textarea>
+                <button id="ai-reply-btn" class="absolute right-14 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-amber-700" title="Navrhnout odpověď (AI)">✨</button>
+                <button id="send-reply-btn" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-green-700" title="Odeslat">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </div>
+        </footer>
+    `;
+
+    const chatInput = document.getElementById('chat-input');
+    document.getElementById('ai-reply-btn').addEventListener('click', () => {
+        chatInput.value = "Děkuji za dotaz! Princip superpozice si můžete představit jako minci, která se točí ve vzduchu. Dokud nedopadne, není ani panna, ani orel - je v obou stavech najednou. Teprve měřením (dopadem) ji donutíme vybrat si jeden stav. Doufám, že to pomohlo!";
+    });
+}
+
+// --- NOVÁ FUNKCIA: renderAnalytics ---
+function renderAnalytics(container) {
+    container.className = 'flex-grow bg-slate-50 p-4 sm:p-6 md:p-8 overflow-y-auto view-transition';
+    container.innerHTML = `
+        <h1 class="text-3xl font-extrabold text-slate-800 mb-6">AI Analýza Studentů</h1>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-2xl shadow-lg col-span-1 lg:col-span-2">
+                <h2 class="font-bold text-lg mb-4">Zapojení studentů v čase</h2>
+                <div class="h-64 bg-slate-50 rounded-lg flex items-end justify-around p-4" id="chart-container">
+                    </div>
+            </div>
+             <div class="bg-white p-6 rounded-2xl shadow-lg space-y-4">
+                <h2 class="font-bold text-lg mb-2">Klíčové metriky</h2>
+                <div><p class="text-3xl font-bold text-green-600">88%</p><p class="text-sm text-slate-500">Průměrná úspěšnost v kvízech</p></div>
+                <div><p class="text-3xl font-bold text-amber-800">32 min</p><p class="text-sm text-slate-500">Průměrný čas strávený v lekci</p></div>
+                <div><p class="text-3xl font-bold text-amber-600">3</p><p class="text-sm text-slate-500">Průměrný počet dotazů na AI asistenta</p></div>
+            </div>
+        </div>
+        <div class="mt-6 bg-white p-6 rounded-2xl shadow-lg">
+             <h2 class="font-bold text-lg mb-4">AI doporučení a postřehy</h2>
+             <div class="space-y-3 text-sm">
+                <p class="p-3 bg-green-50 text-green-800 rounded-lg">✅ <strong>Silná stránka:</strong> Studenti skvěle rozumí konceptu 'vlnově-korpuskulární dualismus'.</p>
+                <p class="p-3 bg-amber-50 text-amber-800 rounded-lg">⚠️ <strong>Příležitost ke zlepšení:</strong> Mnoho studentů se ptá na praktické využití 'principu superpozice'. Doporučujeme přidat konkrétní příklad z reálného světa (např. kvantové počítače).</p>
+                <p class="p-3 bg-blue-50 text-blue-800 rounded-lg">💡 <strong>Návrh na interakci:</strong> Zvažte vytvoření krátkého kvízu zaměřeného specificky na rozdíl mezi klasickou a kvantovou fyzikou pro upevnění znalostí.</p>
+             </div>
+        </div>
+        <div class="mt-6 bg-white p-6 rounded-2xl shadow-lg">
+             <h2 class="font-bold text-lg mb-4">AI Identifikace skupin studentů</h2>
+             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <h3 class="font-bold text-green-800">Vynikající studenti (2)</h3>
+                    <p class="text-xs text-green-700 mt-1">Vysoká úspěšnost, rychlé plnění. Zvažte doplňkové materiály pro pokročilé.</p>
+                </div>
+                <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h3 class="font-bold text-blue-800">Aktivní studenti (12)</h3>
+                    <p class="text-xs text-blue-700 mt-1">Průměrné výsledky, ale vysoká aktivita. Potřebují upevnit klíčové pojmy.</p>
+                </div>
+                <div class="p-4 bg-red-50 rounded-lg border border-red-200">
+                    <h3 class="font-bold text-red-800">Studenti vyžadující pozornost (1)</h3>
+                    <p class="text-xs text-red-700 mt-1">Nízká aktivita i úspěšnost. Doporučujeme osobní konzultaci.</p>
+                </div>
+             </div>
+        </div>
+     `;
+     
+    // Animácia grafu
+    const chartContainer = document.getElementById('chart-container');
+    const chartData = [60, 75, 50, 85, 95, 70, 80]; // Mock data
+    chartData.forEach((height, index) => {
+        const bar = document.createElement('div');
+        bar.className = 'w-8 bg-green-400 rounded-t-lg';
+        bar.title = `Týden ${index + 1}: ${height}%`;
+        bar.style.transition = `height 0.5s ease-out ${index * 0.05}s`;
+        bar.style.height = '0%';
+        chartContainer.appendChild(bar);
+        setTimeout(() => { bar.style.height = `${height}%`; }, 100);
+    });
 }
