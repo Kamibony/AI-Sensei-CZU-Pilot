@@ -1,3 +1,10 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.mobile-nav-active svg {
+    @apply text-green-700;
+}
+.mobile-nav-active span {
+    @apply text-green-700;
+}
