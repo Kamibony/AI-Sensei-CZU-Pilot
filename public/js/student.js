@@ -187,6 +187,10 @@ export async function initStudentDashboard() {
 }
 
 function showStudentLesson(lessonData) {
+    if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+    }
+
     const studentContentArea = document.getElementById('student-content-area');
     const menuItems = [
         { id: 'text', label: 'Text', icon: '✍️', available: !!lessonData.content },
@@ -223,13 +227,21 @@ function showStudentLesson(lessonData) {
             <main id="lesson-content-display" class="bg-white rounded-2xl shadow-lg p-4 sm:p-6 md:p-8 min-h-[400px]"></main>
         </div>
     `;
-    document.getElementById('back-to-overview-btn').addEventListener('click', initStudentDashboard);
+    document.getElementById('back-to-overview-btn').addEventListener('click', () => {
+        if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+        }
+        initStudentDashboard();
+    });
     const contentDisplay = document.getElementById('lesson-content-display');
     const tabsMenu = document.getElementById('lesson-tabs-menu');
 
     tabsMenu.querySelectorAll('.lesson-menu-item').forEach(item => {
         item.addEventListener('click', e => {
             e.preventDefault();
+            if (window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel();
+            }
             tabsMenu.querySelectorAll('.lesson-menu-item').forEach(i => {
                 i.classList.remove('border-green-700', 'text-green-700', 'font-semibold');
                 i.classList.add('border-transparent', 'text-slate-500');
@@ -293,7 +305,11 @@ function renderAIAssistantChat(lessonData, container) {
         addMessage(userQuestion, 'user');
         const thinkingBubble = addMessage("...", 'ai');
         try {
-            const result = await getAiAssistantResponse({ lessonId: lessonData.id, userQuestion });
+            const dataToSend = { 
+                lessonId: lessonData.id, 
+                userQuestion: userQuestion 
+            };
+            const result = await getAiAssistantResponse(dataToSend);
             if (result.error) throw new Error(result.error);
             thinkingBubble.querySelector('div').innerHTML = result.answer.replace(/\n/g, '<br>');
         } catch (error) {
@@ -311,7 +327,6 @@ function renderAIAssistantChat(lessonData, container) {
         }
     });
 }
-
 function renderProfessorChat(lessonData, container) {
     container.innerHTML = `
         <h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-6 text-center">Konzultace k lekci</h2>
@@ -370,7 +385,6 @@ function renderProfessorChat(lessonData, container) {
         }
     });
 }
-
 function renderVideo(videoUrl, container) {
     let videoId = null;
     try {
@@ -386,7 +400,6 @@ function renderVideo(videoUrl, container) {
         container.innerHTML = `<p class="text-red-500 text-center font-semibold p-8">Vložená URL adresa videa není platná.</p>`;
     }
 }
-
 function renderPresentation(presentationData, container) {
     if (!presentationData || !Array.isArray(presentationData.slides) || presentationData.slides.length === 0) {
         container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádná prezentace.</p>`; return;
@@ -404,7 +417,6 @@ function renderPresentation(presentationData, container) {
     };
     render();
 }
-
 function renderQuiz(quizData, container) {
     if (!quizData || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
         container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný kvíz.</p>`; return;
@@ -441,13 +453,64 @@ function renderQuiz(quizData, container) {
         summaryEl.classList.remove('hidden');
     });
 }
-
 function renderTest(testData, container) { renderQuiz(testData, container); }
 
 function renderPodcast(postData, container) {
     if (!postData || !Array.isArray(postData.episodes) || postData.episodes.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný podcast.</p>`; return;
+        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný podcast.</p>`; 
+        return;
     };
-    const episodesHtml = postData.episodes.map((episode, i) => `<div class="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-6"><h4 class="font-bold text-xl text-slate-800">${i + 1}. ${episode.title}</h4><div class="mt-4 text-slate-600 prose">${episode.script.replace(/\n/g, '<br>')}</div></div>`).join('');
-    container.innerHTML = `<h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-6 text-center">Podcast & Materiály</h2>${episodesHtml}`;
+
+    const episodesHtml = postData.episodes.map((episode, i) => `
+        <div class="podcast-episode bg-slate-50 p-4 rounded-lg border border-slate-200 mb-4 transition-all duration-300">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <button class="play-pause-btn text-3xl text-green-700 hover:text-green-600" data-episode-index="${i}">▶️</button>
+                    <div>
+                        <h4 class="font-bold text-md text-slate-800">${i + 1}. ${episode.title}</h4>
+                        <p class="text-sm text-slate-500">Klikněte pro přehrání</p>
+                    </div>
+                </div>
+            </div>
+            <div class="script-content hidden mt-4 text-slate-600 prose prose-sm">${episode.script.replace(/\n/g, '<br>')}</div>
+        </div>
+    `).join('');
+
+    container.innerHTML = `<h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-6 text-center">Podcast & Materiály</h2><div id="podcast-list">${episodesHtml}</div>`;
+
+    const podcastList = document.getElementById('podcast-list');
+    
+    podcastList.addEventListener('click', (e) => {
+        const playBtn = e.target.closest('.play-pause-btn');
+        if (!playBtn) return;
+
+        const episodeIndex = parseInt(playBtn.dataset.episodeIndex, 10);
+        const episodeData = postData.episodes[episodeIndex];
+        const episodeElement = playBtn.closest('.podcast-episode');
+
+        if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            document.querySelectorAll('.podcast-episode').forEach(el => {
+                if (el !== episodeElement || playBtn.textContent === '⏹️') {
+                    el.classList.remove('bg-green-100', 'border-green-300');
+                    el.querySelector('.play-pause-btn').textContent = '▶️';
+                }
+            });
+            
+            if (playBtn.textContent === '⏹️') return;
+        }
+
+        const utterance = new SpeechSynthesisUtterance(episodeData.title + ". " + episodeData.script);
+        utterance.lang = 'cs-CZ';
+
+        utterance.onend = () => {
+            playBtn.textContent = '▶️';
+            episodeElement.classList.remove('bg-green-100', 'border-green-300');
+        };
+        
+        window.speechSynthesis.speak(utterance);
+
+        playBtn.textContent = '⏹️';
+        episodeElement.classList.add('bg-green-100', 'border-green-300');
+    });
 }
