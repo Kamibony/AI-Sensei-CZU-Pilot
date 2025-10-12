@@ -11,6 +11,7 @@ let lessonsData = [];
 const MAIN_COURSE_ID = "main-course"; 
 const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
 let conversationsUnsubscribe = null;
+let studentsUnsubscribe = null; // Nová premenná pre odhlásenie listenera
 
 function getLocalizedDate(offsetDays = 0) {
     const date = new Date();
@@ -85,6 +86,10 @@ function setupProfessorNav() {
 }
 
 async function showProfessorContent(view, lesson = null) {
+    // Odhlásíme listenery z jiných sekcí, aby neběžely zbytečně na pozadí
+    if (conversationsUnsubscribe) { conversationsUnsubscribe(); conversationsUnsubscribe = null; }
+    if (studentsUnsubscribe) { studentsUnsubscribe(); studentsUnsubscribe = null; }
+
     const sidebar = document.getElementById('professor-sidebar');
     const mainArea = document.getElementById('main-content-area');
     if (!sidebar || !mainArea) return;
@@ -131,7 +136,6 @@ function renderLessonLibrary(container) {
     container.querySelectorAll('.lesson-bubble-in-library').forEach(el => {
         el.addEventListener('click', (e) => {
             if (e.target.closest('.delete-lesson-btn')) return;
-            // OPRAVA: Používáme e.target.closest() namiesto chybného e.closest()
             const lessonId = e.target.closest('.lesson-bubble-wrapper').dataset.lessonId;
             const selectedLesson = lessonsData.find(l => l.id === lessonId);
             showProfessorContent('editor', selectedLesson);
@@ -326,27 +330,36 @@ function renderMediaLibrary(container) {
     renderMediaLibraryFiles(MAIN_COURSE_ID);
 }
 
+// --- UPRAVENÁ FUNKCIA: renderStudentsView s `onSnapshot` ---
 async function renderStudentsView(container) {
     container.innerHTML = `
         <header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Správa studentů</h1><p class="text-slate-500 mt-1">Zobrazte seznam zapsaných studentů.</p></header>
         <div class="flex-grow overflow-y-auto p-4 md:p-6"><div id="students-list-container" class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-center p-8 text-slate-400">Načítám studenty...</p></div></div>`;
-    try {
-        const studentsSnapshot = await getDocs(collection(db, 'students'));
-        const students = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const containerEl = document.getElementById('students-list-container');
+    
+    const containerEl = document.getElementById('students-list-container');
+    const q = query(collection(db, 'students'), orderBy("createdAt", "desc"));
+
+    if (studentsUnsubscribe) studentsUnsubscribe();
+
+    studentsUnsubscribe = onSnapshot(q, (querySnapshot) => {
+        const students = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
         if (students.length === 0) {
-            containerEl.innerHTML = '<p class="text-center p-8 text-slate-500">Zatím se nezaregistroval žádný student.</p>'; return;
+            containerEl.innerHTML = '<p class="text-center p-8 text-slate-500">Zatím se nezaregistroval žádný student.</p>';
+            return;
         }
+
         const studentsHtml = students.map(student => `
             <div class="flex items-center justify-between p-3 border-b border-slate-100">
                 <div><p class="text-slate-800 font-semibold">${student.name || 'Jméno neuvedeno'}</p><p class="text-sm text-slate-500">${student.email}</p></div>
                 <span class="text-xs font-medium px-2 py-1 rounded-full ${student.telegramChatId ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-500'}">${student.telegramChatId ? 'Telegram připojen' : 'Telegram nepřipojen'}</span>
             </div>`).join('');
+        
         containerEl.innerHTML = `<div class="divide-y divide-slate-100">${studentsHtml}</div>`;
-    } catch (error) {
+    }, (error) => {
         console.error("Error fetching students:", error);
-        document.getElementById('students-list-container').innerHTML = '<p class="text-center p-8 text-red-500">Nepodařilo se načíst studenty.</p>';
-    }
+        containerEl.innerHTML = '<p class="text-center p-8 text-red-500">Nepodařilo se načíst studenty.</p>';
+    });
 }
 
 async function renderStudentInteractions(container) {
