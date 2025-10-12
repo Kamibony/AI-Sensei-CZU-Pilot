@@ -76,7 +76,7 @@ async function setupStudentNav() {
         nav.innerHTML = `
             <div class="flex flex-col h-full">
                 <div class="flex-grow space-y-4">
-                    <li><button data-view="dashboard" class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></button></li>
+                    <li><button class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Moje studium"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></button></li>
                 </div>
                 <div>
                     <li><button id="logout-btn-nav" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white" title="Odhlásit se"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></button></li>
@@ -88,7 +88,7 @@ async function setupStudentNav() {
     const mobileNav = document.getElementById('mobile-bottom-nav');
     if (mobileNav) {
         mobileNav.innerHTML = `
-            <button data-view="dashboard" class="flex flex-col items-center text-slate-500 p-2">
+            <button class="flex flex-col items-center text-slate-500 p-2 mobile-nav-active">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
                 <span class="text-xs mt-1">Lekce</span>
             </button>
@@ -99,13 +99,9 @@ async function setupStudentNav() {
         `;
         document.getElementById('mobile-logout-btn').addEventListener('click', handleLogout);
     }
-
-    document.querySelectorAll('[data-view="dashboard"]').forEach(btn => {
-        btn.addEventListener('click', () => initStudentDashboard());
-    });
 }
 
-function renderStudentDashboard(container, userData) {
+function renderStudentDashboard(container) {
     let lessonsContent;
     if (lessonsData.length === 0) {
         lessonsContent = `<div class="p-8 text-center text-slate-500">Profesor zatiaľ nenaplánoval žiadne lekcie.</div>`;
@@ -149,10 +145,10 @@ function renderTelegramPage(container, userData) {
     const botUsername = 'ai_sensei_czu_bot';
     let contentHtml = '';
 
-    if (userData.telegramChatId) {
+    if (userData && userData.telegramChatId) {
         const connectionLink = `https://t.me/${botUsername}`;
         contentHtml = `
-            <div class="text-center">
+            <div class="text-center p-4">
                 <div class="text-6xl mb-4">✅</div>
                 <h2 class="text-2xl font-bold text-slate-800">Váš účet je propojen!</h2>
                 <p class="text-slate-500 mt-2 mb-6">Můžete komunikovat s AI Sensei přímo přes Telegram.</p>
@@ -162,10 +158,10 @@ function renderTelegramPage(container, userData) {
                 </a>
             </div>
         `;
-    } else if (userData.telegramConnectionToken) {
+    } else if (userData && userData.telegramConnectionToken) {
         const connectionLink = `https://t.me/${botUsername}?start=${userData.telegramConnectionToken}`;
         contentHtml = `
-             <div class="text-center">
+             <div class="text-center p-4">
                 <div class="text-6xl mb-4">🤖</div>
                 <h2 class="text-2xl font-bold text-slate-800">Propojte se s AI Sensei Botem</h2>
                 <p class="text-slate-500 mt-2 mb-6 max-w-md mx-auto">Získejte přístup k AI asistentovi a dostávejte odpovědi od profesora přímo ve vašem mobilu.</p>
@@ -176,13 +172,11 @@ function renderTelegramPage(container, userData) {
                 <p class="text-xs text-slate-400 mt-4">Po kliknutí budete přesměrováni do aplikace Telegram.</p>
             </div>
         `;
+    } else {
+        contentHtml = `<p class="text-center text-slate-500">Informace o propojení s Telegramem se nepodařilo načíst.</p>`;
     }
 
-    container.innerHTML = `
-        <div class="p-4 sm:p-6 md:p-8 flex items-center justify-center h-full">
-            ${contentHtml}
-        </div>
-    `;
+    container.innerHTML = `<div class="flex items-center justify-center h-full">${contentHtml}</div>`;
 }
 
 export async function initStudentDashboard() {
@@ -206,9 +200,7 @@ export async function initStudentDashboard() {
             
             roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow overflow-y-auto bg-slate-50 h-full"></div>`;
             const studentContentArea = document.getElementById('student-content-area');
-            renderStudentDashboard(studentContentArea, currentUserData);
-
-            document.querySelectorAll('[data-view="dashboard"]').forEach(btn => btn.classList.add('mobile-nav-active', 'bg-green-700', 'text-white'));
+            renderStudentDashboard(studentContentArea);
 
         } else {
             roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Nepodařilo se najít váš studentský profil.</div>`;
@@ -265,7 +257,7 @@ function showStudentLesson(lessonData) {
         if (window.speechSynthesis.speaking) {
             window.speechSynthesis.cancel();
         }
-        initStudentDashboard(); // Upraveno pro správné znovunačtení
+        initStudentDashboard();
     });
     const contentDisplay = document.getElementById('lesson-content-display');
     const tabsMenu = document.getElementById('lesson-tabs-menu');
