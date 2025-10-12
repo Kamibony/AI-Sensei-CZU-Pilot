@@ -21,7 +21,8 @@ export async function callGenerateContent(data) {
 /**
  * Funkcia na volanie AI asistenta pre študentov.
  */
-export async function getAiAssistantResponse(lessonId, userQuestion) {
+// --- KĽÚČOVÁ ZMENA: Funkcia teraz očakáva jeden objekt s vlastnosťami lessonId a userQuestion ---
+export async function getAiAssistantResponse({ lessonId, userQuestion }) {
     try {
         // Voláme správnu backendovú funkciu 'getAiAssistantResponse'
         const result = await getAiAssistantResponseFunction({ lessonId, userQuestion });
