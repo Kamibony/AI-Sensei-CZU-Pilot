@@ -7,7 +7,7 @@ import { functions } from './firebase-init.js';
 import { handleLogout } from './auth.js';
 
 let lessonsData = [];
-let currentUserData = null; // Uložíme si dáta o študentovi
+let currentUserData = null; 
 const sendMessageFromStudent = httpsCallable(functions, 'sendMessageFromStudent');
 
 function promptForStudentName(userId) {
@@ -536,6 +536,22 @@ function renderPodcast(postData, container) {
 
     const podcastList = document.getElementById('podcast-list');
     
+    const speakText = (text, onEndCallback) => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'cs-CZ';
+
+        const voices = window.speechSynthesis.getVoices();
+        const czechVoice = voices.find(voice => voice.lang === 'cs-CZ');
+        if (czechVoice) {
+            utterance.voice = czechVoice;
+        } else {
+            console.warn("Český hlas pro převod textu na řeč nebyl nalezen. Bude použit výchozí hlas prohlížeče.");
+        }
+        
+        utterance.onend = onEndCallback;
+        window.speechSynthesis.speak(utterance);
+    };
+
     podcastList.addEventListener('click', (e) => {
         const playBtn = e.target.closest('.play-pause-btn');
         if (!playBtn) return;
@@ -545,26 +561,22 @@ function renderPodcast(postData, container) {
         const episodeElement = playBtn.closest('.podcast-episode');
 
         if (window.speechSynthesis.speaking) {
-            window.speechSynthesis.cancel();
+            window.speechSynthesis.cancel(); 
+            
+            let wasPlayingThis = playBtn.textContent === '⏹️';
+
             document.querySelectorAll('.podcast-episode').forEach(el => {
-                if (el !== episodeElement || playBtn.textContent === '⏹️') {
-                    el.classList.remove('bg-green-100', 'border-green-300');
-                    el.querySelector('.play-pause-btn').textContent = '▶️';
-                }
+                el.classList.remove('bg-green-100', 'border-green-300');
+                el.querySelector('.play-pause-btn').textContent = '▶️';
             });
             
-            if (playBtn.textContent === '⏹️') return;
+            if (wasPlayingThis) return;
         }
 
-        const utterance = new SpeechSynthesisUtterance(episodeData.title + ". " + episodeData.script);
-        utterance.lang = 'cs-CZ';
-
-        utterance.onend = () => {
+        speakText(episodeData.title + ". " + episodeData.script, () => {
             playBtn.textContent = '▶️';
             episodeElement.classList.remove('bg-green-100', 'border-green-300');
-        };
-        
-        window.speechSynthesis.speak(utterance);
+        });
 
         playBtn.textContent = '⏹️';
         episodeElement.classList.add('bg-green-100', 'border-green-300');
