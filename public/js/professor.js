@@ -131,7 +131,8 @@ function renderLessonLibrary(container) {
     container.querySelectorAll('.lesson-bubble-in-library').forEach(el => {
         el.addEventListener('click', (e) => {
             if (e.target.closest('.delete-lesson-btn')) return;
-            const lessonId = e.closest('.lesson-bubble-wrapper').dataset.lessonId;
+            // OPRAVA: Používáme e.target.closest() namiesto chybného e.closest()
+            const lessonId = e.target.closest('.lesson-bubble-wrapper').dataset.lessonId;
             const selectedLesson = lessonsData.find(l => l.id === lessonId);
             showProfessorContent('editor', selectedLesson);
         });
