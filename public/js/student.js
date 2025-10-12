@@ -7,7 +7,7 @@ import { functions } from './firebase-init.js';
 import { handleLogout } from './auth.js';
 
 let lessonsData = [];
-let currentUserData = null; 
+let currentUserData = null;
 const sendMessageFromStudent = httpsCallable(functions, 'sendMessageFromStudent');
 
 function promptForStudentName(userId) {
@@ -188,9 +188,23 @@ export async function initStudentDashboard() {
         return;
     }
     try {
-        const userDoc = await getDoc(doc(db, "students", user.uid));
+        const userDocRef = doc(db, "students", user.uid);
+        const userDoc = await getDoc(userDocRef);
+
         if (userDoc.exists()) {
             currentUserData = userDoc.data();
+
+            // --- KĽÚČOVÁ OPRAVA: Dogenerovanie chýbajúceho tokenu ---
+            // Ak používateľ nie je pripojený a zároveň nemá token, vygenerujeme mu ho.
+            if (!currentUserData.telegramChatId && !currentUserData.telegramConnectionToken) {
+                console.log("Generating missing Telegram token for user...");
+                const newToken = 'tg_' + Date.now() + Math.random().toString(36).substring(2, 8);
+                await updateDoc(userDocRef, { telegramConnectionToken: newToken });
+                currentUserData.telegramConnectionToken = newToken; // Aktualizujeme aj lokálne dáta
+                showToast('Byl pro vás vygenerován nový odkaz pro Telegram.');
+            }
+            // --- KONIEC OPRAVY ---
+
             if (!currentUserData.name) {
                 promptForStudentName(user.uid);
                 return;
@@ -210,6 +224,7 @@ export async function initStudentDashboard() {
         roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Vyskytla se kritická chyba při načítání vašeho profilu.</div>`;
     }
 }
+
 
 function showStudentLesson(lessonData) {
     if (window.speechSynthesis.speaking) {
