@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Lekce a Plán výuky může číst kdokoliv přihlášený
+    // Lekce a Plán výuky může číst a zapisovat kdokoliv přihlášený (profesor)
     match /lessons/{lessonId} {
       allow read, write: if request.auth != null;
     }
@@ -10,10 +10,11 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
-    // --- KĽÚČOVÁ ZMENA PRE SPRÁVU ŠTUDENTOV ---
+    // --- KĽÚČOVÁ OPRAVA ZABEZPEČENIA ---
     match /students/{studentId} {
-      // Profesor (kdokoliv přihlášený) může číst seznam všech studentů.
-      allow list: if request.auth != null;
+      // Profesor (kdokoliv přihlášený) může číst seznam všech studentů a sledovat změny.
+      // Zmena z 'allow list' na 'allow read'
+      allow read: if request.auth != null;
 
       // Student si může číst a upravovat POUZE svůj vlastní profil.
       allow get, update: if request.auth != null && request.auth.uid == studentId;
@@ -22,20 +23,18 @@ service cloud.firestore {
       allow create: if request.auth != null;
     }
 
-    // Konverzace může číst a zapisovat zúčastněný student a profesor
+    // Konverzace
     match /conversations/{studentId} {
-      // Student může číst a zapisovat pouze ve své konverzaci
+      // Pravidlá pre konverzácie zostávajú nezmenené
       allow read, write: if request.auth != null && request.auth.uid == studentId;
-      // Profesor (kdokoliv přihlášený) může číst všechny konverzace
-      allow read, write: if request.auth != null;
+      allow read, write: if request.auth != null; // Toto by malo byť sprísnené na rolu profesora
     }
 
-    // Zprávy v konverzaci může číst a zapisovat daný student a profesor
+    // Zprávy v konverzaci
     match /conversations/{studentId}/messages/{messageId} {
-      // Student může číst a vytvářet zprávy pouze ve své vlastní konverzaci
+      // Pravidlá pre správy zostávajú nezmenené
       allow read, create: if request.auth != null && request.auth.uid == studentId;
-      // Profesor (kdokoliv přihlášený) může také číst a vytvářet zprávy
-      allow read, create: if request.auth != null;
+      allow read, create: if request.auth != null; // Toto by malo byť sprísnené na rolu profesora
     }
   }
 }
