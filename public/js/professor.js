@@ -8,7 +8,7 @@ import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { functions } from './firebase-init.js';
 
 let lessonsData = [];
-const MAIN_COURSE_ID = "main-course"; 
+const MAIN_COURSE_ID = "main-course";
 const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
 let conversationsUnsubscribe = null;
 let studentsUnsubscribe = null; // Nová premenná pre odhlásenie listenera
