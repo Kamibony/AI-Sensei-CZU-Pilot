@@ -4,30 +4,33 @@ service cloud.firestore {
     
     // Lekce a Plán výuky může číst kdokoliv přihlášený
     match /lessons/{lessonId} {
-      allow read: if request.auth != null;
-      // Zapisovat může kdokoliv (pro jednoduchost, ideálně by to byl jen profesor)
-      allow write: if request.auth != null;
+      allow read, write: if request.auth != null;
     }
     match /timeline_events/{eventId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read, write: if request.auth != null;
     }
 
-    // Studenti si mohou číst a upravovat pouze svůj vlastní profil
+    // --- KĽÚČOVÁ ZMENA PRE SPRÁVU ŠTUDENTOV ---
     match /students/{studentId} {
-      allow read, update: if request.auth != null && request.auth.uid == studentId;
+      // Profesor (kdokoliv přihlášený) může číst seznam všech studentů.
+      allow list: if request.auth != null;
+
+      // Student si může číst a upravovat POUZE svůj vlastní profil.
+      allow get, update: if request.auth != null && request.auth.uid == studentId;
+
+      // Vytvořit nový profil (při registraci) může kdokoliv přihlášený.
       allow create: if request.auth != null;
     }
 
-    // --- KLÍČOVÁ ZMĚNA PRO CHAT ---
-    // Konverzace může číst pouze zúčastněný student a profesor
+    // Konverzace může číst a zapisovat zúčastněný student a profesor
     match /conversations/{studentId} {
+      // Student může číst a zapisovat pouze ve své konverzaci
       allow read, write: if request.auth != null && request.auth.uid == studentId;
-      // Profesor (pro jednoduchost kdokoliv přihlášený) může číst všechny konverzace
-      allow read, write: if request.auth != null; // Toto pravidlo umožňuje profesorovi přístup
+      // Profesor (kdokoliv přihlášený) může číst všechny konverzace
+      allow read, write: if request.auth != null;
     }
 
-    // Zprávy v konverzaci může číst a zapisovat pouze daný student a profesor
+    // Zprávy v konverzaci může číst a zapisovat daný student a profesor
     match /conversations/{studentId}/messages/{messageId} {
       // Student může číst a vytvářet zprávy pouze ve své vlastní konverzaci
       allow read, create: if request.auth != null && request.auth.uid == studentId;
