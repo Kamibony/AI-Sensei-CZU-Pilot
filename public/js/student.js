@@ -9,9 +9,10 @@ import { handleLogout } from './auth.js';
 let lessonsData = [];
 let currentUserData = null;
 const sendMessageFromStudent = httpsCallable(functions, 'sendMessageFromStudent');
-const submitQuizResults = httpsCallable(functions, 'submitQuizResults'); // <-- NOVÁ REFERENCIA
+const submitQuizResults = httpsCallable(functions, 'submitQuizResults');
+const submitTestResults = httpsCallable(functions, 'submitTestResults');
 let studentDataUnsubscribe = null;
-let currentLessonId = null; // <-- NOVÁ PREMENNÁ PRE ID LEKCIE
+let currentLessonId = null;
 
 function promptForStudentName(userId) {
     const roleContentWrapper = document.getElementById('role-content-wrapper');
@@ -243,7 +244,7 @@ function showStudentLesson(lessonData) {
         window.speechSynthesis.cancel();
     }
     
-    currentLessonId = lessonData.id; // <-- ULOŽENIE ID AKTUÁLNEJ LEKCIE
+    currentLessonId = lessonData.id;
 
     const studentContentArea = document.getElementById('student-content-area');
     const menuItems = [
@@ -286,7 +287,7 @@ function showStudentLesson(lessonData) {
         if (window.speechSynthesis.speaking) {
             window.speechSynthesis.cancel();
         }
-        currentLessonId = null; // <-- Vynulovanie ID pri návrate
+        currentLessonId = null;
         initStudentDashboard();
     });
     const contentDisplay = document.getElementById('lesson-content-display');
@@ -320,8 +321,8 @@ function renderLessonContent(viewId, lessonData, container) {
         case 'text': container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${lessonData.content || ''}</div>`; break;
         case 'presentation': renderPresentation(lessonData.presentationData, container); break;
         case 'video': renderVideo(lessonData.videoUrl, container); break;
-        case 'quiz': renderQuiz(lessonData, container); break; // Zmena: posielame celé lessonData
-        case 'test': renderTest(lessonData, container); break; // Zmena: posielame celé lessonData
+        case 'quiz': renderQuiz(lessonData, container); break;
+        case 'test': renderTest(lessonData, container); break;
         case 'post': renderPodcast(lessonData.postData, container); break;
         case 'assistant': renderAIAssistantChat(lessonData, container); break;
         case 'consultation': renderProfessorChat(lessonData, container); break;
@@ -384,6 +385,7 @@ function renderAIAssistantChat(lessonData, container) {
         }
     });
 }
+
 function renderProfessorChat(lessonData, container) {
     container.innerHTML = `
         <h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-6 text-center">Konzultace k lekci</h2>
@@ -442,6 +444,7 @@ function renderProfessorChat(lessonData, container) {
         }
     });
 }
+
 function renderVideo(videoUrl, container) {
     let videoId = null;
     try {
@@ -457,6 +460,7 @@ function renderVideo(videoUrl, container) {
         container.innerHTML = `<p class="text-red-500 text-center font-semibold p-8">Vložená URL adresa videa není platná.</p>`;
     }
 }
+
 function renderPresentation(presentationData, container) {
     if (!presentationData || !Array.isArray(presentationData.slides) || presentationData.slides.length === 0) {
         container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádná prezentace.</p>`; return;
@@ -475,7 +479,6 @@ function renderPresentation(presentationData, container) {
     render();
 }
 
-// --- UPRAVENÁ FUNKCIA RENDERQUIZ ---
 function renderQuiz(lessonData, container) {
     const quizData = lessonData.quizData;
     if (!quizData || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
@@ -527,7 +530,6 @@ function renderQuiz(lessonData, container) {
         summaryEl.textContent = `Vaše skóre: ${score} z ${quizData.questions.length}`;
         summaryEl.classList.remove('hidden');
 
-        // Odoslanie výsledkov
         try {
             const resultData = {
                 lessonId: currentLessonId,
@@ -545,10 +547,72 @@ function renderQuiz(lessonData, container) {
     });
 }
 
-function renderTest(lessonData, container) { 
-    // Testy teraz používajú rovnakú logiku ako kvízy
+function renderTest(lessonData, container) {
     const testData = lessonData.testData;
-    renderQuiz({ ...lessonData, quizData: testData, title: lessonData.title || "Test" }, container);
+    if (!testData || !Array.isArray(testData.questions) || testData.questions.length === 0) {
+        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný test.</p>`; return;
+    }
+    const questionsHtml = testData.questions.map((q, index) => {
+        const optionsHtml = (q.options || []).map((option, i) => `<label class="block p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer"><input type="radio" name="question-${index}" value="${i}" class="mr-3"><span>${option}</span></label>`).join('');
+        return `<div class="bg-slate-50 p-4 md:p-6 rounded-lg border border-slate-200 mb-6" data-q-index="${index}"><p class="font-semibold text-base md:text-lg mb-4">${index + 1}. ${q.question_text}</p><div class="space-y-3">${optionsHtml}</div><div class="mt-4 p-3 rounded-lg text-sm hidden result-feedback"></div></div>`;
+    }).join('');
+    container.innerHTML = `<h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-6 text-center">Oficiální Test</h2><form id="test-form">${questionsHtml}</form><div class="text-center mt-6"><button id="check-test-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-700">Vyhodnotit Test</button></div><div id="test-summary" class="hidden mt-8 text-center font-bold text-xl p-4 rounded-lg"></div>`;
+
+    document.getElementById('check-test-btn').addEventListener('click', async (e) => {
+        e.preventDefault();
+        
+        let score = 0;
+        const studentAnswers = [];
+
+        testData.questions.forEach((q, index) => {
+            const qEl = container.querySelector(`[data-q-index="${index}"]`);
+            const feedbackEl = qEl.querySelector('.result-feedback');
+            const selectedRadio = qEl.querySelector('input:checked');
+            
+            const selectedOptionIndex = selectedRadio ? parseInt(selectedRadio.value) : -1;
+            const isCorrect = selectedOptionIndex === q.correct_option_index;
+
+            studentAnswers.push({
+                questionText: q.question_text,
+                selectedOptionIndex: selectedOptionIndex,
+                correctOptionIndex: q.correct_option_index,
+                isCorrect: isCorrect
+            });
+
+            feedbackEl.classList.remove('hidden');
+            if (selectedRadio) {
+                if (isCorrect) {
+                    score++;
+                    feedbackEl.textContent = 'Správně!';
+                    feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700 result-feedback';
+                } else {
+                    feedbackEl.textContent = `Špatně. Správná odpověď: ${q.options[q.correct_option_index]}`;
+                    feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700 result-feedback';
+                }
+            } else {
+                feedbackEl.textContent = 'Nevybrali jste odpověď.';
+                feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-yellow-100 text-yellow-800 result-feedback';
+            }
+        });
+        const summaryEl = document.getElementById('test-summary');
+        summaryEl.textContent = `Vaše skóre: ${score} z ${testData.questions.length}`;
+        summaryEl.classList.remove('hidden');
+
+        try {
+            const resultData = {
+                lessonId: currentLessonId,
+                testTitle: lessonData.title || "Test",
+                score: score,
+                totalQuestions: testData.questions.length,
+                answers: studentAnswers
+            };
+            await submitTestResults(resultData);
+            showToast("Výsledky testu byly uloženy.");
+        } catch (error) {
+            console.error("Error submitting test results:", error);
+            showToast("Chyba při ukládání výsledků testu.", true);
+        }
+    });
 }
 
 function renderPodcast(postData, container) {
