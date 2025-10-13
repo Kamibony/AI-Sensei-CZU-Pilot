@@ -34,14 +34,98 @@ async function createDocumentSelector() {
     }
 }
 
+// --- NOVÁ FUNKCIA NA STIAHNUTIE OBSAHU ---
+function handleDownloadLessonContent() {
+    if (!currentLesson) {
+        showToast("Lekce není načtena, nelze stáhnout obsah.", true);
+        return;
+    }
+
+    let contentString = "";
+    const title = currentLesson.title || "Nová lekce";
+
+    // Pridanie hlavičky
+    contentString += `# ${title}\n`;
+    if (currentLesson.subtitle) {
+        contentString += `## ${currentLesson.subtitle}\n`;
+    }
+    contentString += `\n---\n\n`;
+
+    // Pridanie hlavného textu
+    if (currentLesson.content) {
+        contentString += `### Hlavní text pro studenty\n\n`;
+        contentString += `${currentLesson.content}\n\n---\n\n`;
+    }
+
+    // Pridanie prezentácie
+    if (currentLesson.presentationData && currentLesson.presentationData.slides) {
+        contentString += `### Prezentace\n\n`;
+        currentLesson.presentationData.slides.forEach((slide, index) => {
+            contentString += `**Slide ${index + 1}: ${slide.title}**\n`;
+            (slide.points || []).forEach(point => {
+                contentString += `- ${point}\n`;
+            });
+            contentString += `\n`;
+        });
+        contentString += `---\n\n`;
+    }
+
+    // Pridanie kvízu
+    if (currentLesson.quizData && currentLesson.quizData.questions) {
+        contentString += `### Kvíz\n\n`;
+        currentLesson.quizData.questions.forEach((q, index) => {
+            contentString += `${index + 1}. ${q.question_text}\n`;
+            (q.options || []).forEach((option, i) => {
+                const isCorrect = i === q.correct_option_index ? " (Správně)" : "";
+                contentString += `  - ${option}${isCorrect}\n`;
+            });
+            contentString += `\n`;
+        });
+        contentString += `---\n\n`;
+    }
+
+    // Pridanie testu
+    if (currentLesson.testData && currentLesson.testData.questions) {
+        contentString += `### Test\n\n`;
+        currentLesson.testData.questions.forEach((q, index) => {
+            contentString += `${index + 1}. ${q.question_text}\n`;
+            (q.options || []).forEach((option, i) => {
+                const isCorrect = i === q.correct_option_index ? " (Správně)" : "";
+                contentString += `  - ${option}${isCorrect}\n`;
+            });
+            contentString += `\n`;
+        });
+        contentString += `---\n\n`;
+    }
+    
+    // Vytvorenie a stiahnutie súboru
+    const blob = new Blob([contentString], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast("Obsah lekce byl stažen.");
+}
+
+
 export function renderEditorMenu(container, lesson) {
     currentLesson = lesson;
     container.innerHTML = `
         <header class="p-4 border-b border-slate-200 flex-shrink-0">
             <button id="back-to-timeline-btn" class="flex items-center text-sm text-green-700 hover:underline mb-3">&larr; Zpět na plán výuky</button>
-            <div class="flex items-center space-x-3">
-                <span class="text-3xl">${currentLesson ? currentLesson.icon : '🆕'}</span>
-                <h2 id="editor-lesson-title" class="text-xl font-bold truncate text-slate-800">${currentLesson ? currentLesson.title : 'Vytvořit novou lekci'}</h2>
+            <div class="flex justify-between items-start">
+                <div class="flex items-center space-x-3">
+                    <span class="text-3xl">${currentLesson ? currentLesson.icon : '🆕'}</span>
+                    <h2 id="editor-lesson-title" class="text-xl font-bold truncate text-slate-800">${currentLesson ? currentLesson.title : 'Vytvořit novou lekci'}</h2>
+                </div>
+                <button id="download-lesson-btn" title="Stáhnout obsah lekce" class="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                </button>
             </div>
         </header>
         <div class="flex-grow overflow-y-auto p-2"><nav id="editor-vertical-menu" class="flex flex-col space-y-1"></nav></div>`;
@@ -49,6 +133,9 @@ export function renderEditorMenu(container, lesson) {
     container.querySelector('#back-to-timeline-btn').addEventListener('click', () => {
         window.location.reload();
     });
+
+    // PRIDANIE EVENT LISTENERU PRE NOVÉ TLAČIDLO
+    container.querySelector('#download-lesson-btn').addEventListener('click', handleDownloadLessonContent);
 
     const menuEl = container.querySelector('#editor-vertical-menu');
     const menuItems = [
@@ -89,7 +176,6 @@ export async function showEditorContent(viewId, lesson) {
         </div>
         <div class="bg-white p-6 rounded-2xl shadow-lg">${content}</div>`;
     
-    // --- ZMENA: Funkcia pre zobrazenie uloženého obsahu s tlačidlom na zmazanie ---
     const renderSavedContent = (title, field, renderFn) => {
         const deleteButton = `<button id="delete-content-btn" data-field="${field}" class="px-4 py-2 text-sm font-semibold text-red-700 bg-red-100 rounded-lg hover:bg-red-200 transition-colors flex items-center gap-2">🗑️ Smazat a vytvořit nový</button>`;
         let renderedContent = '<div class="text-center p-8 text-slate-400">Pro tuto sekci zatím není uložen žádný obsah.</div>';
@@ -113,7 +199,6 @@ export async function showEditorContent(viewId, lesson) {
                 </div>`);
             break;
         case 'text':
-             // --- ZMENA: Logika pre zobrazenie uloženého alebo generovacieho pohľadu ---
             if (currentLesson?.content) {
                 contentHTML = renderSavedContent('Text pro studenty', 'content', (data) => `<div class="prose max-w-none">${data.replace(/\n/g, '<br>')}</div>`);
             } else {
@@ -258,7 +343,6 @@ export async function showEditorContent(viewId, lesson) {
 function attachEditorEventListeners(viewId) {
     document.getElementById('save-lesson-btn')?.addEventListener('click', handleSaveLesson);
     
-    // --- ZMENA: Pridaný listener pre nové tlačidlo na mazanie ---
     const deleteBtn = document.getElementById('delete-content-btn');
     if (deleteBtn) {
         deleteBtn.addEventListener('click', () => {
@@ -296,7 +380,6 @@ function attachEditorEventListeners(viewId) {
             if (showPreview(url)) {
                 await handleSaveGeneratedContent(currentLesson, 'videoUrl', url);
             } else if (url.trim() === '') {
-                // Ak vymaže URL a uloží, zmažeme aj video
                 await handleDeleteGeneratedContent('videoUrl', viewId);
             }
         });
@@ -312,17 +395,16 @@ function attachEditorEventListeners(viewId) {
     }
 
     const saveBtn = document.getElementById('save-content-btn');
-    if(saveBtn) { // Listener bude teraz univerzálnejší
+    if(saveBtn) {
         saveBtn.addEventListener('click', () => {
              const outputEl = document.getElementById('generation-output');
-             // Tento handler si uloží obsah, ktorý je v globálnej premennej po generácii
              handleSaveGeneratedContent(currentLesson, saveBtn.dataset.field, window.rawResultForSaving);
         });
     }
 }
 
 async function handleSaveLesson() {
-    // ... (táto funkcia zostáva bez zmeny)
+    // ... (tento kód zostáva bez zmeny)
 }
 
 async function handleGeneration(viewId) {
@@ -368,7 +450,6 @@ async function handleGeneration(viewId) {
             throw new Error(result.error);
         }
         
-        // --- ZMENA: Uložíme si surový výsledok do globálneho okna pre neskoršie uloženie ---
         window.rawResultForSaving = result; 
         
         outputEl.innerHTML = renderGeneratedContent(viewId, result);
@@ -376,7 +457,7 @@ async function handleGeneration(viewId) {
         const saveBtn = document.getElementById('save-content-btn');
         if (saveBtn) {
             const fieldMapping = { 'text': 'content', 'presentation': 'presentationData', 'quiz': 'quizData', 'test': 'testData', 'post': 'postData' };
-            saveBtn.dataset.field = fieldMapping[viewId]; // Priradíme pole pre uloženie
+            saveBtn.dataset.field = fieldMapping[viewId];
             saveBtn.classList.remove('hidden');
         }
 
@@ -389,7 +470,6 @@ async function handleGeneration(viewId) {
     }
 }
 
-
 function renderGeneratedContent(viewId, result) {
     if (!result) {
         return `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě: AI vrátila prázdnou odpověď.</div>`;
@@ -399,7 +479,6 @@ function renderGeneratedContent(viewId, result) {
         switch(viewId) {
             case 'text':
                 if (typeof result.text !== 'string') throw new Error("Odpověď neobsahuje platný text.");
-                // --- ZMENA: Uložíme si aj text do globálnej premennej ---
                 window.rawResultForSaving = result.text;
                 return `<div class="prose max-w-none">${result.text.replace(/\n/g, '<br>')}</div>`;
             case 'presentation':
@@ -425,7 +504,6 @@ function renderGeneratedContent(viewId, result) {
     }
 }
 
-// --- ZMENA: Upravená funkcia pre ukladanie, ktorá po uložení obnoví zobrazenie ---
 async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) {
     const saveBtn = document.getElementById('save-content-btn');
     if (!lesson || !lesson.id) {
@@ -451,7 +529,6 @@ async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) 
         showToast("Obsah byl úspěšně uložen do lekce.");
         if (lesson) lesson[fieldToUpdate] = dataToSave;
         
-        // Obnovenie zobrazenia, aby sa ukázal uložený obsah
         const currentViewId = document.querySelector('.editor-menu-item.bg-green-100').dataset.view;
         showEditorContent(currentViewId, lesson);
 
@@ -465,7 +542,6 @@ async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) 
     }
 }
 
-// --- NOVÁ FUNKCIA: handleDeleteGeneratedContent ---
 async function handleDeleteGeneratedContent(fieldToDelete, viewId) {
     if (!currentLesson || !currentLesson.id) {
         showToast("Lekce není uložena, nelze mazat obsah.", true);
@@ -486,12 +562,10 @@ async function handleDeleteGeneratedContent(fieldToDelete, viewId) {
             [fieldToDelete]: deleteField()
         });
         
-        // Aktualizujeme lokálny objekt
         delete currentLesson[fieldToDelete];
         
         showToast("Obsah byl úspěšně smazán.");
         
-        // Obnovíme zobrazenie, aby sa ukázal formulár na generovanie
         showEditorContent(viewId, currentLesson);
 
     } catch (error) {
