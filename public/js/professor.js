@@ -13,7 +13,6 @@ let currentLessonId = null;
 let lessonsUnsubscribe = null;
 let studentsUnsubscribe = null;
 
-// --- NOVINKA: Definícia farebných šablón pre prezentácie ---
 const presentationThemes = {
     default: { name: 'Základná', bg: 'bg-slate-700', text: 'text-white', slideBg: 'bg-white', btn: 'bg-slate-200' },
     forest: { name: 'Les', bg: 'bg-green-800', text: 'text-white', slideBg: 'bg-green-50', btn: 'bg-green-200' },
@@ -341,13 +340,16 @@ export async function initProfessorDashboard() {
         </div>
     `;
     
-    await setupProfessorNav();
+    // --- OPRAVA: Odovzdanie funkcie showView ako callback ---
+    await setupProfessorNav(showView);
 
     if (lessonsUnsubscribe) lessonsUnsubscribe();
     lessonsUnsubscribe = onSnapshot(query(collection(db, "lessons"), orderBy("title")), (snapshot) => {
         lessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const currentView = document.getElementById('main-nav')?.querySelector('.bg-green-700')?.parentElement.id || 'nav-lessons';
-        if (currentView === 'nav-lessons' && !document.getElementById('lesson-title')) {
+        const activeNavButton = document.querySelector('#main-nav .nav-item.bg-green-700');
+        const currentView = activeNavButton ? activeNavButton.dataset.view : 'lessons';
+
+        if (currentView === 'lessons' && !document.getElementById('lesson-title')) {
              showView('lessons', { lessons });
         }
     });
@@ -355,8 +357,10 @@ export async function initProfessorDashboard() {
     if (studentsUnsubscribe) studentsUnsubscribe();
     studentsUnsubscribe = onSnapshot(collection(db, "students"), (snapshot) => {
         students = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-         const currentView = document.getElementById('main-nav')?.querySelector('.bg-green-700')?.parentElement.id || 'nav-lessons';
-        if (currentView === 'nav-students' && !document.querySelector('.student-profile-view')) {
+        const activeNavButton = document.querySelector('#main-nav .nav-item.bg-green-700');
+        const currentView = activeNavButton ? activeNavButton.dataset.view : 'lessons';
+
+        if (currentView === 'students' && !document.querySelector('.student-profile-view')) {
             showView('students', { students });
         }
     });
