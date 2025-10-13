@@ -499,7 +499,7 @@ async function renderResultsView(container) {
         const [studentsSnapshot, lessonsSnapshot, quizzesSnapshot, testsSnapshot] = await Promise.all([
             getDocs(studentsQuery),
             getDocs(lessonsQuery),
-            getDocs(quizzesSnapshot),
+            getDocs(quizzesQuery),
             getDocs(testsQuery)
         ]);
 
@@ -573,7 +573,6 @@ async function renderResultsView(container) {
         resultsContainer.innerHTML = '<p class="text-center p-8 text-red-500">Při načítání výsledků došlo k chybě.</p>';
     }
 }
-
 
 function renderAnalytics(container) {
     container.className = 'flex-grow bg-slate-50 p-4 sm:p-6 md:p-8 overflow-y-auto view-transition';
