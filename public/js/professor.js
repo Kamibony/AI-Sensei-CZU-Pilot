@@ -1,29 +1,17 @@
-import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { renderEditorMenu } from './editor-handler.js';
 import { showToast } from './utils.js';
-import { db } from './firebase-init.js';
+import { db, functions } from './firebase-init.js';
 import { initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-handler.js';
-import { handleLogout } from './auth.js';
-import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { functions } from './firebase-init.js';
 import { setupProfessorNav } from './views/professor/navigation.js';
 import { renderTimeline } from './views/professor/timeline-view.js';
-import { renderStudentsView } from './views/professor/students-view.js';
-import { renderResultsView } from './views/professor/results-view.js';
-import { renderStudentInteractions } from './views/professor/interactions-view.js';
+import { renderStudentHub } from './views/professor/student-hub-view.js';
 import { renderStudentProfile } from './views/professor/student-profile-view.js';
+import { renderStudentInteractions } from './views/professor/interactions-view.js';
 
 let lessonsData = [];
-const MAIN_COURSE_ID = "main-course"; 
-const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
 let conversationsUnsubscribe = null;
 let studentsUnsubscribe = null;
-
-function getLocalizedDate(offsetDays = 0) {
-    const date = new Date();
-    date.setDate(date.getDate() + offsetDays);
-    return date.toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'numeric' });
-}
 
 async function fetchLessons() {
     try {
@@ -38,62 +26,7 @@ async function fetchLessons() {
     }
 }
 
-export async function initProfessorDashboard() {
-    const roleContentWrapper = document.getElementById('role-content-wrapper');
-    if (!roleContentWrapper) return;
-    
-    roleContentWrapper.innerHTML = `
-        <div id="dashboard-professor" class="w-full flex main-view active h-screen">
-            <aside id="professor-sidebar" class="w-full md:w-96 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 h-full"></aside>
-            <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-screen"></main>
-        </div>
-    `;
-
-    setupProfessorNav(showProfessorContent);
-    document.getElementById('logout-btn-nav').addEventListener('click', handleLogout);
-
-    const lessonsLoaded = await fetchLessons();
-    if (!lessonsLoaded) {
-        document.getElementById('main-content-area').innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat.</div>`;
-        return;
-    }
-    showProfessorContent('timeline');
-}
-
-async function showProfessorContent(view, lesson = null) {
-    if (conversationsUnsubscribe) { conversationsUnsubscribe(); conversationsUnsubscribe = null; }
-    if (studentsUnsubscribe) { studentsUnsubscribe(); studentsUnsubscribe = null; }
-
-    const sidebar = document.getElementById('professor-sidebar');
-    const mainArea = document.getElementById('main-content-area');
-    if (!sidebar || !mainArea) return;
-
-    sidebar.style.display = 'flex';
-    mainArea.style.display = 'flex';
-    mainArea.innerHTML = ''; // Clear main area before rendering new content
-
-    const mapsToStudentProfile = (studentId) => {
-        sidebar.style.display = 'none';
-        mainArea.style.display = 'flex';
-        renderStudentProfile(mainArea, db, studentId, () => showProfessorContent('students'));
-    };
-
-    if (view === 'editor') {
-        renderEditorMenu(sidebar, lesson);
-    } else if (['media', 'students', 'interactions', 'analytics'].includes(view)) {
-        sidebar.style.display = 'none';
-        if (view === 'media') renderMediaLibrary(mainArea);
-        if (view === 'students') studentsUnsubscribe = renderStudentsView(mainArea, db, studentsUnsubscribe, mapsToStudentProfile);
-        if (view === 'interactions') conversationsUnsubscribe = renderStudentInteractions(mainArea, db, functions, conversationsUnsubscribe);
-        if (view === 'analytics') renderAnalytics(mainArea);
-    } else { 
-        await fetchLessons();
-        renderLessonLibrary(sidebar);
-        renderTimeline(mainArea, db, lessonsData);
-    }
-}
-
-function renderLessonLibrary(container) {
+function renderLessonLibrary(container, showProfessorContent) {
     const lessonsHtml = lessonsData.map(lesson => `
         <div class="lesson-bubble-wrapper group p-1" data-lesson-id="${lesson.id}">
             <div class="lesson-bubble-in-library p-4 bg-white border rounded-lg cursor-pointer hover:shadow-md flex justify-between items-center">
@@ -153,67 +86,75 @@ function renderLessonLibrary(container) {
     }
 }
 
+async function showProfessorContent(view, data = null) {
+    if (conversationsUnsubscribe) { conversationsUnsubscribe(); conversationsUnsubscribe = null; }
+    if (studentsUnsubscribe) { studentsUnsubscribe(); studentsUnsubscribe = null; }
 
-function renderMediaLibrary(container) {
-    container.innerHTML = `
-        <header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Knihovna médií</h1><p class="text-slate-500 mt-1">Spravujte všechny soubory pro váš kurz na jednom místě.</p></header>
-        <div class="flex-grow overflow-y-auto p-4 md:p-6"><div class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-slate-500 mb-4">Nahrajte soubory (PDF), které chcete použít pro generování obsahu.</p><div id="course-media-upload-area" class="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center text-slate-500 cursor-pointer hover:bg-green-50 hover:border-green-400"><p class="font-semibold">Přetáhněte soubory sem nebo klikněte pro výběr</p></div><input type="file" id="course-media-file-input" multiple class="hidden" accept=".pdf"><h3 class="font-bold text-slate-700 mt-6 mb-2">Nahrané soubory:</h3><ul id="course-media-list" class="space-y-2"></ul></div></div>`;
-    initializeCourseMediaUpload(MAIN_COURSE_ID);
-    renderMediaLibraryFiles(MAIN_COURSE_ID);
+    const sidebar = document.getElementById('professor-sidebar');
+    const mainArea = document.getElementById('main-content-area');
+    if (!sidebar || !mainArea) return;
+
+    sidebar.style.display = 'flex';
+    mainArea.style.display = 'flex';
+
+    const navigateToStudentProfile = (studentId) => {
+        showProfessorContent('student-profile', studentId);
+    };
+
+    switch (view) {
+        case 'editor':
+            renderEditorMenu(sidebar, data); // data je tu objekt lekcie
+            break;
+        case 'student-profile':
+            sidebar.style.display = 'none';
+            const backToHub = () => showProfessorContent('students');
+            renderStudentProfile(mainArea, db, data, backToHub); // data je tu studentId
+            break;
+        case 'media':
+            sidebar.style.display = 'none';
+            mainArea.innerHTML = `<header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Knihovna médií</h1><p class="text-slate-500 mt-1">Spravujte všechny soubory pro váš kurz na jednom místě.</p></header>
+                                  <div class="flex-grow overflow-y-auto p-4 md:p-6"><div class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-slate-500 mb-4">Nahrajte soubory (PDF), které chcete použít pro generování obsahu.</p><div id="course-media-upload-area" class="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center text-slate-500 cursor-pointer hover:bg-green-50 hover:border-green-400"><p class="font-semibold">Přetáhněte soubory sem nebo klikněte pro výběr</p></div><input type="file" id="course-media-file-input" multiple class="hidden" accept=".pdf"><h3 class="font-bold text-slate-700 mt-6 mb-2">Nahrané soubory:</h3><ul id="course-media-list" class="space-y-2"></ul></div></div>`;
+            initializeCourseMediaUpload("main-course");
+            renderMediaLibraryFiles("main-course");
+            break;
+        case 'students':
+            sidebar.style.display = 'none';
+            studentsUnsubscribe = renderStudentHub(mainArea, db, navigateToStudentProfile);
+            break;
+        case 'interactions':
+            sidebar.style.display = 'none';
+            conversationsUnsubscribe = renderStudentInteractions(mainArea, db, functions, conversationsUnsubscribe);
+            break;
+        case 'analytics':
+             sidebar.style.display = 'none';
+             mainArea.innerHTML = `<p class="p-8">Sekce Analýza se připravuje.</p>`;
+             // TODO: V budúcnosti tu bude volanie renderCourseAnalytics(mainArea, db);
+            break;
+        default: // 'timeline'
+            await fetchLessons();
+            renderLessonLibrary(sidebar, showProfessorContent);
+            await renderTimeline(mainArea, db, lessonsData);
+            break;
+    }
 }
 
-function renderAnalytics(container) {
-    container.className = 'flex-grow bg-slate-50 p-4 sm:p-6 md:p-8 overflow-y-auto view-transition';
-    container.innerHTML = `
-        <h1 class="text-3xl font-extrabold text-slate-800 mb-6">AI Analýza Studentů</h1>
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="bg-white p-6 rounded-2xl shadow-lg col-span-1 lg:col-span-2">
-                <h2 class="font-bold text-lg mb-4">Zapojení studentů v čase</h2>
-                <div class="h-64 bg-slate-50 rounded-lg flex items-end justify-around p-4" id="chart-container"></div>
-            </div>
-             <div class="bg-white p-6 rounded-2xl shadow-lg space-y-4">
-                <h2 class="font-bold text-lg mb-2">Klíčové metriky</h2>
-                <div><p class="text-3xl font-bold text-green-600">88%</p><p class="text-sm text-slate-500">Průměrná úspěšnost v kvízech</p></div>
-                <div><p class="text-3xl font-bold text-amber-800">32 min</p><p class="text-sm text-slate-500">Průměrný čas strávený v lekci</p></div>
-                <div><p class="text-3xl font-bold text-amber-600">3</p><p class="text-sm text-slate-500">Průměrný počet dotazů na AI asistenta</p></div>
-            </div>
+export async function initProfessorDashboard() {
+    const roleContentWrapper = document.getElementById('role-content-wrapper');
+    if (!roleContentWrapper) return;
+    
+    roleContentWrapper.innerHTML = `
+        <div id="dashboard-professor" class="w-full flex main-view active h-screen">
+            <aside id="professor-sidebar" class="w-full md:w-96 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 h-full"></aside>
+            <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-screen"></main>
         </div>
-        <div class="mt-6 bg-white p-6 rounded-2xl shadow-lg">
-             <h2 class="font-bold text-lg mb-4">AI doporučení a postřehy</h2>
-             <div class="space-y-3 text-sm">
-                <p class="p-3 bg-green-50 text-green-800 rounded-lg">✅ <strong>Silná stránka:</strong> Studenti skvěle rozumí konceptu 'vlnově-korpuskulární dualismus'.</p>
-                <p class="p-3 bg-amber-50 text-amber-800 rounded-lg">⚠️ <strong>Příležitost ke zlepšení:</strong> Mnoho studentů se ptá na praktické využití 'principu superpozice'. Doporučujeme přidat konkrétní příklad z reálného světa (např. kvantové počítače).</p>
-                <p class="p-3 bg-blue-50 text-blue-800 rounded-lg">💡 <strong>Návrh na interakci:</strong> Zvažte vytvoření krátkého kvízu zaměřeného specificky na rozdíl mezi klasickou a kvantovou fyzikou pro upevnění znalostí.</p>
-             </div>
-        </div>
-        <div class="mt-6 bg-white p-6 rounded-2xl shadow-lg">
-             <h2 class="font-bold text-lg mb-4">AI Identifikace skupin studentů</h2>
-             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="p-4 bg-green-50 rounded-lg border border-green-200">
-                    <h3 class="font-bold text-green-800">Vynikající studenti (2)</h3>
-                    <p class="text-xs text-green-700 mt-1">Vysoká úspěšnost, rychlé plnění. Zvažte doplňkové materiály pro pokročilé.</p>
-                </div>
-                <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h3 class="font-bold text-blue-800">Aktivní studenti (12)</h3>
-                    <p class="text-xs text-blue-700 mt-1">Průměrné výsledky, ale vysoká aktivita. Potřebují upevnit klíčové pojmy.</p>
-                </div>
-                <div class="p-4 bg-red-50 rounded-lg border border-red-200">
-                    <h3 class="font-bold text-red-800">Studenti vyžadující pozornost (1)</h3>
-                    <p class="text-xs text-red-700 mt-1">Nízká aktivita i úspěšnost. Doporučujeme osobní konzultaci.</p>
-                </div>
-             </div>
-        </div>
-     `;
-     
-    const chartContainer = document.getElementById('chart-container');
-    const chartData = [60, 75, 50, 85, 95, 70, 80];
-    chartData.forEach((height, index) => {
-        const bar = document.createElement('div');
-        bar.className = 'w-8 bg-green-400 rounded-t-lg';
-        bar.title = `Týden ${index + 1}: ${height}%`;
-        bar.style.transition = `height 0.5s ease-out ${index * 0.05}s`;
-        bar.style.height = '0%';
-        chartContainer.appendChild(bar);
-        setTimeout(() => { bar.style.height = `${height}%`; }, 100);
-    });
+    `;
+
+    setupProfessorNav(showProfessorContent);
+
+    const lessonsLoaded = await fetchLessons();
+    if (!lessonsLoaded) {
+        document.getElementById('main-content-area').innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat.</div>`;
+        return;
+    }
+    showProfessorContent('timeline');
 }
