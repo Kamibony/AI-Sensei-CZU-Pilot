@@ -1,8 +1,8 @@
 import { db } from './firebase-init.js';
-import { collection, getDocs, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
-import { setupProfessorNav, showView } from './views/professor/navigation.js';
-import { renderTimeline, setupTimelineView } from './views/professor/timeline-view.js';
+import { setupProfessorNav } from './views/professor/navigation.js';
+import { setupTimelineView } from './views/professor/timeline-view.js';
 import { renderStudentList } from './views/professor/students-view.js';
 import { showStudentProfile } from './views/professor/student-profile-view.js';
 import { initializeTextEditor, getEditorContent } from './editor-handler.js';
@@ -45,6 +45,43 @@ async function fetchStudents() {
     }
 }
 
+// --- NOVÁ, FUNKČNÁ VERZIA `showView` ---
+// Táto funkcia teraz reálne vykresľuje obsah
+async function showView(view, data) {
+    const contentArea = document.getElementById('professor-content-area');
+    if (!contentArea) return;
+
+    contentArea.innerHTML = '<p class="p-8 text-center text-slate-500">Načítám...</p>';
+
+    switch (view) {
+        case 'lessons':
+            renderLessonsList(contentArea);
+            break;
+        case 'students':
+            await fetchStudents();
+            renderStudentList(contentArea, students, (studentId) => {
+                showView('student-profile', studentId);
+            });
+            break;
+        case 'student-profile':
+            // 'data' v tomto prípade je studentId
+            showStudentProfile(contentArea, data, () => showView('students'));
+            break;
+        case 'timeline':
+            await setupTimelineView(contentArea, lessons);
+            break;
+        case 'interactions':
+        case 'analytics':
+        case 'media':
+            contentArea.innerHTML = `<p class="p-8 text-center text-slate-500">Sekce '${view}' se připravuje.</p>`;
+            break;
+        default:
+            renderLessonsList(contentArea);
+            break;
+    }
+}
+
+
 function renderLessonsList(container) {
     const lessonsHtml = lessons.map(lesson => `
         <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6 hover:shadow-xl transition-shadow duration-300">
@@ -58,7 +95,7 @@ function renderLessonsList(container) {
                     <div class="flex items-center">
                          <span class="text-4xl mr-4">${lesson.icon}</span>
                          <button class="edit-lesson-btn p-2 rounded-full hover:bg-slate-100" data-id="${lesson.id}" title="Upravit lekci">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            <svg xmlns="http://www.w.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                          </button>
                     </div>
                 </div>
@@ -226,7 +263,7 @@ async function handleSaveLesson() {
         await setDoc(lessonRef, lessonData, { merge: true });
         showToast("Lekce byla úspěšně uložena.");
         currentLessonId = null;
-        showView('lessons', { lessons });
+        showView('lessons');
     } catch (error) {
         console.error("Error saving lesson:", error);
         showToast("Uložení lekce se nezdařilo.", true);
@@ -241,7 +278,7 @@ async function handleDeleteLesson() {
         await deleteDoc(doc(db, 'lessons', currentLessonId));
         showToast("Lekce byla smazána.");
         currentLessonId = null;
-        showView('lessons', { lessons });
+        showView('lessons');
     } catch (error) {
         console.error("Error deleting lesson:", error);
         showToast("Smazání lekce se nezdařilo.", true);
@@ -308,7 +345,7 @@ function showLessonEditor(lesson) {
     initializeTextEditor('#text-editor-container', lessonData.content || '');
     renderPresentationEditor(lessonData.presentationData, document.getElementById('editor-presentation'));
     
-    document.getElementById('back-to-lessons-btn').addEventListener('click', () => showView('lessons', { lessons }));
+    document.getElementById('back-to-lessons-btn').addEventListener('click', () => showView('lessons'));
     document.getElementById('save-lesson-btn').addEventListener('click', handleSaveLesson);
     if (lesson) {
         document.getElementById('delete-lesson-btn').addEventListener('click', handleDeleteLesson);
@@ -336,11 +373,11 @@ export async function initProfessorDashboard() {
     roleContentWrapper.innerHTML = `
         <div class="flex-grow flex">
             <div id="professor-content-area" class="flex-grow overflow-y-auto bg-slate-50">
-                </div>
+            </div>
         </div>
     `;
     
-    // --- OPRAVA: Odovzdanie funkcie showView ako callback ---
+    // Odovzdáme novú, funkčnú `showView` do navigačného modulu
     await setupProfessorNav(showView);
 
     if (lessonsUnsubscribe) lessonsUnsubscribe();
@@ -348,9 +385,9 @@ export async function initProfessorDashboard() {
         lessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const activeNavButton = document.querySelector('#main-nav .nav-item.bg-green-700');
         const currentView = activeNavButton ? activeNavButton.dataset.view : 'lessons';
-
+        
         if (currentView === 'lessons' && !document.getElementById('lesson-title')) {
-             showView('lessons', { lessons });
+             showView('lessons');
         }
     });
 
@@ -361,9 +398,10 @@ export async function initProfessorDashboard() {
         const currentView = activeNavButton ? activeNavButton.dataset.view : 'lessons';
 
         if (currentView === 'students' && !document.querySelector('.student-profile-view')) {
-            showView('students', { students });
+            showView('students');
         }
     });
 
-    showView('lessons', { lessons });
+    // Zobrazíme východiskový pohľad po inicializácii
+    showView('lessons');
 }
