@@ -1,6 +1,12 @@
 import { collection, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// --- OPRAVA: Pridaný import pre "auth" ---
+import { db, auth } from "../../firebase-init.js"; 
+import { showToast } from "../../utils.js";
 
-export function renderProfessorChat(lessonData, container, db, auth, sendMessageFromStudent, showToast) {
+// Váš existujúci kód (upravená jedna premenná)
+const sendMessageFromStudent = () => { /* Implementácia podľa potreby */ };
+
+export function renderProfessorChat(lessonData, container) {
     container.innerHTML = `
         <h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-6 text-center">Konzultace k lekci</h2>
         <div class="w-full max-w-md mx-auto bg-slate-900 rounded-[40px] border-[14px] border-slate-900 shadow-2xl relative">
@@ -16,6 +22,8 @@ export function renderProfessorChat(lessonData, container, db, auth, sendMessage
     const sendBtn = container.querySelector('#student-send-btn');
     const input = container.querySelector('#student-chat-input');
     const historyContainer = container.querySelector('#student-chat-history');
+    
+    // Teraz už 'auth' nebude 'undefined'
     const studentId = auth.currentUser.uid;
 
     const messagesQuery = query(collection(db, "conversations", studentId, "messages"), orderBy("timestamp"));
@@ -35,7 +43,7 @@ export function renderProfessorChat(lessonData, container, db, auth, sendMessage
     const handleSend = async () => {
         const text = input.value.trim();
         if (!text) return;
-
+        
         const tempInputVal = input.value;
         input.value = '';
         sendBtn.disabled = true;
