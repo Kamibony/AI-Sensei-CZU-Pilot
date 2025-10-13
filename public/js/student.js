@@ -9,6 +9,7 @@ import { handleLogout } from './auth.js';
 let lessonsData = [];
 let currentUserData = null;
 const sendMessageFromStudent = httpsCallable(functions, 'sendMessageFromStudent');
+let studentDataUnsubscribe = null;
 
 function promptForStudentName(userId) {
     const roleContentWrapper = document.getElementById('role-content-wrapper');
@@ -34,7 +35,6 @@ function promptForStudentName(userId) {
             const studentRef = doc(db, 'students', userId);
             await updateDoc(studentRef, { name: name });
             showToast('Jméno úspěšně uloženo!');
-            await initStudentDashboard();
         } catch (error) {
             console.error("Error saving student name:", error);
             showToast('Nepodařilo se uložit jméno.', true);
@@ -179,7 +179,7 @@ function renderTelegramPage(container, userData) {
     container.innerHTML = `<div class="flex items-center justify-center h-full">${contentHtml}</div>`;
 }
 
-export async function initStudentDashboard() {
+export function initStudentDashboard() {
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
     const user = auth.currentUser;
@@ -187,40 +187,51 @@ export async function initStudentDashboard() {
         roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba: Uživatel není přihlášen.</div>`;
         return;
     }
+
+    if (studentDataUnsubscribe) studentDataUnsubscribe();
+
     try {
         const userDocRef = doc(db, "students", user.uid);
-        const userDoc = await getDoc(userDocRef);
+        
+        studentDataUnsubscribe = onSnapshot(userDocRef, async (userDoc) => {
+            if (userDoc.exists()) {
+                const previousUserData = currentUserData;
+                currentUserData = userDoc.data();
 
-        if (userDoc.exists()) {
-            currentUserData = userDoc.data();
+                if (!currentUserData.telegramChatId && !currentUserData.telegramConnectionToken) {
+                    console.log("Generating missing Telegram token for user...");
+                    const newToken = 'tg_' + Date.now() + Math.random().toString(36).substring(2, 8);
+                    await updateDoc(userDocRef, { telegramConnectionToken: newToken });
+                    currentUserData.telegramConnectionToken = newToken;
+                    showToast('Byl pro vás vygenerován nový odkaz pro Telegram.');
+                }
 
-            // --- KĽÚČOVÁ OPRAVA: Dogenerovanie chýbajúceho tokenu ---
-            // Ak používateľ nie je pripojený a zároveň nemá token, vygenerujeme mu ho.
-            if (!currentUserData.telegramChatId && !currentUserData.telegramConnectionToken) {
-                console.log("Generating missing Telegram token for user...");
-                const newToken = 'tg_' + Date.now() + Math.random().toString(36).substring(2, 8);
-                await updateDoc(userDocRef, { telegramConnectionToken: newToken });
-                currentUserData.telegramConnectionToken = newToken; // Aktualizujeme aj lokálne dáta
-                showToast('Byl pro vás vygenerován nový odkaz pro Telegram.');
+                if (!currentUserData.name) {
+                    promptForStudentName(user.uid);
+                    return;
+                }
+                
+                const isLessonView = !!document.getElementById('lesson-content-display');
+                
+                if (!isLessonView || !previousUserData) {
+                    await setupStudentNav();
+                    await fetchLessons();
+                    roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow overflow-y-auto bg-slate-50 h-full"></div>`;
+                    const studentContentArea = document.getElementById('student-content-area');
+                    renderStudentDashboard(studentContentArea);
+                } else {
+                    const activeTab = document.querySelector('.lesson-menu-item.border-green-700');
+                    if (activeTab && activeTab.dataset.view === 'telegram') {
+                         const contentDisplay = document.getElementById('lesson-content-display');
+                         renderTelegramPage(contentDisplay, currentUserData);
+                    }
+                }
+            } else {
+                roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Nepodařilo se najít váš studentský profil.</div>`;
             }
-            // --- KONIEC OPRAVY ---
-
-            if (!currentUserData.name) {
-                promptForStudentName(user.uid);
-                return;
-            }
-            await setupStudentNav();
-            await fetchLessons();
-            
-            roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow overflow-y-auto bg-slate-50 h-full"></div>`;
-            const studentContentArea = document.getElementById('student-content-area');
-            renderStudentDashboard(studentContentArea);
-
-        } else {
-            roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Nepodařilo se najít váš studentský profil.</div>`;
-        }
+        });
     } catch (error) {
-        console.error("Error initializing student dashboard:", error);
+        console.error("Error initializing student dashboard listener:", error);
         roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Vyskytla se kritická chyba při načítání vašeho profilu.</div>`;
     }
 }
