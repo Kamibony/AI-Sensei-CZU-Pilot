@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, getDoc, query, where, updateDoc, orderBy, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, query, where, updateDoc, orderBy, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { db, auth } from './firebase-init.js';
 import { getAiAssistantResponse } from './gemini-api.js';
@@ -9,7 +9,9 @@ import { handleLogout } from './auth.js';
 let lessonsData = [];
 let currentUserData = null;
 const sendMessageFromStudent = httpsCallable(functions, 'sendMessageFromStudent');
+const submitQuizResults = httpsCallable(functions, 'submitQuizResults'); // <-- NOVÁ REFERENCIA
 let studentDataUnsubscribe = null;
+let currentLessonId = null; // <-- NOVÁ PREMENNÁ PRE ID LEKCIE
 
 function promptForStudentName(userId) {
     const roleContentWrapper = document.getElementById('role-content-wrapper');
@@ -236,11 +238,12 @@ export function initStudentDashboard() {
     }
 }
 
-
 function showStudentLesson(lessonData) {
     if (window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
     }
+    
+    currentLessonId = lessonData.id; // <-- ULOŽENIE ID AKTUÁLNEJ LEKCIE
 
     const studentContentArea = document.getElementById('student-content-area');
     const menuItems = [
@@ -283,6 +286,7 @@ function showStudentLesson(lessonData) {
         if (window.speechSynthesis.speaking) {
             window.speechSynthesis.cancel();
         }
+        currentLessonId = null; // <-- Vynulovanie ID pri návrate
         initStudentDashboard();
     });
     const contentDisplay = document.getElementById('lesson-content-display');
@@ -316,8 +320,8 @@ function renderLessonContent(viewId, lessonData, container) {
         case 'text': container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${lessonData.content || ''}</div>`; break;
         case 'presentation': renderPresentation(lessonData.presentationData, container); break;
         case 'video': renderVideo(lessonData.videoUrl, container); break;
-        case 'quiz': renderQuiz(lessonData.quizData, container); break;
-        case 'test': renderTest(lessonData.testData, container); break;
+        case 'quiz': renderQuiz(lessonData, container); break; // Zmena: posielame celé lessonData
+        case 'test': renderTest(lessonData, container); break; // Zmena: posielame celé lessonData
         case 'post': renderPodcast(lessonData.postData, container); break;
         case 'assistant': renderAIAssistantChat(lessonData, container); break;
         case 'consultation': renderProfessorChat(lessonData, container); break;
@@ -470,7 +474,10 @@ function renderPresentation(presentationData, container) {
     };
     render();
 }
-function renderQuiz(quizData, container) {
+
+// --- UPRAVENÁ FUNKCIA RENDERQUIZ ---
+function renderQuiz(lessonData, container) {
+    const quizData = lessonData.quizData;
     if (!quizData || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
         container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádný kvíz.</p>`; return;
     }
@@ -479,16 +486,31 @@ function renderQuiz(quizData, container) {
         return `<div class="bg-slate-50 p-4 md:p-6 rounded-lg border border-slate-200 mb-6" data-q-index="${index}"><p class="font-semibold text-base md:text-lg mb-4">${index + 1}. ${q.question_text}</p><div class="space-y-3">${optionsHtml}</div><div class="mt-4 p-3 rounded-lg text-sm hidden result-feedback"></div></div>`;
     }).join('');
     container.innerHTML = `<h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-6 text-center">Interaktivní Kvíz</h2><form id="quiz-form">${questionsHtml}</form><div class="text-center mt-6"><button id="check-quiz-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-700">Vyhodnotit</button></div><div id="quiz-summary" class="hidden mt-8 text-center font-bold text-xl p-4 rounded-lg"></div>`;
-    document.getElementById('check-quiz-btn').addEventListener('click', (e) => {
+    
+    document.getElementById('check-quiz-btn').addEventListener('click', async (e) => {
         e.preventDefault();
+        
         let score = 0;
+        const studentAnswers = [];
+
         quizData.questions.forEach((q, index) => {
             const qEl = container.querySelector(`[data-q-index="${index}"]`);
             const feedbackEl = qEl.querySelector('.result-feedback');
-            const selected = qEl.querySelector('input:checked');
+            const selectedRadio = qEl.querySelector('input:checked');
+            
+            const selectedOptionIndex = selectedRadio ? parseInt(selectedRadio.value) : -1;
+            const isCorrect = selectedOptionIndex === q.correct_option_index;
+
+            studentAnswers.push({
+                questionText: q.question_text,
+                selectedOptionIndex: selectedOptionIndex,
+                correctOptionIndex: q.correct_option_index,
+                isCorrect: isCorrect
+            });
+
             feedbackEl.classList.remove('hidden');
-            if (selected) {
-                if (parseInt(selected.value) === q.correct_option_index) {
+            if (selectedRadio) {
+                if (isCorrect) {
                     score++;
                     feedbackEl.textContent = 'Správně!';
                     feedbackEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-100 text-green-700 result-feedback';
@@ -504,9 +526,30 @@ function renderQuiz(quizData, container) {
         const summaryEl = document.getElementById('quiz-summary');
         summaryEl.textContent = `Vaše skóre: ${score} z ${quizData.questions.length}`;
         summaryEl.classList.remove('hidden');
+
+        // Odoslanie výsledkov
+        try {
+            const resultData = {
+                lessonId: currentLessonId,
+                quizTitle: lessonData.title || "Kvíz",
+                score: score,
+                totalQuestions: quizData.questions.length,
+                answers: studentAnswers
+            };
+            await submitQuizResults(resultData);
+            showToast("Výsledky kvízu byly uloženy.");
+        } catch (error) {
+            console.error("Error submitting quiz results:", error);
+            showToast("Chyba při ukládání výsledků kvízu.", true);
+        }
     });
 }
-function renderTest(testData, container) { renderQuiz(testData, container); }
+
+function renderTest(lessonData, container) { 
+    // Testy teraz používajú rovnakú logiku ako kvízy
+    const testData = lessonData.testData;
+    renderQuiz({ ...lessonData, quizData: testData, title: lessonData.title || "Test" }, container);
+}
 
 function renderPodcast(postData, container) {
     if (!postData || !Array.isArray(postData.episodes) || postData.episodes.length === 0) {
