@@ -2,7 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Lekce a Plán výuky může číst a zapisovat kdokoliv přihlášený (profesor)
     match /lessons/{lessonId} {
       allow read, write: if request.auth != null;
     }
@@ -10,31 +9,32 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
-    // --- KĽÚČOVÁ OPRAVA ZABEZPEČENIA ---
     match /students/{studentId} {
-      // Profesor (kdokoliv přihlášený) může číst seznam všech studentů a sledovat změny.
-      // Zmena z 'allow list' na 'allow read'
       allow read: if request.auth != null;
-
-      // Student si může číst a upravovat POUZE svůj vlastní profil.
       allow get, update: if request.auth != null && request.auth.uid == studentId;
-
-      // Vytvořit nový profil (při registraci) může kdokoliv přihlášený.
       allow create: if request.auth != null;
     }
 
-    // Konverzace
     match /conversations/{studentId} {
-      // Pravidlá pre konverzácie zostávajú nezmenené
       allow read, write: if request.auth != null && request.auth.uid == studentId;
-      allow read, write: if request.auth != null; // Toto by malo byť sprísnené na rolu profesora
+      allow read, write: if request.auth != null;
     }
 
-    // Zprávy v konverzaci
     match /conversations/{studentId}/messages/{messageId} {
-      // Pravidlá pre správy zostávajú nezmenené
       allow read, create: if request.auth != null && request.auth.uid == studentId;
-      allow read, create: if request.auth != null; // Toto by malo byť sprísnené na rolu profesora
+      allow read, create: if request.auth != null;
+    }
+
+    // --- NOVÉ PRAVIDLÁ PRE VÝSLEDKY KVÍZOV ---
+    match /quiz_submissions/{submissionId} {
+      // Študent môže vytvoriť záznam, iba ak sa zhoduje jeho ID
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.studentId;
+      
+      // Študent si môže prečítať iba svoje vlastné výsledky
+      allow get: if request.auth != null && request.auth.uid == resource.data.studentId;
+      
+      // Profesor (ktokoľvek prihlásený) môže čítať všetky výsledky
+      allow list, read: if request.auth != null;
     }
   }
 }
