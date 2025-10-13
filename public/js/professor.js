@@ -205,7 +205,7 @@ async function renderTimeline(container) {
     
     timelineEvents.forEach(event => {
         const dayIndex = event.dayIndex || 0;
-        const daySlot = timelineContainer.querySelector(`.day-slot[data-day-index='\${dayIndex}'] .lessons-container`);
+        const daySlot = timelineContainer.querySelector(`.day-slot[data-day-index='${dayIndex}'] .lessons-container`);
         if (daySlot) {
             daySlot.appendChild(renderScheduledEvent(event));
         }
