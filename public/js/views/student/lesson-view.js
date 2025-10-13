@@ -7,7 +7,6 @@ import { renderTest } from './test-view.js';
 import { renderVideo } from './video-view.js';
 import { renderTelegramPage } from './telegram-view.js';
 import { renderOverviewScreen } from './dashboard-view.js';
-// --- OPRAVA: Pridaný import funkcie setCurrentLessonId ---
 import { getCurrentUserData, setCurrentLessonId } from '../../student.js';
 
 
@@ -16,7 +15,8 @@ let currentLessonData = null;
 function renderLessonContent(viewId, container) {
     const userData = getCurrentUserData();
     switch(viewId) {
-        case 'text': container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${currentLessonData.content || ''}</div>`; break;
+        // --- OPRAVA: Pridaná funkcia .replace() na správne zobrazenie odsekov ---
+        case 'text': container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${(currentLessonData.content || '').replace(/\n/g, '<br>')}</div>`; break;
         case 'presentation': renderPresentation(currentLessonData.presentationData, container); break;
         case 'video': renderVideo(currentLessonData.videoUrl, container); break;
         case 'quiz': renderQuiz(currentLessonData, container); break;
@@ -34,9 +34,7 @@ export function showStudentLesson(lessonData) {
         window.speechSynthesis.cancel();
     }
     
-    // Teraz už táto funkcia bude správne fungovať
     setCurrentLessonId(lessonData.id);
-    
     currentLessonData = lessonData;
 
     const studentContentArea = document.getElementById('student-content-area');
