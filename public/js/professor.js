@@ -8,7 +8,7 @@ import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { functions } from './firebase-init.js';
 
 let lessonsData = [];
-const MAIN_COURSE_ID = "main-course"; 
+const MAIN_COURSE_ID = "main-course";
 const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
 let conversationsUnsubscribe = null;
 let studentsUnsubscribe = null; // Nová premenná pre odhlásenie listenera
@@ -62,7 +62,7 @@ function setupProfessorNav() {
                 <div class="flex-grow space-y-4">
                     <li><button data-view="timeline" class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Plán výuky"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button></li>
                     <li><button data-view="media" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Knihovna médií"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></button></li>
-                    <li><button data-view="interactions" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Interakce se studenty"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-l4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button></li>
+                    <li><button data-view="interactions" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Interakce se studenty"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button></li>
                     <li><button data-view="analytics" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Analýza studentů"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6l6.1 2.4-4.2 6L2.5 22"/><path d="M21.5 2v6l-6.1 2.4 4.2 6L21.5 22"/><path d="M12 2v20"/></svg></button></li>
                     <li><button data-view="students" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Správa studentů"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></button></li>
                 </div>
@@ -147,7 +147,7 @@ function renderLessonLibrary(container) {
             e.stopPropagation();
             const lessonId = e.currentTarget.dataset.lessonId;
             const lessonToDelete = lessonsData.find(l => l.id === lessonId);
-            if (confirm(\`Opravdu chcete trvale smazat lekci "${lessonToDelete.title}"? Tato akce je nevratná.\`)) {
+            if (confirm(`Opravdu chcete trvale smazat lekci "${lessonToDelete.title}"? Tato akce je nevratná.\`)) {
                 try {
                     await deleteDoc(doc(db, 'lessons', lessonId));
                     showToast('Lekce byla smazána.');
@@ -262,7 +262,7 @@ async function handleLessonDrop(evt) {
     const dayIndex = evt.to.closest('.day-slot').dataset.dayIndex;
     const tempEl = evt.item;
     
-    tempEl.innerHTML = \`Načítám...\`;
+    tempEl.innerHTML = 'Načítám...';
 
     try {
         const newEventData = {
@@ -330,11 +330,10 @@ function renderMediaLibrary(container) {
     renderMediaLibraryFiles(MAIN_COURSE_ID);
 }
 
-// --- UPRAVENÁ FUNKCIA: renderStudentsView s \`onSnapshot\` ---
 async function renderStudentsView(container) {
-    container.innerHTML = \`
+    container.innerHTML = `
         <header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Správa studentů</h1><p class="text-slate-500 mt-1">Zobrazte seznam zapsaných studentů.</p></header>
-        <div class="flex-grow overflow-y-auto p-4 md:p-6"><div id="students-list-container" class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-center p-8 text-slate-400">Načítám studenty...</p></div></div>\`;
+        <div class="flex-grow overflow-y-auto p-4 md:p-6"><div id="students-list-container" class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-center p-8 text-slate-400">Načítám studenty...</p></div></div>`;
     
     const containerEl = document.getElementById('students-list-container');
     const q = query(collection(db, 'students'), orderBy("createdAt", "desc"));
@@ -349,13 +348,13 @@ async function renderStudentsView(container) {
             return;
         }
 
-        const studentsHtml = students.map(student => \`
+        const studentsHtml = students.map(student => `
             <div class="flex items-center justify-between p-3 border-b border-slate-100">
                 <div><p class="text-slate-800 font-semibold">${student.name || 'Jméno neuvedeno'}</p><p class="text-sm text-slate-500">${student.email}</p></div>
                 <span class="text-xs font-medium px-2 py-1 rounded-full ${student.telegramChatId ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-500'}">${student.telegramChatId ? 'Telegram připojen' : 'Telegram nepřipojen'}</span>
-            </div>\`).join('');
+            </div>`).join('');
         
-        containerEl.innerHTML = \`<div class="divide-y divide-slate-100">${studentsHtml}</div>\`;
+        containerEl.innerHTML = `<div class="divide-y divide-slate-100">${studentsHtml}</div>`;
     }, (error) => {
         console.error("Error fetching students:", error);
         containerEl.innerHTML = '<p class="text-center p-8 text-red-500">Nepodařilo se načíst studenty.</p>';
@@ -381,7 +380,7 @@ async function renderStudentInteractions(container) {
     const convQuery = query(collection(db, "conversations"), orderBy("lastMessageTimestamp", "desc"));
     conversationsUnsubscribe = onSnapshot(convQuery, (querySnapshot) => {
         if (querySnapshot.empty) {
-            conversationsListEl.innerHTML = \`<p class="p-4 text-slate-400">Zatím zde nejsou žádné konverzace.</p>\`;
+            conversationsListEl.innerHTML = `<p class="p-4 text-slate-400">Zatím zde nejsou žádné konverzace.</p>`;
             return;
         }
         
@@ -389,7 +388,7 @@ async function renderStudentInteractions(container) {
         querySnapshot.forEach((doc) => {
             const conv = doc.data();
             const convEl = document.createElement('div');
-            convEl.className = \`p-4 flex items-center space-x-3 border-b border-slate-100 cursor-pointer hover:bg-slate-50 ${conv.professorHasUnread ? 'bg-green-50' : ''}\`;
+            convEl.className = `p-4 flex items-center space-x-3 border-b border-slate-100 cursor-pointer hover:bg-slate-50 ${conv.professorHasUnread ? 'bg-green-50' : ''}`;
             convEl.dataset.studentId = conv.studentId;
 
             convEl.innerHTML = `
@@ -433,8 +432,8 @@ function renderChatWindow(studentId, studentName) {
             const msg = doc.data();
             const msgEl = document.createElement('div');
             const sender = msg.senderId === 'professor' ? 'prof' : 'student';
-            msgEl.className = \`flex ${sender === 'prof' ? 'justify-end' : 'justify-start'}\`;
-            msgEl.innerHTML = \`<div class="max-w-md p-3 rounded-xl ${sender === 'prof' ? 'bg-green-700 text-white' : 'bg-white shadow-sm'}">${msg.text}</div>\`;
+            msgEl.className = `flex ${sender === 'prof' ? 'justify-end' : 'justify-start'}`;
+            msgEl.innerHTML = `<div class="max-w-md p-3 rounded-xl ${sender === 'prof' ? 'bg-green-700 text-white' : 'bg-white shadow-sm'}">${msg.text}</div>`;
             messagesContainer.appendChild(msgEl);
         });
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -455,7 +454,7 @@ function renderChatWindow(studentId, studentName) {
             chatInput.value = '';
         } catch (error) {
             console.error("Error sending message:", error);
-            showToast(\`Odeslání selhalo: ${error.message}\`, true);
+            showToast(`Odeslání selhalo: ${error.message}`, true);
         } finally {
             chatInput.disabled = false;
             sendBtn.disabled = false;
@@ -524,10 +523,10 @@ function renderAnalytics(container) {
     chartData.forEach((height, index) => {
         const bar = document.createElement('div');
         bar.className = 'w-8 bg-green-400 rounded-t-lg';
-        bar.title = \`Týden ${index + 1}: ${height}%\`;
-        bar.style.transition = \`height 0.5s ease-out ${index * 0.05}s\`;
+        bar.title = `Týden ${index + 1}: ${height}%`;
+        bar.style.transition = `height 0.5s ease-out ${index * 0.05}s`;
         bar.style.height = '0%';
         chartContainer.appendChild(bar);
-        setTimeout(() => { bar.style.height = \`\${height}%\`; }, 100);
+        setTimeout(() => { bar.style.height = `${height}%`; }, 100);
     });
 }
