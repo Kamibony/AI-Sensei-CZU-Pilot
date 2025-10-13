@@ -147,7 +147,7 @@ function renderLessonLibrary(container) {
             e.stopPropagation();
             const lessonId = e.currentTarget.dataset.lessonId;
             const lessonToDelete = lessonsData.find(l => l.id === lessonId);
-            if (confirm(`Opravdu chcete trvale smazat lekci "${lessonToDelete.title}"? Tato akce je nevratná.\`)) {
+            if (confirm(\`Opravdu chcete trvale smazat lekci "${lessonToDelete.title}"? Tato akce je nevratná.\`)) {
                 try {
                     await deleteDoc(doc(db, 'lessons', lessonId));
                     showToast('Lekce byla smazána.');
@@ -173,7 +173,7 @@ function renderLessonLibrary(container) {
 }
 
 async function renderTimeline(container) {
-    container.innerHTML = `
+    container.innerHTML = \`
         <header class="text-center p-6 border-b border-slate-200 bg-white">
             <h1 class="text-3xl font-extrabold text-slate-800">Plán výuky</h1>
             <p class="text-slate-500 mt-1">Naplánujte lekce přetažením z knihovny vlevo.</p>
@@ -181,7 +181,7 @@ async function renderTimeline(container) {
         <div class="flex-grow overflow-y-auto p-4 md:p-6">
             <div id="timeline-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4"></div>
         </div>
-    `;
+    \`;
 
     const timelineContainer = container.querySelector('#timeline-container');
     const q = query(collection(db, 'timeline_events'), orderBy("orderIndex"));
@@ -194,18 +194,18 @@ async function renderTimeline(container) {
         dayWrapper.dataset.dayIndex = i;
         
         const dateStr = getLocalizedDate(i);
-        dayWrapper.innerHTML = `
+        dayWrapper.innerHTML = \`
             <div class="text-center pb-2 mb-2 border-b border-slate-200">
-                <p class="font-bold text-slate-700">${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}</p>
+                <p class="font-bold text-slate-700">\${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}</p>
             </div>
             <div class="lessons-container flex-grow space-y-2"></div>
-        `;
+        \`;
         timelineContainer.appendChild(dayWrapper);
     }
     
     timelineEvents.forEach(event => {
         const dayIndex = event.dayIndex || 0;
-        const daySlot = timelineContainer.querySelector(\`.day-slot[data-day-index='${dayIndex}'] .lessons-container\`);
+        const daySlot = timelineContainer.querySelector(\`.day-slot[data-day-index='\${dayIndex}'] .lessons-container\`);
         if (daySlot) {
             daySlot.appendChild(renderScheduledEvent(event));
         }
@@ -232,14 +232,14 @@ function renderScheduledEvent(event) {
     el.className = 'lesson-bubble p-3 rounded-lg shadow-sm flex items-center justify-between border bg-green-50 text-green-800 border-green-200 cursor-grab';
     el.dataset.eventId = event.id;
     el.dataset.lessonId = event.lessonId;
-    el.innerHTML = `
+    el.innerHTML = \`
         <div class="flex items-center space-x-3 flex-grow">
-            <span class="text-xl">${lesson.icon}</span>
-            <span class="font-semibold text-sm">${lesson.title}</span>
+            <span class="text-xl">\${lesson.icon}</span>
+            <span class="font-semibold text-sm">\${lesson.title}</span>
         </div>
         <button class="delete-event-btn p-1 rounded-full hover:bg-red-200 text-slate-400 hover:text-red-600 transition-colors" title="Odebrat z plánu">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>`;
+        </button>\`;
 
     el.querySelector('.delete-event-btn').addEventListener('click', async () => {
         if (confirm('Opravdu chcete odebrat tuto lekci z plánu?')) {
@@ -323,17 +323,17 @@ async function updateAllOrderIndexes() {
 }
 
 function renderMediaLibrary(container) {
-    container.innerHTML = `
+    container.innerHTML = \`
         <header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Knihovna médií</h1><p class="text-slate-500 mt-1">Spravujte všechny soubory pro váš kurz na jednom místě.</p></header>
-        <div class="flex-grow overflow-y-auto p-4 md:p-6"><div class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-slate-500 mb-4">Nahrajte soubory (PDF), které chcete použít pro generování obsahu.</p><div id="course-media-upload-area" class="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center text-slate-500 cursor-pointer hover:bg-green-50 hover:border-green-400"><p class="font-semibold">Přetáhněte soubory sem nebo klikněte pro výběr</p></div><input type="file" id="course-media-file-input" multiple class="hidden" accept=".pdf"><h3 class="font-bold text-slate-700 mt-6 mb-2">Nahrané soubory:</h3><ul id="course-media-list" class="space-y-2"></ul></div></div>`;
+        <div class="flex-grow overflow-y-auto p-4 md:p-6"><div class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-slate-500 mb-4">Nahrajte soubory (PDF), které chcete použít pro generování obsahu.</p><div id="course-media-upload-area" class="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center text-slate-500 cursor-pointer hover:bg-green-50 hover:border-green-400"><p class="font-semibold">Přetáhněte soubory sem nebo klikněte pro výběr</p></div><input type="file" id="course-media-file-input" multiple class="hidden" accept=".pdf"><h3 class="font-bold text-slate-700 mt-6 mb-2">Nahrané soubory:</h3><ul id="course-media-list" class="space-y-2"></ul></div></div>\`;
     initializeCourseMediaUpload(MAIN_COURSE_ID);
     renderMediaLibraryFiles(MAIN_COURSE_ID);
 }
 
 async function renderStudentsView(container) {
-    container.innerHTML = `
+    container.innerHTML = \`
         <header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Správa studentů</h1><p class="text-slate-500 mt-1">Zobrazte seznam zapsaných studentů.</p></header>
-        <div class="flex-grow overflow-y-auto p-4 md:p-6"><div id="students-list-container" class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-center p-8 text-slate-400">Načítám studenty...</p></div></div>`;
+        <div class="flex-grow overflow-y-auto p-4 md:p-6"><div id="students-list-container" class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-center p-8 text-slate-400">Načítám studenty...</p></div></div>\`;
     
     const containerEl = document.getElementById('students-list-container');
     const q = query(collection(db, 'students'), orderBy("createdAt", "desc"));
@@ -348,13 +348,13 @@ async function renderStudentsView(container) {
             return;
         }
 
-        const studentsHtml = students.map(student => `
+        const studentsHtml = students.map(student => \`
             <div class="flex items-center justify-between p-3 border-b border-slate-100">
-                <div><p class="text-slate-800 font-semibold">${student.name || 'Jméno neuvedeno'}</p><p class="text-sm text-slate-500">${student.email}</p></div>
-                <span class="text-xs font-medium px-2 py-1 rounded-full ${student.telegramChatId ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-500'}">${student.telegramChatId ? 'Telegram připojen' : 'Telegram nepřipojen'}</span>
-            </div>`).join('');
+                <div><p class="text-slate-800 font-semibold">\${student.name || 'Jméno neuvedeno'}</p><p class="text-sm text-slate-500">\${student.email}</p></div>
+                <span class="text-xs font-medium px-2 py-1 rounded-full \${student.telegramChatId ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-500'}">\${student.telegramChatId ? 'Telegram připojen' : 'Telegram nepřipojen'}</span>
+            </div>\`).join('');
         
-        containerEl.innerHTML = `<div class="divide-y divide-slate-100">${studentsHtml}</div>`;
+        containerEl.innerHTML = \`<div class="divide-y divide-slate-100">\${studentsHtml}</div>\`;
     }, (error) => {
         console.error("Error fetching students:", error);
         containerEl.innerHTML = '<p class="text-center p-8 text-red-500">Nepodařilo se načíst studenty.</p>';
@@ -363,7 +363,7 @@ async function renderStudentsView(container) {
 
 async function renderStudentInteractions(container) {
     container.className = 'flex-grow flex h-screen bg-white view-transition';
-    container.innerHTML = `
+    container.innerHTML = \`
         <aside class="w-full md:w-1/3 border-r border-slate-200 flex flex-col">
             <header class="p-4 border-b border-slate-200 flex-shrink-0"><h2 class="font-bold text-slate-800">Konverzace se studenty</h2></header>
             <div id="conversations-list" class="overflow-y-auto"><p class="p-4 text-slate-400">Načítám konverzace...</p></div>
@@ -371,7 +371,7 @@ async function renderStudentInteractions(container) {
         <main id="chat-window" class="w-full md:w-2/3 flex flex-col bg-slate-50">
             <div class="flex-grow flex items-center justify-center text-slate-400">Vyberte konverzaci ze seznamu vlevo</div>
         </main>
-    `;
+    \`;
 
     const conversationsListEl = document.getElementById('conversations-list');
     
@@ -380,7 +380,7 @@ async function renderStudentInteractions(container) {
     const convQuery = query(collection(db, "conversations"), orderBy("lastMessageTimestamp", "desc"));
     conversationsUnsubscribe = onSnapshot(convQuery, (querySnapshot) => {
         if (querySnapshot.empty) {
-            conversationsListEl.innerHTML = `<p class="p-4 text-slate-400">Zatím zde nejsou žádné konverzace.</p>`;
+            conversationsListEl.innerHTML = \`<p class="p-4 text-slate-400">Zatím zde nejsou žádné konverzace.</p>\`;
             return;
         }
         
@@ -388,15 +388,15 @@ async function renderStudentInteractions(container) {
         querySnapshot.forEach((doc) => {
             const conv = doc.data();
             const convEl = document.createElement('div');
-            convEl.className = `p-4 flex items-center space-x-3 border-b border-slate-100 cursor-pointer hover:bg-slate-50 ${conv.professorHasUnread ? 'bg-green-50' : ''}`;
+            convEl.className = \`p-4 flex items-center space-x-3 border-b border-slate-100 cursor-pointer hover:bg-slate-50 \${conv.professorHasUnread ? 'bg-green-50' : ''}\`;
             convEl.dataset.studentId = conv.studentId;
 
-            convEl.innerHTML = `
+            convEl.innerHTML = \`
                 <div>
-                    <p class="font-semibold text-sm text-slate-800">${conv.studentName}</p>
-                    <p class="text-xs ${conv.professorHasUnread ? 'text-green-600 font-bold' : 'text-slate-500'}">${(conv.lastMessage || "").substring(0, 30)}...</p>
+                    <p class="font-semibold text-sm text-slate-800">\${conv.studentName}</p>
+                    <p class="text-xs \${conv.professorHasUnread ? 'text-green-600 font-bold' : 'text-slate-500'}">\${(conv.lastMessage || "").substring(0, 30)}...</p>
                 </div>
-            `;
+            \`;
             convEl.addEventListener('click', () => renderChatWindow(conv.studentId, conv.studentName));
             conversationsListEl.appendChild(convEl);
         });
@@ -405,9 +405,9 @@ async function renderStudentInteractions(container) {
 
 function renderChatWindow(studentId, studentName) {
     const chatWindow = document.getElementById('chat-window');
-    chatWindow.innerHTML = `
+    chatWindow.innerHTML = \`
         <header class="p-4 border-b border-slate-200 flex items-center space-x-3 bg-white flex-shrink-0">
-            <h3 class="font-bold text-slate-800">${studentName}</h3>
+            <h3 class="font-bold text-slate-800">\${studentName}</h3>
         </header>
         <div id="messages-container" class="flex-grow p-4 overflow-y-auto space-y-4">Načítám zprávy...</div>
         <footer class="p-4 bg-white border-t border-slate-200 flex-shrink-0">
@@ -419,7 +419,7 @@ function renderChatWindow(studentId, studentName) {
                 </button>
             </div>
         </footer>
-    `;
+    \`;
 
     updateDoc(doc(db, "conversations", studentId), { professorHasUnread: false });
 
@@ -432,8 +432,8 @@ function renderChatWindow(studentId, studentName) {
             const msg = doc.data();
             const msgEl = document.createElement('div');
             const sender = msg.senderId === 'professor' ? 'prof' : 'student';
-            msgEl.className = `flex ${sender === 'prof' ? 'justify-end' : 'justify-start'}`;
-            msgEl.innerHTML = `<div class="max-w-md p-3 rounded-xl ${sender === 'prof' ? 'bg-green-700 text-white' : 'bg-white shadow-sm'}">${msg.text}</div>`;
+            msgEl.className = \`flex \${sender === 'prof' ? 'justify-end' : 'justify-start'}\`;
+            msgEl.innerHTML = \`<div class="max-w-md p-3 rounded-xl \${sender === 'prof' ? 'bg-green-700 text-white' : 'bg-white shadow-sm'}">\${msg.text}</div>\`;
             messagesContainer.appendChild(msgEl);
         });
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -454,7 +454,7 @@ function renderChatWindow(studentId, studentName) {
             chatInput.value = '';
         } catch (error) {
             console.error("Error sending message:", error);
-            showToast(`Odeslání selhalo: ${error.message}`, true);
+            showToast(\`Odeslání selhalo: \${error.message}\`, true);
         } finally {
             chatInput.disabled = false;
             sendBtn.disabled = false;
@@ -477,7 +477,7 @@ function renderChatWindow(studentId, studentName) {
 
 function renderAnalytics(container) {
     container.className = 'flex-grow bg-slate-50 p-4 sm:p-6 md:p-8 overflow-y-auto view-transition';
-    container.innerHTML = `
+    container.innerHTML = \`
         <h1 class="text-3xl font-extrabold text-slate-800 mb-6">AI Analýza Studentů</h1>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="bg-white p-6 rounded-2xl shadow-lg col-span-1 lg:col-span-2">
@@ -516,17 +516,17 @@ function renderAnalytics(container) {
                 </div>
              </div>
         </div>
-     `;
+     \`;
      
     const chartContainer = document.getElementById('chart-container');
     const chartData = [60, 75, 50, 85, 95, 70, 80];
     chartData.forEach((height, index) => {
         const bar = document.createElement('div');
         bar.className = 'w-8 bg-green-400 rounded-t-lg';
-        bar.title = `Týden ${index + 1}: ${height}%`;
-        bar.style.transition = `height 0.5s ease-out ${index * 0.05}s`;
+        bar.title = \`Týden \${index + 1}: \${height}%\`;
+        bar.style.transition = \`height 0.5s ease-out \${index * 0.05}s\`;
         bar.style.height = '0%';
         chartContainer.appendChild(bar);
-        setTimeout(() => { bar.style.height = `${height}%`; }, 100);
+        setTimeout(() => { bar.style.height = \`\${height}%\`; }, 100);
     });
 }
