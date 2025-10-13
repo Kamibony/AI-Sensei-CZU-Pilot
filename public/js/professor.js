@@ -11,7 +11,7 @@ let lessonsData = [];
 const MAIN_COURSE_ID = "main-course"; 
 const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
 let conversationsUnsubscribe = null;
-let studentsUnsubscribe = null; // Nová premenná pre odhlásenie listenera
+let studentsUnsubscribe = null;
 
 function getLocalizedDate(offsetDays = 0) {
     const date = new Date();
@@ -63,6 +63,7 @@ function setupProfessorNav() {
                     <li><button data-view="timeline" class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Plán výuky"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button></li>
                     <li><button data-view="media" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Knihovna médií"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></button></li>
                     <li><button data-view="interactions" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Interakce se studenty"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button></li>
+                    <li><button data-view="results" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Výsledky studentů"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg></button></li>
                     <li><button data-view="analytics" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Analýza studentů"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6l6.1 2.4-4.2 6L2.5 22"/><path d="M21.5 2v6l-6.1 2.4 4.2 6L21.5 22"/><path d="M12 2v20"/></svg></button></li>
                     <li><button data-view="students" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Správa studentů"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></button></li>
                 </div>
@@ -86,7 +87,6 @@ function setupProfessorNav() {
 }
 
 async function showProfessorContent(view, lesson = null) {
-    // Odhlásíme listenery z jiných sekcí, aby neběžely zbytečně na pozadí
     if (conversationsUnsubscribe) { conversationsUnsubscribe(); conversationsUnsubscribe = null; }
     if (studentsUnsubscribe) { studentsUnsubscribe(); studentsUnsubscribe = null; }
 
@@ -99,12 +99,13 @@ async function showProfessorContent(view, lesson = null) {
 
     if (view === 'editor') {
         renderEditorMenu(sidebar, lesson);
-    } else if (['media', 'students', 'interactions', 'analytics'].includes(view)) {
+    } else if (['media', 'students', 'interactions', 'analytics', 'results'].includes(view)) {
         sidebar.style.display = 'none';
         if (view === 'media') renderMediaLibrary(mainArea);
         if (view === 'students') renderStudentsView(mainArea);
         if (view === 'interactions') renderStudentInteractions(mainArea);
         if (view === 'analytics') renderAnalytics(mainArea);
+        if (view === 'results') renderResultsView(mainArea);
     } else { 
         await fetchLessons();
         renderLessonLibrary(sidebar);
@@ -474,6 +475,105 @@ function renderChatWindow(studentId, studentName) {
         chatInput.value = "AI návrh: Děkuji za Váš dotaz, podívám se na to a dám Vám vědět.";
     });
 }
+
+async function renderResultsView(container) {
+    container.innerHTML = `
+        <header class="text-center p-6 border-b border-slate-200 bg-white">
+            <h1 class="text-3xl font-extrabold text-slate-800">Výsledky studentů</h1>
+            <p class="text-slate-500 mt-1">Přehled všech odevzdaných kvízů a testů.</p>
+        </header>
+        <div class="flex-grow overflow-y-auto p-4 md:p-6">
+            <div id="results-list-container" class="bg-white p-6 rounded-2xl shadow-lg">
+                <p class="text-center p-8 text-slate-400">Načítám výsledky...</p>
+            </div>
+        </div>`;
+
+    const resultsContainer = document.getElementById('results-list-container');
+
+    try {
+        const studentsQuery = query(collection(db, 'students'));
+        const lessonsQuery = query(collection(db, 'lessons'));
+        const quizzesQuery = query(collection(db, 'quiz_submissions'), orderBy("submittedAt", "desc"));
+        const testsQuery = query(collection(db, 'test_submissions'), orderBy("submittedAt", "desc"));
+
+        const [studentsSnapshot, lessonsSnapshot, quizzesSnapshot, testsSnapshot] = await Promise.all([
+            getDocs(studentsQuery),
+            getDocs(lessonsQuery),
+            getDocs(quizzesSnapshot),
+            getDocs(testsQuery)
+        ]);
+
+        const studentsMap = new Map(studentsSnapshot.docs.map(doc => [doc.id, doc.data()]));
+        const lessonsMap = new Map(lessonsSnapshot.docs.map(doc => [doc.id, doc.data()]));
+
+        const quizResults = quizzesSnapshot.docs.map(doc => ({ ...doc.data(), type: 'Kvíz' }));
+        const testResults = testsSnapshot.docs.map(doc => ({ ...doc.data(), type: 'Test' }));
+
+        const allResults = [...quizResults, ...testResults].sort((a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
+
+        if (allResults.length === 0) {
+            resultsContainer.innerHTML = '<p class="text-center p-8 text-slate-500">Zatím nebyly odevzdány žádné kvízy ani testy.</p>';
+            return;
+        }
+
+        const resultsHtml = allResults.map(result => {
+            const student = studentsMap.get(result.studentId);
+            const lesson = lessonsMap.get(result.lessonId);
+            const isTest = result.type === 'Test';
+            const scorePercentage = (result.score / result.totalQuestions) * 100;
+
+            let scoreColor = 'text-slate-600';
+            if (scorePercentage >= 80) scoreColor = 'text-green-600';
+            else if (scorePercentage >= 50) scoreColor = 'text-amber-600';
+            else scoreColor = 'text-red-600';
+
+            return `
+                <tr class="border-b border-slate-100 hover:bg-slate-50">
+                    <td class="p-3">
+                        <p class="font-semibold text-slate-800">${student?.name || 'Neznámý student'}</p>
+                        <p class="text-xs text-slate-500">${student?.email || ''}</p>
+                    </td>
+                    <td class="p-3">
+                        <p class="text-slate-700">${lesson?.title || 'Neznámá lekce'}</p>
+                    </td>
+                    <td class="p-3">
+                        <span class="text-xs font-medium px-2 py-1 rounded-full ${isTest ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}">
+                            ${isTest ? '✅ Test' : '❓ Kvíz'}
+                        </span>
+                    </td>
+                    <td class="p-3 font-bold ${scoreColor}">
+                        ${result.score} / ${result.totalQuestions}
+                    </td>
+                    <td class="p-3 text-sm text-slate-500">
+                        ${result.submittedAt.toDate().toLocaleString('cs-CZ')}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        resultsContainer.innerHTML = `
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="border-b border-slate-200">
+                        <th class="p-3 text-sm font-semibold text-slate-500">Student</th>
+                        <th class="p-3 text-sm font-semibold text-slate-500">Lekce</th>
+                        <th class="p-3 text-sm font-semibold text-slate-500">Typ</th>
+                        <th class="p-3 text-sm font-semibold text-slate-500">Skóre</th>
+                        <th class="p-3 text-sm font-semibold text-slate-500">Odevzdáno</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${resultsHtml}
+                </tbody>
+            </table>
+        `;
+
+    } catch (error) {
+        console.error("Error rendering results view:", error);
+        resultsContainer.innerHTML = '<p class="text-center p-8 text-red-500">Při načítání výsledků došlo k chybě.</p>';
+    }
+}
+
 
 function renderAnalytics(container) {
     container.className = 'flex-grow bg-slate-50 p-4 sm:p-6 md:p-8 overflow-y-auto view-transition';
