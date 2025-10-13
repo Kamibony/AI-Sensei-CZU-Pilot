@@ -5,7 +5,7 @@ import { db, functions } from './firebase-init.js';
 import { initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-handler.js';
 import { setupProfessorNav } from './views/professor/navigation.js';
 import { renderTimeline } from './views/professor/timeline-view.js';
-import { renderStudentHub } from './views/professor/student-hub-view.js';
+import { renderStudentsView } from './views/professor/students-view.js';
 import { renderStudentProfile } from './views/professor/student-profile-view.js';
 import { renderStudentInteractions } from './views/professor/interactions-view.js';
 
@@ -119,7 +119,7 @@ async function showProfessorContent(view, data = null) {
             break;
         case 'students':
             sidebar.style.display = 'none';
-            studentsUnsubscribe = renderStudentHub(mainArea, db, navigateToStudentProfile);
+            studentsUnsubscribe = renderStudentsView(mainArea, db, studentsUnsubscribe, navigateToStudentProfile);
             break;
         case 'interactions':
             sidebar.style.display = 'none';
