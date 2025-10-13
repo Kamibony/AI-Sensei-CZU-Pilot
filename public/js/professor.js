@@ -11,6 +11,7 @@ import { renderTimeline } from './views/professor/timeline-view.js';
 import { renderStudentsView } from './views/professor/students-view.js';
 import { renderResultsView } from './views/professor/results-view.js';
 import { renderStudentInteractions } from './views/professor/interactions-view.js';
+import { renderStudentProfile } from './views/professor/student-profile-view.js';
 
 let lessonsData = [];
 const MAIN_COURSE_ID = "main-course"; 
@@ -69,16 +70,22 @@ async function showProfessorContent(view, lesson = null) {
 
     sidebar.style.display = 'flex';
     mainArea.style.display = 'flex';
+    mainArea.innerHTML = ''; // Clear main area before rendering new content
+
+    const mapsToStudentProfile = (studentId) => {
+        sidebar.style.display = 'none';
+        mainArea.style.display = 'flex';
+        renderStudentProfile(mainArea, db, studentId, () => showProfessorContent('students'));
+    };
 
     if (view === 'editor') {
         renderEditorMenu(sidebar, lesson);
-    } else if (['media', 'students', 'interactions', 'analytics', 'results'].includes(view)) {
+    } else if (['media', 'students', 'interactions', 'analytics'].includes(view)) {
         sidebar.style.display = 'none';
         if (view === 'media') renderMediaLibrary(mainArea);
-        if (view === 'students') studentsUnsubscribe = renderStudentsView(mainArea, db, studentsUnsubscribe);
+        if (view === 'students') studentsUnsubscribe = renderStudentsView(mainArea, db, studentsUnsubscribe, mapsToStudentProfile);
         if (view === 'interactions') conversationsUnsubscribe = renderStudentInteractions(mainArea, db, functions, conversationsUnsubscribe);
         if (view === 'analytics') renderAnalytics(mainArea);
-        if (view === 'results') renderResultsView(mainArea, db);
     } else { 
         await fetchLessons();
         renderLessonLibrary(sidebar);
