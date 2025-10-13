@@ -94,7 +94,6 @@ export const getAiAssistantResponse = onCall({ region: "europe-west1" }, async (
     }
 });
 
-// --- NOVÁ FUNKCIA: sendMessageFromStudent ---
 export const sendMessageFromStudent = onCall({ region: "europe-west1" }, async (request) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
@@ -112,11 +111,7 @@ export const sendMessageFromStudent = onCall({ region: "europe-west1" }, async (
             throw new HttpsError("not-found", "Profil studenta nebyl nalezen.");
         }
         const studentName = studentDoc.data()?.name || "Neznámý student";
-
-        // ID konverzace je ID studenta, aby byla unikátní
         const conversationRef = db.collection("conversations").doc(studentId);
-        
-        // Vytvoří nebo aktualizuje metadata konverzace
         await conversationRef.set({
             studentId: studentId,
             studentName: studentName,
@@ -124,14 +119,11 @@ export const sendMessageFromStudent = onCall({ region: "europe-west1" }, async (
             lastMessageTimestamp: FieldValue.serverTimestamp(),
             professorHasUnread: true,
         }, { merge: true });
-
-        // Přidá novou zprávu do podkolekce
         await conversationRef.collection("messages").add({
             senderId: studentId,
             text: text,
             timestamp: FieldValue.serverTimestamp(),
         });
-
         return { success: true };
     } catch (error) {
         logger.error("Error in sendMessageFromStudent:", error);
@@ -139,48 +131,36 @@ export const sendMessageFromStudent = onCall({ region: "europe-west1" }, async (
     }
 });
 
-// --- UPRAVENÁ FUNKCIA: sendMessageToStudent (teraz od profesora) ---
 export const sendMessageToStudent = onCall({ region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, async (request) => {
     const { studentId, text } = request.data;
     if (!studentId || !text) {
         throw new HttpsError("invalid-argument", "Chybí ID studenta nebo text zprávy.");
     }
-
     try {
         const conversationRef = db.collection("conversations").doc(studentId);
-        
-        // Přidá zprávu od profesora
         await conversationRef.collection("messages").add({
-            senderId: "professor", // Pevně daný identifikátor pro profesora
+            senderId: "professor",
             text: text,
             timestamp: FieldValue.serverTimestamp(),
         });
-
-        // Aktualizuje metadata
         await conversationRef.update({
             lastMessage: text,
             lastMessageTimestamp: FieldValue.serverTimestamp(),
-            professorHasUnread: false, // Profesor právě odpověděl
+            professorHasUnread: false,
         });
-
-        // Odošle notifikáciu do Telegramu
         const studentDoc = await db.collection("students").doc(studentId).get();
         if (studentDoc.exists && studentDoc.data()?.telegramChatId) {
             const chatId = studentDoc.data()?.telegramChatId;
             const notificationText = `*Nová zpráva od profesora:*\n\n${text}`;
             await sendTelegramMessage(chatId, notificationText);
         }
-
         return { success: true };
-
     } catch (error) {
         logger.error("Error sending message to student:", error);
         throw new HttpsError("internal", "Odeslání selhalo.");
     }
 });
 
-
-// --- UPRAVENÁ FUNKCIA: telegramBotWebhook ---
 export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, (req, res) => {
     corsHandler(req, res, async () => {
         if (req.method !== 'POST') {
@@ -198,7 +178,6 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
         const text = message.text;
 
         try {
-            // Spracovanie príkazu /start pre prepojenie účtu
             if (text && text.startsWith("/start")) {
                 const token = text.split(' ')[1];
                 if (token) {
@@ -206,19 +185,21 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
                     const querySnapshot = await q.get();
                     if (!querySnapshot.empty) {
                         const studentDoc = querySnapshot.docs[0];
-                        await studentDoc.ref.update({ telegramChatId: chatId });
-                        await sendTelegramMessage(chatId, "Váš účet byl úspešně prepojený!");
+                        await studentDoc.ref.update({ 
+                            telegramChatId: chatId,
+                            telegramConnectionToken: FieldValue.delete()
+                        });
+                        await sendTelegramMessage(chatId, "✅ Váš účet byl úspěšně propojen! Nyní se můžete ptát AI asistenta na otázky k vaší poslední aktivní lekci.");
                     } else {
-                        await sendTelegramMessage(chatId, "Neplatný nebo expirovaný token.");
+                        await sendTelegramMessage(chatId, "⚠️ Neplatný nebo již použitý propojovací odkaz.");
                     }
                 } else {
-                    await sendTelegramMessage(chatId, "Pro propojení účtu použijte příkaz /start s vaším unikátním tokenem.");
+                    await sendTelegramMessage(chatId, "Vítejte! Pro propojení s vaším účtem AI Sensei, prosím, použijte unikátní odkaz, který najdete v aplikaci v sekci 'Telegram'.");
                 }
                 res.status(200).send("OK");
                 return;
             }
 
-            // Nájdenie študenta podľa chat ID
             const q = db.collection("students").where("telegramChatId", "==", chatId).limit(1);
             const querySnapshot = await q.get();
             if (querySnapshot.empty) {
@@ -227,38 +208,64 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
                 return;
             }
 
-            // Uloženie správy do databázy (namiesto volania AI)
             const studentDoc = querySnapshot.docs[0];
             const studentId = studentDoc.id;
-            const studentName = studentDoc.data()?.name || "Neznámý student";
-            const conversationRef = db.collection("conversations").doc(studentId);
+            const studentData = studentDoc.data();
 
-            await conversationRef.set({
-                studentId: studentId,
-                studentName: studentName,
-                lastMessage: text,
-                lastMessageTimestamp: FieldValue.serverTimestamp(),
-                professorHasUnread: true,
-            }, { merge: true });
+            if (text && text.toLowerCase().startsWith("/profesor ")) {
+                const messageForProfessor = text.substring(10).trim();
+                if (!messageForProfessor) {
+                    await sendTelegramMessage(chatId, "Prosím, zadejte text zprávy pro profesora, např.: /profesor Mám dotaz k hodnocení.");
+                    res.status(200).send("OK");
+                    return;
+                }
 
-            await conversationRef.collection("messages").add({
-                senderId: studentId,
-                text: text,
-                timestamp: FieldValue.serverTimestamp(),
-            });
+                const studentName = studentData.name || "Neznámý student";
+                const conversationRef = db.collection("conversations").doc(studentId);
+                await conversationRef.set({
+                    studentId: studentId,
+                    studentName: studentName,
+                    lastMessage: messageForProfessor,
+                    lastMessageTimestamp: FieldValue.serverTimestamp(),
+                    professorHasUnread: true,
+                }, { merge: true });
+                await conversationRef.collection("messages").add({
+                    senderId: studentId,
+                    text: messageForProfessor,
+                    timestamp: FieldValue.serverTimestamp(),
+                });
+                await sendTelegramMessage(chatId, "Vaše zpráva byla odeslána profesorovi.");
+                res.status(200).send("OK");
+                return;
+            }
 
-            await sendTelegramMessage(chatId, "Vaše zpráva byla odeslána profesorovi.");
+            await sendTelegramMessage(chatId, "🤖 AI Sensei přemýšlí...");
+            
+            let lessonContextPrompt = `Answer the student's question in a helpful and informative way. The user's question is: "${text}"`;
+            const lastLessonId = studentData.lastActiveLessonId;
+
+            if (lastLessonId) {
+                const lessonRef = db.collection("lessons").doc(lastLessonId);
+                const lessonDoc = await lessonRef.get();
+                if (lessonDoc.exists) {
+                    const lessonData = lessonDoc.data();
+                    lessonContextPrompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${text}"`;
+                }
+            }
+            
+            const answer = await GeminiAPI.generateTextFromPrompt(lessonContextPrompt);
+            await sendTelegramMessage(chatId, answer);
             res.status(200).send("OK");
 
         } catch (error) {
             logger.error("Error in Telegram webhook:", error);
-            await sendTelegramMessage(chatId, "Omlouvám se, nastala neočekávaná chyba.");
+            await sendTelegramMessage(chatId, "Omlouvám se, nastala neočekávaná chyba při zpracování vaší zprávy.");
             res.status(500).send("Internal Server Error");
         }
     });
 });
 
-// --- NOVÁ FUNKCIA PRE UKLADANIE VÝSLEDKOV KVÍZU ---
+// --- FUNKCIA PRE UKLADANIE VÝSLEDKOV KVÍZU ---
 export const submitQuizResults = onCall({ region: "europe-west1" }, async (request) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
@@ -284,10 +291,45 @@ export const submitQuizResults = onCall({ region: "europe-west1" }, async (reque
 
         await db.collection("quiz_submissions").add(submission);
 
-        return { success: true, message: "Výsledky byly úspěšně uloženy." };
+        return { success: true, message: "Výsledky kvízu byly úspěšně uloženy." };
 
     } catch (error) {
         logger.error("Error in submitQuizResults:", error);
         throw new HttpsError("internal", "Nepodařilo se uložit výsledky kvízu.");
+    }
+});
+
+// --- NOVÁ, ODDELENÁ FUNKCIA PRE UKLADANIE VÝSLEDKOV TESTU ---
+export const submitTestResults = onCall({ region: "europe-west1" }, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
+    }
+
+    const studentId = request.auth.uid;
+    const { lessonId, testTitle, score, totalQuestions, answers } = request.data;
+
+    if (typeof score === 'undefined' || !lessonId || !answers) {
+        throw new HttpsError("invalid-argument", "Chybí potřebná data pro uložení výsledků testu.");
+    }
+
+    try {
+        const submission = {
+            studentId: studentId,
+            lessonId: lessonId,
+            testTitle: testTitle,
+            score: score,
+            totalQuestions: totalQuestions,
+            answers: answers,
+            submittedAt: FieldValue.serverTimestamp()
+        };
+
+        // Ukladáme do novej, oddelenej kolekcie
+        await db.collection("test_submissions").add(submission);
+
+        return { success: true, message: "Výsledky testu byly úspěšně uloženy." };
+
+    } catch (error) {
+        logger.error("Error in submitTestResults:", error);
+        throw new HttpsError("internal", "Nepodařilo se uložit výsledky testu.");
     }
 });
