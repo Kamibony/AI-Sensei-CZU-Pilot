@@ -1,33 +1,43 @@
+import { renderAIAssistantChat } from './ai-chat-view.js';
+import { renderPodcast } from './podcast-view.js';
 import { renderPresentation } from './presentation-view.js';
-import { renderVideo } from './video-view.js';
+import { renderProfessorChat } from './professor-chat-view.js';
 import { renderQuiz } from './quiz-view.js';
 import { renderTest } from './test-view.js';
-import { renderPodcast } from './podcast-view.js';
-import { renderAIAssistantChat } from './ai-chat-view.js';
-import { renderProfessorChat } from './professor-chat-view.js';
+import { renderVideo } from './video-view.js';
 import { renderTelegramPage } from './telegram-view.js';
+import { renderOverviewScreen } from './dashboard-view.js';
+// --- OPRAVA: Pridaný import funkcie setCurrentLessonId ---
+import { getCurrentUserData, setCurrentLessonId } from '../../student.js';
 
-function renderLessonContent(viewId, lessonData, container, dependencies) {
+
+let currentLessonData = null;
+
+function renderLessonContent(viewId, container) {
+    const userData = getCurrentUserData();
     switch(viewId) {
-        case 'text': container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${lessonData.content || ''}</div>`; break;
-        case 'presentation': renderPresentation(lessonData.presentationData, container); break;
-        case 'video': renderVideo(lessonData.videoUrl, container); break;
-        case 'quiz': renderQuiz(lessonData, container, dependencies.submitQuizResults, dependencies.showToast, dependencies.currentLessonId); break;
-        case 'test': renderTest(lessonData, container, dependencies.submitTestResults, dependencies.showToast, dependencies.currentLessonId); break;
-        case 'post': renderPodcast(lessonData.postData, container); break;
-        case 'assistant': renderAIAssistantChat(lessonData, container); break;
-        case 'consultation': renderProfessorChat(lessonData, container, dependencies.db, dependencies.auth, dependencies.sendMessageFromStudent, dependencies.showToast); break;
-        case 'telegram': renderTelegramPage(container, dependencies.currentUserData); break;
+        case 'text': container.innerHTML = `<div class="prose max-w-none lg:prose-lg">${currentLessonData.content || ''}</div>`; break;
+        case 'presentation': renderPresentation(currentLessonData.presentationData, container); break;
+        case 'video': renderVideo(currentLessonData.videoUrl, container); break;
+        case 'quiz': renderQuiz(currentLessonData, container); break;
+        case 'test': renderTest(currentLessonData, container); break;
+        case 'post': renderPodcast(currentLessonData.postData, container); break;
+        case 'assistant': renderAIAssistantChat(currentLessonData, container); break;
+        case 'consultation': renderProfessorChat(currentLessonData, container); break;
+        case 'telegram': renderTelegramPage(container, userData); break;
         default: container.innerHTML = `<p>Obsah se připravuje.</p>`;
     }
 }
 
-export function showStudentLesson(lessonData, dependencies) {
+export function showStudentLesson(lessonData) {
     if (window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
     }
-
-    dependencies.setCurrentLessonId(lessonData.id);
+    
+    // Teraz už táto funkcia bude správne fungovať
+    setCurrentLessonId(lessonData.id);
+    
+    currentLessonData = lessonData;
 
     const studentContentArea = document.getElementById('student-content-area');
     const menuItems = [
@@ -42,7 +52,7 @@ export function showStudentLesson(lessonData, dependencies) {
         { id: 'telegram', label: 'Telegram', icon: '✈️', available: true }
     ];
     const availableMenuItems = menuItems.filter(item => item.available);
-
+    
     const menuHtml = availableMenuItems.map(item => `
         <a href="#" data-view="${item.id}" class="lesson-menu-item p-3 text-sm font-medium border-b-2 border-transparent text-slate-500 md:flex-1 md:text-center">
             ${item.label}
@@ -56,7 +66,7 @@ export function showStudentLesson(lessonData, dependencies) {
                 <h1 class="text-3xl md:text-4xl font-extrabold text-slate-800 mt-2">${lessonData.title}</h1>
                 <p class="text-lg md:text-xl text-slate-500">${lessonData.subtitle}</p>
             </header>
-
+            
             <div class="border-b border-slate-200 mb-6">
                 <nav class="md:flex md:-mb-px scrollable-tabs" id="lesson-tabs-menu">
                     ${menuHtml}
@@ -66,13 +76,13 @@ export function showStudentLesson(lessonData, dependencies) {
             <main id="lesson-content-display" class="bg-white rounded-2xl shadow-lg p-4 sm:p-6 md:p-8 min-h-[400px]"></main>
         </div>
     `;
-
+    
     document.getElementById('back-to-overview-btn').addEventListener('click', () => {
         if (window.speechSynthesis.speaking) {
             window.speechSynthesis.cancel();
         }
-        dependencies.setCurrentLessonId(null);
-        dependencies.renderOverviewScreen();
+        setCurrentLessonId(null);
+        renderOverviewScreen(); 
     });
 
     const contentDisplay = document.getElementById('lesson-content-display');
@@ -90,7 +100,7 @@ export function showStudentLesson(lessonData, dependencies) {
             });
             item.classList.add('border-green-700', 'text-green-700', 'font-semibold');
             item.classList.remove('border-transparent', 'text-slate-500');
-            renderLessonContent(item.dataset.view, lessonData, contentDisplay, { ...dependencies, currentLessonId: dependencies.getCurrentLessonId() });
+            renderLessonContent(item.dataset.view, contentDisplay);
         });
     });
 
