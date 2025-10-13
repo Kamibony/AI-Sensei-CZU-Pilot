@@ -147,7 +147,7 @@ function renderLessonLibrary(container) {
             e.stopPropagation();
             const lessonId = e.currentTarget.dataset.lessonId;
             const lessonToDelete = lessonsData.find(l => l.id === lessonId);
-            if (confirm(\`Opravdu chcete trvale smazat lekci "${lessonToDelete.title}"? Tato akce je nevratná.\`)) {
+            if (confirm(`Opravdu chcete trvale smazat lekci "${lessonToDelete.title}"? Tato akce je nevratná.\`)) {
                 try {
                     await deleteDoc(doc(db, 'lessons', lessonId));
                     showToast('Lekce byla smazána.');
@@ -205,7 +205,7 @@ async function renderTimeline(container) {
     
     timelineEvents.forEach(event => {
         const dayIndex = event.dayIndex || 0;
-        const daySlot = timelineContainer.querySelector(\`.day-slot[data-day-index='\${dayIndex}'] .lessons-container\`);
+        const daySlot = timelineContainer.querySelector(`.day-slot[data-day-index='\${dayIndex}'] .lessons-container`);
         if (daySlot) {
             daySlot.appendChild(renderScheduledEvent(event));
         }
