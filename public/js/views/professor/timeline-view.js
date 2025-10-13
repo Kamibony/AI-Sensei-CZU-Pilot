@@ -1,5 +1,5 @@
 import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from '../../utils.js'; // <-- OPRAVENÁ CESTA
+import { showToast } from '../../utils.js';
 
 function getLocalizedDate(offsetDays = 0) {
     const date = new Date();
