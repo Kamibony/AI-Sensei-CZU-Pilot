@@ -1,6 +1,6 @@
 import { collection, doc, updateDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { showToast } from './utils.js';
+import { showToast } from '../../utils.js'; // <-- OPRAVENÁ CESTA
 
 function renderChatWindow(studentId, studentName, db, functions) {
     const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
