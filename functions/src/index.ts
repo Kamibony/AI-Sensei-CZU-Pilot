@@ -31,7 +31,6 @@ async function sendTelegramMessage(chatId: number, text: string) {
 
 // ZJEDNOTENÁ FUNKCIA PRE VŠETKY AI OPERÁCIE
 export const generateContent = onCall({ region: "europe-west1" }, async (request) => {
-    // ... (táto funkcia zostáva bez zmeny)
     const { contentType, promptData, filePaths } = request.data;
     if (!contentType || !promptData) {
         throw new HttpsError("invalid-argument", "Missing contentType or promptData.");
@@ -73,7 +72,6 @@ export const generateContent = onCall({ region: "europe-west1" }, async (request
 });
 
 export const getAiAssistantResponse = onCall({ region: "europe-west1" }, async (request) => {
-    // ... (táto funkcia zostáva bez zmeny)
     const { lessonId, userQuestion } = request.data;
     if (!lessonId || !userQuestion) {
         throw new HttpsError("invalid-argument", "Missing lessonId or userQuestion");
@@ -208,13 +206,16 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
                     const querySnapshot = await q.get();
                     if (!querySnapshot.empty) {
                         const studentDoc = querySnapshot.docs[0];
-                        await studentDoc.ref.update({ telegramChatId: chatId });
-                        await sendTelegramMessage(chatId, "Váš účet byl úspešně prepojený!");
+                        await studentDoc.ref.update({ 
+                            telegramChatId: chatId,
+                            telegramConnectionToken: FieldValue.delete()
+                        });
+                        await sendTelegramMessage(chatId, "✅ Váš účet byl úspěšně propojen! Nyní můžete komunikovat s profesorem a dostávat notifikace.");
                     } else {
-                        await sendTelegramMessage(chatId, "Neplatný nebo expirovaný token.");
+                        await sendTelegramMessage(chatId, "⚠️ Neplatný nebo již použitý propojovací odkaz.");
                     }
                 } else {
-                    await sendTelegramMessage(chatId, "Pro propojení účtu použijte příkaz /start s vaším unikátním tokenem.");
+                    await sendTelegramMessage(chatId, "Vítejte! Pro propojení s vaším účtem AI Sensei, prosím, použijte unikátní odkaz, který najdete v aplikaci v sekci 'Telegram'.");
                 }
                 res.status(200).send("OK");
                 return;
@@ -259,5 +260,3 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
         }
     });
 });
-
-// Stará funkcia sendMessageToProfessor je odstránená
