@@ -1,40 +1,41 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
+    // PROFESSOR-ONLY a ADMIN-ONLY pravidlá
     match /lessons/{lessonId} {
-      allow read, write: if request.auth != null;
-    }
-    match /timeline_events/{eventId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if request.auth.token.role == 'professor' || request.auth.token.role == 'admin';
     }
 
+    match /courses/{courseId} {
+      allow read, write: if request.auth.token.role == 'professor' || request.auth.token.role == 'admin';
+    }
+
+    match /media/{mediaId} {
+        allow read, write: if request.auth.token.role == 'professor' || request.auth.token.role == 'admin';
+    }
+
+    // PRAVIDLÁ PRE ŠTUDENTOV
     match /students/{studentId} {
       allow read: if request.auth != null;
       allow get, update: if request.auth != null && request.auth.uid == studentId;
-      allow create: if request.auth != null;
+      // --- OPRAVENÉ PRAVIDLO ---
+      // Povolí vytvorenie dokumentu len vtedy, ak sa ID používateľa zhoduje s ID dokumentu
+      allow create: if request.auth != null && request.auth.uid == studentId;
     }
 
-    match /conversations/{studentId} {
-      allow read, write: if request.auth != null;
+    match /students/{studentId}/conversations/{conversationId} {
+        allow read, write: if request.auth != null && request.auth.uid == studentId;
+    }
+    
+    match /students/{studentId}/submissions/{submissionId} {
+        allow read, write: if request.auth != null && (request.auth.uid == studentId || request.auth.token.role == 'professor');
     }
 
-    match /conversations/{studentId}/messages/{messageId} {
-      allow read, create: if request.auth != null;
-    }
-
-    // --- PRAVIDLÁ PRE VÝSLEDKY KVÍZOV ---
-    match /quiz_submissions/{submissionId} {
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.studentId;
-      allow get: if request.auth != null && request.auth.uid == resource.data.studentId;
-      allow list, read: if request.auth != null;
-    }
-
-    // --- NOVÉ PRAVIDLÁ PRE VÝSLEDKY TESTOV ---
-    match /test_submissions/{submissionId} {
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.studentId;
-      allow get: if request.auth != null && request.auth.uid == resource.data.studentId;
-      allow list, read: if request.auth != null;
+    // PRAVIDLÁ PRE VŠETKY ROLY
+    match /conversations/{conversationId} {
+        allow read, write: if request.auth != null;
     }
   }
 }
