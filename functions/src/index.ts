@@ -2,7 +2,7 @@
 
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { onCall, HttpsError, setGlobalOptions } from "firebase-functions/v2/https";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import {
     generateJsonFromPrompt,
@@ -11,15 +11,14 @@ import {
     generateJsonFromDocuments,
 } from "./gemini-api.js";
 
-// --- OPRAVA: Týmto prikážeme všetkým funkciám, aby bežali v Európe ---
-setGlobalOptions({ region: "europe-west1" });
-
 initializeApp();
+
+// --- FINÁLNA OPRAVA: Región je nastavený pre každú funkciu individuálne ---
+const europeWest1 = "europe-west1";
 
 // --- ZÁKLADNÉ AI FUNKCIE ---
 
-// Získanie odpovede od AI asistenta v študentskom chate
-export const getAiAssistantResponse = onCall(async (request) => {
+export const getAiAssistantResponse = onCall({ region: europeWest1 }, async (request) => {
     try {
         if (!request.auth) {
             throw new HttpsError("unauthenticated", "Uživatel není přihlášen.");
@@ -54,8 +53,7 @@ export const getAiAssistantResponse = onCall(async (request) => {
 
 // --- FUNKCIE PRE TVORBU OBSAHU LEKCIÍ ---
 
-// Vytvorenie kvízu pre lekciu
-export const createQuizForLesson = onCall(async (request) => {
+export const createQuizForLesson = onCall({ region: europeWest1 }, async (request) => {
     try {
         if (!request.auth) throw new HttpsError("unauthenticated", "Musíte být přihlášeni.");
         const { lessonId, lessonContent } = request.data;
@@ -79,8 +77,7 @@ export const createQuizForLesson = onCall(async (request) => {
     }
 });
 
-// Vytvorenie testu pre lekciu
-export const createTestForLesson = onCall(async (request) => {
+export const createTestForLesson = onCall({ region: europeWest1 }, async (request) => {
     try {
         if (!request.auth) throw new HttpsError("unauthenticated", "Musíte být přihlášeni.");
         const { lessonId, lessonContent } = request.data;
@@ -104,8 +101,7 @@ export const createTestForLesson = onCall(async (request) => {
     }
 });
 
-// Vytvorenie podcastu pre lekciu
-export const createPodcastForLesson = onCall(async (request) => {
+export const createPodcastForLesson = onCall({ region: europeWest1 }, async (request) => {
     try {
         if (!request.auth) throw new HttpsError("unauthenticated", "Musíte být přihlášeni.");
         const { lessonId, lessonContent } = request.data;
@@ -129,8 +125,7 @@ export const createPodcastForLesson = onCall(async (request) => {
     }
 });
 
-// Vytvorenie prezentácie pre lekciu
-export const createPresentationForLesson = onCall(async (request) => {
+export const createPresentationForLesson = onCall({ region: europeWest1 }, async (request) => {
     try {
         if (!request.auth) throw new HttpsError("unauthenticated", "Musíte být přihlášeni.");
         const { lessonId, lessonContent } = request.data;
@@ -154,8 +149,7 @@ export const createPresentationForLesson = onCall(async (request) => {
     }
 });
 
-// Generovanie obsahu lekcie na základe promptu
-export const generateContentForLesson = onCall(async (request) => {
+export const generateContentForLesson = onCall({ region: europeWest1 }, async (request) => {
     try {
         if (!request.auth) throw new HttpsError("unauthenticated", "Musíte být přihlášeni.");
         const { lessonId, prompt } = request.data;
@@ -178,8 +172,7 @@ export const generateContentForLesson = onCall(async (request) => {
 
 // --- NOVÉ FUNKCIE PRE PRÁCU S DOKUMENTMI ---
 
-// Generovanie textu z nahraných dokumentov
-export const generateTextFromCourseDocuments = onCall(async (request) => {
+export const generateTextFromCourseDocuments = onCall({ region: europeWest1 }, async (request) => {
     try {
         if (!request.auth) throw new HttpsError("unauthenticated", "Musíte být přihlášeni.");
         const { filePaths, prompt } = request.data;
@@ -196,8 +189,7 @@ export const generateTextFromCourseDocuments = onCall(async (request) => {
     }
 });
 
-// Generovanie JSON z nahraných dokumentov
-export const generateJsonFromCourseDocuments = onCall(async (request) => {
+export const generateJsonFromCourseDocuments = onCall({ region: europeWest1 }, async (request) => {
     try {
         if (!request.auth) throw new HttpsError("unauthenticated", "Musíte být přihlášeni.");
         const { filePaths, prompt } = request.data;
