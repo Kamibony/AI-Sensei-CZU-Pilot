@@ -1,107 +1,182 @@
-import { storage } from './firebase-init.js';
-import { ref, uploadBytes, deleteObject, listAll, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+// public/js/editor-handler.js (z funkčného commitu)
 
-// --- Funkcie pre správu médií kurzu ---
-export function initializeCourseMediaUpload(courseId) {
-    const uploadArea = document.getElementById('course-media-upload-area');
-    const fileInput = document.getElementById('course-media-file-input');
-    const mediaList = document.getElementById('course-media-list');
+import { showToast } from './utils.js';
+import { db } from './firebase-init.js';
+import { doc, setDoc, serverTimestamp, collection, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { 
+    createQuizForLesson, 
+    createTestForLesson, 
+    createPodcastForLesson, 
+    createPresentationForLesson,
+    generateContentForLesson 
+} from './gemini-api.js';
 
-    if (!uploadArea || !fileInput || !mediaList) {
-        console.error('Required elements for course media upload are missing.');
+let editorInstance = null;
+let currentLesson = null;
+
+export function renderEditorMenu(container, lessonData) {
+    currentLesson = lessonData;
+    const isNewLesson = !lessonData;
+
+    container.innerHTML = `
+        <header class="p-4 border-b border-slate-200 flex-shrink-0">
+            <h2 class="text-xl font-bold text-slate-800">${isNewLesson ? 'Nová lekce' : 'Editor lekce'}</h2>
+        </header>
+        <div class="flex-grow overflow-y-auto p-4 space-y-4">
+            <div>
+                <label for="lesson-title-editor" class="text-sm font-semibold text-slate-600">Název lekce</label>
+                <input type="text" id="lesson-title-editor" class="w-full p-2 border rounded-lg mt-1" value="${lessonData?.title || ''}">
+            </div>
+            <div>
+                <label for="lesson-subtitle-editor" class="text-sm font-semibold text-slate-600">Podtitulek</label>
+                <input type="text" id="lesson-subtitle-editor" class="w-full p-2 border rounded-lg mt-1" value="${lessonData?.subtitle || ''}">
+            </div>
+            <div>
+                <label for="lesson-content-editor" class="text-sm font-semibold text-slate-600">Hlavní obsah</label>
+                <div id="text-editor-instance" class="mt-1"></div>
+            </div>
+
+            <div id="ai-tools-container" class="mt-6 ${isNewLesson ? 'hidden' : ''}">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-lg font-bold text-slate-700">AI Nástroje</h3>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    ${renderAiToolButton('Vytvořit kvíz', 'quiz', 'M13.78 14.22a7 7 0 0 0 9.9-9.9M10.22 9.78a7 7 0 0 0-9.9 9.9')}
+                    ${renderAiToolButton('Vytvořit test', 'test', 'M21.16 7.74l-1.38-1.38A2 2 0 0 0 18.36 6H5.64A2 2 0 0 0 4.22 7.78l1.38 1.38')}
+                    ${renderAiToolButton('Vytvořit podcast', 'podcast', 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2')}
+                    ${renderAiToolButton('Vytvořit prezentaci', 'presentation', 'M13 2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9l-7-7z M12 18H6v-2h6v2zm6-2h-4v-2h4v2zm0-4h-4V8h4v4z')}
+                </div>
+                <div class="mt-4">
+                    <label for="ai-prompt" class="text-sm font-semibold text-slate-600">Vytvoriť text z promtu</label>
+                    <textarea id="ai-prompt" class="w-full p-2 border rounded-lg mt-1" rows="3" placeholder="Napr.: Vytvor text o histórii programovania v 5 odsekoch..."></textarea>
+                    <button id="generate-text-btn" class="w-full mt-2 p-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 text-sm flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path><path d="M5 3v4"></path><path d="M19 17v4"></path><path d="M3 5h4"></path><path d="M17 19h4"></path></svg>
+                        Generovat text
+                    </button>
+                </div>
+            </div>
+        </div>
+        <footer class="p-4 border-t border-slate-200 flex-shrink-0">
+            <button id="save-lesson-btn" class="w-full p-3 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800">Uložit lekci</button>
+        </footer>
+    `;
+
+    initializeTextEditor('#text-editor-instance', lessonData?.content || '');
+    document.getElementById('save-lesson-btn').addEventListener('click', handleSaveLesson);
+
+    if (!isNewLesson) {
+        addAiButtonListeners();
+    }
+}
+
+function renderAiToolButton(text, id, svgPath) {
+    return `
+        <button id="generate-${id}-btn" class="flex flex-col items-center justify-center p-3 bg-white border rounded-lg hover:shadow-md hover:bg-slate-50 transition-all">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500 mb-1"><path d="${svgPath}"></path></svg>
+            <span class="text-sm font-semibold text-slate-700">${text}</span>
+        </button>
+    `;
+}
+
+function addAiButtonListeners() {
+    if (!currentLesson || !currentLesson.id) {
+        showToast("Nejprve uložte lekci, než použijete AI nástroje.", true);
         return;
     }
 
-    const handleFiles = async (files) => {
-        for (const file of files) {
-            await uploadCourseFile(file, courseId);
-        }
-        await renderMediaLibraryFiles(courseId);
-    };
+    document.getElementById('generate-quiz-btn').addEventListener('click', async () => {
+        const lessonContent = getEditorContent();
+        const result = await createQuizForLesson(currentLesson.id, lessonContent);
+        if (result) showToast('Kvíz byl úspěšně vytvořen.');
+    });
 
-    uploadArea.onclick = () => fileInput.click();
-    fileInput.onchange = (e) => handleFiles(e.target.files);
+    document.getElementById('generate-test-btn').addEventListener('click', async () => {
+        const lessonContent = getEditorContent();
+        const result = await createTestForLesson(currentLesson.id, lessonContent);
+        if (result) showToast('Test byl úspěšně vytvořen.');
+    });
 
-    uploadArea.ondragover = (e) => { e.preventDefault(); uploadArea.classList.add('bg-green-100', 'border-green-400'); };
-    uploadArea.ondragleave = () => uploadArea.classList.remove('bg-green-100', 'border-green-400');
-    uploadArea.ondrop = (e) => {
-        e.preventDefault();
-        uploadArea.classList.remove('bg-green-100', 'border-green-400');
-        handleFiles(e.dataTransfer.files);
-    };
-}
+    document.getElementById('generate-podcast-btn').addEventListener('click', async () => {
+        const lessonContent = getEditorContent();
+        const result = await createPodcastForLesson(currentLesson.id, lessonContent);
+        if (result) showToast('Podcast byl úspěšně vytvořen.');
+    });
 
-async function uploadCourseFile(file, courseId) {
-    const mediaList = document.getElementById('course-media-list');
-    const tempId = `file-progress-${Date.now()}`;
-    const progressItem = document.createElement('li');
-    progressItem.id = tempId;
-    progressItem.textContent = `Nahrávám: ${file.name}...`;
-    progressItem.className = 'text-sm text-slate-600 p-2';
-    mediaList.appendChild(progressItem);
-
-    try {
-        const storageRef = ref(storage, `courses/${courseId}/media/${file.name}`);
-        await uploadBytes(storageRef, file);
-        progressItem.remove();
-    } catch (error) {
-        console.error("Chyba při nahrávání souboru kurzu:", error);
-        const errorItem = document.getElementById(tempId);
-        if (errorItem) {
-            errorItem.textContent = `Chyba při nahrávání ${file.name}.`;
-            errorItem.classList.add('text-red-600');
-        }
-    }
-}
-
-export async function renderMediaLibraryFiles(courseId) {
-    const mediaList = document.getElementById('course-media-list');
-    if (!mediaList) return;
-
-    mediaList.innerHTML = '<li class="p-2 text-slate-500">Načítám soubory...</li>';
-
-    try {
-        const listRef = ref(storage, `courses/${courseId}/media`);
-        const res = await listAll(listRef);
-
-        if (res.items.length === 0) {
-            mediaList.innerHTML = '<li class="p-2 text-slate-500">Knihovna médií je prázdná.</li>';
+    document.getElementById('generate-presentation-btn').addEventListener('click', async () => {
+        const lessonContent = getEditorContent();
+        const result = await createPresentationForLesson(currentLesson.id, lessonContent);
+        if (result) showToast('Prezentace byla úspěšně vytvořena.');
+    });
+    
+    document.getElementById('generate-text-btn').addEventListener('click', async () => {
+        const prompt = document.getElementById('ai-prompt').value;
+        if (!prompt) {
+            showToast('Zadejte prosím prompt pro generování textu.', true);
             return;
         }
-
-        mediaList.innerHTML = ''; 
-
-        for (const itemRef of res.items) {
-            const url = await getDownloadURL(itemRef);
-            const listItem = document.createElement('li');
-            listItem.className = 'flex items-center justify-between bg-slate-50 p-3 rounded-lg';
-            listItem.innerHTML = `
-                <a href="${url}" target="_blank" class="text-green-700 hover:underline flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-                    <span>${itemRef.name}</span>
-                </a>
-                <button data-path="${itemRef.fullPath}" class="delete-media-btn text-red-500 hover:underline text-sm">Smazat</button>
-            `;
-            mediaList.appendChild(listItem);
+        const result = await generateContentForLesson(currentLesson.id, prompt);
+        if (result && result.content) {
+            editorInstance.setData(result.content);
+            showToast('Text byl úspěšně vygenerován.');
         }
+    });
+}
 
-        mediaList.querySelectorAll('.delete-media-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const filePath = e.target.dataset.path;
-                if (confirm(`Opravdu chcete smazat soubor: ${filePath.split('/').pop()}?`)) {
-                    try {
-                        await deleteObject(ref(storage, filePath));
-                        await renderMediaLibraryFiles(courseId);
-                    } catch (error) {
-                        console.error("Chyba při mazání souboru z médií:", error);
-                        alert("Nepodařilo se smazat soubor.");
-                    }
-                }
-            });
-        });
-
-    } catch (error) {
-        console.error("Chyba při načítání souborů z knihovny médií:", error);
-        mediaList.innerHTML = '<li class="p-2 text-red-500">Chyba při načítání souborů.</li>';
+async function handleSaveLesson() {
+    const title = document.getElementById('lesson-title-editor').value.trim();
+    if (!title) {
+        showToast("Název lekce je povinný.", true);
+        return;
     }
+
+    const lessonPayload = {
+        title: title,
+        subtitle: document.getElementById('lesson-subtitle-editor').value.trim(),
+        content: getEditorContent(),
+        updatedAt: serverTimestamp(),
+    };
+
+    try {
+        let lessonRef;
+        if (currentLesson && currentLesson.id) {
+            lessonRef = doc(db, 'lessons', currentLesson.id);
+            await updateDoc(lessonRef, lessonPayload);
+        } else {
+            lessonRef = doc(collection(db, 'lessons'));
+            lessonPayload.createdAt = serverTimestamp();
+            await setDoc(lessonRef, lessonPayload);
+            currentLesson = { id: lessonRef.id, ...lessonPayload };
+            document.getElementById('ai-tools-container').classList.remove('hidden');
+            addAiButtonListeners();
+        }
+        showToast(`Lekce "${title}" byla úspěšně uložena.`);
+    } catch (error) {
+        console.error("Error saving lesson:", error);
+        showToast("Chyba při ukládání lekce.", true);
+    }
+}
+
+export function initializeTextEditor(selector, initialContent = '') {
+    const editorEl = document.querySelector(selector);
+    if (!editorEl) return;
+
+    if (editorInstance) {
+        editorInstance.destroy().catch(() => {});
+    }
+
+    ClassicEditor
+        .create(editorEl, {
+            toolbar: ['heading', '|', 'bold', 'italic', 'link', 'bulletedList', 'numberedList', 'blockQuote', '|', 'undo', 'redo']
+        })
+        .then(editor => {
+            editorInstance = editor;
+            editor.setData(initialContent);
+        })
+        .catch(error => {
+            console.error('Error initializing CKEditor:', error);
+        });
+}
+
+export function getEditorContent() {
+    return editorInstance ? editorInstance.getData() : '';
 }
