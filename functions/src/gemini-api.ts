@@ -3,13 +3,17 @@
 import { VertexAI, Part, GenerateContentRequest } from "@google-cloud/vertexai";
 import { auth } from "./firebase-admin-init.js";
 
+// --- FINÁLNA OPRAVA: Explicitné použitie oprávnení z Firebase Admin ---
 const vertex_ai = new VertexAI({
     project: 'ai-sensei-czu-pilot',
     location: 'europe-west1',
-    googleAuth: auth,
+    googleAuth: auth, // Týmto explicitne povieme, aké oprávnenia má použiť
 });
 
+// Váš overený a funkčný model
 const modelName = 'gemini-2.5-pro'; 
+
+// --- OPRAVENÉ FUNKCIE S KONTROLAMI PRE TYPESCRIPT ---
 
 export async function generateTextFromPrompt(prompt: string): Promise<string> {
     try {
@@ -87,7 +91,7 @@ export async function generateJsonFromDocuments(filePaths: string[], prompt: str
             throw new Error("AI nevrátila platnou odpověď pro JSON z dokumentů.");
         }
         const responseText = response.candidates[0].content.parts[0].text;
-        const cleanedJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
+        const cleanedJson = responseText.replace(/```json/g, "").replace(/```g, "").trim();
         return JSON.parse(cleanedJson);
     } catch (error) { // OPRAVA: Zátvorka je na správnom mieste
         console.error("Chyba při generování JSON z dokumentů:", error);
