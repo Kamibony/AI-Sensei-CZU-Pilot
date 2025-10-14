@@ -1,34 +1,41 @@
-import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { functions } from './firebase-init.js';
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { showToast } from './utils.js';
 
-// Odkazy na cloudové funkcie, ktoré reálne existujú na backende
-const generateContentFunction = httpsCallable(functions, 'generateContent');
-const getAiAssistantResponseFunction = httpsCallable(functions, 'getAiAssistantResponse');
-
-/**
- * Univerzálna funkcia na volanie AI na backende pre generovanie obsahu (pre profesora).
- */
-export async function callGenerateContent(data) {
+async function callFirebaseFunction(functionName, data) {
     try {
-        const result = await generateContentFunction(data);
-        return result.data;
+        const func = httpsCallable(functions, functionName);
+        const response = await func(data);
+        return response.data;
     } catch (error) {
-        console.error("Error calling 'generateContent' function:", error);
-        return { error: `Backend Error: ${error.message}` };
+        console.error(`Error calling function ${functionName}:`, error);
+        showToast(`Chyba při volání funkce ${functionName}.`, true);
+        return null;
     }
 }
 
-/**
- * Funkcia na volanie AI asistenta pre študentov.
- */
-// --- KĽÚČOVÁ ZMENA: Funkcia teraz očakáva jeden objekt s vlastnosťami lessonId a userQuestion ---
-export async function getAiAssistantResponse({ lessonId, userQuestion }) {
-    try {
-        // Voláme správnu backendovú funkciu 'getAiAssistantResponse'
-        const result = await getAiAssistantResponseFunction({ lessonId, userQuestion });
-        return result.data;
-    } catch (error) {
-        console.error("Error calling 'getAiAssistantResponse' function:", error);
-        return { error: `Backend Error: ${error.message}` };
-    }
+// --- OPRAVA: Pridané kľúčové slovo "export" pred každú funkciu ---
+export async function createQuizForLesson(lessonId, lessonContent) {
+    showToast('Vytvářím kvíz, počkejte prosím...');
+    return callFirebaseFunction('createQuizForLesson', { lessonId, lessonContent });
+}
+
+export async function createTestForLesson(lessonId, lessonContent) {
+    showToast('Vytvářím test, počkejte prosím...');
+    return callFirebaseFunction('createTestForLesson', { lessonId, lessonContent });
+}
+
+export async function createPodcastForLesson(lessonId, lessonContent) {
+    showToast('Vytvářím podcast, může to trvat déle...');
+    return callFirebaseFunction('createPodcastForLesson', { lessonId, lessonContent });
+}
+
+export async function createPresentationForLesson(lessonId, lessonContent) {
+    showToast('Vytvářím prezentaci, počkejte prosím...');
+    return callFirebaseFunction('createPresentationForLesson', { lessonId, lessonContent });
+}
+
+export async function generateContentForLesson(lessonId, prompt) {
+    showToast('Generuji text na základě vašeho promptu...');
+    return callFirebaseFunction('generateContentForLesson', { lessonId, prompt });
 }
