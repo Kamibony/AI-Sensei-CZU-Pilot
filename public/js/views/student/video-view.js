@@ -1,15 +1,33 @@
-export function renderVideo(videoUrl, container) {
-    let videoId = null;
-    try {
-        const url = new URL(videoUrl);
-        videoId = url.hostname === 'youtu.be' ? url.pathname.slice(1) : url.searchParams.get('v');
-    } catch (e) {
-        const match = videoUrl.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-        videoId = match ? match[1] : null;
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+export async function renderVideo(container, db, lessonId) {
+    if (!lessonId) {
+        container.innerHTML = `<p class="p-4">Nebyla vybrána žádná lekce pro zobrazení videa.</p>`;
+        return;
     }
-    if (videoId) {
-        container.innerHTML = `<h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-6 text-center">Video k lekci</h2><div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-4xl shadow-lg"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe></div>`;
-    } else {
-        container.innerHTML = `<p class="text-red-500 text-center font-semibold p-8">Vložená URL adresa videa není platná.</p>`;
+
+    try {
+        container.innerHTML = `<div class="p-4">Načítání videa...</div>`;
+        const videoDocRef = doc(db, "lessons", lessonId, "activities", "video");
+        const videoDoc = await getDoc(videoDocRef);
+
+        if (!videoDoc.exists()) {
+            container.innerHTML = `<p class="p-4">Pro tuto lekci nebylo nalezeno žádné video.</p>`;
+            return;
+        }
+
+        const videoData = videoDoc.data();
+        container.innerHTML = `
+            <div class="p-6">
+                <h1 class="text-3xl font-bold text-slate-800 mb-4">${videoData.title || 'Video k lekci'}</h1>
+                <div class="aspect-w-16 aspect-h-9 bg-black rounded-lg shadow-md overflow-hidden">
+                    <iframe src="${videoData.videoUrl || ''}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>
+                </div>
+            </div>
+        `;
+
+    } catch (error) {
+        console.error("Chyba při načítání videa:", error);
+        container.innerHTML = `<p class="p-4 text-red-500">Nepodařilo se načíst video.</p>`;
     }
 }
