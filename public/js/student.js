@@ -14,22 +14,6 @@ const submitTestResults = httpsCallable(functions, 'submitTestResults');
 let studentDataUnsubscribe = null;
 let currentLessonId = null;
 
-// --- NOVÁ FUNKCIA na vykreslenie hlavného prehľadu ---
-// Táto funkcia bola vytvorená, aby sa oddelila logika z initStudentDashboard
-// a opravila sa chyba s nereagujúcim tlačidlom "Zpět na přehled".
-async function renderOverviewScreen() {
-    const roleContentWrapper = document.getElementById('role-content-wrapper');
-    if (!roleContentWrapper) return;
-
-    await setupStudentNav();
-    const lessonsFetched = await fetchLessons();
-    if (lessonsFetched) {
-        roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow overflow-y-auto bg-slate-50 h-full"></div>`;
-        const studentContentArea = document.getElementById('student-content-area');
-        renderStudentDashboard(studentContentArea);
-    }
-}
-
 function promptForStudentName(userId) {
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
@@ -189,7 +173,7 @@ function renderTelegramPage(container, userData) {
                     Aktivovat propojení s Telegramem
                 </a>
                 <p class="text-xs text-slate-400 mt-4">Po kliknutí budete přesměrováni do aplikace Telegram.</p>
-            </div>
+             </div>
         `;
     } else {
         contentHtml = `<p class="text-center text-slate-500">Informace o propojení s Telegramem se nepodařilo načíst.</p>`;
@@ -201,12 +185,8 @@ function renderTelegramPage(container, userData) {
 export function initStudentDashboard() {
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
-
-    // --- OPRAVA CHYBY "permission-denied" ---
-    // Skontrolujeme, či je používateľ skutočne prihlásený, skôr ako sa pokúsime pripojiť listener.
     const user = auth.currentUser;
     if (!user) {
-        console.error("initStudentDashboard: Používateľ nie je prihlásený. Listener sa nespustí.");
         roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba: Uživatel není přihlášen.</div>`;
         return;
     }
@@ -236,10 +216,12 @@ export function initStudentDashboard() {
                 
                 const isLessonView = !!document.getElementById('lesson-content-display');
                 
-                // --- OPRAVA CHYBY S TLAČIDLOM ---
-                // Použijeme novú funkciu renderOverviewScreen()
                 if (!isLessonView || !previousUserData) {
-                    renderOverviewScreen();
+                    await setupStudentNav();
+                    await fetchLessons();
+                    roleContentWrapper.innerHTML = `<div id="student-content-area" class="flex-grow overflow-y-auto bg-slate-50 h-full"></div>`;
+                    const studentContentArea = document.getElementById('student-content-area');
+                    renderStudentDashboard(studentContentArea);
                 } else {
                     const activeTab = document.querySelector('.lesson-menu-item.border-green-700');
                     if (activeTab && activeTab.dataset.view === 'telegram') {
@@ -249,12 +231,6 @@ export function initStudentDashboard() {
                 }
             } else {
                 roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Nepodařilo se najít váš studentský profil.</div>`;
-            }
-        }, (error) => {
-            // Pridané detailnejšie logovanie chyby pre "permission-denied"
-            console.error("Firestore snapshot listener error:", error);
-            if (error.code === 'permission-denied') {
-                roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba oprávnění. Ujistěte se, že jste správně přihlášeni a máte přístup k tomuto obsahu.</div>`;
             }
         });
     } catch (error) {
@@ -307,17 +283,13 @@ function showStudentLesson(lessonData) {
             <main id="lesson-content-display" class="bg-white rounded-2xl shadow-lg p-4 sm:p-6 md:p-8 min-h-[400px]"></main>
         </div>
     `;
-
-    // --- OPRAVA CHYBY S TLAČIDLOM ---
-    // Voláme novú, oddelenú funkciu `renderOverviewScreen` namiesto `initStudentDashboard`.
     document.getElementById('back-to-overview-btn').addEventListener('click', () => {
         if (window.speechSynthesis.speaking) {
             window.speechSynthesis.cancel();
         }
         currentLessonId = null;
-        renderOverviewScreen(); 
+        initStudentDashboard();
     });
-
     const contentDisplay = document.getElementById('lesson-content-display');
     const tabsMenu = document.getElementById('lesson-tabs-menu');
 
@@ -688,7 +660,7 @@ function renderPodcast(postData, container) {
         const playBtn = e.target.closest('.play-pause-btn');
         if (!playBtn) return;
 
-        const episodeIndex = parseInt(playBtn.dataset.episodeIndex, 10);
+        const episodeIndex = parseInt(playBtn.dataset.episode-index, 10);
         const episodeData = postData.episodes[episodeIndex];
         const episodeElement = playBtn.closest('.podcast-episode');
 

@@ -1,26 +1,21 @@
 {
   "name": "ai_sensei_czu_pilot",
   "version": "1.0.0",
-  "description": "",
-  "main": "seed_database.js",
+  "description": "AI Sensei pilot project for CZU",
+  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "build:css": "tailwindcss -i ./public/input.css -o ./public/styles.css"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "ai",
+    "education",
+    "firebase"
+  ],
+  "author": "Kamil Bony",
   "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "firebase": "^12.3.0"
-  },
   "devDependencies": {
-    "@types/uuid": "^10.0.0",
-    "autoprefixer": "^10.4.19",
-    "firebase-admin": "^13.5.0",
-    "firebase-tools": "^14.17.0",
-    "postcss": "^8.4.38",
-    "tailwindcss": "^3.4.3",
-    "uuid": "^13.0.0"
+    "@tailwindcss/typography": "^0.5.10",
+    "firebase-tools": "^14.19.1",
+    "tailwindcss": "^3.4.4"
   }
 }
