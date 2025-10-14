@@ -1,9 +1,8 @@
 import { doc, getDoc, collection, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from '../../utils.js';
-import { db } from '../../firebase-init.js';
+// Odstránili sme import 'db' odtiaľto
 
-// --- OPRAVA: Pridané kľúčové slovo "export" ---
-export async function showStudentProfile(container, studentId, backCallback) {
+export async function showStudentProfile(container, db, studentId, backCallback) { // Pridali sme 'db' ako parameter
     try {
         const studentRef = doc(db, 'students', studentId);
         const studentSnap = await getDoc(studentRef);
