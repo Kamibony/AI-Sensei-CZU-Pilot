@@ -3,7 +3,7 @@ import { renderEditorMenu } from './editor-handler.js';
 import { showToast } from './utils.js';
 import { db } from './firebase-init.js';
 import { initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-handler.js';
-import { handleLogout } from './auth.js';
+import { handleSignOut } from './auth.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { functions } from './firebase-init.js';
 
@@ -44,7 +44,7 @@ export async function initProfessorDashboard() {
     `;
 
     setupProfessorNav();
-    document.getElementById('logout-btn-nav').addEventListener('click', handleLogout);
+    document.getElementById('logout-btn-nav').addEventListener('click', handleSignOut);
 
     const lessonsLoaded = await fetchLessons();
     if (!lessonsLoaded) {
