@@ -3,7 +3,7 @@ import { ref, listAll } from "https://www.gstatic.com/firebasejs/10.12.2/firebas
 import { db, storage } from './firebase-init.js';
 import { showToast } from './utils.js';
 // Dôležité: Tieto funkcie volajú tvoj opravený backend (funkcie)
-import { callGenerateContent, createQuizForLesson, createTestForLesson, createPodcastForLesson, createPresentationForLesson, generateContentForLesson } from './gemini-api.js';
+import { createQuizForLesson, createTestForLesson, createPodcastForLesson, createPresentationForLesson, generateContentForLesson } from './gemini-api.js';
 
 let currentLesson = null;
 let editorInstance = null; // Z CKEditora
