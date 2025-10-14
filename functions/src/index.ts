@@ -1,15 +1,18 @@
 // functions/src/index.ts
+
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onCall, HttpsError, setGlobalOptions } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
-// --- Pridaná koncovka .js ---
 import {
     generateJsonFromPrompt,
     generateTextFromPrompt,
     generateTextFromDocuments,
     generateJsonFromDocuments,
 } from "./gemini-api.js";
+
+// --- OPRAVA: Týmto prikážeme všetkým funkciám, aby bežali v Európe ---
+setGlobalOptions({ region: "europe-west1" });
 
 initializeApp();
 
