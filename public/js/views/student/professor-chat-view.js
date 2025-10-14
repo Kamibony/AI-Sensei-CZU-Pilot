@@ -1,5 +1,4 @@
 import { collection, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-// --- OPRAVA: Pridaný import pre "auth" ---
 import { db, auth } from "../../firebase-init.js"; 
 import { showToast } from "../../utils.js";
 

@@ -4,12 +4,10 @@ import { db } from '../../firebase-init.js';
 
 let timelineEvents = [];
 
-// --- OPRAVA: Pridané kľúčové slovo "export" ---
 export async function setupTimelineView(mainArea, lessons) {
     await renderTimeline(mainArea, db, lessons);
 }
 
-// --- OPRAVA: Pridané kľúčové slovo "export" ---
 export async function renderTimeline(container, db, lessonsData) {
     try {
         const timelineSnapshot = await getDocs(collection(db, 'timeline_events'));

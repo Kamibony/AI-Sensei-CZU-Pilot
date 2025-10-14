@@ -5,7 +5,6 @@ import { db, functions } from "../../firebase-init.js";
 
 const sendMessageFromProfessor = httpsCallable(functions, 'sendMessageFromProfessor');
 
-// --- FINÁLNA OPRAVA: Pridané kľúčové slovo "export" ---
 export function renderStudentInteractions(container) {
     let conversationsUnsubscribe = null;
     let selectedStudentId = null;
