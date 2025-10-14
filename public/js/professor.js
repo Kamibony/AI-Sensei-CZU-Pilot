@@ -61,7 +61,7 @@ function renderLessonLibrary(container, showContentCallback) {
             e.stopPropagation();
             const lessonId = e.currentTarget.dataset.lessonId;
             const lessonToDelete = lessonsData.find(l => l.id === lessonId);
-            if (confirm(\`Opravdu chcete trvale smazat lekci "\${lessonToDelete.title}"? Tato akce je nevratná.\`)) {
+            if (confirm(`Opravdu chcete trvale smazat lekci "${lessonToDelete.title}"? Tato akce je nevratná.`)) {
                 try {
                     await deleteDoc(doc(db, 'lessons', lessonId));
                     showToast('Lekce byla smazána.');
@@ -112,8 +112,8 @@ async function showProfessorContent(view, data = null) {
             break;
         case 'media':
             sidebar.style.display = 'none';
-            mainArea.innerHTML = \`<header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Knihovna médií</h1><p class="text-slate-500 mt-1">Spravujte všechny soubory pro váš kurz na jednom místě.</p></header>
-                                  <div class="flex-grow overflow-y-auto p-4 md:p-6"><div class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-slate-500 mb-4">Nahrajte soubory (PDF), které chcete použít pro generování obsahu.</p><div id="course-media-upload-area" class="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center text-slate-500 cursor-pointer hover:bg-green-50 hover:border-green-400"><p class="font-semibold">Přetáhněte soubory sem nebo klikněte pro výběr</p></div><input type="file" id="course-media-file-input" multiple class="hidden" accept=".pdf"><h3 class="font-bold text-slate-700 mt-6 mb-2">Nahrané soubory:</h3><ul id="course-media-list" class="space-y-2"></ul></div></div>\`;
+            mainArea.innerHTML = `<header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Knihovna médií</h1><p class="text-slate-500 mt-1">Spravujte všechny soubory pro váš kurz na jednom místě.</p></header>
+                                  <div class="flex-grow overflow-y-auto p-4 md:p-6"><div class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-slate-500 mb-4">Nahrajte soubory (PDF), které chcete použít pro generování obsahu.</p><div id="course-media-upload-area" class="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center text-slate-500 cursor-pointer hover:bg-green-50 hover:border-green-400"><p class="font-semibold">Přetáhněte soubory sem nebo klikněte pro výběr</p></div><input type="file" id="course-media-file-input" multiple class="hidden" accept=".pdf"><h3 class="font-bold text-slate-700 mt-6 mb-2">Nahrané soubory:</h3><ul id="course-media-list" class="space-y-2"></ul></div></div>`;
             initializeCourseMediaUpload("main-course");
             renderMediaLibraryFiles("main-course");
             break;
@@ -127,7 +127,7 @@ async function showProfessorContent(view, data = null) {
             break;
         case 'analytics':
              sidebar.style.display = 'none';
-             mainArea.innerHTML = \`<p class="p-8 text-center text-slate-500">Sekce Analýza se připravuje.</p>\`;
+             mainArea.innerHTML = `<p class="p-8 text-center text-slate-500">Sekce Analýza se připravuje.</p>`;
             break;
         default: // 'timeline'
             await fetchLessons();
@@ -141,18 +141,18 @@ export async function initProfessorDashboard() {
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
     
-    roleContentWrapper.innerHTML = \`
+    roleContentWrapper.innerHTML = `
         <div id="dashboard-professor" class="w-full flex main-view active h-screen">
             <aside id="professor-sidebar" class="w-full md:w-96 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 h-full"></aside>
             <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-screen"></main>
         </div>
-    \`;
+    `;
 
     setupProfessorNav(showProfessorContent);
 
     const lessonsLoaded = await fetchLessons();
     if (!lessonsLoaded) {
-        document.getElementById('main-content-area').innerHTML = \`<div class="p-8 text-center text-red-500">Chyba při načítání dat.</div>\`;
+        document.getElementById('main-content-area').innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat.</div>`;
         return;
     }
     showProfessorContent('timeline');
