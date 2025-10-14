@@ -1,48 +1,75 @@
-// --- NOVINKA: Definícia šablón, aby ich študentský panel poznal ---
-const presentationThemes = {
-    default: { name: 'Základná', bg: 'bg-slate-700', text: 'text-white', slideBg: 'bg-white', btn: 'bg-slate-200' },
-    forest: { name: 'Les', bg: 'bg-green-800', text: 'text-white', slideBg: 'bg-green-50', btn: 'bg-green-200' },
-    ocean: { name: 'Oceán', bg: 'bg-blue-800', text: 'text-white', slideBg: 'bg-blue-50', btn: 'bg-blue-200' },
-    sunset: { name: 'Západ Slnka', bg: 'bg-orange-700', text: 'text-white', slideBg: 'bg-orange-50', btn: 'bg-orange-200' },
-    classic: { name: 'Klasika', bg: 'bg-gray-800', text: 'text-yellow-200', slideBg: 'bg-gray-100', btn: 'bg-yellow-200' }
-};
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-export function renderPresentation(presentationData, container) {
-    if (!presentationData || !Array.isArray(presentationData.slides) || presentationData.slides.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 p-8">Pro tuto lekci není k dispozici žádná prezentace.</p>`;
+export async function renderPresentation(container, db, lessonId) {
+    if (!lessonId) {
+        container.innerHTML = `<p class="p-4">Nebyla vybrána žádná lekce pro zobrazení prezentace.</p>`;
         return;
     }
 
-    let currentSlide = 0;
-    const themeKey = presentationData.theme || 'default';
-    const theme = presentationThemes[themeKey] || presentationThemes.default;
+    try {
+        container.innerHTML = `<div class="p-4">Načítání prezentace...</div>`;
+        const presentationDocRef = doc(db, "lessons", lessonId, "activities", "presentation");
+        const presentationDoc = await getDoc(presentationDocRef);
 
-    const render = () => {
-        const slide = presentationData.slides[currentSlide];
-        container.innerHTML = `
-            <h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-6 text-center">Prezentace</h2>
-            <div class="${theme.slideBg} rounded-2xl border border-slate-200 overflow-hidden max-w-4xl mx-auto shadow-lg">
-                <div class="${theme.bg} ${theme.text} p-4 text-center">
-                    <h3 class="text-xl md:text-2xl font-bold">${slide.title}</h3>
-                </div>
-                <div class="p-4 md:p-8">
-                    <ul class="list-disc list-inside space-y-4 text-base md:text-xl">
-                        ${(slide.points || []).map(p => `<li>${p}</li>`).join('')}
+        if (!presentationDoc.exists()) {
+            container.innerHTML = `<p class="p-4">Pro tuto lekci nebyla nalezena žádná prezentace.</p>`;
+            return;
+        }
+
+        const presentationData = presentationDoc.data().data; // Předpokládáme, že JSON je v poli 'data'
+        let currentSlide = 0;
+
+        function showSlide(slideIndex) {
+            const slides = document.querySelectorAll('.slide');
+            slides.forEach((slide, index) => {
+                slide.style.display = index === slideIndex ? 'block' : 'none';
+            });
+            document.getElementById('slide-counter').textContent = `Snímek ${slideIndex + 1} z ${slides.length}`;
+        }
+
+        let presentationHtml = `
+            <div class="p-6 h-full flex flex-col">
+                <h1 class="text-3xl font-bold text-slate-800 mb-4">Prezentace k lekci</h1>
+                <div id="presentation-container" class="bg-white rounded-lg shadow-md p-6 flex-grow relative">
+        `;
+
+        presentationData.slides.forEach((slide, index) => {
+            presentationHtml += `
+                <div class="slide" style="${index === 0 ? '' : 'display: none;'}">
+                    <h2 class="text-2xl font-bold text-slate-800 mb-4">${slide.title}</h2>
+                    <ul class="list-disc pl-5 space-y-2 text-slate-600">
+                        ${slide.points.map(point => `<li>${point}</li>`).join('')}
                     </ul>
                 </div>
-                <div class="p-4 bg-slate-100 border-t flex justify-between items-center">
-                    <button id="prev-slide-btn" class="px-4 py-2 ${theme.btn} rounded-lg font-semibold hover:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed">Předchozí</button>
-                    <span>${currentSlide + 1} / ${presentationData.slides.length}</span>
-                    <button id="next-slide-btn" class="px-4 py-2 ${theme.btn} rounded-lg font-semibold hover:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed">Další</button>
+            `;
+        });
+        
+        presentationHtml += `
+                </div>
+                <div class="flex justify-between items-center mt-4">
+                    <button id="prev-slide" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Předchozí</button>
+                    <span id="slide-counter"></span>
+                    <button id="next-slide" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Další</button>
                 </div>
             </div>
         `;
-        const prevBtn = document.getElementById('prev-slide-btn');
-        const nextBtn = document.getElementById('next-slide-btn');
-        prevBtn.disabled = currentSlide === 0;
-        nextBtn.disabled = currentSlide === presentationData.slides.length - 1;
-        prevBtn.addEventListener('click', () => { if (currentSlide > 0) { currentSlide--; render(); } });
-        nextBtn.addEventListener('click', () => { if (currentSlide < presentationData.slides.length - 1) { currentSlide++; render(); } });
-    };
-    render();
+        
+        container.innerHTML = presentationHtml;
+        
+        showSlide(currentSlide);
+
+        document.getElementById('prev-slide').addEventListener('click', () => {
+            currentSlide = (currentSlide > 0) ? currentSlide - 1 : presentationData.slides.length - 1;
+            showSlide(currentSlide);
+        });
+
+        document.getElementById('next-slide').addEventListener('click', () => {
+            currentSlide = (currentSlide < presentationData.slides.length - 1) ? currentSlide + 1 : 0;
+            showSlide(currentSlide);
+        });
+
+    } catch (error) {
+        console.error("Chyba při načítání prezentace:", error);
+        container.innerHTML = `<p class="p-4 text-red-500">Nepodařilo se načíst prezentaci.</p>`;
+    }
 }
