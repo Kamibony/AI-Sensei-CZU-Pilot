@@ -6,7 +6,6 @@ import { initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-h
 import { setupProfessorNav } from './views/professor/navigation.js';
 import { renderTimeline } from './views/professor/timeline-view.js';
 import { renderStudentHub } from './views/professor/student-hub-view.js';
-// --- OPRAVA: Zmenený názov z renderStudentProfile na showStudentProfile ---
 import { showStudentProfile } from './views/professor/student-profile-view.js';
 import { renderStudentInteractions } from './views/professor/interactions-view.js';
 
@@ -109,8 +108,8 @@ async function showProfessorContent(view, data = null) {
         case 'student-profile':
             sidebar.style.display = 'none';
             const backToHub = () => showProfessorContent('students');
-            // --- OPRAVA: Zmenený názov z renderStudentProfile na showStudentProfile ---
-            showStudentProfile(mainArea, data, backToHub);
+            // --- OPRAVA: Pridaný parameter 'db' ---
+            showStudentProfile(mainArea, db, data, backToHub);
             break;
         case 'media':
             sidebar.style.display = 'none';
@@ -121,11 +120,11 @@ async function showProfessorContent(view, data = null) {
             break;
         case 'students':
             sidebar.style.display = 'none';
-            studentsUnsubscribe = renderStudentHub(mainArea, navigateToStudentProfile);
+            studentsUnsubscribe = renderStudentHub(mainArea, db, navigateToStudentProfile);
             break;
         case 'interactions':
             sidebar.style.display = 'none';
-            conversationsUnsubscribe = renderStudentInteractions(mainArea);
+            conversationsUnsubscribe = renderStudentInteractions(mainArea, db, functions, conversationsUnsubscribe);
             break;
         case 'analytics':
              sidebar.style.display = 'none';
