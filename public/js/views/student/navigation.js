@@ -17,7 +17,6 @@ const navIcons = {
 function createIcon(iconName) {
     const icon = navIcons[iconName];
     if (!icon) return '';
-    // --- OPRAVA: Pridaná bezpečnostná kontrola pre viewBox ---
     const viewBox = icon.viewBox || "0 0 24 24"; 
     return `
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="${viewBox}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -30,13 +29,12 @@ export function setupStudentNav(studentData) {
     const mainView = document.querySelector('.main-view');
     if (!mainView) return;
 
-    // Skontrolujeme, či už navigácia neexistuje, aby sme ju nedublovali
     if (mainView.querySelector('nav')) {
         return;
     }
 
     const navElement = document.createElement('nav');
-    navElement.className = "w-64 bg-green-800 text-white flex-col h-screen flex-shrink-0"; // pridané flex-shrink-0
+    navElement.className = "w-64 bg-green-800 text-white flex-col h-screen flex-shrink-0";
     navElement.innerHTML = `
         <div class="p-4 border-b border-green-700">
             <h1 class="text-2xl font-bold">AI Sensei</h1>
