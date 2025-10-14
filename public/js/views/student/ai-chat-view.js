@@ -1,7 +1,7 @@
 import { getAiAssistantResponse } from '../../gemini-api.js';
 import { getCurrentUserData } from '../../student.js';
 
-// --- OPRAVA: Pridané kľúčové slovo "export" ---
+// OPRAVA: Pridané kľúčové slovo "export"
 export function renderAIChat(container) {
     const studentData = getCurrentUserData();
     if (!studentData) {
@@ -25,7 +25,7 @@ export function renderAIChat(container) {
                 <div class="flex items-center space-x-2">
                     <input type="text" id="chat-input" class="w-full p-2 border rounded-lg" placeholder="Napište zprávu...">
                     <button id="send-chat-btn" class="p-2 bg-green-700 text-white rounded-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                     </button>
                 </div>
             </footer>
