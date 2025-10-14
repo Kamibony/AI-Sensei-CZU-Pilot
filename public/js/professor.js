@@ -6,7 +6,8 @@ import { initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-h
 import { setupProfessorNav } from './views/professor/navigation.js';
 import { renderTimeline } from './views/professor/timeline-view.js';
 import { renderStudentHub } from './views/professor/student-hub-view.js';
-import { renderStudentProfile } from './views/professor/student-profile-view.js';
+// --- OPRAVA: Zmenený názov z renderStudentProfile na showStudentProfile ---
+import { showStudentProfile } from './views/professor/student-profile-view.js';
 import { renderStudentInteractions } from './views/professor/interactions-view.js';
 
 let lessonsData = [];
@@ -108,7 +109,8 @@ async function showProfessorContent(view, data = null) {
         case 'student-profile':
             sidebar.style.display = 'none';
             const backToHub = () => showProfessorContent('students');
-            renderStudentProfile(mainArea, data, backToHub);
+            // --- OPRAVA: Zmenený názov z renderStudentProfile na showStudentProfile ---
+            showStudentProfile(mainArea, data, backToHub);
             break;
         case 'media':
             sidebar.style.display = 'none';
