@@ -1,6 +1,3 @@
-// public/js/views/student/telegram-view.js
-
-// === TOTO CHÝBALO - Pridanie kľúčového slova "export" ===
 export function renderTelegram(container) {
     container.innerHTML = `
         <div class="p-6">
