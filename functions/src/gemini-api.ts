@@ -1,13 +1,14 @@
 // functions/src/gemini-api.ts
 
 import { VertexAI, Part, GenerateContentRequest } from "@google-cloud/vertexai";
+// Import 'auth' už nie je potrebný, ale necháme ho pre prípad, že ho využívajú iné súčasti
 import { auth } from "./firebase-admin-init.js";
 
-// --- FINÁLNA OPRAVA: Explicitné použitie oprávnení z Firebase Admin ---
+// --- FINÁLNA OPRAVA: Zjednodušená inicializácia ---
+// Knižnica si automaticky načíta oprávnenia z prostredia Firebase/Google Cloud.
 const vertex_ai = new VertexAI({
     project: 'ai-sensei-czu-pilot',
     location: 'europe-west1',
-    googleAuth: auth, // Týmto explicitne povieme, aké oprávnenia má použiť
 });
 
 // Váš overený a funkčný model
@@ -41,7 +42,6 @@ export async function generateJsonFromPrompt(prompt: string): Promise<any> {
             throw new Error("AI nevrátila platnou odpověď pro JSON.");
         }
         const responseText = response.candidates[0].content.parts[0].text;
-        // OPRAVA: Správny regulárny výraz pre odstránenie ```
         const cleanedJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
         return JSON.parse(cleanedJson);
     } catch (error) {
@@ -92,7 +92,6 @@ export async function generateJsonFromDocuments(filePaths: string[], prompt: str
             throw new Error("AI nevrátila platnou odpověď pro JSON z dokumentů.");
         }
         const responseText = response.candidates[0].content.parts[0].text;
-        // OPRAVA: Správny regulárny výraz pre odstránenie ```
         const cleanedJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
         return JSON.parse(cleanedJson);
     } catch (error) {
