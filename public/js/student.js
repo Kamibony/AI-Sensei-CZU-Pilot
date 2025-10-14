@@ -13,20 +13,24 @@ import { renderProfessorChat } from './views/student/professor-chat-view.js';
 import { renderTelegram } from './views/student/telegram-view.js';
 
 let currentLessonId = null;
+let currentUserData = null; // OPRAVA: Premenná na uloženie dát o študentovi
+
+// OPRAVA: Nová exportovaná funkcia na získanie dát o študentovi
+export function getCurrentUserData() {
+    return currentUserData;
+}
 
 export function setCurrentLessonId(lessonId) {
     currentLessonId = lessonId;
 }
 
-// --- OPRAVA: Pridané kľúčové slovo "export" ---
-export async function showStudentContent(view, studentData) {
+export async function showStudentContent(view) {
     const mainContentArea = document.getElementById('main-content-area');
     if (!mainContentArea) {
         console.error("main-content-area not found");
         return;
     }
 
-    // Odstránenie predchádzajúcich listenerov, ak nejaké existujú
     const oldContent = mainContentArea.firstChild;
     if (oldContent && oldContent.stopListeners) {
         oldContent.stopListeners();
@@ -56,22 +60,24 @@ export async function showStudentContent(view, studentData) {
             renderVideo(mainContentArea, db, currentLessonId);
             break;
         case 'chat':
-            renderAIChat(mainContentArea, studentData);
+            renderAIChat(mainContentArea, currentUserData); // Použije sa uložený používateľ
             break;
         case 'professor-chat':
-            renderProfessorChat(mainContentArea, db, studentData);
+            renderProfessorChat(mainContentArea, db, currentUserData); // Použije sa uložený používateľ
             break;
         case 'telegram':
             renderTelegram(mainContentArea);
             break;
         case 'overview':
         default:
-            renderDashboard(mainContentArea, db, studentData);
+            renderDashboard(mainContentArea, db, currentUserData); // Použije sa uložený používateľ
             break;
     }
 }
 
 export async function initStudentDashboard(studentData) {
+    currentUserData = studentData; // OPRAVA: Uložíme dáta o prihlásenom študentovi
+
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
 
@@ -83,6 +89,5 @@ export async function initStudentDashboard(studentData) {
     
     setupStudentNav(studentData);
     
-    // Zobrazenie úvodného prehľadu
-    showStudentContent('overview', studentData);
+    showStudentContent('overview');
 }
