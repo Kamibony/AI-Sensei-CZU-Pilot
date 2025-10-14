@@ -1,4 +1,4 @@
-import { doc, getDoc, collection, query, where, getDocs, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, collection, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from '../../utils.js';
 import { db } from '../../firebase-init.js';
 
@@ -14,7 +14,7 @@ export async function showStudentProfile(container, studentId, backCallback) {
         const studentData = studentSnap.data();
 
         container.innerHTML = `
-            <header class="text-center p-6 border-b border-slate-200 bg-white">
+            <header class="text-center p-6 border-b border-slate-200 bg-white relative">
                 <button id="back-to-hub-btn" class="absolute top-6 left-6 text-green-700 font-semibold hover:underline">&larr; Zpět na přehled</button>
                 <h1 class="text-3xl font-extrabold text-slate-800">${studentData.name || 'Student'}</h1>
                 <p class="text-slate-500 mt-1">${studentData.email}</p>
@@ -27,7 +27,6 @@ export async function showStudentProfile(container, studentId, backCallback) {
 
         const contentEl = document.getElementById('student-profile-content');
         
-        // Načítanie výsledkov kvízov a testov
         const quizSubmissionsRef = collection(db, 'quiz_submissions');
         const testSubmissionsRef = collection(db, 'test_submissions');
 
