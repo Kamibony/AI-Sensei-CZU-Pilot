@@ -55,11 +55,6 @@ async function handleSaveLesson() {
         const lessonRef = currentLesson ? doc(db, 'lessons', currentLesson.id) : doc(collection(db, 'lessons'));
         await setDoc(lessonRef, lessonPayload, { merge: true });
         showToast(`Lekce "${title}" byla úspěšně uložena.`);
-        
-        // Zde by mělo dojít k obnovení pohledu, např. zavoláním callbacku
-        // Pro jednoduchost můžeme předpokládat, že hlavní modul se o to postará sám
-        // díky onSnapshot listeneru.
-
     } catch (error) {
         console.error("Error saving lesson:", error);
         showToast("Chyba při ukládání lekce.", true);
