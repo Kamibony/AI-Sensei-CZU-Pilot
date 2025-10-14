@@ -1,11 +1,9 @@
 // functions/src/gemini-api.ts
 
 import { VertexAI, Part, GenerateContentRequest } from "@google-cloud/vertexai";
-import { getAuth } from "firebase-admin/auth";
-import { adminApp } from "./index.js"; // Importujeme inicializovanú appku
+import { auth } from "./firebase-admin-init.js"; // OPRAVA: Import z nového súboru
 
 // --- FINÁLNA OPRAVA: Explicitné použitie oprávnení z Firebase Admin ---
-const auth = getAuth(adminApp);
 const vertex_ai = new VertexAI({
     project: 'ai-sensei-czu-pilot',
     location: 'europe-west1',
