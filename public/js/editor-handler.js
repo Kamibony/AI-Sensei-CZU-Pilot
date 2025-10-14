@@ -7,11 +7,12 @@ import {
     createPodcastForLesson, 
     createPresentationForLesson,
     generateContentForLesson 
-} from './gemini-api.js';
+} from './gemini-api.js'; // Používa sa tvoj refaktorovaný, opravený modul
 
 let editorInstance = null;
 let currentLesson = null;
 
+// --- NOVÁ FUNKCIA: Renderovanie celého menu s AI tlačidlami (Grafika a štruktúra) ---
 export function renderEditorMenu(container, lessonData) {
     currentLesson = lessonData;
     const isNewLesson = !lessonData;
@@ -63,10 +64,11 @@ export function renderEditorMenu(container, lessonData) {
     document.getElementById('save-lesson-btn').addEventListener('click', handleSaveLesson);
 
     if (!isNewLesson) {
-        addAiButtonListeners();
+        addAiButtonListeners(); // Dôležité: Týmto sa pripoja listenery na generovanie
     }
 }
 
+// --- FUNKCIA: Pomocné renderovanie tlačidla (Grafika) ---
 function renderAiToolButton(text, id, svgPath) {
     return `
         <button id="generate-${id}-btn" class="flex flex-col items-center justify-center p-3 bg-white border rounded-lg hover:shadow-md hover:bg-slate-50 transition-all">
@@ -76,12 +78,15 @@ function renderAiToolButton(text, id, svgPath) {
     `;
 }
 
+// --- FUNKCIA: Pripojenie API volaní (Funkčnosť) ---
 function addAiButtonListeners() {
     if (!currentLesson || !currentLesson.id) {
         showToast("Nejprve uložte lekci, než použijete AI nástroje.", true);
         return;
     }
+    const getEditorContent = () => editorInstance ? editorInstance.getData() : '';
 
+    // Fix: Tieto funkcie volajú tvoje opravené Firebase funkcie z ./gemini-api.js
     document.getElementById('generate-quiz-btn').addEventListener('click', async () => {
         const lessonContent = getEditorContent();
         const result = await createQuizForLesson(currentLesson.id, lessonContent);
@@ -112,6 +117,7 @@ function addAiButtonListeners() {
             showToast('Zadejte prosím prompt pro generování textu.', true);
             return;
         }
+        // Poznámka: Predpokladám, že táto funkcia vracala celý obsah pre editor, čo sa má nahradiť.
         const result = await generateContentForLesson(currentLesson.id, prompt);
         if (result && result.content) {
             editorInstance.setData(result.content);
@@ -120,7 +126,14 @@ function addAiButtonListeners() {
     });
 }
 
+// ... (funkcie handleSaveLesson, initializeTextEditor, getEditorContent)
+// Predpokladám, že tieto sú už vo vašej kódovej základni
+// Ak nie, použite ich verziu z vášho starého kódu.
+
+// Doplňujúce funkcie potrebné pre export:
 async function handleSaveLesson() {
+    // Táto logika je vnútri editor-handler.js a musí byť implementovaná, 
+    // aby sa lekcia uložila a pridalo sa jej ID, ktoré AI potrebuje.
     const title = document.getElementById('lesson-title-editor').value.trim();
     if (!title) {
         showToast("Název lekce je povinný.", true);
@@ -154,6 +167,7 @@ async function handleSaveLesson() {
     }
 }
 
+let editorInstance = null;
 export function initializeTextEditor(selector, initialContent = '') {
     const editorEl = document.querySelector(selector);
     if (!editorEl) return;
@@ -162,17 +176,22 @@ export function initializeTextEditor(selector, initialContent = '') {
         editorInstance.destroy().catch(() => {});
     }
 
-    ClassicEditor
-        .create(editorEl, {
-            toolbar: ['heading', '|', 'bold', 'italic', 'link', 'bulletedList', 'numberedList', 'blockQuote', '|', 'undo', 'redo']
-        })
-        .then(editor => {
-            editorInstance = editor;
-            editor.setData(initialContent);
-        })
-        .catch(error => {
-            console.error('Error initializing CKEditor:', error);
-        });
+    // Predpokladá sa, že CKEditor je načítaný
+    if (typeof ClassicEditor !== 'undefined') {
+        ClassicEditor
+            .create(editorEl, {
+                toolbar: ['heading', '|', 'bold', 'italic', 'link', 'bulletedList', 'numberedList', 'blockQuote', '|', 'undo', 'redo']
+            })
+            .then(editor => {
+                editorInstance = editor;
+                editor.setData(initialContent);
+            })
+            .catch(error => {
+                console.error('Error initializing CKEditor:', error);
+            });
+    } else {
+        console.error("CKEditor nie je načítaný.");
+    }
 }
 
 export function getEditorContent() {
