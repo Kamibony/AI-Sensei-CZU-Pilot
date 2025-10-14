@@ -34,18 +34,23 @@ export function renderEditorMenu(container, lessonData) {
                 <div id="text-editor-instance" class="mt-1"></div>
             </div>
 
-            <div id="ai-tools-container" class="${isNewLesson ? 'hidden' : ''}">
-                <h3 class="text-lg font-bold text-slate-700 mt-6 mb-3">AI Nástroje</h3>
-                <div class="space-y-2">
-                    <button id="generate-quiz-btn" class="w-full p-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 text-sm">Vytvořit kvíz</button>
-                    <button id="generate-test-btn" class="w-full p-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 text-sm">Vytvořit test</button>
-                    <button id="generate-podcast-btn" class="w-full p-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 text-sm">Vytvořit podcast</button>
-                    <button id="generate-presentation-btn" class="w-full p-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 text-sm">Vytvořit prezentaci</button>
+            <div id="ai-tools-container" class="mt-6 ${isNewLesson ? 'hidden' : ''}">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-lg font-bold text-slate-700">AI Nástroje</h3>
                 </div>
-                 <div class="mt-4">
+                <div class="grid grid-cols-2 gap-3">
+                    ${renderAiToolButton('Vytvořit kvíz', 'quiz', 'M13.78 14.22a7 7 0 0 0 9.9-9.9M10.22 9.78a7 7 0 0 0-9.9 9.9')}
+                    ${renderAiToolButton('Vytvořit test', 'test', 'M21.16 7.74l-1.38-1.38A2 2 0 0 0 18.36 6H5.64A2 2 0 0 0 4.22 7.78l1.38 1.38')}
+                    ${renderAiToolButton('Vytvořit podcast', 'podcast', 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2')}
+                    ${renderAiToolButton('Vytvořit prezentaci', 'presentation', 'M13 2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9l-7-7z M12 18H6v-2h6v2zm6-2h-4v-2h4v2zm0-4h-4V8h4v4z')}
+                </div>
+                <div class="mt-4">
                     <label for="ai-prompt" class="text-sm font-semibold text-slate-600">Vytvoriť text z promtu</label>
                     <textarea id="ai-prompt" class="w-full p-2 border rounded-lg mt-1" rows="3" placeholder="Napr.: Vytvor text o histórii programovania v 5 odsekoch..."></textarea>
-                    <button id="generate-text-btn" class="w-full mt-2 p-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 text-sm">Generovat text</button>
+                    <button id="generate-text-btn" class="w-full mt-2 p-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 text-sm flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path><path d="M5 3v4"></path><path d="M19 17v4"></path><path d="M3 5h4"></path><path d="M17 19h4"></path></svg>
+                        Generovat text
+                    </button>
                 </div>
             </div>
         </div>
@@ -57,35 +62,46 @@ export function renderEditorMenu(container, lessonData) {
     initializeTextEditor('#text-editor-instance', lessonData?.content || '');
     document.getElementById('save-lesson-btn').addEventListener('click', handleSaveLesson);
 
-    // Pridanie event listenerov pre AI tlačidlá, ak ide o existujúcu lekciu
     if (!isNewLesson) {
         addAiButtonListeners();
     }
 }
 
+function renderAiToolButton(text, id, svgPath) {
+    return `
+        <button id="generate-${id}-btn" class="flex flex-col items-center justify-center p-3 bg-white border rounded-lg hover:shadow-md hover:bg-slate-50 transition-all">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500 mb-1"><path d="${svgPath}"></path></svg>
+            <span class="text-sm font-semibold text-slate-700">${text}</span>
+        </button>
+    `;
+}
+
 function addAiButtonListeners() {
-    const lessonContent = getEditorContent();
     if (!currentLesson || !currentLesson.id) {
         showToast("Nejprve uložte lekci, než použijete AI nástroje.", true);
         return;
     }
 
     document.getElementById('generate-quiz-btn').addEventListener('click', async () => {
+        const lessonContent = getEditorContent();
         const result = await createQuizForLesson(currentLesson.id, lessonContent);
         if (result) showToast('Kvíz byl úspěšně vytvořen.');
     });
 
     document.getElementById('generate-test-btn').addEventListener('click', async () => {
+        const lessonContent = getEditorContent();
         const result = await createTestForLesson(currentLesson.id, lessonContent);
         if (result) showToast('Test byl úspěšně vytvořen.');
     });
 
     document.getElementById('generate-podcast-btn').addEventListener('click', async () => {
+        const lessonContent = getEditorContent();
         const result = await createPodcastForLesson(currentLesson.id, lessonContent);
         if (result) showToast('Podcast byl úspěšně vytvořen.');
     });
 
     document.getElementById('generate-presentation-btn').addEventListener('click', async () => {
+        const lessonContent = getEditorContent();
         const result = await createPresentationForLesson(currentLesson.id, lessonContent);
         if (result) showToast('Prezentace byla úspěšně vytvořena.');
     });
@@ -127,7 +143,6 @@ async function handleSaveLesson() {
             lessonRef = doc(collection(db, 'lessons'));
             lessonPayload.createdAt = serverTimestamp();
             await setDoc(lessonRef, lessonPayload);
-            // Po prvom uložení aktualizujeme currentLesson a zobrazíme AI nástroje
             currentLesson = { id: lessonRef.id, ...lessonPayload };
             document.getElementById('ai-tools-container').classList.remove('hidden');
             addAiButtonListeners();
