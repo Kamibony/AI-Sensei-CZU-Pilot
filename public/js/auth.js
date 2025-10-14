@@ -16,33 +16,31 @@ import {
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
-import { initStudentDashboard } from './student.js';
-import { initProfessorDashboard } from './professor.js';
-
 let studentData = null;
 
-// --- OPRAVA: Pridaný import initStudentDashboard ---
-export function setupAuth(appContainer, loginTemplate, mainAppTemplate) {
-    
+export function setupAuth(loginCallback) {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             if (user.isAnonymous) {
-                appContainer.innerHTML = mainAppTemplate.innerHTML;
-                initProfessorDashboard();
+                loginCallback('professor');
             } else {
                 const studentProfile = await getStudentProfile(user.uid);
                 if (studentProfile) {
                     studentData = { uid: user.uid, ...studentProfile };
-                    appContainer.innerHTML = mainAppTemplate.innerHTML;
-                    initStudentDashboard(studentData);
+                    loginCallback('student', studentData);
                 } else {
-                    promptForStudentName(user);
+                    promptForStudentName(user, loginCallback);
                 }
             }
         } else {
             studentData = null;
-            appContainer.innerHTML = loginTemplate.innerHTML;
-            attachLoginListeners();
+            const appContainer = document.getElementById('app-container');
+            const loginTemplate = document.getElementById('login-template');
+            if (appContainer && loginTemplate) {
+                appContainer.innerHTML = '';
+                appContainer.appendChild(loginTemplate.content.cloneNode(true));
+                attachLoginListeners();
+            }
         }
     });
 }
@@ -53,7 +51,7 @@ async function getStudentProfile(uid) {
     return docSnap.exists() ? docSnap.data() : null;
 }
 
-function promptForStudentName(user) {
+function promptForStudentName(user, loginCallback) {
     const appContainer = document.getElementById('app-container');
     appContainer.innerHTML = `
         <div class="flex items-center justify-center min-h-screen">
@@ -71,22 +69,20 @@ function promptForStudentName(user) {
     document.getElementById('complete-profile-btn').addEventListener('click', async () => {
         const name = document.getElementById('student-name-input').value.trim();
         if (name) {
-            await createStudentProfile(user, name);
-            // --- OPRAVA: Po vytvorení profilu sa načíta hlavný panel ---
-            studentData = await getStudentProfile(user.uid);
-            document.getElementById('app-container').innerHTML = document.getElementById('main-app-template').innerHTML;
-            initStudentDashboard(studentData);
+            const success = await createStudentProfile(user, name);
+            if (success) {
+                studentData = await getStudentProfile(user.uid);
+                loginCallback('student', studentData);
+            }
         } else {
             showToast('Meno je povinné.', true);
         }
     });
 }
 
-
 async function createStudentProfile(user, name) {
     const loadingScreen = document.getElementById('app-container');
     loadingScreen.innerHTML = `<div class="flex items-center justify-center min-h-screen"><div class="text-center"><p class="text-lg font-semibold text-slate-700">Vytvárame váš profil, chvíľku strpenia...</p></div></div>`;
-    
     try {
         await setDoc(doc(db, "students", user.uid), {
             name: name,
@@ -97,6 +93,12 @@ async function createStudentProfile(user, name) {
     } catch (error) {
         console.error("Error creating student profile: ", error);
         showToast("Nepodarilo sa vytvoriť profil.", true);
+        const loginTemplate = document.getElementById('login-template');
+        if (loadingScreen && loginTemplate) {
+            loadingScreen.innerHTML = '';
+            loadingScreen.appendChild(loginTemplate.content.cloneNode(true));
+            attachLoginListeners();
+        }
         return false;
     }
 }

@@ -2,7 +2,7 @@ import { collection, getDocs, doc, query, where, updateDoc, orderBy } from "http
 import { showToast } from '../../utils.js';
 import { db, auth } from '../../firebase-init.js';
 import { setupStudentNav } from './navigation.js';
-import { showStudentLesson } from './lesson-view.js';
+import { renderLesson as showStudentLesson } from './lesson-view.js';
 
 let lessonsData = [];
 
@@ -65,7 +65,7 @@ async function fetchLessons() {
     }
 }
 
-function renderStudentDashboard(container) {
+export function renderStudentDashboard(container) {
     let lessonsContent;
     if (lessonsData.length === 0) {
         lessonsContent = `<div class="p-8 text-center text-slate-500">Profesor zatiaľ nenaplánoval žiadne lekcie.</div>`;

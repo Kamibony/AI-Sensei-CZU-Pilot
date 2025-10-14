@@ -1,7 +1,7 @@
 import { db } from './firebase-init.js';
 import { collection, query, where, getDocs, orderBy, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { setupStudentNav } from './views/student/navigation.js';
-import { renderDashboard } from './views/student/dashboard-view.js';
+import { renderStudentDashboard as renderDashboard } from './views/student/dashboard-view.js';
 import { renderLesson } from './views/student/lesson-view.js';
 import { renderQuiz } from './views/student/quiz-view.js';
 import { renderTest } from './views/student/test-view.js';
@@ -10,7 +10,7 @@ import { renderPresentation } from './views/student/presentation-view.js';
 import { renderVideo } from './views/student/video-view.js';
 import { renderAIChat } from './views/student/ai-chat-view.js';
 import { renderProfessorChat } from './views/student/professor-chat-view.js';
-import { renderTelegram } from './views/student/telegram-view.js';
+import { renderTelegramPage as renderTelegram } from './views/student/telegram-view.js';
 
 let currentLessonId = null;
 let currentUserData = null; // OPRAVA: Premenná na uloženie dát o študentovi

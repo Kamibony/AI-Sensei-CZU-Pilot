@@ -1,4 +1,4 @@
-import { handleLogout } from '../../auth.js';
+import { handleSignOut as handleLogout } from '../../auth.js';
 
 export function setupProfessorNav(showContentCallback) {
     const nav = document.getElementById('main-nav');
