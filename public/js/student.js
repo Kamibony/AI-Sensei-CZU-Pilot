@@ -1,79 +1,88 @@
-import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db, auth } from './firebase-init.js';
+import { db } from './firebase-init.js';
+import { collection, query, where, getDocs, orderBy, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { setupStudentNav } from './views/student/navigation.js';
+import { renderDashboard } from './views/student/dashboard-view.js';
+import { renderLesson } from './views/student/lesson-view.js';
+import { renderQuiz } from './views/student/quiz-view.js';
+import { renderTest } from './views/student/test-view.js';
+import { renderPodcast } from './views/student/podcast-view.js';
+import { renderPresentation } from './views/student/presentation-view.js';
+import { renderVideo } from './views/student/video-view.js';
+import { renderAIChat } from './views/student/ai-chat-view.js';
+import { renderProfessorChat } from './views/student/professor-chat-view.js';
+import { renderTelegram } from './views/student/telegram-view.js';
 
-// Importy funkcií z ostatných modulov
-import { renderOverviewScreen, promptForStudentName } from './views/student/dashboard-view.js';
-import { renderTelegramPage } from './views/student/telegram-view.js';
-
-// Globálne premenné pre správu stavu
-let currentUserData = null;
-let studentDataUnsubscribe = null;
 let currentLessonId = null;
-
-// Hlavná funkcia, ktorá riadi študentský panel
-export function initStudentDashboard() {
-    const roleContentWrapper = document.getElementById('role-content-wrapper');
-    if (!roleContentWrapper) return;
-
-    const user = auth.currentUser;
-    if (!user) {
-        console.error("initStudentDashboard: Používateľ nie je prihlásený.");
-        roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Chyba: Uživatel není přihlášen.</div>`;
-        return;
-    }
-    
-    const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime;
-    let initialCheckDone = false; 
-
-    if (studentDataUnsubscribe) {
-        studentDataUnsubscribe();
-    }
-
-    try {
-        const userDocRef = doc(db, "students", user.uid);
-        
-        studentDataUnsubscribe = onSnapshot(userDocRef, async (userDoc) => {
-            if (userDoc.exists()) {
-                const previousUserData = currentUserData;
-                currentUserData = { id: userDoc.id, ...userDoc.data() };
-
-                if (!currentUserData.name) {
-                    promptForStudentName(user.uid);
-                    return;
-                }
-                
-                const isLessonView = !!document.getElementById('lesson-content-display');
-                
-                if (!isLessonView || !previousUserData) {
-                    renderOverviewScreen();
-                } else {
-                    const activeTab = document.querySelector('.lesson-menu-item.border-green-700');
-                    if (activeTab && activeTab.dataset.view === 'telegram') {
-                         const contentDisplay = document.getElementById('lesson-content-display');
-                         renderTelegramPage(contentDisplay, currentUserData);
-                    }
-                }
-            } else {
-                if (isNewUser && !initialCheckDone) {
-                    roleContentWrapper.innerHTML = `<div class="flex items-center justify-center h-screen"><div class="text-center p-8 bg-white rounded-2xl shadow-lg"><div class="text-xl font-semibold text-slate-700">Vytváříme váš profil, chvilku strpení...</div><div class="loader mt-4"></div></div></div>`;
-                } else {
-                    roleContentWrapper.innerHTML = `<div class="p-8 text-center text-red-500">Nepodařilo se najít váš studentský profil.</div>`;
-                }
-                initialCheckDone = true;
-            }
-        }, (error) => {
-            console.error("Firestore snapshot listener error:", error);
-        });
-    } catch (error) {
-        console.error("Error initializing student dashboard listener:", error);
-    }
-}
-
-// Funkcia na zdieľanie dát o používateľovi s ostatnými modulmi
-export function getCurrentUserData() {
-    return currentUserData;
-}
 
 export function setCurrentLessonId(lessonId) {
     currentLessonId = lessonId;
+}
+
+// --- OPRAVA: Pridané kľúčové slovo "export" ---
+export async function showStudentContent(view, studentData) {
+    const mainContentArea = document.getElementById('main-content-area');
+    if (!mainContentArea) {
+        console.error("main-content-area not found");
+        return;
+    }
+
+    // Odstránenie predchádzajúcich listenerov, ak nejaké existujú
+    const oldContent = mainContentArea.firstChild;
+    if (oldContent && oldContent.stopListeners) {
+        oldContent.stopListeners();
+    }
+
+    switch (view) {
+        case 'lesson':
+            if (currentLessonId) {
+                renderLesson(mainContentArea, db, currentLessonId);
+            } else {
+                mainContentArea.innerHTML = '<p>Nejprve vyberte lekci z přehledu.</p>';
+            }
+            break;
+        case 'quiz':
+            renderQuiz(mainContentArea, db, currentLessonId);
+            break;
+        case 'test':
+            renderTest(mainContentArea, db, currentLessonId);
+            break;
+        case 'podcast':
+            renderPodcast(mainContentArea, db, currentLessonId);
+            break;
+        case 'presentation':
+            renderPresentation(mainContentArea, db, currentLessonId);
+            break;
+        case 'video':
+            renderVideo(mainContentArea, db, currentLessonId);
+            break;
+        case 'chat':
+            renderAIChat(mainContentArea, studentData);
+            break;
+        case 'professor-chat':
+            renderProfessorChat(mainContentArea, db, studentData);
+            break;
+        case 'telegram':
+            renderTelegram(mainContentArea);
+            break;
+        case 'overview':
+        default:
+            renderDashboard(mainContentArea, db, studentData);
+            break;
+    }
+}
+
+export async function initStudentDashboard(studentData) {
+    const roleContentWrapper = document.getElementById('role-content-wrapper');
+    if (!roleContentWrapper) return;
+
+    roleContentWrapper.innerHTML = `
+        <div id="dashboard-student" class="w-full flex main-view active h-screen">
+            <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-screen"></main>
+        </div>
+    `;
+    
+    setupStudentNav(studentData);
+    
+    // Zobrazenie úvodného prehľadu
+    showStudentContent('overview', studentData);
 }
