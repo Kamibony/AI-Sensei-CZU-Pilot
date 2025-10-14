@@ -1,6 +1,5 @@
 import { handleLogout } from '../../auth.js';
 
-// --- OPRAVA: Pridané kľúčové slovo "export" ---
 export function setupProfessorNav(showContentCallback) {
     const nav = document.getElementById('main-nav');
     if(nav) {
@@ -37,7 +36,6 @@ export function setupProfessorNav(showContentCallback) {
     }
 }
 
-// --- OPRAVA: Pridané kľúčové slovo "export" ---
 export function showView(view, data) {
     // Táto funkcia bola v staršej verzii, nechávam ju pre kompatibilitu, 
     // hoci sa zdá, že nová logika ju priamo nepoužíva.

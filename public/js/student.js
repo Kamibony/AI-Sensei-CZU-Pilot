@@ -8,7 +8,7 @@ import { renderTelegramPage } from './views/student/telegram-view.js';
 // Globálne premenné pre správu stavu
 let currentUserData = null;
 let studentDataUnsubscribe = null;
-let currentLessonId = null; // <<-- OPRAVA: Pridaná chýbajúca premenná pre stav
+let currentLessonId = null;
 
 // Hlavná funkcia, ktorá riadi študentský panel
 export function initStudentDashboard() {
@@ -74,7 +74,6 @@ export function getCurrentUserData() {
     return currentUserData;
 }
 
-// <<-- OPRAVA: Pridaná a exportovaná funkcia na nastavenie ID aktuálnej lekcie -->>
 export function setCurrentLessonId(lessonId) {
     currentLessonId = lessonId;
 }

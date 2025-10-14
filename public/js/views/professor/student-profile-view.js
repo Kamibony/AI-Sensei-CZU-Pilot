@@ -41,41 +41,41 @@ export async function showStudentProfile(container, db, studentId, backCallback)
     } catch (error) {
         console.error("Error showing student profile:", error);
         showToast("Nepodařilo se načíst profil studenta.", true);
-        container.innerHTML = \`<p class="p-8 text-center text-red-500">Chyba při načítání profilu.</p>\`;
+        container.innerHTML = `<p class="p-8 text-center text-red-500">Chyba při načítání profilu.</p>`;
     }
 }
 
 function renderStudentActivity(container, quizzes, tests) {
-    const quizzesHtml = quizzes.length > 0 ? quizzes.map(q => \`
+    const quizzesHtml = quizzes.length > 0 ? quizzes.map(q => `
         <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div class="flex justify-between items-center">
-                <p class="font-semibold text-blue-800">Kvíz: \${q.quizTitle}</p>
-                <p class="font-bold text-lg \${q.score / q.totalQuestions > 0.7 ? 'text-green-600' : 'text-orange-500'}">\${q.score}/\${q.totalQuestions}</p>
+                <p class="font-semibold text-blue-800">Kvíz: ${q.quizTitle}</p>
+                <p class="font-bold text-lg ${q.score / q.totalQuestions > 0.7 ? 'text-green-600' : 'text-orange-500'}">${q.score}/${q.totalQuestions}</p>
             </div>
-            <p class="text-xs text-slate-500 mt-1">\${new Date(q.submittedAt.seconds * 1000).toLocaleString()}</p>
+            <p class="text-xs text-slate-500 mt-1">${new Date(q.submittedAt.seconds * 1000).toLocaleString()}</p>
         </div>
-    \`).join('') : '<p class="text-sm text-slate-400">Žádné odevzdané kvízy.</p>';
+    `).join('') : '<p class="text-sm text-slate-400">Žádné odevzdané kvízy.</p>';
 
-    const testsHtml = tests.length > 0 ? tests.map(t => \`
+    const testsHtml = tests.length > 0 ? tests.map(t => `
          <div class="p-4 bg-purple-50 border border-purple-200 rounded-lg">
             <div class="flex justify-between items-center">
-                <p class="font-semibold text-purple-800">Test: \${t.testTitle}</p>
-                <p class="font-bold text-lg \${t.score / t.totalQuestions > 0.7 ? 'text-green-600' : 'text-red-600'}">\${t.score}/\${t.totalQuestions}</p>
+                <p class="font-semibold text-purple-800">Test: ${t.testTitle}</p>
+                <p class="font-bold text-lg ${t.score / t.totalQuestions > 0.7 ? 'text-green-600' : 'text-red-600'}">${t.score}/${t.totalQuestions}</p>
             </div>
-            <p class="text-xs text-slate-500 mt-1">\${new Date(t.submittedAt.seconds * 1000).toLocaleString()}</p>
+            <p class="text-xs text-slate-500 mt-1">${new Date(t.submittedAt.seconds * 1000).toLocaleString()}</p>
         </div>
-    \`).join('') : '<p class="text-sm text-slate-400">Žádné odevzdané testy.</p>';
+    `).join('') : '<p class="text-sm text-slate-400">Žádné odevzdané testy.</p>';
 
-    container.innerHTML = \`
+    container.innerHTML = `
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="bg-white p-6 rounded-2xl shadow-lg">
                 <h2 class="text-xl font-bold text-slate-800 mb-4">Odevzdané Kvízy</h2>
-                <div class="space-y-3">\${quizzesHtml}</div>
+                <div class="space-y-3">${quizzesHtml}</div>
             </div>
             <div class="bg-white p-6 rounded-2xl shadow-lg">
                 <h2 class="text-xl font-bold text-slate-800 mb-4">Odevzdané Testy</h2>
-                <div class="space-y-3">\${testsHtml}</div>
+                <div class="space-y-3">${testsHtml}</div>
             </div>
         </div>
-    \`;
+    `;
 }
