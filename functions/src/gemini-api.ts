@@ -97,4 +97,4 @@ export async function generateJsonFromDocuments(filePaths: string[], prompt: str
         console.error("Chyba při generování JSON z dokumentů:", error);
         throw new Error("Nepodařilo se vygenerovat JSON z dokumentů.");
     }
-}
+
