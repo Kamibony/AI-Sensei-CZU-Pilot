@@ -3,7 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // PROFESSOR-ONLY a ADMIN-ONLY pravidlá
+    // --- OPRAVENÉ PRAVIDLÁ PRE PROFESORA/ADMINA ---
     match /lessons/{lessonId} {
       allow read, write: if request.auth.token.role == 'professor' || request.auth.token.role == 'admin';
     }
@@ -11,17 +11,19 @@ service cloud.firestore {
     match /courses/{courseId} {
       allow read, write: if request.auth.token.role == 'professor' || request.auth.token.role == 'admin';
     }
-
+    
     match /media/{mediaId} {
         allow read, write: if request.auth.token.role == 'professor' || request.auth.token.role == 'admin';
+    }
+    
+    match /timeline_events/{eventId} {
+      allow read, write: if request.auth.token.role == 'professor' || request.auth.token.role == 'admin';
     }
 
     // PRAVIDLÁ PRE ŠTUDENTOV
     match /students/{studentId} {
       allow read: if request.auth != null;
       allow get, update: if request.auth != null && request.auth.uid == studentId;
-      // --- OPRAVENÉ PRAVIDLO ---
-      // Povolí vytvorenie dokumentu len vtedy, ak sa ID používateľa zhoduje s ID dokumentu
       allow create: if request.auth != null && request.auth.uid == studentId;
     }
 
@@ -36,6 +38,18 @@ service cloud.firestore {
     // PRAVIDLÁ PRE VŠETKY ROLY
     match /conversations/{conversationId} {
         allow read, write: if request.auth != null;
+    }
+
+    match /quiz_submissions/{submissionId} {
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.studentId;
+      allow get: if request.auth != null && (request.auth.uid == resource.data.studentId || request.auth.token.role == 'professor');
+      allow list, read: if request.auth != null && request.auth.token.role == 'professor';
+    }
+
+    match /test_submissions/{submissionId} {
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.studentId;
+      allow get: if request.auth != null && (request.auth.uid == resource.data.studentId || request.auth.token.role == 'professor');
+      allow list, read: if request.auth != null && request.auth.token.role == 'professor';
     }
   }
 }
