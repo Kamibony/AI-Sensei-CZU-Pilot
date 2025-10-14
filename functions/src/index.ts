@@ -11,9 +11,10 @@ import {
     generateJsonFromDocuments,
 } from "./gemini-api.js";
 
-initializeApp();
+// --- OPRAVA: Inicializujeme a hneď exportujeme, aby sme mali prístup v iných súboroch ---
+export const adminApp = initializeApp();
+export const db = getFirestore(adminApp);
 
-// --- FINÁLNA OPRAVA: Región je nastavený pre každú funkciu individuálne ---
 const europeWest1 = "europe-west1";
 
 // --- ZÁKLADNÉ AI FUNKCIE ---
@@ -30,7 +31,6 @@ export const getAiAssistantResponse = onCall({ region: europeWest1 }, async (req
             throw new HttpsError("invalid-argument", "Chybí ID studenta nebo historie konverzace.");
         }
 
-        const db = getFirestore();
         const studentDoc = await db.collection("students").doc(studentId).get();
         if (!studentDoc.exists) {
             throw new HttpsError("not-found", "Profil studenta nebyl nalezen.");
@@ -63,7 +63,6 @@ export const createQuizForLesson = onCall({ region: europeWest1 }, async (reques
         const prompt = `Vytvoř krátký kvíz s 5 otázkami a 4 možnostmi (A, B, C, D) na základě následujícího textu. U každé otázky uveď správnou odpověď. Text: ${lessonContent}`;
         const quizJson = await generateJsonFromPrompt(prompt);
 
-        const db = getFirestore();
         await db.collection("lessons").doc(lessonId).collection("activities").doc("quiz").set({
             type: "quiz",
             data: quizJson,
@@ -87,7 +86,6 @@ export const createTestForLesson = onCall({ region: europeWest1 }, async (reques
         const prompt = `Vytvoř detailní test s 10 otázkami na základě textu. Mixuj otázky s výběrem z více možností a otázky s otevřenou odpovědí. Uveď i správné odpovědi. Text: ${lessonContent}`;
         const testJson = await generateJsonFromPrompt(prompt);
 
-        const db = getFirestore();
         await db.collection("lessons").doc(lessonId).collection("activities").doc("test").set({
             type: "test",
             data: testJson,
@@ -111,7 +109,6 @@ export const createPodcastForLesson = onCall({ region: europeWest1 }, async (req
         const prompt = `Vytvoř scénář pro 3-minutový podcast, který shrnuje klíčové body z následujícího textu. Text: ${lessonContent}`;
         const podcastScript = await generateTextFromPrompt(prompt);
 
-        const db = getFirestore();
         await db.collection("lessons").doc(lessonId).collection("activities").doc("podcast").set({
             type: "podcast",
             script: podcastScript,
@@ -135,7 +132,6 @@ export const createPresentationForLesson = onCall({ region: europeWest1 }, async
         const prompt = `Vytvoř obsah pro prezentaci s 5 slidy na základě textu. Pro každý slide uveď nadpis a 3-5 odrážek. Text: ${lessonContent}`;
         const presentationJson = await generateJsonFromPrompt(prompt);
         
-        const db = getFirestore();
         await db.collection("lessons").doc(lessonId).collection("activities").doc("presentation").set({
             type: "presentation",
             data: presentationJson,
@@ -158,7 +154,6 @@ export const generateContentForLesson = onCall({ region: europeWest1 }, async (r
         logger.info(`Generování obsahu pro lekci ${lessonId} s promptem: ${prompt}`);
         const generatedContent = await generateTextFromPrompt(prompt);
 
-        const db = getFirestore();
         await db.collection("lessons").doc(lessonId).update({
             content: generatedContent,
         });
@@ -169,8 +164,6 @@ export const generateContentForLesson = onCall({ region: europeWest1 }, async (r
         throw new HttpsError("internal", "Došlo k vnitřní chybě serveru.", error);
     }
 });
-
-// --- NOVÉ FUNKCIE PRE PRÁCU S DOKUMENTMI ---
 
 export const generateTextFromCourseDocuments = onCall({ region: europeWest1 }, async (request) => {
     try {
