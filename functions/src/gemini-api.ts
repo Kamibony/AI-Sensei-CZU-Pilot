@@ -1,29 +1,31 @@
 // functions/src/gemini-api.ts
 
 import { VertexAI, Part, GenerateContentRequest } from "@google-cloud/vertexai";
+import { getAuth } from "firebase-admin/auth";
+import { adminApp } from "./index.js"; // Importujeme inicializovanú appku
 
-// Správny región a VÁŠ model
+// --- FINÁLNA OPRAVA: Explicitné použitie oprávnení z Firebase Admin ---
+const auth = getAuth(adminApp);
 const vertex_ai = new VertexAI({
     project: 'ai-sensei-czu-pilot',
-    location: 'europe-west1'
+    location: 'europe-west1',
+    googleAuth: auth, // Týmto explicitne povieme, aké oprávnenia má použiť
 });
 
-const modelName = 'gemini-2.5-pro'; // <<< OPRAVENÉ PODĽA VAŠEJ POŽIADAVKY
+// Váš overený a funkčný model
+const modelName = 'gemini-2.5-pro'; 
 
 // --- OPRAVENÉ FUNKCIE S KONTROLAMI PRE TYPESCRIPT ---
 
-// Funkcia na generovanie textu z promptu
 export async function generateTextFromPrompt(prompt: string): Promise<string> {
     try {
         const generativeModel = vertex_ai.getGenerativeModel({ model: modelName });
         const result = await generativeModel.generateContent(prompt);
         const response = result.response;
 
-        // Bezpečnostná kontrola, či odpoveď existuje
         if (!response || !response.candidates || response.candidates.length === 0 || !response.candidates[0].content.parts[0].text) {
             throw new Error("AI nevrátila platnou odpověď.");
         }
-
         return response.candidates[0].content.parts[0].text;
     } catch (error) {
         console.error("Chyba při generování textu:", error);
@@ -31,21 +33,16 @@ export async function generateTextFromPrompt(prompt: string): Promise<string> {
     }
 }
 
-// Funkcia na generovanie JSON z promptu
 export async function generateJsonFromPrompt(prompt: string): Promise<any> {
     try {
         const generativeModel = vertex_ai.getGenerativeModel({ model: modelName });
         const result = await generativeModel.generateContent(prompt);
         const response = result.response;
 
-        // Bezpečnostná kontrola
         if (!response || !response.candidates || response.candidates.length === 0 || !response.candidates[0].content.parts[0].text) {
             throw new Error("AI nevrátila platnou odpověď pro JSON.");
         }
-        
         const responseText = response.candidates[0].content.parts[0].text;
-        
-        // Očistíme text od ```json a ```, aby sme získali platný JSON
         const cleanedJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
         return JSON.parse(cleanedJson);
     } catch (error) {
@@ -54,14 +51,12 @@ export async function generateJsonFromPrompt(prompt: string): Promise<any> {
     }
 }
 
-// Funkcia na generovanie textu z dokumentov
 export async function generateTextFromDocuments(filePaths: string[], prompt: string): Promise<string> {
     try {
         const fileParts: Part[] = filePaths.map(path => ({
             fileData: { mimeType: "application/pdf", fileUri: `gs://${path}` }
         }));
         
-        // Správna štruktúra požiadavky
         const request: GenerateContentRequest = {
             contents: [{ role: "user", parts: [{ text: prompt }, ...fileParts] }]
         };
@@ -70,11 +65,9 @@ export async function generateTextFromDocuments(filePaths: string[], prompt: str
         const result = await generativeModel.generateContent(request);
         const response = result.response;
 
-        // Bezpečnostná kontrola
         if (!response || !response.candidates || response.candidates.length === 0 || !response.candidates[0].content.parts[0].text) {
             throw new Error("AI nevrátila platnou odpověď z dokumentů.");
         }
-
         return response.candidates[0].content.parts[0].text;
     } catch (error) {
         console.error("Chyba při generování textu z dokumentů:", error);
@@ -82,14 +75,12 @@ export async function generateTextFromDocuments(filePaths: string[], prompt: str
     }
 }
 
-// Funkcia na generovanie JSON z dokumentov
 export async function generateJsonFromDocuments(filePaths: string[], prompt: string): Promise<any> {
     try {
         const fileParts: Part[] = filePaths.map(path => ({
             fileData: { mimeType: "application/pdf", fileUri: `gs://${path}` }
         }));
 
-        // Správna štruktúra požiadavky
         const request: GenerateContentRequest = {
             contents: [{ role: "user", parts: [{ text: prompt }, ...fileParts] }]
         };
@@ -98,11 +89,9 @@ export async function generateJsonFromDocuments(filePaths: string[], prompt: str
         const result = await generativeModel.generateContent(request);
         const response = result.response;
 
-        // Bezpečnostná kontrola
         if (!response || !response.candidates || response.candidates.length === 0 || !response.candidates[0].content.parts[0].text) {
             throw new Error("AI nevrátila platnou odpověď pro JSON z dokumentů.");
         }
-
         const responseText = response.candidates[0].content.parts[0].text;
         const cleanedJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
         return JSON.parse(cleanedJson);
