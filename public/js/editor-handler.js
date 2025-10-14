@@ -7,7 +7,7 @@ import { callGenerateContent, createQuizForLesson, createTestForLesson, createPo
 
 let currentLesson = null;
 let editorInstance = null; // Z CKEditora
-const MAIN_COURSE_ID = "main-course"; 
+const MAIN_COURSE_ID = "main-course";
 
 // --- NOVÁ FUNKCIA NA STIAHNUTIE OBSAHU (z vašej starej logiky) ---
 function handleDownloadLessonContent() {
@@ -75,7 +75,7 @@ function handleDownloadLessonContent() {
         });
         contentString += `---\n\n`;
     }
-    
+
     // Vytvorenie a stiahnutie súboru
     const blob = new Blob([contentString], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -195,7 +195,7 @@ function addAiButtonListeners() {
         const result = await createPresentationForLesson(currentLesson.id, lessonContent);
         if (result) showToast('Prezentace byla úspěšně vytvořena.');
     });
-    
+
     document.getElementById('generate-text-btn').addEventListener('click', async () => {
         const prompt = document.getElementById('ai-prompt').value;
         if (!prompt) {
@@ -246,7 +246,6 @@ async function handleSaveLesson() {
 }
 
 // --- Inicializácia Editora ---
-let editorInstance = null;
 export function initializeTextEditor(selector, initialContent = '') {
     const editorEl = document.querySelector(selector);
     if (!editorEl) return;
