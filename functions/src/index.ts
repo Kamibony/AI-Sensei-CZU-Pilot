@@ -3,6 +3,12 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
+
+interface ChatMessage {
+  role: string;
+  parts: { text: string }[];
+}
+
 // --- OPRAVA: Pridaná koncovka .js ---
 import {
     generateJsonFromPrompt,
@@ -21,7 +27,7 @@ export const getAiAssistantResponse = onCall(async (request) => {
         throw new HttpsError("unauthenticated", "Uživatel není přihlášen.");
     }
     const studentId = request.data.studentId as string;
-    const conversationHistory = request.data.conversationHistory as any[];
+    const conversationHistory = request.data.conversationHistory as ChatMessage[];
 
     if (!studentId || !conversationHistory) {
         throw new HttpsError("invalid-argument", "Chybí ID studenta nebo historie konverzace.");
@@ -36,7 +42,7 @@ export const getAiAssistantResponse = onCall(async (request) => {
 
     const prompt = `Jsi AI Sensei, přátelský a nápomocný AI asistent pro studenta jménem ${studentName}.
     Toto je vaše předchozí konverzace:
-    ${conversationHistory.map((msg: any) => `${msg.role}: ${msg.parts[0].text}`).join("\n")}
+    ${conversationHistory.map((msg: ChatMessage) => `${msg.role}: ${msg.parts[0].text}`).join("\n")}
     Odpověz na poslední zprávu a pokračuj v konverzaci. Buď stručný a nápomocný.`;
 
     const responseText = await generateTextFromPrompt(prompt);

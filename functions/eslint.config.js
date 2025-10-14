@@ -8,6 +8,7 @@ export default [
     ignores: [
       "lib/",
       "node_modules/",
+      "eslint.config.js",
     ],
   },
   

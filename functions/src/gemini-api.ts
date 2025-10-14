@@ -39,7 +39,7 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
         if (functionName === "generateJson") {
             return JSON.stringify({ mock: "This is a mock JSON response from the emulator." });
         }
-        return `This is a mock response from the emulator for a text prompt.`;
+        return "This is a mock response from the emulator for a text prompt.";
     }
 
     try {
@@ -86,7 +86,7 @@ export async function generateJsonFromPrompt(prompt: string): Promise<unknown> {
   try {
     const parsedJson = JSON.parse(rawJsonText);
     return parsedJson;
-  } catch (_e) {
+  } catch {
     console.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText);
     throw new Error("Model returned a malformed JSON string.");
   }
@@ -148,7 +148,7 @@ export async function generateJsonFromDocuments(filePaths: string[], prompt: str
     try {
         const parsedJson = JSON.parse(rawJsonText);
         return parsedJson;
-    } catch (_e) {
+    } catch {
         console.error("[gemini-api:generateJsonFromDocuments] Failed to parse JSON from Gemini response:", rawJsonText);
         throw new Error("Model returned a malformed JSON string.");
     }
