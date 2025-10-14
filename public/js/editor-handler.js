@@ -1,21 +1,101 @@
+import { doc, setDoc, serverTimestamp, collection, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { ref, listAll } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { db, storage } from './firebase-init.js';
 import { showToast } from './utils.js';
-import { db } from './firebase-init.js';
-import { doc, setDoc, serverTimestamp, collection, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { 
-    createQuizForLesson, 
-    createTestForLesson, 
-    createPodcastForLesson, 
-    createPresentationForLesson,
-    generateContentForLesson 
-} from './gemini-api.js'; // Používa sa tvoj refaktorovaný, opravený modul
+// Dôležité: Tieto funkcie volajú tvoj opravený backend (funkcie)
+import { callGenerateContent, createQuizForLesson, createTestForLesson, createPodcastForLesson, createPresentationForLesson, generateContentForLesson } from './gemini-api.js';
 
-let editorInstance = null;
 let currentLesson = null;
+let editorInstance = null; // Z CKEditora
+const MAIN_COURSE_ID = "main-course"; 
 
-// --- NOVÁ FUNKCIA: Renderovanie celého menu s AI tlačidlami (Grafika a štruktúra) ---
-export function renderEditorMenu(container, lessonData) {
-    currentLesson = lessonData;
-    const isNewLesson = !lessonData;
+// --- NOVÁ FUNKCIA NA STIAHNUTIE OBSAHU (z vašej starej logiky) ---
+function handleDownloadLessonContent() {
+    if (!currentLesson) {
+        showToast("Lekce není načtena, nelze stáhnout obsah.", true);
+        return;
+    }
+
+    let contentString = "";
+    const title = currentLesson.title || "Nová lekce";
+
+    // ... (logic for generating contentString remains the same as your old file)
+    // TENTO KÓD VLOŽÍ VŠETKU LOGIKU STIAHNUTIA OBSAHU Z TVOJHO STARÉHO KÓDU
+
+    // Pridanie hlavičky
+    contentString += `# ${title}\n`;
+    if (currentLesson.subtitle) {
+        contentString += `## ${currentLesson.subtitle}\n`;
+    }
+    contentString += `\n---\n\n`;
+
+    // Pridanie hlavného textu
+    if (currentLesson.content) {
+        contentString += `### Hlavní text pro studenty\n\n`;
+        contentString += `${currentLesson.content}\n\n---\n\n`;
+    }
+
+    // Pridanie prezentácie
+    if (currentLesson.presentationData && currentLesson.presentationData.slides) {
+        contentString += `### Prezentace\n\n`;
+        currentLesson.presentationData.slides.forEach((slide, index) => {
+            contentString += `**Slide ${index + 1}: ${slide.title}**\n`;
+            (slide.points || []).forEach(point => {
+                contentString += `- ${point}\n`;
+            });
+            contentString += `\n`;
+        });
+        contentString += `---\n\n`;
+    }
+
+    // Pridanie kvízu
+    if (currentLesson.quizData && currentLesson.quizData.questions) {
+        contentString += `### Kvíz\n\n`;
+        currentLesson.quizData.questions.forEach((q, index) => {
+            contentString += `${index + 1}. ${q.question_text}\n`;
+            (q.options || []).forEach((option, i) => {
+                const isCorrect = i === q.correct_option_index ? " (Správně)" : "";
+                contentString += `  - ${option}${isCorrect}\n`;
+            });
+            contentString += `\n`;
+        });
+        contentString += `---\n\n`;
+    }
+
+    // Pridanie testu
+    if (currentLesson.testData && currentLesson.testData.questions) {
+        contentString += `### Test\n\n`;
+        currentLesson.testData.questions.forEach((q, index) => {
+            contentString += `${index + 1}. ${q.question_text}\n`;
+            (q.options || []).forEach((option, i) => {
+                const isCorrect = i === q.correct_option_index ? " (Správně)" : "";
+                contentString += `  - ${option}${isCorrect}\n`;
+            });
+            contentString += `\n`;
+        });
+        contentString += `---\n\n`;
+    }
+    
+    // Vytvorenie a stiahnutie súboru
+    const blob = new Blob([contentString], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast("Obsah lekce byl stažen.");
+}
+// -----------------------------------------------------------------------
+
+
+// --- Funkcia, ktorá renderuje celú navigáciu editora ---
+export function renderEditorMenu(container, lesson) {
+    currentLesson = lesson;
+    const isNewLesson = !lesson;
 
     container.innerHTML = `
         <header class="p-4 border-b border-slate-200 flex-shrink-0">
@@ -24,11 +104,11 @@ export function renderEditorMenu(container, lessonData) {
         <div class="flex-grow overflow-y-auto p-4 space-y-4">
             <div>
                 <label for="lesson-title-editor" class="text-sm font-semibold text-slate-600">Název lekce</label>
-                <input type="text" id="lesson-title-editor" class="w-full p-2 border rounded-lg mt-1" value="${lessonData?.title || ''}">
+                <input type="text" id="lesson-title-editor" class="w-full p-2 border rounded-lg mt-1" value="${lesson?.title || ''}">
             </div>
             <div>
                 <label for="lesson-subtitle-editor" class="text-sm font-semibold text-slate-600">Podtitulek</label>
-                <input type="text" id="lesson-subtitle-editor" class="w-full p-2 border rounded-lg mt-1" value="${lessonData?.subtitle || ''}">
+                <input type="text" id="lesson-subtitle-editor" class="w-full p-2 border rounded-lg mt-1" value="${lesson?.subtitle || ''}">
             </div>
             <div>
                 <label for="lesson-content-editor" class="text-sm font-semibold text-slate-600">Hlavní obsah</label>
@@ -57,18 +137,23 @@ export function renderEditorMenu(container, lessonData) {
         </div>
         <footer class="p-4 border-t border-slate-200 flex-shrink-0">
             <button id="save-lesson-btn" class="w-full p-3 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800">Uložit lekci</button>
+            <button id="download-lesson-btn" title="Stáhnout obsah lekce" class="mt-2 w-full p-2 rounded-lg text-slate-700 border hover:bg-slate-100 transition-colors">
+                 Stáhnout obsah lekce
+             </button>
         </footer>
     `;
 
-    initializeTextEditor('#text-editor-instance', lessonData?.content || '');
+    initializeTextEditor('#text-editor-instance', lesson?.content || '');
     document.getElementById('save-lesson-btn').addEventListener('click', handleSaveLesson);
+    document.getElementById('download-lesson-btn')?.addEventListener('click', handleDownloadLessonContent);
+
 
     if (!isNewLesson) {
         addAiButtonListeners(); // Dôležité: Týmto sa pripoja listenery na generovanie
     }
 }
 
-// --- FUNKCIA: Pomocné renderovanie tlačidla (Grafika) ---
+// --- Funkcia, ktorá renderuje jedno tlačidlo (Grafická inšpirácia) ---
 function renderAiToolButton(text, id, svgPath) {
     return `
         <button id="generate-${id}-btn" class="flex flex-col items-center justify-center p-3 bg-white border rounded-lg hover:shadow-md hover:bg-slate-50 transition-all">
@@ -78,7 +163,7 @@ function renderAiToolButton(text, id, svgPath) {
     `;
 }
 
-// --- FUNKCIA: Pripojenie API volaní (Funkčnosť) ---
+// --- Funkcia, ktorá pripája volania na opravený backend ---
 function addAiButtonListeners() {
     if (!currentLesson || !currentLesson.id) {
         showToast("Nejprve uložte lekci, než použijete AI nástroje.", true);
@@ -86,7 +171,7 @@ function addAiButtonListeners() {
     }
     const getEditorContent = () => editorInstance ? editorInstance.getData() : '';
 
-    // Fix: Tieto funkcie volajú tvoje opravené Firebase funkcie z ./gemini-api.js
+    // Dôležité: Tieto funkcie volajú tvoje opravené Firebase funkcie z ./gemini-api.js
     document.getElementById('generate-quiz-btn').addEventListener('click', async () => {
         const lessonContent = getEditorContent();
         const result = await createQuizForLesson(currentLesson.id, lessonContent);
@@ -117,7 +202,6 @@ function addAiButtonListeners() {
             showToast('Zadejte prosím prompt pro generování textu.', true);
             return;
         }
-        // Poznámka: Predpokladám, že táto funkcia vracala celý obsah pre editor, čo sa má nahradiť.
         const result = await generateContentForLesson(currentLesson.id, prompt);
         if (result && result.content) {
             editorInstance.setData(result.content);
@@ -126,14 +210,8 @@ function addAiButtonListeners() {
     });
 }
 
-// ... (funkcie handleSaveLesson, initializeTextEditor, getEditorContent)
-// Predpokladám, že tieto sú už vo vašej kódovej základni
-// Ak nie, použite ich verziu z vášho starého kódu.
-
-// Doplňujúce funkcie potrebné pre export:
+// --- Základná logika ukladania (potrebná pre funkčnosť) ---
 async function handleSaveLesson() {
-    // Táto logika je vnútri editor-handler.js a musí byť implementovaná, 
-    // aby sa lekcia uložila a pridalo sa jej ID, ktoré AI potrebuje.
     const title = document.getElementById('lesson-title-editor').value.trim();
     if (!title) {
         showToast("Název lekce je povinný.", true);
@@ -167,6 +245,7 @@ async function handleSaveLesson() {
     }
 }
 
+// --- Inicializácia Editora ---
 let editorInstance = null;
 export function initializeTextEditor(selector, initialContent = '') {
     const editorEl = document.querySelector(selector);
@@ -176,7 +255,6 @@ export function initializeTextEditor(selector, initialContent = '') {
         editorInstance.destroy().catch(() => {});
     }
 
-    // Predpokladá sa, že CKEditor je načítaný
     if (typeof ClassicEditor !== 'undefined') {
         ClassicEditor
             .create(editorEl, {
@@ -189,8 +267,6 @@ export function initializeTextEditor(selector, initialContent = '') {
             .catch(error => {
                 console.error('Error initializing CKEditor:', error);
             });
-    } else {
-        console.error("CKEditor nie je načítaný.");
     }
 }
 
