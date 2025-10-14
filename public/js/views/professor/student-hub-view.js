@@ -1,8 +1,7 @@
 import { collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db } from "../../firebase-init.js";
 import { showToast } from "../../utils.js";
 
-export function renderStudentHub(container, onStudentClick) {
+export function renderStudentHub(container, db, onStudentClick) {
     container.innerHTML = `
         <header class="text-center p-6 border-b border-slate-200 bg-white">
             <h1 class="text-3xl font-extrabold text-slate-800">Přehled Studentů</h1>
