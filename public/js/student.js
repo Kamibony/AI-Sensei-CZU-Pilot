@@ -65,7 +65,6 @@ export async function showStudentContent(view) {
             renderAIChat(mainContentArea, currentUserData); // Použije sa uložený používateľ
             break;
         case 'professor-chat':
-            // TOTO BOLA CHYBA: Študent nemá vidieť chat profesora.
             // Pôvodný kód: renderProfessorChat(mainContentArea, db, currentUserData);
             mainContentArea.innerHTML = '<p>Zde bude brzy dostupný chat s profesorem.</p>'; // Dočasné riešenie
             break;
