@@ -3,8 +3,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- OPRAVENÉ PRAVIDLÁ PRE PROFESORA ---
-    // Prístup je povolený, ak je používateľ prihlásený anonymne (čo je v tejto aplikácii profesor).
+    // --- PRAVIDLÁ PRE PROFESORA (overenie anonymného prihlásenia) ---
+    // Prístup je povolený, ak je používateľ prihlásený anonymne.
     match /lessons/{lessonId} {
       allow read, write: if request.auth.token.firebase.sign_in_provider == 'anonymous';
     }
@@ -21,7 +21,7 @@ service cloud.firestore {
       allow read, write: if request.auth.token.firebase.sign_in_provider == 'anonymous';
     }
 
-    // --- OPRAVENÉ PRAVIDLÁ PRE ŠTUDENTOV ---
+    // --- PRAVIDLÁ PRE ŠTUDENTOV (opravené pravidlo pre vytvorenie profilu) ---
     match /students/{studentId} {
       allow read: if request.auth != null;
       allow get, update: if request.auth != null && request.auth.uid == studentId;
@@ -34,7 +34,7 @@ service cloud.firestore {
     }
     
     match /students/{studentId}/submissions/{submissionId} {
-      // Prístup má študent k svojim dátam alebo akýkoľvek anonymný používateľ (profesor).
+      // Prístup má študent k svojim dátam alebo anonymný používateľ (profesor).
       allow read, write: if request.auth != null && (request.auth.uid == studentId || request.auth.token.firebase.sign_in_provider == 'anonymous');
     }
 
