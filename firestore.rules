@@ -4,7 +4,6 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // --- PRAVIDLÁ PRE PROFESORA ---
-    // Povolí čítanie a zápis, ak je používateľ prihlásený anonymne.
     match /lessons/{lessonId} {
       allow read, write: if request.auth.token.firebase.sign_in_provider == 'anonymous';
     }
@@ -18,13 +17,11 @@ service cloud.firestore {
       allow read, write: if request.auth.token.firebase.sign_in_provider == 'anonymous';
     }
 
-    // --- PRAVIDLÁ PRE ŠTUDENTOV ---
+    // --- PRAVIDLÁ PRE ŠTUDENTOV (FINÁLNA OPRAVA) ---
     match /students/{studentId} {
-      // Povolí čítanie (list) celej kolekcie anonymnému používateľovi (profesorovi).
       allow list, read: if request.auth.token.firebase.sign_in_provider == 'anonymous';
-      // Povolí čítanie (get) a úpravu (update) len samotnému študentovi.
       allow get, update: if request.auth != null && request.auth.uid == studentId;
-      // OPRAVA: Povolí vytvorenie (create) dokumentu len vtedy, ak sa ID používateľa zhoduje s ID dokumentu.
+      // OPRAVA: Povolí vytvorenie dokumentu len vtedy, ak sa ID používateľa zhoduje s ID dokumentu.
       allow create: if request.auth != null && request.auth.uid == studentId;
     }
 
@@ -38,12 +35,11 @@ service cloud.firestore {
 
     // --- PRAVIDLÁ PRE KONVERZÁCIE (pre sekciu Interakce) ---
     match /conversations/{conversationId} {
-        // Povolí čítanie celej kolekcie anonymnému používateľovi (profesorovi).
         allow read, list: if request.auth.token.firebase.sign_in_provider == 'anonymous';
-        // Povolí zápis komukoľvek prihlásenému (študent aj profesor).
         allow write: if request.auth != null;
     }
 
+    // Ostatné pravidlá zostávajú nezmenené
     match /quiz_submissions/{submissionId} {
       allow create: if request.auth != null && request.auth.uid == request.resource.data.studentId;
       allow get: if request.auth != null && (request.auth.uid == resource.data.studentId || request.auth.token.firebase.sign_in_provider == 'anonymous');
