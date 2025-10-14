@@ -25,7 +25,7 @@ export async function generateTextFromPrompt(prompt: string): Promise<string> {
             throw new Error("AI nevrátila platnou odpověď.");
         }
         return response.candidates[0].content.parts[0].text;
-    } catch (error) { // OPRAVA: Zátvorka je na správnom mieste
+    } catch (error) {
         console.error("Chyba při generování textu:", error);
         throw new Error("Nepodařilo se vygenerovat text.");
     }
@@ -41,9 +41,10 @@ export async function generateJsonFromPrompt(prompt: string): Promise<any> {
             throw new Error("AI nevrátila platnou odpověď pro JSON.");
         }
         const responseText = response.candidates[0].content.parts[0].text;
-        const cleanedJson = responseText.replace(/```json/g, "").replace(/```g, "").trim();
+        // OPRAVA: Správny regulárny výraz pre odstránenie ```
+        const cleanedJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
         return JSON.parse(cleanedJson);
-    } catch (error) { // OPRAVA: Zátvorka je na správnom mieste
+    } catch (error) {
         console.error("Chyba při generování JSON:", error);
         throw new Error("Nepodařilo se vygenerovat JSON.");
     }
@@ -67,7 +68,7 @@ export async function generateTextFromDocuments(filePaths: string[], prompt: str
             throw new Error("AI nevrátila platnou odpověď z dokumentů.");
         }
         return response.candidates[0].content.parts[0].text;
-    } catch (error) { // OPRAVA: Zátvorka je na správnom mieste
+    } catch (error) {
         console.error("Chyba při generování textu z dokumentů:", error);
         throw new Error("Nepodařilo se vygenerovat text z dokumentů.");
     }
@@ -91,10 +92,11 @@ export async function generateJsonFromDocuments(filePaths: string[], prompt: str
             throw new Error("AI nevrátila platnou odpověď pro JSON z dokumentů.");
         }
         const responseText = response.candidates[0].content.parts[0].text;
-        const cleanedJson = responseText.replace(/```json/g, "").replace(/```g, "").trim();
+        // OPRAVA: Správny regulárny výraz pre odstránenie ```
+        const cleanedJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
         return JSON.parse(cleanedJson);
-    } catch (error) { // OPRAVA: Zátvorka je na správnom mieste
+    } catch (error) {
         console.error("Chyba při generování JSON z dokumentů:", error);
         throw new Error("Nepodařilo se vygenerovat JSON z dokumentů.");
     }
-
+}
