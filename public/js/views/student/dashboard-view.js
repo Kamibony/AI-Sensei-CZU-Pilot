@@ -1,9 +1,6 @@
-// public/js/views/student/dashboard-view.js
-
 import { collection, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { setCurrentLessonId, showStudentContent } from "../../student.js";
 
-// === TOTO CHÝBALO ===
 export async function renderDashboard(container, db, studentData) {
     if (!studentData || !studentData.courseId) {
         container.innerHTML = `<p class="p-4">Chyba: Chybí informace o kurzu studenta.</p>`;
