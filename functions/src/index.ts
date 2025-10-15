@@ -1,5 +1,5 @@
 import * as functions from "firebase-functions";
-import * as admin from "firebase-admin";
+import admin from "firebase-admin";
 import {
   generateJsonFromPrompt,
   generateTextFromPrompt
@@ -8,12 +8,9 @@ import {
 // Nastavenie regiónu pre všetky funkcie
 const europeWest1 = functions.region("europe-west1");
 
-// Inicializácia Firebase Admin SDK - uisti sa, že sa to udeje len raz
-if (admin.apps.length === 0) {
-  admin.initializeApp();
-}
+// OPRAVA: Odstránená problematická podmienka. Priama inicializácia je v poriadku.
+admin.initializeApp();
 
-// OPRAVA: Vytvorenie `db` priamo tu po inicializácii
 const db = admin.firestore();
 
 // --- Funkcie volané z frontendu ---
@@ -23,24 +20,18 @@ const db = admin.firestore();
  */
 export const generateContent = europeWest1.https.onCall(
   async (data, context) => {
-    // Overenie autentifikácie
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "Musíte byť prihlásený.");
     }
-
     const { lessonId, prompt } = data;
     if (!lessonId || !prompt) {
       throw new functions.https.HttpsError("invalid-argument", "Chýba lessonId alebo prompt.");
     }
-
     try {
       const generatedContent = await generateTextFromPrompt(prompt);
-      
-      // Použitie správne inicializovanej `db` premennej
       await db.collection("lessons").doc(lessonId).update({
         content: generatedContent,
       });
-      
       return { success: true, content: generatedContent };
     } catch (error) {
       console.error("Chyba vo funkcii generateContent:", error);
@@ -48,7 +39,6 @@ export const generateContent = europeWest1.https.onCall(
     }
   },
 );
-
 
 /**
  * Vytvorí kvíz pre danú lekciu.
@@ -61,7 +51,6 @@ export const createQuiz = europeWest1.https.onCall(async (data, context) => {
   if (!lessonId || !lessonContent) {
     throw new functions.https.HttpsError("invalid-argument", "Chýba lessonId alebo lessonContent.");
   }
-
   try {
     const prompt = `Na základe nasledujúceho obsahu lekcie vytvor JSON objekt pre kvíz s 5 otázkami. Každá otázka by mala mať 4 možnosti a správnu odpoveď. Štruktúra JSON by mala byť pole objektov, kde každý objekt má "question", "options" (pole reťazcov) a "correctAnswer" (reťazec). Obsah lekcie: "${lessonContent}"`;
     const quiz = await generateJsonFromPrompt(prompt);
