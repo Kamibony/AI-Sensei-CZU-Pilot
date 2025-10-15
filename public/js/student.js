@@ -34,9 +34,9 @@ export function initStudentDashboard() {
     const userDocRef = doc(db, "students", user.uid);
     
     // Vytvoríme listener, ktorý bude sledovať zmeny v profile študenta
-    studentDataUnsubscribe = onSnapshot(userDocRef, async (doc) => {
-        if (doc.exists()) {
-            currentUserData = { id: doc.id, ...doc.data() };
+    studentDataUnsubscribe = onSnapshot(userDocRef, async (docSnapshot) => {
+        if (docSnapshot.exists()) {
+            currentUserData = { id: docSnapshot.id, ...docSnapshot.data() };
             // Ak študent nemá zadané meno (napr. po prvej registrácii), vyzveme ho na zadanie
             if (!currentUserData.name || currentUserData.name.trim() === '') {
                 promptForStudentName(user.uid);
@@ -45,10 +45,25 @@ export function initStudentDashboard() {
                 await renderStudentPanel();
             }
         } else {
-            // Tento stav by nemal nastať, keďže profil sa vytvára pri registrácii,
-            // ale pre istotu ho ošetríme.
-            console.error("Dokument študenta neexistuje v databáze pre UID:", user.uid);
-            document.getElementById('app-container').innerHTML = `<p class="text-red-500 text-center p-8">Chyba: Váš profil nebol nájdený. Kontaktujte administrátora.</p>`;
+            // --- ZAČIATOK ÚPRAVY ---
+            // Ak dokument študenta neexistuje, automaticky ho vytvoríme.
+            console.warn(`Profil pre študenta s UID ${user.uid} nebol nájdený. Vytváram nový...`);
+            try {
+                await setDoc(doc(db, "students", user.uid), {
+                    email: user.email,
+                    createdAt: serverTimestamp(),
+                    name: '' // Meno si študent doplní v nasledujúcom kroku
+                });
+                console.log(`Profil pre študenta ${user.uid} bol úspešne vytvorený.`);
+                // Po vytvorení sa tento listener (onSnapshot) automaticky spustí znova a už dokument nájde.
+            } catch (error) {
+                console.error("Nepodarilo sa automaticky vytvoriť profil študenta:", error);
+                const appContainer = document.getElementById('app-container');
+                if (appContainer) {
+                    appContainer.innerHTML = `<p class="text-red-500 text-center p-8">Chyba: Nepodarilo sa vytvoriť váš profil. Kontaktujte administrátora.</p>`;
+                }
+            }
+            // --- KONIEC ÚPRAVY ---
         }
     }, (error) => {
         console.error("Chyba pri načítavaní profilu študenta:", error);
