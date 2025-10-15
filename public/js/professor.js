@@ -1,24 +1,23 @@
+import { db } from './firebase-init.js';
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { showToast } from './utils.js';
 import { setupNavigation } from './views/professor/navigation.js';
 import { renderTimeline } from './views/professor/timeline-view.js';
 import { renderStudents } from './views/professor/students-view.js';
 import { renderStudentProfile } from './views/professor/student-profile-view.js';
-import { db } from './firebase-init.js';
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from './utils.js';
 
-// Globálna premenná pre lekcie, aby sme ich nemuseli stále načítavať
-let allLessons = [];
-
-// Mapa, ktorá priraďuje cesty v URL k funkciám, ktoré majú zobraziť obsah
+// Mapa, ktorá priraďuje cesty v URL k funkciám, ktoré ich vykresľujú
 const routes = {
-    '/': () => renderTimeline(allLessons),
-    '/timeline': () => renderTimeline(allLessons),
+    '/': renderTimeline,
+    '/timeline': renderTimeline,
     '/students': renderStudents,
     '/student-profile': (params) => {
         if (params.id) {
             renderStudentProfile(params.id);
         } else {
             console.error('Chýba ID študenta pre zobrazenie profilu.');
+            const mainContent = document.getElementById('main-content');
+            mainContent.innerHTML = '<h2>Chyba: Chýba ID študenta.</h2>';
         }
     }
 };
@@ -28,19 +27,11 @@ export function handleRouteChange() {
     const path = window.location.hash.substring(1) || '/';
     const [routePath, queryString] = path.split('?');
     
-    const renderFunction = routes[routePath];
+    const renderFunction = routes[routePath] || routes['/']; // Ak cesta neexistuje, zobrazí sa default
 
-    if (renderFunction) {
-        const params = new URLSearchParams(queryString);
-        const paramsObject = Object.fromEntries(params.entries());
-        renderFunction(paramsObject);
-    } else {
-        console.error(`Cesta '${routePath}' nebola nájdená.`);
-        const mainContent = document.getElementById('main-content');
-        if (mainContent) {
-            mainContent.innerHTML = '<h2>404 - Stránka nenalezena</h2>';
-        }
-    }
+    const params = new URLSearchParams(queryString);
+    const paramsObject = Object.fromEntries(params.entries());
+    renderFunction(paramsObject);
 }
 
 // Hlavná inicializačná funkcia pre profesorský panel
@@ -53,28 +44,18 @@ export async function initProfessorDashboard() {
         return;
     }
     
-    // Vytvoríme hlavný obsahový kontajner, do ktorého budú všetky zobrazenia vkladať obsah
-    roleContentWrapper.innerHTML = `
-        <div class="flex-grow p-4 md:p-6 lg:p-8 overflow-y-auto">
-            <div id="main-content">
-                <h2>Načítání...</h2>
-            </div>
-        </div>
-    `;
-
-    // Načítame lekcie iba raz pri inicializácii
-    try {
-        const querySnapshot = await getDocs(collection(db, "lessons"));
-        allLessons = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) {
-        console.error("Error fetching lessons: ", error);
-        showToast("Nepodařilo se načíst lekce.", true);
+    // NAJPRV VLOŽÍME HTML
+    const mainContentTemplate = document.getElementById('professor-dashboard-template');
+    if (!mainContentTemplate) {
+        console.error("CHYBA: Šablóna 'professor-dashboard-template' nebola nájdená!");
+        return;
     }
+    roleContentWrapper.appendChild(mainContentTemplate.content.cloneNode(true));
+    
+    // AŽ POTOM NASTAVÍME NAVIGÁCIU
+    setupNavigation();
 
-    // Nastavíme navigáciu
-    setupNavigation(allLessons);
-
-    // Prvé spracovanie cesty po načítaní
+    // Prvé spracovanie cesty po načítaní stránky
     handleRouteChange(); 
 
     // Sledujeme zmeny v URL (napr. pri kliknutí na tlačidlá späť/vpred)
