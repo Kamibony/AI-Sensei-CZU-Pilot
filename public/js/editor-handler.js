@@ -5,6 +5,15 @@ import { handleFileUpload } from './upload-handler.js';
 let editor;
 
 export async function initializeEditor(containerId, initialContent = '') {
+    // --- OPRAVENÁ ČASŤ ---
+    // Skontrolujeme, či sú globálne premenné z knižníc dostupné
+    if (typeof window.EditorJS === 'undefined' || typeof window.Header === 'undefined' || typeof window.List === 'undefined' || typeof window.SimpleImage === 'undefined') {
+        console.error("Editor.js alebo jeho doplnky neboli správne načítané. Skontrolujte <script> značky v index.html.");
+        showToast("Chyba: Nepodarilo sa načítať editor.", true);
+        return;
+    }
+    // --- KONIEC OPRAVENEJ ČASTI ---
+
     const EditorJS = window.EditorJS;
     editor = new EditorJS({
         holder: containerId,
@@ -19,7 +28,15 @@ export async function initializeEditor(containerId, initialContent = '') {
         autofocus: true,
         placeholder: 'Zadejte / pro příkazy nebo začněte psát...',
     });
-    await editor.isReady;
+
+    try {
+        await editor.isReady;
+        console.log('Editor.js je pripravený.');
+    } catch (error) {
+        console.error('Editor.js sa nepodarilo inicializovať:', error);
+        return;
+    }
+
 
     document.getElementById('save-content-btn')?.addEventListener('click', saveContent);
 
@@ -44,6 +61,10 @@ export async function initializeEditor(containerId, initialContent = '') {
 }
 
 async function saveContent() {
+    if (!editor) {
+        console.error("Editor nie je inicializovaný.");
+        return;
+    }
     try {
         const outputData = await editor.save();
         console.log("Saving content:", outputData);
@@ -56,6 +77,10 @@ async function saveContent() {
 }
 
 async function generateAiContent() {
+    if (!editor) {
+        console.error("Editor nie je inicializovaný.");
+        return;
+    }
     const prompt = document.getElementById('ai-prompt').value;
     const contentType = document.getElementById('content-type-selector').value;
     const lessonId = document.getElementById('lesson-id-display').textContent;
@@ -88,6 +113,10 @@ async function generateAiContent() {
 }
 
 function handlePresentation(presentation) {
+    if (!editor) {
+        console.error("Editor nie je inicializovaný.");
+        return;
+    }
     if (!presentation || !presentation.slides) {
         console.error("Invalid presentation data received");
         return;
