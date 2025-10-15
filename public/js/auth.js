@@ -1,7 +1,8 @@
 import { onAuthStateChanged, signOut, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from '/js/utils.js';
-import { auth, db } from '/js/firebase-init.js';
+// Zmena z /js/... na ./...
+import { showToast } from './utils.js'; 
+import { auth, db } from './firebase-init.js';
 
 let loginSuccessCallback;
 
@@ -85,8 +86,7 @@ async function handleStudentRegister() {
     try {
         sessionStorage.setItem('userRole', 'student');
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-
-        // FINÁLNA OPRAVA: Generovanie a uloženie Telegram tokenu
+        
         const telegramToken = 'tg_' + Date.now() + Math.random().toString(36).substring(2, 8);
 
         await setDoc(doc(db, "students", userCredential.user.uid), { 
