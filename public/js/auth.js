@@ -1,54 +1,63 @@
 import { onAuthStateChanged, signOut, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from './utils.js';
+import { showToast } from './utils.js'; 
 import { auth, db } from './firebase-init.js';
 
 let loginSuccessCallback;
 
+/**
+ * Hlavná funkcia, ktorá riadi autentifikáciu v aplikácii.
+ */
 export function startAuthFlow(loginCallback) {
     loginSuccessCallback = loginCallback;
+    
+    // Listener, ktorý reaguje na zmenu stavu prihlásenia (prihlásenie, odhlásenie, prvé načítanie)
     onAuthStateChanged(auth, (user) => {
+        // Po načítaní stránky skontrolujeme, či má používateľ v session uleženú rolu
         const role = sessionStorage.getItem('userRole');
+
+        // PODMIENKA PRE SPUSTENIE APLIKÁCIE:
+        // Používateľ musí byť prihlásený (objekt 'user' existuje) A zároveň musí mať nastavenú rolu.
         if (user && role) {
+            console.log(`Používateľ ${user.uid} je prihlásený s rolou ${role}. Spúšťam aplikáciu.`);
             loginSuccessCallback(role);
-        } else {
-            sessionStorage.removeItem('userRole');
+        } 
+        // VŽDY, KEĎ PODMIENKA NIE JE SPLNENÁ:
+        // Ak používateľ nie je prihlásený alebo chýba rola, zobrazíme prihlasovací formulár.
+        else {
+            console.log("Používateľ nie je prihlásený alebo chýba rola. Zobrazujem prihlasovací formulár.");
+            sessionStorage.clear(); // Pre istotu vyčistíme session storage
             renderLogin();
         }
     });
 }
 
+/**
+ * Vykreslí prihlasovací/registračný formulár.
+ */
 function renderLogin() {
     const appContainer = document.getElementById('app-container');
     if (!appContainer) return;
-
     const template = document.getElementById('login-template');
     if (!template) return;
 
     appContainer.innerHTML = '';
     appContainer.appendChild(template.content.cloneNode(true));
 
+    // Pripojíme listenery na všetky tlačidlá
     document.getElementById('login-professor')?.addEventListener('click', handleProfessorLogin);
-    
-    const studentContainer = document.getElementById('student-login-container');
-    if (!studentContainer) return;
+    document.getElementById('login-btn')?.addEventListener('click', handleStudentLogin);
+    document.getElementById('register-btn')?.addEventListener('click', handleStudentRegister);
+    document.getElementById('show-register-form')?.addEventListener('click', (e) => { e.preventDefault(); toggleForms(false); });
+    document.getElementById('show-login-form')?.addEventListener('click', (e) => { e.preventDefault(); toggleForms(true); });
+}
 
-    studentContainer.querySelector('#login-btn')?.addEventListener('click', handleStudentLogin);
-    studentContainer.querySelector('#register-btn')?.addEventListener('click', handleStudentRegister);
-
-    const loginForm = studentContainer.querySelector('#login-form');
-    const registerForm = studentContainer.querySelector('#register-form');
-
-    studentContainer.querySelector('#show-register-form')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        loginForm.classList.add('hidden');
-        registerForm.classList.remove('hidden');
-    });
-    studentContainer.querySelector('#show-login-form')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        registerForm.classList.add('hidden');
-        loginForm.classList.remove('hidden');
-    });
+/**
+ * Prepína medzi prihlasovacím a registračným formulárom.
+ */
+function toggleForms(showLogin) {
+    document.getElementById('login-form').classList.toggle('hidden', !showLogin);
+    document.getElementById('register-form').classList.toggle('hidden', showLogin);
 }
 
 async function handleProfessorLogin() {
@@ -57,7 +66,6 @@ async function handleProfessorLogin() {
         await signInAnonymously(auth);
     } catch (error) {
         sessionStorage.removeItem('userRole');
-        console.error("Professor anonymous sign-in failed:", error);
         showToast("Přihlášení pro profesora selhalo.", true);
     }
 }
@@ -72,45 +80,41 @@ async function handleStudentLogin() {
         await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
         sessionStorage.removeItem('userRole');
-        console.error("Student sign-in failed:", error);
         showToast('Přihlášení selhalo: Nesprávný email nebo heslo.', true);
     }
 }
 
+/**
+ * Spracuje registráciu nového študenta.
+ */
 async function handleStudentRegister() {
     const email = document.getElementById('register-email')?.value.trim();
     const password = document.getElementById('register-password')?.value.trim();
     if (!email || !password) { showToast('Prosím, zadejte email a heslo.', true); return; }
 
     try {
-        // Najprv vytvoríme používateľa v Authentication
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // --- TOTO JE KĽÚČOVÁ OPRAVA ---
-        // Teraz vytvoríme zodpovedajúci dokument v kolekcii 'students'
-        const telegramToken = 'tg_' + Date.now() + Math.random().toString(36).substring(2, 8);
-        
+        // --- KĽÚČOVÁ OPRAVA ---
+        // Hneď po vytvorení účtu vytvoríme pre študenta aj profilový dokument v databáze.
         await setDoc(doc(db, "students", user.uid), { 
             email: user.email, 
             createdAt: serverTimestamp(),
-            telegramConnectionToken: telegramToken,
-            name: '' // Pridáme prázdne meno, ktoré si študent doplní neskôr
+            name: '' // Meno si študent doplní po prvom prihlásení
         });
         
-        // Až teraz nastavíme rolu a necháme systém, aby používateľa prihlásil
+        // Nastavíme rolu a necháme onAuthStateChanged, aby používateľa automaticky prihlásil.
         sessionStorage.setItem('userRole', 'student');
-        // onAuthStateChanged sa postará o zvyšok automaticky
         
     } catch (error) {
         sessionStorage.removeItem('userRole');
-        console.error("Student account creation failed:", error);
         showToast(`Registrace se nezdařila: ${error.message}`, true);
     }
 }
 
 export async function handleLogout() {
     await signOut(auth);
-    sessionStorage.removeItem('userRole');
+    sessionStorage.clear();
     window.location.reload();
 }
