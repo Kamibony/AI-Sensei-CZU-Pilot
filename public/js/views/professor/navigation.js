@@ -1,4 +1,5 @@
-export function setupProfessorNav(showProfessorContent) {
+// OPRAVA: Funkcia teraz prijíma aj 'handleLogout'
+export function setupProfessorNav(showProfessorContent, handleLogout) {
     const nav = document.getElementById('main-nav');
     if (nav) {
         nav.innerHTML = `
@@ -26,5 +27,11 @@ export function setupProfessorNav(showProfessorContent) {
                 showProfessorContent(view);
             });
         });
+
+        // OPRAVA: Pridaný event listener pre odhlasovacie tlačidlo
+        const logoutBtn = nav.querySelector('#logout-btn-nav');
+        if (logoutBtn && handleLogout) {
+            logoutBtn.addEventListener('click', handleLogout);
+        }
     }
 }
