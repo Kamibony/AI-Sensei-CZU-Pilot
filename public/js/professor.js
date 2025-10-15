@@ -1,10 +1,10 @@
-import { handleLogout } from './auth.js'; // OPRAVA: Importujeme funkciu na odhlásenie
-import { setupProfessorNav } from './views/professor/navigation.js';
-import { showTimeline } from './views/professor/timeline-view.js';
-import { showStudents } from './views/professor/students-view.js';
-import { showInteractions } from './views/professor/interactions-view.js';
-import { showMediaLibrary } from './views/professor/media-library-view.js';
-import { showAnalytics } from './views/professor/analytics-view.js';
+import { handleLogout } from '/js/auth.js'; // OPRAVA: Importujeme funkciu na odhlásenie
+import { setupProfessorNav } from '/js/views/professor/navigation.js';
+import { showTimeline } from '/js/views/professor/timeline-view.js';
+import { showStudents } from '/js/views/professor/students-view.js';
+import { showInteractions } from '/js/views/professor/interactions-view.js';
+import { showMediaLibrary } from '/js/views/professor/media-library-view.js';
+import { showAnalytics } from '/js/views/professor/analytics-view.js';
 
 let currentProfessorView = 'timeline';
 
