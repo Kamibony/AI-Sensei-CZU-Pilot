@@ -18,7 +18,6 @@ const submitTestResults = httpsCallable(functions, 'submitTestResults');
 
 /**
  * Hlavná inicializačná funkcia pre študentský panel.
- * Spustí sa po úspešnom prihlásení.
  */
 export function initStudentDashboard() {
     const user = auth.currentUser;
@@ -28,34 +27,27 @@ export function initStudentDashboard() {
         return;
     }
 
-    // Odpojíme starý listener, ak by náhodou existoval, aby sme predišli duplicite
     if (studentDataUnsubscribe) studentDataUnsubscribe();
 
     const userDocRef = doc(db, "students", user.uid);
     
-    // Vytvoríme listener, ktorý bude sledovať zmeny v profile študenta
     studentDataUnsubscribe = onSnapshot(userDocRef, async (docSnapshot) => {
         if (docSnapshot.exists()) {
             currentUserData = { id: docSnapshot.id, ...docSnapshot.data() };
-            // Ak študent nemá zadané meno (napr. po prvej registrácii), vyzveme ho na zadanie
             if (!currentUserData.name || currentUserData.name.trim() === '') {
                 promptForStudentName(user.uid);
             } else {
-                // Ak má meno, zobrazíme hlavný panel aplikácie
                 await renderStudentPanel();
             }
         } else {
-            // --- ZAČIATOK ÚPRAVY ---
-            // Ak dokument študenta neexistuje, automaticky ho vytvoríme.
             console.warn(`Profil pre študenta s UID ${user.uid} nebol nájdený. Vytváram nový...`);
             try {
                 await setDoc(doc(db, "students", user.uid), {
                     email: user.email,
                     createdAt: serverTimestamp(),
-                    name: '' // Meno si študent doplní v nasledujúcom kroku
+                    name: ''
                 });
                 console.log(`Profil pre študenta ${user.uid} bol úspešne vytvorený.`);
-                // Po vytvorení sa tento listener (onSnapshot) automaticky spustí znova a už dokument nájde.
             } catch (error) {
                 console.error("Nepodarilo sa automaticky vytvoriť profil študenta:", error);
                 const appContainer = document.getElementById('app-container');
@@ -63,7 +55,6 @@ export function initStudentDashboard() {
                     appContainer.innerHTML = `<p class="text-red-500 text-center p-8">Chyba: Nepodarilo sa vytvoriť váš profil. Kontaktujte administrátora.</p>`;
                 }
             }
-            // --- KONIEC ÚPRAVY ---
         }
     }, (error) => {
         console.error("Chyba pri načítavaní profilu študenta:", error);
@@ -93,7 +84,6 @@ function promptForStudentName(userId) {
         try {
             await updateDoc(doc(db, 'students', userId), { name: name });
             showToast('Jméno úspěšně uloženo!');
-            // Listener onSnapshot sa automaticky postará o prekreslenie na hlavný panel
         } catch (error) {
             showToast('Nepodařilo se uložit jméno.', true);
         }
@@ -114,13 +104,10 @@ async function renderStudentPanel() {
                     <button id="student-logout-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Odhlásit se</button>
                 </div>
             </header>
-            <main id="student-main-content" class="flex-grow overflow-y-auto p-8 bg-slate-50">
-                </main>
+            <main id="student-main-content" class="flex-grow overflow-y-auto p-8 bg-slate-50"></main>
         </div>
     `;
     document.getElementById('student-logout-btn').addEventListener('click', handleLogout);
-    
-    // Načítame a zobrazíme lekcie
     await fetchAndDisplayLessons();
 }
 
@@ -160,13 +147,48 @@ async function fetchAndDisplayLessons() {
     }
 }
 
+
+// --- ZAČIATOK NOVÉHO AUTOMATICKÉHO RIEŠENIA ---
+
+/**
+ * "Normalizuje" dáta lekcie, aby sa vyrovnali s nekonzistentnými názvami polí z databázy.
+ * @param {object} rawData - Surové dáta lekcie z Firestore.
+ * @returns {object} - Objekt lekcie s jednotnými a očakávanými názvami polí.
+ */
+function normalizeLessonData(rawData) {
+    const normalized = { ...rawData }; // Vytvoríme kópiu, aby sme neupravovali pôvodné dáta
+
+    // Normalizácia textového obsahu
+    normalized.text_content = rawData.text_content || rawData.textContent || rawData.text || null;
+
+    // Normalizácia YouTube linku
+    normalized.youtube_link = rawData.youtube_link || rawData.youtubeLink || rawData.youtube || null;
+
+    // Normalizácia kvízu
+    normalized.quiz = rawData.quiz || null;
+
+    // Normalizácia testu
+    normalized.test = rawData.test || null;
+    
+    // Normalizácia podcastu
+    normalized.podcast_script = rawData.podcast_script || rawData.podcastScript || rawData.podcast || null;
+
+    return normalized;
+}
+
 /**
  * Zobrazí detail vybranej lekcie.
  */
 function showLessonDetail(lessonId) {
     currentLessonId = lessonId;
-    currentLessonData = lessonsData.find(l => l.id === lessonId);
-    if (!currentLessonData) return;
+    const rawLessonData = lessonsData.find(l => l.id === lessonId);
+    if (!rawLessonData) return;
+
+    // Aplikujeme normalizačnú funkciu hneď po načítaní dát
+    currentLessonData = normalizeLessonData(rawLessonData);
+    
+// --- KONIEC NOVÉHO AUTOMATICKÉHO RIEŠENIA ---
+
 
     const mainContent = document.getElementById('student-main-content');
     mainContent.innerHTML = `
@@ -175,10 +197,8 @@ function showLessonDetail(lessonId) {
         </div>
         <div class="bg-white p-8 rounded-2xl shadow-lg">
             <h2 class="text-3xl font-bold mb-4">${currentLessonData.title}</h2>
-            <div id="lesson-tabs" class="border-b mb-6">
-                </div>
-            <div id="lesson-tab-content">
-                </div>
+            <div id="lesson-tabs" class="border-b mb-6"></div>
+            <div id="lesson-tab-content"></div>
         </div>
         <div id="student-chat-container" class="mt-8 bg-white p-8 rounded-2xl shadow-lg">
             <h3 class="text-2xl font-bold mb-4">Máte dotaz?</h3>
@@ -249,8 +269,12 @@ function switchTab(tabId) {
             contentArea.innerHTML = `<div class="prose max-w-none">${currentLessonData.text_content}</div>`;
             break;
         case 'video':
-            const videoId = currentLessonData.youtube_link.split('v=')[1];
-            contentArea.innerHTML = `<iframe class="w-full aspect-video rounded-lg" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
+            const videoIdMatch = currentLessonData.youtube_link.match(/(?:v=|\/embed\/|\.be\/)([\w-]{11})/);
+            if (videoIdMatch) {
+                 contentArea.innerHTML = `<iframe class="w-full aspect-video rounded-lg" src="https://www.youtube.com/embed/${videoIdMatch[1]}" frameborder="0" allowfullscreen></iframe>`;
+            } else {
+                 contentArea.innerHTML = `<p class="text-red-500">Neplatný YouTube odkaz.</p>`;
+            }
             break;
         case 'quiz':
             renderQuiz();
@@ -259,7 +283,6 @@ function switchTab(tabId) {
             renderTest();
             break;
         case 'podcast':
-            // Tu by bola logika pre podcast
             contentArea.innerHTML = `<p>Podcast pre túto lekciu bude dostupný čoskoro.</p>`;
             break;
     }
@@ -320,7 +343,6 @@ function renderQuiz() {
  * Vykreslí test.
  */
 function renderTest() {
-    // Podobná logika ako pre renderQuiz
     const contentArea = document.getElementById('lesson-tab-content');
     contentArea.innerHTML = `<p>Test pre túto lekciu bude dostupný čoskoro.</p>`;
 }
@@ -371,12 +393,11 @@ async function sendMessage(type) {
         text: text,
         sender: 'student',
         type: type,
-        timestamp: serverTimestamp() // Pridáme timestamp
+        timestamp: serverTimestamp()
     };
 
     try {
         await sendMessageFromStudent(messageData);
-        // onSnapshot sa postará o zobrazenie odoslanej správy
     } catch (error) {
         console.error("Error sending message:", error);
         showToast("Nepodařilo se odeslat zprávu.", true);
