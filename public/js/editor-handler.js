@@ -1,3 +1,4 @@
+// public/js/editor-handler.js
 import { doc, addDoc, updateDoc, collection, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { ref, listAll } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { db, storage } from './firebase-init.js';
@@ -34,7 +35,6 @@ async function createDocumentSelector() {
     }
 }
 
-// --- NOVÁ FUNKCIA NA STIAHNUTIE OBSAHU ---
 function handleDownloadLessonContent() {
     if (!currentLesson) {
         showToast("Lekce není načtena, nelze stáhnout obsah.", true);
@@ -44,23 +44,20 @@ function handleDownloadLessonContent() {
     let contentString = "";
     const title = currentLesson.title || "Nová lekce";
 
-    // Pridanie hlavičky
     contentString += `# ${title}\n`;
     if (currentLesson.subtitle) {
         contentString += `## ${currentLesson.subtitle}\n`;
     }
     contentString += `\n---\n\n`;
 
-    // Pridanie hlavného textu
-    if (currentLesson.content) {
+    if (currentLesson.text_content) {
         contentString += `### Hlavní text pro studenty\n\n`;
-        contentString += `${currentLesson.content}\n\n---\n\n`;
+        contentString += `${currentLesson.text_content}\n\n---\n\n`;
     }
 
-    // Pridanie prezentácie
-    if (currentLesson.presentationData && currentLesson.presentationData.slides) {
+    if (currentLesson.presentation && currentLesson.presentation.slides) {
         contentString += `### Prezentace\n\n`;
-        currentLesson.presentationData.slides.forEach((slide, index) => {
+        currentLesson.presentation.slides.forEach((slide, index) => {
             contentString += `**Slide ${index + 1}: ${slide.title}**\n`;
             (slide.points || []).forEach(point => {
                 contentString += `- ${point}\n`;
@@ -70,10 +67,9 @@ function handleDownloadLessonContent() {
         contentString += `---\n\n`;
     }
 
-    // Pridanie kvízu
-    if (currentLesson.quizData && currentLesson.quizData.questions) {
+    if (currentLesson.quiz && currentLesson.quiz.questions) {
         contentString += `### Kvíz\n\n`;
-        currentLesson.quizData.questions.forEach((q, index) => {
+        currentLesson.quiz.questions.forEach((q, index) => {
             contentString += `${index + 1}. ${q.question_text}\n`;
             (q.options || []).forEach((option, i) => {
                 const isCorrect = i === q.correct_option_index ? " (Správně)" : "";
@@ -84,10 +80,9 @@ function handleDownloadLessonContent() {
         contentString += `---\n\n`;
     }
 
-    // Pridanie testu
-    if (currentLesson.testData && currentLesson.testData.questions) {
+    if (currentLesson.test && currentLesson.test.questions) {
         contentString += `### Test\n\n`;
-        currentLesson.testData.questions.forEach((q, index) => {
+        currentLesson.test.questions.forEach((q, index) => {
             contentString += `${index + 1}. ${q.question_text}\n`;
             (q.options || []).forEach((option, i) => {
                 const isCorrect = i === q.correct_option_index ? " (Správně)" : "";
@@ -98,7 +93,6 @@ function handleDownloadLessonContent() {
         contentString += `---\n\n`;
     }
     
-    // Vytvorenie a stiahnutie súboru
     const blob = new Blob([contentString], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -134,7 +128,6 @@ export function renderEditorMenu(container, lesson) {
         window.location.reload();
     });
 
-    // PRIDANIE EVENT LISTENERU PRE NOVÉ TLAČIDLO
     container.querySelector('#download-lesson-btn').addEventListener('click', handleDownloadLessonContent);
 
     const menuEl = container.querySelector('#editor-vertical-menu');
@@ -199,8 +192,8 @@ export async function showEditorContent(viewId, lesson) {
                 </div>`);
             break;
         case 'text':
-            if (currentLesson?.content) {
-                contentHTML = renderSavedContent('Text pro studenty', 'content', (data) => `<div class="prose max-w-none">${data.replace(/\n/g, '<br>')}</div>`);
+            if (currentLesson?.text_content) {
+                contentHTML = renderSavedContent('Text pro studenty', 'text_content', (data) => `<div class="prose max-w-none">${data.replace(/\n/g, '<br>')}</div>`);
             } else {
                 contentHTML = renderWrapper('Text pro studenty', `
                     <p class="text-slate-500 mb-4">Zadejte AI prompt a vygenerujte hlavní studijní text pro tuto lekci. Můžete vybrat dokumenty, ze kterých bude AI čerpat informace (RAG).</p>
@@ -221,8 +214,8 @@ export async function showEditorContent(viewId, lesson) {
             }
             break;
         case 'presentation':
-             if (currentLesson?.presentationData) {
-                contentHTML = renderSavedContent('AI Prezentace', 'presentationData', (data) => renderGeneratedContent('presentation', data));
+             if (currentLesson?.presentation) {
+                contentHTML = renderSavedContent('AI Prezentace', 'presentation', (data) => renderGeneratedContent('presentation', data));
              } else {
                 contentHTML = renderWrapper('AI Prezentace', `
                     <p class="text-slate-500 mb-4">Zadejte téma a počet slidů pro vygenerování prezentace. Můžete vybrat dokumenty, ze kterých bude AI čerpat informace (RAG).</p>
@@ -251,8 +244,8 @@ export async function showEditorContent(viewId, lesson) {
                 </div>`);
             break;
         case 'quiz':
-            if (currentLesson?.quizData) {
-                contentHTML = renderSavedContent('Interaktivní Kvíz', 'quizData', (data) => renderGeneratedContent('quiz', data));
+            if (currentLesson?.quiz) {
+                contentHTML = renderSavedContent('Interaktivní Kvíz', 'quiz', (data) => renderGeneratedContent('quiz', data));
             } else {
                 contentHTML = renderWrapper('Interaktivní Kvíz', `
                     <p class="text-slate-500 mb-4">Vytvořte rychlý kvíz pro studenty. Můžete vybrat dokumenty, ze kterých bude AI čerpat informace (RAG).</p>
@@ -269,8 +262,8 @@ export async function showEditorContent(viewId, lesson) {
             }
             break;
         case 'test':
-             if (currentLesson?.testData) {
-                contentHTML = renderSavedContent('Pokročilý Test', 'testData', (data) => renderGeneratedContent('test', data));
+             if (currentLesson?.test) {
+                contentHTML = renderSavedContent('Pokročilý Test', 'test', (data) => renderGeneratedContent('test', data));
              } else {
                 contentHTML = renderWrapper('Pokročilý Test', `
                     <p class="text-slate-500 mb-4">Navrhněte komplexnější test pro studenty. Můžete vybrat dokumenty, ze kterých bude AI čerpat informace (RAG).</p>
@@ -298,8 +291,8 @@ export async function showEditorContent(viewId, lesson) {
              }
             break;
         case 'post':
-            if (currentLesson?.postData) {
-                contentHTML = renderSavedContent('Podcast & Doplňkové materiály', 'postData', (data) => renderGeneratedContent('post', data));
+            if (currentLesson?.podcast_script) {
+                contentHTML = renderSavedContent('Podcast & Doplňkové materiály', 'podcast_script', (data) => renderGeneratedContent('post', data));
             } else {
                 contentHTML = renderWrapper('Podcast & Doplňkové materiály', `
                     <p class="text-slate-500 mb-4">Vytvořte na základě obsahu lekce sérii podcastů nebo jiné doplňkové materiály.</p>
@@ -404,8 +397,43 @@ function attachEditorEventListeners(viewId) {
 }
 
 async function handleSaveLesson() {
-    // ... (tento kód zostáva bez zmeny)
+    const title = document.getElementById('lesson-title-input').value.trim();
+    if (!title) {
+        showToast("Název lekce nemůže být prázdný.", true);
+        return;
+    }
+
+    const lessonData = {
+        title: title,
+        subtitle: document.getElementById('lesson-subtitle-input').value,
+        number: document.getElementById('lesson-number-input').value,
+        icon: document.getElementById('lesson-icon-input').value || '🆕',
+    };
+
+    const saveBtn = document.getElementById('save-lesson-btn');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<div class="spinner"></div>`;
+
+    try {
+        if (currentLesson && currentLesson.id) {
+            await updateDoc(doc(db, 'lessons', currentLesson.id), lessonData);
+            currentLesson = { ...currentLesson, ...lessonData };
+            showToast("Lekce byla úspěšně aktualizována.");
+        } else {
+            const docRef = await addDoc(collection(db, 'lessons'), { ...lessonData, createdAt: serverTimestamp() });
+            currentLesson = { id: docRef.id, ...lessonData };
+            showToast("Nová lekce byla úspěšně vytvořena.");
+            document.getElementById('editor-lesson-title').textContent = lessonData.title;
+        }
+    } catch (error) {
+        console.error("Error saving lesson:", error);
+        showToast("Při ukládání lekce došlo k chybě.", true);
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Uložit změny';
+    }
 }
+
 
 async function handleGeneration(viewId) {
     const outputEl = document.getElementById('generation-output');
@@ -450,13 +478,21 @@ async function handleGeneration(viewId) {
             throw new Error(result.error);
         }
         
-        window.rawResultForSaving = result; 
+        // --- KĽÚČOVÁ ZMENA: Ak je výsledok text, ukladáme len text. Inak celý objekt. ---
+        window.rawResultForSaving = (viewId === 'text' && result.text) ? result.text : result;
         
         outputEl.innerHTML = renderGeneratedContent(viewId, result);
 
         const saveBtn = document.getElementById('save-content-btn');
         if (saveBtn) {
-            const fieldMapping = { 'text': 'content', 'presentation': 'presentationData', 'quiz': 'quizData', 'test': 'testData', 'post': 'postData' };
+            // --- KĽÚČOVÁ ZMENA: Používame jednotné názvy polí ---
+            const fieldMapping = { 
+                'text': 'text_content', 
+                'presentation': 'presentation', 
+                'quiz': 'quiz', 
+                'test': 'test', 
+                'post': 'podcast_script' 
+            };
             saveBtn.dataset.field = fieldMapping[viewId];
             saveBtn.classList.remove('hidden');
         }
@@ -470,6 +506,7 @@ async function handleGeneration(viewId) {
     }
 }
 
+
 function renderGeneratedContent(viewId, result) {
     if (!result) {
         return `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě: AI vrátila prázdnou odpověď.</div>`;
@@ -479,7 +516,6 @@ function renderGeneratedContent(viewId, result) {
         switch(viewId) {
             case 'text':
                 if (typeof result.text !== 'string') throw new Error("Odpověď neobsahuje platný text.");
-                window.rawResultForSaving = result.text;
                 return `<div class="prose max-w-none">${result.text.replace(/\n/g, '<br>')}</div>`;
             case 'presentation':
                 return result.slides.map((slide, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${slide.points.map(p => `<li>${p}</li>`).join('')}</ul></div>`).join('');
@@ -507,9 +543,15 @@ function renderGeneratedContent(viewId, result) {
 async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) {
     const saveBtn = document.getElementById('save-content-btn');
     if (!lesson || !lesson.id) {
-        showToast("Nelze uložit obsah, lekce nebyla uložena.", true);
-        return;
+        // Ak lekcia ešte neexistuje, najprv ju vytvoríme
+        await handleSaveLesson();
+        if (!currentLesson || !currentLesson.id) { // Znovu skontrolujeme, či sa vytvorila
+            showToast("Nejprve uložte detaily lekce.", true);
+            return;
+        }
+        lesson = currentLesson; // Aktualizujeme lokálnu premennú
     }
+
     if (!contentToSave) {
         showToast("Není co uložit. Vygenerujte prosím nejprve obsah.", true);
         return;
@@ -523,7 +565,14 @@ async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) 
     }
 
     try {
-        const dataToSave = (fieldToUpdate === 'content') ? contentToSave.replace(/<br\s*[\/]?>/gi, '\n') : contentToSave;
+        let dataToSave = contentToSave;
+        if (fieldToUpdate === 'text_content' && typeof dataToSave === 'object' && dataToSave.text) {
+             dataToSave = dataToSave.text;
+        }
+        if(typeof dataToSave === 'string') {
+             dataToSave = dataToSave.replace(/<br\s*[\/]?>/gi, '\n');
+        }
+
         await updateDoc(lessonRef, { [fieldToUpdate]: dataToSave });
 
         showToast("Obsah byl úspěšně uložen do lekce.");
