@@ -1,14 +1,18 @@
 import { VertexAI } from "@google-cloud/vertexai";
 
+// Kontrola, či sú povinné premenné prostredia nastavené
+if (!process.env.GCLOUD_PROJECT) {
+    throw new Error("Premenná prostredia GCLOUD_PROJECT je povinná.");
+}
+
 // Inicializácia Vertex AI pre serverové prostredie
 const vertex_ai = new VertexAI({
   project: process.env.GCLOUD_PROJECT,
-  // OPRAVA: Zmenené na požadovaný región
-  location: "europe-west1", 
+  location: "europe-west1", // Tvoj región zostáva nezmenený
 });
 
 // Názov modelu, ktorý si chcel zachovať
-const model = "gemini-2.5-pro"; 
+const model = "gemini-2.5-pro"; // Tvoj model zostáva nezmenený
 
 const generativeModel = vertex_ai.getGenerativeModel({
   model: model,
@@ -49,6 +53,7 @@ export async function generateJsonFromPrompt(prompt: string): Promise<any> {
         const response = result.response;
         const text = response.candidates?.[0].content.parts[0].text || "{}";
 
+        // Odstráni ```json a ``` z odpovede modelu
         const cleanedText = text.replace(/^```json\s*|```\s*$/g, "").trim();
 
         return JSON.parse(cleanedText);
@@ -60,5 +65,3 @@ export async function generateJsonFromPrompt(prompt: string): Promise<any> {
         throw new Error("An unknown error occurred while calling the Gemini API to generate JSON.");
     }
 }
-
-// POSLEDNÁ ZÁTVORKA BOLA ODSTRÁNENÁ ODTIAĽTO
