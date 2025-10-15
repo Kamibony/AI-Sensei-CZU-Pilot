@@ -8,11 +8,11 @@ if (!process.env.GCLOUD_PROJECT) {
 // Inicializácia Vertex AI pre serverové prostredie
 const vertex_ai = new VertexAI({
   project: process.env.GCLOUD_PROJECT,
-  location: "europe-west1", // Tvoj región zostáva nezmenený
+  location: "europe-west1",
 });
 
-// Názov modelu, ktorý si chcel zachovať
-const model = "gemini-2.5-pro"; // Tvoj model zostáva nezmenený
+// Názov modelu
+const model = "gemini-2.5-pro"; 
 
 const generativeModel = vertex_ai.getGenerativeModel({
   model: model,
@@ -47,13 +47,12 @@ export async function generateTextFromPrompt(prompt: string): Promise<string> {
  * @param prompt Textový vstup pre model.
  * @returns Vygenerovaný objekt.
  */
-export async function generateJsonFromPrompt(prompt: string): Promise<any> {
+export async function generateJsonFromPrompt(prompt: string): Promise<object> { // <--- TOTO JE ZMENA
     try {
         const result = await generativeModel.generateContent(prompt);
         const response = result.response;
         const text = response.candidates?.[0].content.parts[0].text || "{}";
 
-        // Odstráni ```json a ``` z odpovede modelu
         const cleanedText = text.replace(/^```json\s*|```\s*$/g, "").trim();
 
         return JSON.parse(cleanedText);
