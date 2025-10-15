@@ -1,7 +1,7 @@
 import { onAuthStateChanged, signOut, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from './utils.js';
-import { auth, db } from './firebase-init.js';
+import { showToast } from '/js/utils.js';
+import { auth, db } from '/js/firebase-init.js';
 
 let loginSuccessCallback;
 

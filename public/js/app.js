@@ -1,5 +1,5 @@
-import { initializeFirebase } from './firebase-init.js';
-import { startAuthFlow, handleLogout } from './auth.js';
+import { initializeFirebase } from '/js/firebase-init.js';
+import { startAuthFlow, handleLogout } from '/js/auth.js';
 
 function initializeAppUI() {
     const appContainer = document.getElementById('app-container');
@@ -13,10 +13,10 @@ function initializeAppUI() {
         appContainer.appendChild(template.content.cloneNode(true));
         
         if (role === 'professor') {
-            const { initProfessorDashboard } = await import('./professor.js');
+            const { initProfessorDashboard } = await import('/js/professor.js');
             await initProfessorDashboard();
         } else {
-            const { initStudentDashboard } = await import('./student.js');
+            const { initStudentDashboard } = await import('/js/student.js');
             await initStudentDashboard();
         }
     };
