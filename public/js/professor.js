@@ -1,33 +1,43 @@
 import { db } from './firebase-init.js';
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { setupNavigation } from './views/professor/navigation.js';
 import { renderTimeline } from './views/professor/timeline-view.js';
 import { renderStudents } from './views/professor/students-view.js';
 import { renderStudentProfile } from './views/professor/student-profile-view.js';
+import { renderInteractions } from './views/professor/interactions-view.js';
+
+// Globálna premenná, kde si uložíme načítané lekcie
+let allLessons = [];
 
 // Mapa, ktorá priraďuje cesty v URL k funkciám, ktoré ich vykresľujú
 const routes = {
-    '/': renderTimeline,
-    '/timeline': renderTimeline,
+    '/': () => renderTimeline(allLessons), // Použije načítané lekcie
+    '/timeline': () => renderTimeline(allLessons), // Použije načítané lekcie
     '/students': renderStudents,
     '/student-profile': (params) => {
         if (params.id) {
             renderStudentProfile(params.id);
         } else {
             console.error('Chýba ID študenta pre zobrazenie profilu.');
-            const mainContent = document.getElementById('main-content');
-            mainContent.innerHTML = '<h2>Chyba: Chýba ID študenta.</h2>';
+        }
+    },
+    '/interactions': (params) => {
+        if (params.lessonId) {
+            renderInteractions(params.lessonId);
+        } else {
+            console.error('Chýba ID lekcie pre zobrazenie interakcií.');
         }
     }
 };
 
 // Funkcia, ktorá spracuje zmenu URL (časť za #)
 export function handleRouteChange() {
+    console.log("Spúšťam handleRouteChange...");
     const path = window.location.hash.substring(1) || '/';
     const [routePath, queryString] = path.split('?');
     
-    const renderFunction = routes[routePath] || routes['/']; // Ak cesta neexistuje, zobrazí sa default
+    const renderFunction = routes[routePath] || routes['/'];
 
     const params = new URLSearchParams(queryString);
     const paramsObject = Object.fromEntries(params.entries());
@@ -44,21 +54,31 @@ export async function initProfessorDashboard() {
         return;
     }
     
-    // NAJPRV VLOŽÍME HTML
+    // Vložíme HTML šablónu panelu
     const mainContentTemplate = document.getElementById('professor-dashboard-template');
     if (!mainContentTemplate) {
         console.error("CHYBA: Šablóna 'professor-dashboard-template' nebola nájdená!");
         return;
     }
+    roleContentWrapper.innerHTML = ''; // Vyčistíme starý obsah
     roleContentWrapper.appendChild(mainContentTemplate.content.cloneNode(true));
     
-    // AŽ POTOM NASTAVÍME NAVIGÁCIU
+    // 1. Načítame lekcie
+    try {
+        const querySnapshot = await getDocs(query(collection(db, "lessons"), orderBy("createdAt", "desc")));
+        allLessons = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error fetching lessons: ", error);
+        showToast("Nepodařilo se načíst lekce.", true);
+    }
+
+    // 2. Nastavíme navigáciu (teraz už má k dispozícii lekcie)
     setupNavigation();
 
-    // Prvé spracovanie cesty po načítaní stránky
+    // 3. Zobrazíme predvolenú stránku (teraz už s dátami)
     handleRouteChange(); 
 
-    // Sledujeme zmeny v URL (napr. pri kliknutí na tlačidlá späť/vpred)
+    // 4. Sledujeme zmeny v URL pre budúce kliknutia
     window.addEventListener('hashchange', handleRouteChange);
     
     console.log("initProfessorDashboard dokončený.");
