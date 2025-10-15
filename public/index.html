@@ -1,66 +1,67 @@
 <!DOCTYPE html>
 <html lang="sk">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Sensei</title>
-    <link rel="stylesheet" href="styles.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" defer></script>
-    <script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/classic/ckeditor.js"></script> </head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Sensei</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" defer></script>
+    <script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/classic/ckeditor.js"></script>
+</head>
 <body class="bg-slate-100">
 
-    <div id="toast-container"></div>
-    <div id="app-container"></div>
+    <div id="toast-container"></div>
+    <div id="app-container"></div>
 
-    <template id="login-template">
-        <div class="flex items-center justify-center min-h-screen">
-            <div class="w-full max-w-md mx-auto p-8">
-                <div class="bg-white rounded-2xl shadow-lg p-8">
-                    <h1 class="text-3xl font-bold text-center text-slate-800 mb-6">AI Sensei Login</h1>
-                    <div id="student-login-container">
-                        <div id="login-form">
-                            <h2 class="text-xl font-semibold text-slate-600 mb-4 text-center">Prihlásenie pre študentov</h2>
-                            <div class="space-y-4">
-                                <input type="email" id="login-email" placeholder="Email" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                                <input type="password" id="login-password" placeholder="Heslo" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                                <button id="login-btn" class="w-full bg-green-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-800 transition-colors">Prihlásiť sa</button>
-                            </div>
-                            <p class="text-center text-sm text-slate-500 mt-4">
-                                Nemáte účet? <a href="#" id="show-register-form" class="font-semibold text-green-700 hover:underline">Zaregistrujte sa</a>
-                            </p>
-                        </div>
-                        <div id="register-form" class="hidden">
-                            <h2 class="text-xl font-semibold text-slate-600 mb-4 text-center">Registrácia pre študentov</h2>
-                            <div class="space-y-4">
-                                <input type="email" id="register-email" placeholder="Email" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                                <input type="password" id="register-password" placeholder="Heslo" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                                <button id="register-btn" class="w-full bg-amber-800 text-white font-bold py-2 px-4 rounded-lg hover:bg-amber-900 transition-colors">Zaregistrovať sa</button>
-                            </div>
-                            <p class="text-center text-sm text-slate-500 mt-4">
-                                Už máte účet? <a href="#" id="show-login-form" class="font-semibold text-green-700 hover:underline">Prihláste sa</a>
-                            </p>
-                        </div>
-                    </div>
-                    <div class="my-6 flex items-center">
-                        <div class="flex-grow border-t border-slate-300"></div>
-                        <span class="flex-shrink mx-4 text-slate-400 text-sm">alebo</span>
-                        <div class="flex-grow border-t border-slate-300"></div>
-                    </div>
-                    <div>
-                        <button id="login-professor" class="w-full bg-slate-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-slate-800 transition-colors">Vstúpiť ako profesor</button>
-                    </div>
-                </div>
-            </div>
-        </template>
+    <template id="login-template">
+        <div class="flex items-center justify-center min-h-screen bg-cover bg-center" style="background-image: url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg');">
+            <div class="w-full max-w-md mx-auto p-8">
+                <div class="bg-white rounded-2xl shadow-lg p-8">
+                    <h1 class="text-3xl font-bold text-center text-slate-800 mb-6">AI Sensei Login</h1>
+                    <div id="student-login-container">
+                        <div id="login-form">
+                            <h2 class="text-xl font-semibold text-slate-600 mb-4 text-center">Prihlásenie pre študentov</h2>
+                            <div class="space-y-4">
+                                <input type="email" id="login-email" placeholder="Email" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                                <input type="password" id="login-password" placeholder="Heslo" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                                <button id="login-btn" class="w-full bg-green-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-800 transition-colors">Prihlásiť sa</button>
+                            </div>
+                            <p class="text-center text-sm text-slate-500 mt-4">
+                                Nemáte účet? <a href="#" id="show-register-form" class="font-semibold text-green-700 hover:underline">Zaregistrujte sa</a>
+                            </p>
+                        </div>
+                        <div id="register-form" class="hidden">
+                            <h2 class="text-xl font-semibold text-slate-600 mb-4 text-center">Registrácia pre študentov</h2>
+                            <div class="space-y-4">
+                                <input type="email" id="register-email" placeholder="Email" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                                <input type="password" id="register-password" placeholder="Heslo" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                                <button id="register-btn" class="w-full bg-amber-800 text-white font-bold py-2 px-4 rounded-lg hover:bg-amber-900 transition-colors">Zaregistrovať sa</button>
+                            </div>
+                            <p class="text-center text-sm text-slate-500 mt-4">
+                                Už máte účet? <a href="#" id="show-login-form" class="font-semibold text-green-700 hover:underline">Prihláste sa</a>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="my-6 flex items-center">
+                        <div class="flex-grow border-t border-slate-300"></div>
+                        <span class="flex-shrink mx-4 text-slate-400 text-sm">alebo</span>
+                        <div class="flex-grow border-t border-slate-300"></div>
+                    </div>
+                    <div>
+                        <button id="login-professor" class="w-full bg-slate-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-slate-800 transition-colors">Vstúpiť ako profesor</button>
+                    </div>
+                </div>
+            </div>
+    </template>
 
-    <template id="main-app-template">
-        <div id="main-app" class="flex flex-col md:flex-row h-screen bg-slate-100">
-            <nav id="main-nav" class="bg-green-800 p-2 md:flex flex-col items-center hidden"></nav>
-            <div id="role-content-wrapper" class="flex-grow flex flex-col overflow-y-auto"></div>
-            <nav id="mobile-bottom-nav" class="md:hidden w-full bg-white border-t border-slate-200 flex justify-around p-2"></nav>
-        </div>
-    </template>
+    <template id="main-app-template">
+        <div id="main-app" class="flex flex-col md:flex-row h-screen bg-slate-100">
+            <nav id="main-nav" class="bg-green-800 p-2 md:flex flex-col items-center hidden"></nav>
+            <div id="role-content-wrapper" class="flex-grow flex flex-col overflow-y-auto"></div>
+            <nav id="mobile-bottom-nav" class="md:hidden w-full bg-white border-t border-slate-200 flex justify-around p-2"></nav>
+        </div>
+    </template>
 
-    <script type="module" src="js/app.js"></script>
+    <script type="module" src="js/app.js"></script>
 </body>
 </html>
