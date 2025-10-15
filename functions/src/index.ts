@@ -1,12 +1,17 @@
 import * as functions from "firebase-functions";
+import * as admin from "firebase-admin";
 import {
   generateJsonFromPrompt,
   generateTextFromPrompt,
-} from "./gemini-api";
-import {db} from "./firebase-admin-init";
+} from "./gemini-api"; // OPRAVA: Odstránená prípona .js
+import {db} from "./firebase-admin-init"; // OPRAVA: Odstránená prípona .js
 
 // Nastavenie CORS pre všetky funkcie v tomto súbore
 const cors = require("cors")({origin: true});
+
+// Inicializácia Firebase Admin SDK
+// admin.initializeApp();
+// const db = admin.firestore();
 
 /**
  * Cloud Function na získanie odpovede od AI asistenta.
@@ -16,43 +21,70 @@ export const getAiAssistantResponse = functions.https.onRequest(
   (request, response) => {
     cors(request, response, async () => {
       try {
-        const {lessonId, userQuestion} = request.body;
+        functions.logger.info("Received request for AI assistant response", {
+          body: request.body,
+        });
+
+        const {lessonId, userQuestion} = request.body.data || request.body;
+        // const { lessonId, userQuestion } = request.body;
 
         if (!lessonId || !userQuestion) {
-          response.status(400).send("Chýbajú potrebné parametre.");
+          functions.logger.error("Missing lessonId or userQuestion in request");
+          response.status(400).send({
+            success: false,
+            error: "Chýbajú potrebné parametre: lessonId a userQuestion.",
+          });
           return;
         }
 
         // Získanie dát lekcie z Firestore
         const lessonDoc = await db.collection("lessons").doc(lessonId).get();
         if (!lessonDoc.exists) {
-          response.status(404).send("Lekcia nebola nájdená.");
+          functions.logger.error(`Lesson with ID ${lessonId} not found`);
+          response.status(404).send({success: false, error: "Lekcia nebola nájdená."});
           return;
         }
 
         const lessonData = lessonDoc.data();
-        if (!lessonData) {
-          response.status(500).send("Nepodarilo sa načítať dáta lekcie.");
+        if (!lessonData || !lessonData.content) {
+          functions.logger.error(`Lesson data or content is missing for lesson ID ${lessonId}`);
+          response.status(500).send({
+            success: false,
+            error: "Nepodarilo sa načítať dáta alebo obsah lekcie.",
+          });
           return;
         }
 
-
         // Príprava promptu pre Gemini
         const prompt = `
-        Context: ${lessonData.content}
-        Otázka: ${userQuestion}
-        Odpoveď:
+        You are an AI teaching assistant. Your role is to answer student's questions based on the provided lesson content.
+        The answer should be clear, concise, and directly related to the lesson context.
+        If the question is outside the scope of the lesson, politely state that you can only answer questions related to the lesson content.
+
+        Lesson Content:
+        ---
+        ${lessonData.content}
+        ---
+
+        Student's Question: "${userQuestion}"
+
+        Your Answer:
       `;
 
         const result = await generateTextFromPrompt(prompt);
+        functions.logger.info("Successfully generated AI response", {
+          lessonId,
+          userQuestion,
+        });
         response.send({success: true, response: result});
       } catch (error) {
-        console.error("Chyba v getAiAssistantResponse:", error);
+        functions.logger.error("Error in getAiAssistantResponse:", error);
         response.status(500).send({success: false, error: "Interná chyba servera."});
       }
     });
   }
 );
+
 
 /**
  * Cloud Function na generovanie otázok k lekcii.
