@@ -1,5 +1,6 @@
 import { handleLogout } from '../../auth.js';
 
+// Odstránili sme 'lessons' z parametrov, už ich nepotrebujeme
 export function setupNavigation() {
     const navLinks = document.getElementById('nav-links');
     const logoutBtn = document.getElementById('logout-btn');
@@ -9,13 +10,12 @@ export function setupNavigation() {
         return;
     }
 
-    // Navigácia teraz mení hash v URL
     const links = [
         { id: 'timeline-link', text: 'Časová osa', hash: '#/timeline' },
         { id: 'students-link', text: 'Studenti', hash: '#/students' },
     ];
 
-    navLinks.innerHTML = ''; // Vyčistíme predošlý obsah
+    navLinks.innerHTML = ''; 
     links.forEach(link => {
         const li = document.createElement('li');
         const a = document.createElement('a');
@@ -27,7 +27,6 @@ export function setupNavigation() {
         navLinks.appendChild(li);
     });
 
-    // Pridáme event listener, ktorý bude sledovať zmeny hashu a vizuálne označovať aktívny link
     const updateActiveLink = () => {
         const currentHash = window.location.hash || '#/timeline';
         navLinks.querySelectorAll('a').forEach(el => {
@@ -39,11 +38,12 @@ export function setupNavigation() {
         });
     };
 
+    window.removeEventListener('hashchange', updateActiveLink); // Pre istotu odstránime starý
     window.addEventListener('hashchange', updateActiveLink);
-    updateActiveLink(); // Nastavíme aktívny link hneď pri načítaní
+    updateActiveLink(); 
 
     if (logoutBtn) {
-        logoutBtn.removeEventListener('click', handleLogout); // Pre istotu odstránime starý listener
+        logoutBtn.removeEventListener('click', handleLogout); 
         logoutBtn.addEventListener('click', handleLogout);
     }
 }
