@@ -1,5 +1,7 @@
 import { db } from './firebase-init.js';
-import { collection, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// --- TOTO JE OPRAVA ---
+// Pridali sme 'query' a 'orderBy' do zoznamu importov
+import { collection, getDocs, query, orderBy, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { setupNavigation } from './views/professor/navigation.js';
 import { renderTimeline } from './views/professor/timeline-view.js';
@@ -12,8 +14,8 @@ let allLessons = [];
 
 // Mapa, ktorá priraďuje cesty v URL k funkciám, ktoré ich vykresľujú
 const routes = {
-    '/': () => renderTimeline(allLessons), // Použije načítané lekcie
-    '/timeline': () => renderTimeline(allLessons), // Použije načítané lekcie
+    '/': () => renderTimeline(allLessons),
+    '/timeline': () => renderTimeline(allLessons),
     '/students': renderStudents,
     '/student-profile': (params) => {
         if (params.id) {
@@ -54,31 +56,33 @@ export async function initProfessorDashboard() {
         return;
     }
     
-    // Vložíme HTML šablónu panelu
     const mainContentTemplate = document.getElementById('professor-dashboard-template');
     if (!mainContentTemplate) {
         console.error("CHYBA: Šablóna 'professor-dashboard-template' nebola nájdená!");
         return;
     }
-    roleContentWrapper.innerHTML = ''; // Vyčistíme starý obsah
+    roleContentWrapper.innerHTML = '';
     roleContentWrapper.appendChild(mainContentTemplate.content.cloneNode(true));
     
     // 1. Načítame lekcie
     try {
-        const querySnapshot = await getDocs(query(collection(db, "lessons"), orderBy("createdAt", "desc")));
+        const q = query(collection(db, "lessons"), orderBy("createdAt", "desc"));
+        const querySnapshot = await getDocs(q);
         allLessons = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
         console.error("Error fetching lessons: ", error);
         showToast("Nepodařilo se načíst lekce.", true);
+        // V prípade chyby pokračujeme s prázdnym poľom, aby sa aplikácia nezrútila
+        allLessons = [];
     }
 
-    // 2. Nastavíme navigáciu (teraz už má k dispozícii lekcie)
+    // 2. Nastavíme navigáciu
     setupNavigation();
 
-    // 3. Zobrazíme predvolenú stránku (teraz už s dátami)
+    // 3. Zobrazíme predvolenú stránku
     handleRouteChange(); 
 
-    // 4. Sledujeme zmeny v URL pre budúce kliknutia
+    // 4. Sledujeme zmeny v URL
     window.addEventListener('hashchange', handleRouteChange);
     
     console.log("initProfessorDashboard dokončený.");
