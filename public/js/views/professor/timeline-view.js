@@ -1,158 +1,99 @@
-import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { db } from '../../firebase-init.js';
+import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from '../../utils.js';
+import { initializeEditor } from '../../editor-handler.js';
 
-function getLocalizedDate(offsetDays = 0) {
-    const date = new Date();
-    date.setDate(date.getDate() + offsetDays);
-    return date.toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'numeric' });
-}
-
-async function updateAllOrderIndexes(db) {
-    const timelineContainer = document.getElementById('timeline-container');
-    if (!timelineContainer) return;
-
-    const allEvents = Array.from(timelineContainer.querySelectorAll('.lesson-bubble'));
-    const batch = writeBatch(db);
-
-    allEvents.forEach((item, index) => {
-        const eventId = item.dataset.eventId;
-        if (eventId) {
-            const docRef = doc(db, 'timeline_events', eventId);
-            batch.update(docRef, { orderIndex: index });
-        }
-    });
-
-    try {
-        await batch.commit();
-    } catch (error) {
-        console.error("Error updating order indexes:", error);
-    }
-}
-
-function renderScheduledEvent(event, lessonsData, db) {
-    const lesson = lessonsData.find(l => l.id === event.lessonId);
-    if (!lesson) return document.createElement('div');
-
-    const el = document.createElement('div');
-    el.className = 'lesson-bubble p-3 rounded-lg shadow-sm flex items-center justify-between border bg-green-50 text-green-800 border-green-200 cursor-grab';
-    el.dataset.eventId = event.id;
-    el.dataset.lessonId = event.lessonId;
-    el.innerHTML = `
-        <div class="flex items-center space-x-3 flex-grow">
-            <span class="text-xl">${lesson.icon}</span>
-            <span class="font-semibold text-sm">${lesson.title}</span>
-        </div>
-        <button class="delete-event-btn p-1 rounded-full hover:bg-red-200 text-slate-400 hover:text-red-600 transition-colors" title="Odebrat z plánu">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>`;
-
-    el.querySelector('.delete-event-btn').addEventListener('click', async () => {
-        if (confirm('Opravdu chcete odebrat tuto lekci z plánu?')) {
-            try {
-                await deleteDoc(doc(db, 'timeline_events', event.id));
-                el.remove();
-                showToast("Lekce byla odebrána z plánu.");
-                await updateAllOrderIndexes(db);
-            } catch (error) {
-                console.error("Error deleting timeline event:", error);
-                showToast("Chyba při odstraňování události.", true);
-            }
-        }
-    });
-    return el;
-}
-
-async function handleLessonDrop(evt, db, lessonsData) {
-    const lessonId = evt.item.dataset.lessonId;
-    const dayIndex = evt.to.closest('.day-slot').dataset.dayIndex;
-    const tempEl = evt.item;
-
-    tempEl.innerHTML = `Načítám...`;
-
-    try {
-        const newEventData = {
-            lessonId: lessonId,
-            dayIndex: parseInt(dayIndex),
-            createdAt: serverTimestamp(),
-            orderIndex: 0
-        };
-        const docRef = await addDoc(collection(db, 'timeline_events'), newEventData);
-
-        const newElement = renderScheduledEvent({ id: docRef.id, ...newEventData }, lessonsData, db);
-        evt.item.parentNode.replaceChild(newElement, evt.item);
-
-        showToast("Lekce naplánována.");
-        await updateAllOrderIndexes(db);
-
-    } catch (error) {
-        console.error("Error scheduling lesson:", error);
-        showToast("Chyba při plánování lekce.", true);
-        tempEl.remove();
-    }
-}
-
-async function handleLessonMove(evt, db) {
-    const eventId = evt.item.dataset.eventId;
-    const newDayIndex = evt.to.closest('.day-slot').dataset.dayIndex;
-
-    try {
-        const docRef = doc(db, 'timeline_events', eventId);
-        await updateDoc(docRef, { dayIndex: parseInt(newDayIndex) });
-        await updateAllOrderIndexes(db);
-    } catch (error) {
-        console.error("Error moving lesson:", error);
-        showToast("Chyba při přesouvání lekce.", true);
-    }
-}
-
-export async function renderTimeline(container, db, lessonsData) {
-    container.innerHTML = `
-        <header class="text-center p-6 border-b border-slate-200 bg-white">
-            <h1 class="text-3xl font-extrabold text-slate-800">Plán výuky</h1>
-            <p class="text-slate-500 mt-1">Naplánujte lekce přetažením z knihovny vlevo.</p>
-        </header>
-        <div class="flex-grow overflow-y-auto p-4 md:p-6">
-            <div id="timeline-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4"></div>
+// PRIDANÝ EXPORT
+export function renderTimeline(lessons) {
+    const mainContent = document.getElementById('main-content');
+    mainContent.innerHTML = `
+        <div class="p-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-bold">Časová osa lekcí</h2>
+                <button id="add-lesson-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                    + Přidat novou lekci
+                </button>
+            </div>
+            <div id="timeline-container" class="space-y-4"></div>
         </div>
     `;
 
-    const timelineContainer = container.querySelector('#timeline-container');
-    const q = query(collection(db, 'timeline_events'), orderBy("orderIndex"));
-    const querySnapshot = await getDocs(q);
-    const timelineEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-    for (let i = 0; i < 10; i++) {
-        const dayWrapper = document.createElement('div');
-        dayWrapper.className = 'day-slot bg-white rounded-xl p-3 border-2 border-transparent transition-colors min-h-[200px] shadow-sm flex flex-col';
-        dayWrapper.dataset.dayIndex = i;
-
-        const dateStr = getLocalizedDate(i);
-        dayWrapper.innerHTML = `
-            <div class="text-center pb-2 mb-2 border-b border-slate-200">
-                <p class="font-bold text-slate-700">${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}</p>
-            </div>
-            <div class="lessons-container flex-grow space-y-2"></div>
-        `;
-        timelineContainer.appendChild(dayWrapper);
+    const container = document.getElementById('timeline-container');
+    if (lessons.length === 0) {
+        container.innerHTML = '<p>Zatím nebyly vytvořeny žádné lekce.</p>';
+    } else {
+        lessons.forEach(lesson => {
+            const lessonElement = document.createElement('div');
+            lessonElement.className = 'p-4 border rounded shadow-sm cursor-pointer hover:bg-gray-50';
+            lessonElement.innerHTML = `
+                <h3 class="font-bold">${lesson.title}</h3>
+                <p class="text-sm text-gray-500">Vytvořeno: ${lesson.createdAt ? new Date(lesson.createdAt.seconds * 1000).toLocaleDateString() : 'Neznámé datum'}</p>
+            `;
+            lessonElement.addEventListener('click', () => openLessonEditor(lesson));
+            container.appendChild(lessonElement);
+        });
     }
 
-    timelineEvents.forEach(event => {
-        const dayIndex = event.dayIndex || 0;
-        const daySlot = timelineContainer.querySelector(`.day-slot[data-day-index='${dayIndex}'] .lessons-container`);
-        if (daySlot) {
-            daySlot.appendChild(renderScheduledEvent(event, lessonsData, db));
-        }
-    });
+    document.getElementById('add-lesson-btn').addEventListener('click', createNewLesson);
+}
 
-    timelineContainer.querySelectorAll('.day-slot .lessons-container').forEach(lessonsContainer => {
-        if (typeof Sortable !== 'undefined') {
-            new Sortable(lessonsContainer, {
-                group: 'lessons',
-                animation: 150,
-                ghostClass: 'opacity-50',
-                onAdd: (evt) => handleLessonDrop(evt, db, lessonsData),
-                onUpdate: (evt) => handleLessonMove(evt, db)
+async function createNewLesson() {
+    const title = prompt("Zadejte název nové lekce:");
+    if (title) {
+        try {
+            const docRef = await addDoc(collection(db, "lessons"), {
+                title: title,
+                createdAt: serverTimestamp(),
+                content: { blocks: [] } 
             });
+            showToast("Nová lekce byla úspěšně vytvořena!");
+            openLessonEditor({ id: docRef.id, title, content: { blocks: [] } });
+        } catch (error) {
+            console.error("Error adding document: ", error);
+            showToast("Nepodařilo se vytvořit novou lekci.", true);
         }
-    });
+    }
+}
+
+function openLessonEditor(lesson) {
+    const mainContent = document.getElementById('main-content');
+    mainContent.innerHTML = `
+         <div class="p-8">
+            <h2 class="text-2xl font-bold mb-2">Editor Lekce: <span id="lesson-title-display">${lesson.title}</span></h2>
+            <p class="text-sm text-gray-500 mb-6">ID Lekce: <span id="lesson-id-display">${lesson.id}</span></p>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="md:col-span-2">
+                    <div id="editorjs" class="p-4 border rounded bg-white"></div>
+                    <button id="save-content-btn" class="mt-4 bg-green-500 text-white py-2 px-4 rounded">Uložit obsah</button>
+                </div>
+                
+                <div class="bg-gray-50 p-4 border rounded">
+                    <h3 class="text-lg font-semibold mb-3">AI Nástroje</h3>
+                    <div class="space-y-4">
+                         <div>
+                            <label for="ai-prompt" class="block text-sm font-medium text-gray-700">Prompt pro AI</label>
+                            <textarea id="ai-prompt" rows="4" class="w-full mt-1 p-2 border rounded"></textarea>
+                        </div>
+                        <div>
+                            <label for="content-type-selector" class="block text-sm font-medium text-gray-700">Typ obsahu</label>
+                            <select id="content-type-selector" class="w-full mt-1 p-2 border rounded">
+                                <option value="text">Text</option>
+                                <option value="presentation">Prezentace</option>
+                                <option value="quiz">Kvíz</option>
+                                <option value="test">Test</option>
+                                <option value="podcast">Podcast</option>
+                            </select>
+                        </div>
+                        <button id="generate-content-btn" class="w-full bg-indigo-500 text-white py-2 px-4 rounded">Generovat</button>
+                    </div>
+                     <h3 class="text-lg font-semibold mt-6 mb-3">Materiály k lekci</h3>
+                     <input type="file" id="file-upload-input" class="hidden">
+                     <button id="upload-file-btn" class="w-full bg-gray-600 text-white py-2 px-4 rounded">Nahrát soubor</button>
+                     <div id="lesson-materials-list" class="mt-4 space-y-2"></div>
+                </div>
+            </div>
+        </div>
+    `;
+    initializeEditor('editorjs', lesson.content.blocks);
 }
