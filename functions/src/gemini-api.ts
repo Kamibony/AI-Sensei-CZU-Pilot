@@ -1,22 +1,62 @@
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-functions.js";
+import { VertexAI } from "@google-cloud/vertexai";
 
-const functions = getFunctions();
+// Inicializácia Vertex AI pre serverové prostredie
+const vertex_ai = new VertexAI({
+  project: process.env.GCLOUD_PROJECT,
+  // OPRAVA: Zmenené na požadovaný región
+  location: "europe-west1", 
+});
+
+// Názov modelu, ktorý si chcel zachovať
+const model = "gemini-2.5-pro"; 
+
+const generativeModel = vertex_ai.getGenerativeModel({
+  model: model,
+  generationConfig: {
+    maxOutputTokens: 2048,
+    temperature: 0.5,
+    topP: 1,
+  },
+});
 
 /**
- * Volá Cloud Function na získanie odpovede od AI asistenta.
- * @param {object} data - Objekt obsahujúci lessonId a userQuestion.
- * @returns {Promise<any>} - Sľub, ktorý sa vyrieši s odpoveďou od funkcie.
+ * Generuje textovú odpoveď na základe daného promptu pomocou Gemini API.
+ * @param prompt Textový vstup pre model.
+ * @returns Vygenerovaný text ako string.
  */
-export async function getAiAssistantResponse(data) {
+export async function generateTextFromPrompt(prompt: string): Promise<string> {
   try {
-    // OPRAVA: Názov funkcie musí presne zodpovedať exportovanému názvu v index.ts
-    const callGetAiAssistantResponse = httpsCallable(functions, 'getAiAssistantResponse');
-    // OPRAVA: Dáta sa posielajú ako jeden objekt, čo Firebase funkcia očakáva
-    const result = await callGetAiAssistantResponse(data);
-    return result.data;
+    const resp = await generativeModel.generateContent(prompt);
+    const responseText = resp.response?.candidates?.[0]?.content?.parts?.[0]?.text;
+    return responseText || "";
   } catch (error) {
-    console.error("Chyba pri volaní getAiAssistantResponse:", error);
-    // Vrátenie štruktúrovanej chybovej odpovede pre lepšie spracovanie na strane klienta
-    return { success: false, error: error.message || "Neznáma chyba pri volaní funkcie." };
+    console.error("Error generating text from prompt:", error);
+    if (error instanceof Error) {
+        throw new Error(`Failed to generate text from Gemini API: ${error.message}`);
+    }
+    throw new Error("An unknown error occurred while calling the Gemini API.");
   }
+}
+
+/**
+ * Generuje JSON objekt na základe daného promptu.
+ * @param prompt Textový vstup pre model.
+ * @returns Vygenerovaný objekt.
+ */
+export async function generateJsonFromPrompt(prompt: string): Promise<any> {
+    try {
+        const result = await generativeModel.generateContent(prompt);
+        const response = result.response;
+        const text = response.candidates?.[0].content.parts[0].text || "{}";
+
+        const cleanedText = text.replace(/^```json\s*|```\s*$/g, "").trim();
+
+        return JSON.parse(cleanedText);
+    } catch (error) {
+        console.error("Error generating JSON from prompt:", error);
+        if (error instanceof Error) {
+            throw new Error(`Failed to generate JSON from Gemini API: ${error.message}`);
+        }
+        throw new Error("An unknown error occurred while calling the Gemini API to generate JSON.");
+    }
 }
