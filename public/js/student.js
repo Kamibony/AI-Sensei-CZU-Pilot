@@ -7,6 +7,23 @@ let currentLessonId = null;
 let testTimerInterval = null;
 
 export async function initStudentDashboard() {
+    // --- OPRAVENÁ ČASŤ ---
+    // Najprv nájdeme hlavný wrapper, ktorý už existuje v DOM
+    const roleContentWrapper = document.getElementById('role-content-wrapper');
+    if (!roleContentWrapper) {
+        console.error("CHYBA: Element 'role-content-wrapper' nebol nájdený!");
+        return;
+    }
+
+    // Vložíme do neho štruktúru študentského panelu, ktorá teraz obsahuje aj 'main-content'
+    roleContentWrapper.innerHTML = `
+        <div class="p-4 md:p-6 lg:p-8 overflow-y-auto w-full">
+            <div id="main-content">
+                </div>
+        </div>
+    `;
+    // --- KONIEC OPRAVENEJ ČASTI ---
+
     const mainContent = document.getElementById('main-content');
     if (!mainContent) return;
 
