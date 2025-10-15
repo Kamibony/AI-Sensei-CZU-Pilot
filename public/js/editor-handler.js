@@ -1,4 +1,3 @@
-// public/js/editor-handler.js
 import { doc, addDoc, updateDoc, collection, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { ref, listAll } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { db, storage } from './firebase-init.js';
@@ -371,7 +370,7 @@ function attachEditorEventListeners(viewId) {
         embedBtn?.addEventListener('click', async () => {
             const url = urlInput.value;
             if (showPreview(url)) {
-                await handleSaveGeneratedContent(currentLesson, 'videoUrl', url);
+                await handleSaveGeneratedContent('videoUrl', url);
             } else if (url.trim() === '') {
                 await handleDeleteGeneratedContent('videoUrl', viewId);
             }
@@ -390,8 +389,7 @@ function attachEditorEventListeners(viewId) {
     const saveBtn = document.getElementById('save-content-btn');
     if(saveBtn) {
         saveBtn.addEventListener('click', () => {
-             const outputEl = document.getElementById('generation-output');
-             handleSaveGeneratedContent(currentLesson, saveBtn.dataset.field, window.rawResultForSaving);
+             handleSaveGeneratedContent(saveBtn.dataset.field, window.rawResultForSaving);
         });
     }
 }
@@ -417,7 +415,8 @@ async function handleSaveLesson() {
     try {
         if (currentLesson && currentLesson.id) {
             await updateDoc(doc(db, 'lessons', currentLesson.id), lessonData);
-            currentLesson = { ...currentLesson, ...lessonData };
+            // Zmergujeme zmeny do lokálneho objektu, aby sme neprepisovali obsah
+            currentLesson = { ...currentLesson, ...lessonData }; 
             showToast("Lekce byla úspěšně aktualizována.");
         } else {
             const docRef = await addDoc(collection(db, 'lessons'), { ...lessonData, createdAt: serverTimestamp() });
@@ -478,14 +477,12 @@ async function handleGeneration(viewId) {
             throw new Error(result.error);
         }
         
-        // --- KĽÚČOVÁ ZMENA: Ak je výsledok text, ukladáme len text. Inak celý objekt. ---
         window.rawResultForSaving = (viewId === 'text' && result.text) ? result.text : result;
         
         outputEl.innerHTML = renderGeneratedContent(viewId, result);
 
         const saveBtn = document.getElementById('save-content-btn');
         if (saveBtn) {
-            // --- KĽÚČOVÁ ZMENA: Používame jednotné názvy polí ---
             const fieldMapping = { 
                 'text': 'text_content', 
                 'presentation': 'presentation', 
@@ -540,16 +537,14 @@ function renderGeneratedContent(viewId, result) {
     }
 }
 
-async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) {
+// --- ZAČIATOK KĽÚČOVEJ ÚPRAVY ---
+async function handleSaveGeneratedContent(fieldToUpdate, contentToSave) {
     const saveBtn = document.getElementById('save-content-btn');
-    if (!lesson || !lesson.id) {
-        // Ak lekcia ešte neexistuje, najprv ju vytvoríme
-        await handleSaveLesson();
-        if (!currentLesson || !currentLesson.id) { // Znovu skontrolujeme, či sa vytvorila
-            showToast("Nejprve uložte detaily lekce.", true);
-            return;
-        }
-        lesson = currentLesson; // Aktualizujeme lokálnu premennú
+    
+    // Vynútime uloženie detailov lekcie PRED uložením obsahu
+    if (!currentLesson || !currentLesson.id) {
+        showToast("Nejprve uložte detaily lekce (název) v záložce 'Detaily lekce'.", true);
+        return;
     }
 
     if (!contentToSave) {
@@ -557,7 +552,7 @@ async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) 
         return;
     }
 
-    const lessonRef = doc(db, 'lessons', lesson.id);
+    const lessonRef = doc(db, 'lessons', currentLesson.id);
     const originalText = saveBtn ? saveBtn.innerHTML : 'Uložit';
     if (saveBtn) {
         saveBtn.disabled = true;
@@ -566,30 +561,32 @@ async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) 
 
     try {
         let dataToSave = contentToSave;
+        // Zaistíme, že ukladáme čistý text a nie objekt
         if (fieldToUpdate === 'text_content' && typeof dataToSave === 'object' && dataToSave.text) {
              dataToSave = dataToSave.text;
         }
+        // Nahradíme <br> späť za nové riadky pre uloženie do DB
         if(typeof dataToSave === 'string') {
              dataToSave = dataToSave.replace(/<br\s*[\/]?>/gi, '\n');
         }
 
         await updateDoc(lessonRef, { [fieldToUpdate]: dataToSave });
-
-        showToast("Obsah byl úspěšně uložen do lekce.");
-        if (lesson) lesson[fieldToUpdate] = dataToSave;
         
+        showToast("Obsah byl úspěšně uložen do lekce.");
+        
+        // Aktualizujeme lokálny objekt a prekreslíme UI
+        if (currentLesson) currentLesson[fieldToUpdate] = dataToSave;
         const currentViewId = document.querySelector('.editor-menu-item.bg-green-100').dataset.view;
-        showEditorContent(currentViewId, lesson);
+        showEditorContent(currentViewId, currentLesson);
 
     } catch (error) {
         console.error(`Chyba při ukládání obsahu (${fieldToUpdate}) do lekce:`, error);
         showToast("Při ukládání obsahu došlo k chybě.", true);
-        if (saveBtn) {
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = originalText;
-        }
+    } finally {
+        // Tlačidlo sa znovu objaví po prekreslení, takže nemusíme resetovať jeho stav
     }
 }
+// --- KONIEC KĽÚČOVEJ ÚPRAVY ---
 
 async function handleDeleteGeneratedContent(fieldToDelete, viewId) {
     if (!currentLesson || !currentLesson.id) {
