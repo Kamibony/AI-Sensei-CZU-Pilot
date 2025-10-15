@@ -616,3 +616,16 @@ async function handleDeleteGeneratedContent(fieldToDelete, viewId) {
         deleteBtn.innerHTML = originalText;
     }
 }
+
+}
+Ahoj, po dôkladnej analýze chybových hlášok a tvojho kódu som našiel príčinu problému s prezentáciami.
+
+Problém je v tom, že funkcia, ktorá má zobraziť vygenerovanú prezentáciu, očakáva dáta v trochu inom formáte, než v akom ich v skutočnosti dostáva. To spôsobuje chybu `Cannot read properties of undefined (reading 'slides')`. Našťastie, oprava je jednoduchá a na jednom mieste.
+
+### Detailná analýza chyby 🕵️‍♂️
+
+**1. Čo sa deje?**
+Keď sa snažíš zobraziť prezentáciu (či už novú alebo uloženú), volá sa funkcia `renderGeneratedContent`. Táto funkcia má v sebe časť kódu, ktorá vyzerá takto:
+```javascript
+case 'presentation':
+    return result.slides.map(...)
