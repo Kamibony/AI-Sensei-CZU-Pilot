@@ -1,186 +1,166 @@
 import * as functions from "firebase-functions";
 import admin from "firebase-admin";
 import {
-  generateJsonFromPrompt,
-  generateTextFromPrompt
-} from "./gemini-api.js";
+  generateTextFromPrompt,
+  generateContentForQuiz,
+  generateContentForTest,
+  generateContentForPodcast,
+  generatePresentationContent,
+} from "./gemini-api";
+import cors from "cors";
 
-// Nastavenie regiónu pre všetky funkcie
-const europeWest1 = functions.region("europe-west1");
+// Inicializácia CORS handlera s povolením pre tvoju webovú aplikáciu
+// DÔLEŽITÉ: Uistite sa, že URL adresa presne zodpovedá adrese vašej hosťovanej aplikácie
+const corsHandler = cors({ origin: "https://ai-sensei-czu-pilot.web.app" });
 
-// OPRAVA: Odstránená problematická podmienka. Priama inicializácia je v poriadku.
 admin.initializeApp();
-
 const db = admin.firestore();
 
-// --- Funkcie volané z frontendu ---
+/**
+ * Získa odpoveď od AI asistenta pre študenta.
+ * Táto funkcia je typu onRequest a používa CORS handler na povolenie volaní z webu.
+ */
+export const getAiAssistantResponse = functions.region("europe-west1").https.onRequest((request, response) => {
+    // Aplikujeme CORS handler na požiadavku
+    corsHandler(request, response, async () => {
+        if (request.method !== "POST") {
+            response.status(405).send({ error: "Method Not Allowed" });
+            return;
+        }
+
+        const { lessonId, userQuestion } = request.body.data;
+
+        if (!lessonId || !userQuestion) {
+            response.status(400).send({ error: "Chýba ID lekcie alebo otázka používateľa." });
+            return;
+        }
+
+        try {
+            const lessonDoc = await db.collection("lessons").doc(lessonId).get();
+            if (!lessonDoc.exists) {
+                response.status(404).send({ error: "Lekcia nebola nájdená." });
+                return;
+            }
+            const lessonContent = JSON.stringify(lessonDoc.data()?.content);
+            const prompt = `Kontext: Si AI asistent pre študentov. Nasleduje obsah lekcie: ${lessonContent}. Otázka od študenta znie: "${userQuestion}". Odpovedz na otázku stručne a jasne v kontexte danej lekcie.`;
+
+            const generatedText = await generateTextFromPrompt(prompt);
+            response.status(200).send({ data: { text: generatedText } });
+        } catch (error) {
+            console.error("Chyba vo funkcii getAiAssistantResponse:", error);
+            response.status(500).send({ error: "Nepodarilo sa získať odpoveď od AI." });
+        }
+    });
+});
+
 
 /**
- * Generuje obsah pre lekciu na základe textového promptu.
+ * Generuje textový obsah pre lekciu.
+ * Toto je onCall funkcia, ktorú volá profesorský panel, a preto nepotrebuje manuálny CORS.
  */
-export const generateContent = europeWest1.https.onCall(
+export const generateContent = functions.region("europe-west1").https.onCall(
   async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "Musíte byť prihlásený.");
     }
-    const { lessonId, prompt } = data;
-    if (!lessonId || !prompt) {
-      throw new functions.https.HttpsError("invalid-argument", "Chýba lessonId alebo prompt.");
+    const { prompt } = data;
+    if (!prompt) {
+      throw new functions.https.HttpsError("invalid-argument", "Chýba text pre AI.");
     }
     try {
-      const generatedContent = await generateTextFromPrompt(prompt);
-      await db.collection("lessons").doc(lessonId).update({
-        content: generatedContent,
-      });
-      return { success: true, content: generatedContent };
+      const generatedText = await generateTextFromPrompt(prompt);
+      // Jednoduché rozdelenie na odseky
+      const blocks = generatedText.split("\n\n").map((p) => ({
+        type: "paragraph",
+        data: { text: p },
+      }));
+      return { content: blocks };
     } catch (error) {
-      console.error("Chyba vo funkcii generateContent:", error);
+      console.error("Chyba pri generovaní obsahu:", error);
       throw new functions.https.HttpsError("internal", "Nepodarilo sa vygenerovať obsah.");
     }
   },
 );
 
 /**
- * Vytvorí kvíz pre danú lekciu.
+ * Generuje obsah pre kvíz.
  */
-export const createQuiz = europeWest1.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError("unauthenticated", "Musíte byť prihlásený.");
-  }
-  const {lessonId, lessonContent} = data;
-  if (!lessonId || !lessonContent) {
-    throw new functions.https.HttpsError("invalid-argument", "Chýba lessonId alebo lessonContent.");
-  }
-  try {
-    const prompt = `Na základe nasledujúceho obsahu lekcie vytvor JSON objekt pre kvíz s 5 otázkami. Každá otázka by mala mať 4 možnosti a správnu odpoveď. Štruktúra JSON by mala byť pole objektov, kde každý objekt má "question", "options" (pole reťazcov) a "correctAnswer" (reťazec). Obsah lekcie: "${lessonContent}"`;
-    const quiz = await generateJsonFromPrompt(prompt);
-    await db.collection("lessons").doc(lessonId).update({ quiz });
-    return {success: true, quiz};
-  } catch (error) {
-    console.error("Chyba vo funkcii createQuiz:", error);
-    throw new functions.https.HttpsError("internal", "Nepodarilo sa vytvoriť kvíz.");
-  }
-});
-
-/**
- * Vytvorí test pre danú lekciu.
- */
-export const createTest = europeWest1.https.onCall(async (data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError("unauthenticated", "Musíte byť prihlásený.");
-    }
-    const {lessonId, lessonContent} = data;
-    if (!lessonId || !lessonContent) {
-        throw new functions.https.HttpsError("invalid-argument", "Chýba lessonId alebo lessonContent.");
-    }
-    try {
-        const prompt = `Na základe nasledujúceho obsahu lekcie vytvor JSON objekt pre test. Test by mal obsahovať 5 otázok s výberom z viacerých možností (každá so 4 možnosťami) a 2 otvorené otázky. Štruktúra JSON by mala byť objekt s dvoma kľúčmi: "multipleChoice" (pole objektov otázok ako v kvíze) a "openEnded" (pole reťazcov predstavujúcich otázky). Obsah lekcie: "${lessonContent}"`;
-        const test = await generateJsonFromPrompt(prompt);
-        await db.collection("lessons").doc(lessonId).update({ test });
-        return { success: true, test };
-    } catch (error) {
-        console.error("Chyba vo funkcii createTest:", error);
-        throw new functions.https.HttpsError("internal", "Nepodarilo sa vytvoriť test.");
-    }
-});
-
-/**
- * Vytvorí podcast (textový skript) pre danú lekciu.
- */
-export const createPodcast = europeWest1.https.onCall(async (data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError("unauthenticated", "Musíte byť prihlásený.");
-    }
-    const {lessonId, lessonContent} = data;
-    if (!lessonId || !lessonContent) {
-        throw new functions.https.HttpsError("invalid-argument", "Chýba lessonId alebo lessonContent.");
-    }
-    try {
-        const prompt = `Na základe nasledujúceho obsahu lekcie napíš scenár pre 3-minútový vzdelávací podcast. Scenár by mal byť pútavý a ľahko zrozumiteľný pre študentov. Formátuj ho ako jednoduchý text, v prípade potreby s jasnými označeniami rečníka (napr. MODERÁTOR:). Obsah lekcie: "${lessonContent}"`;
-        const podcast = await generateTextFromPrompt(prompt);
-        await db.collection("lessons").doc(lessonId).update({ podcast });
-        return { success: true, podcast };
-    } catch (error) {
-        console.error("Chyba vo funkcii createPodcast:", error);
-        throw new functions.https.HttpsError("internal", "Nepodarilo sa vytvoriť podcast.");
-    }
-});
-
-/**
- * Vytvorí prezentáciu (JSON štruktúru) pre danú lekciu.
- */
-export const createPresentation = europeWest1.https.onCall(async (data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError("unauthenticated", "Musíte byť prihlásený.");
-    }
-    const {lessonId, lessonContent} = data;
-    if (!lessonId || !lessonContent) {
-        throw new functions.https.HttpsError("invalid-argument", "Chýba lessonId alebo lessonContent.");
-    }
-    try {
-        const prompt = `Na základe nasledujúceho obsahu lekcie vytvor JSON objekt predstavujúci prezentáciu s 5 snímkami. Každá snímka by mala mať "title" (reťazec) a "content" (pole reťazcov pre odrážky). Obsah lekcie: "${lessonContent}"`;
-        const presentation = await generateJsonFromPrompt(prompt);
-        await db.collection("lessons").doc(lessonId).update({ presentation });
-        return { success: true, presentation };
-    } catch (error) {
-        console.error("Chyba vo funkcii createPresentation:", error);
-        throw new functions.https.HttpsError("internal", "Nepodarilo sa vytvoriť prezentáciu.");
-    }
-});
-
-
-/**
- * Pošle správu od profesora študentovi a aktualizuje konverzáciu.
- */
-export const sendMessageToStudent = europeWest1.https.onCall(
+export const createQuiz = functions.region("europe-west1").https.onCall(
   async (data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Pre odoslanie správy musíte byť prihlásený.",
-      );
-    }
-
-    const {studentId, text} = data;
-    if (!studentId || !text) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "studentId a text sú povinné.",
-      );
-    }
-
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Musíte byť prihlásený.");
+    const { prompt } = data;
+    if (!prompt) throw new functions.https.HttpsError("invalid-argument", "Chýba text pre AI.");
     try {
-      const studentDoc = await db.collection("students").doc(studentId).get();
-      if (!studentDoc.exists) {
-        throw new functions.https.HttpsError("not-found", "Študent sa nenašiel.");
-      }
-      const studentData = studentDoc.data();
-      const studentName = studentData?.name || "Neznámy študent";
-
-      const message = {
-        text: text,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        senderId: "professor",
-      };
-
-      const conversationRef = db.collection("conversations").doc(studentId);
-      await conversationRef.collection("messages").add(message);
-      await conversationRef.set({
-        studentId: studentId,
-        studentName: studentName,
-        lastMessage: text,
-        lastMessageTimestamp: admin.firestore.FieldValue.serverTimestamp(),
-        professorHasUnread: false,
-        studentHasUnread: true,
-      }, {merge: true});
-
-      return {success: true};
+      const quizContent = await generateContentForQuiz(prompt);
+      return { quiz: quizContent };
     } catch (error) {
-      console.error("Chyba pri odosielaní správy študentovi:", error);
-      throw new functions.https.HttpsError(
-        "internal",
-        "Nepodarilo sa odoslať správu.",
-      );
+      console.error("Chyba pri vytváraní kvízu:", error);
+      throw new functions.https.HttpsError("internal", "Nepodarilo sa vytvoriť kvíz.");
     }
   },
+);
+
+/**
+ * Generuje obsah pre test.
+ */
+export const createTest = functions.region("europe-west1").https.onCall(
+  async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Musíte byť prihlásený.");
+    const { prompt } = data;
+    if (!prompt) throw new functions.https.HttpsError("invalid-argument", "Chýba text pre AI.");
+    try {
+      const testContent = await generateContentForTest(prompt);
+      return { test: testContent };
+    } catch (error) {
+      console.error("Chyba pri vytváraní testu:", error);
+      throw new functions.https.HttpsError("internal", "Nepodarilo sa vytvoriť test.");
+    }
+  },
+);
+
+/**
+ * Generuje obsah pre podcast.
+ */
+export const createPodcast = functions.region("europe-west1").https.onCall(
+  async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Musíte byť prihlásený.");
+    const { prompt } = data;
+    if (!prompt) throw new functions.https.HttpsError("invalid-argument", "Chýba text pre AI.");
+    try {
+      const podcastContent = await generateContentForPodcast(prompt);
+      return { podcast: podcastContent };
+    } catch (error) {
+      console.error("Chyba pri vytváraní podcastu:", error);
+      throw new functions.https.HttpsError("internal", "Nepodarilo sa vytvoriť podcast.");
+    }
+  },
+);
+
+/**
+ * Generuje obsah pre prezentáciu.
+ */
+export const createPresentation = functions.region("europe-west1").https.onCall(
+  async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Musíte byť prihlásený.");
+    const { prompt } = data;
+    if (!prompt) throw new functions.https.HttpsError("invalid-argument", "Chýba text pre AI.");
+    try {
+      const presentationContent = await generatePresentationContent(prompt);
+      return { presentation: presentationContent };
+    } catch (error) {
+      console.error("Chyba pri vytváraní prezentácie:", error);
+      throw new functions.https.HttpsError("internal", "Nepodarilo sa vytvoriť prezentáciu.");
+    }
+  },
+);
+
+/**
+ * Generuje obsah na základe nahraných súborov (placeholder).
+ */
+export const generateContentBasedOnFiles = functions.region("europe-west1").https.onCall(
+  async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Musíte byť prihlásený.");
+    // TODO: Implementovať logiku na spracovanie súborov
+    return { success: true, message: "Funkcia zatiaľ nie je implementovaná." };
+  }
 );
