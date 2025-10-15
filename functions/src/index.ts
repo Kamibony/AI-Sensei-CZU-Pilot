@@ -1,11 +1,11 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-// OPRAVA: Pridaná prípona .js, ktorú vyžaduje tvoje nastavenie TypeScriptu
+// OPRAVA: Pridaná povinná prípona .js
 import {
   generateJsonFromPrompt,
   generateTextFromPrompt,
 } from "./gemini-api.js"; 
-// OPRAVA: Pridaná prípona .js
+// OPRAVA: Pridaná povinná prípona .js
 import {db} from "./firebase-admin-init.js"; 
 
 const cors = require("cors")({origin: true});
