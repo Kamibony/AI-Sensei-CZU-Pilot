@@ -147,30 +147,23 @@ async function fetchAndDisplayLessons() {
     }
 }
 
-
-// --- ZAČIATOK NOVÉHO AUTOMATICKÉHO RIEŠENIA ---
-
 /**
- * "Normalizuje" dáta lekcie, aby sa vyrovnali s nekonzistentnými názvami polí z databázy.
+ * "Normalizuje" dáta lekcie, aby sa vyrovnali s nekonzistentnými názvami polí.
  * @param {object} rawData - Surové dáta lekcie z Firestore.
  * @returns {object} - Objekt lekcie s jednotnými a očakávanými názvami polí.
  */
 function normalizeLessonData(rawData) {
-    const normalized = { ...rawData }; // Vytvoríme kópiu, aby sme neupravovali pôvodné dáta
+    const normalized = { ...rawData };
 
-    // Normalizácia textového obsahu
     normalized.text_content = rawData.text_content || rawData.textContent || rawData.text || null;
-
-    // Normalizácia YouTube linku
-    normalized.youtube_link = rawData.youtube_link || rawData.youtubeLink || rawData.youtube || null;
-
-    // Normalizácia kvízu
-    normalized.quiz = rawData.quiz || null;
-
-    // Normalizácia testu
-    normalized.test = rawData.test || null;
     
-    // Normalizácia podcastu
+    // --- ZAČIATOK KĽÚČOVEJ ÚPRAVY ---
+    // Hľadáme 'youtube_link' (ideálny stav) alebo 'videoUrl' (stav, ako to ukladá editor).
+    normalized.youtube_link = rawData.youtube_link || rawData.videoUrl || null;
+    // --- KONIEC KĽÚČOVEJ ÚPRAVY ---
+
+    normalized.quiz = rawData.quiz || null;
+    normalized.test = rawData.test || null;
     normalized.podcast_script = rawData.podcast_script || rawData.podcastScript || rawData.podcast || null;
 
     return normalized;
@@ -184,12 +177,8 @@ function showLessonDetail(lessonId) {
     const rawLessonData = lessonsData.find(l => l.id === lessonId);
     if (!rawLessonData) return;
 
-    // Aplikujeme normalizačnú funkciu hneď po načítaní dát
     currentLessonData = normalizeLessonData(rawLessonData);
     
-// --- KONIEC NOVÉHO AUTOMATICKÉHO RIEŠENIA ---
-
-
     const mainContent = document.getElementById('student-main-content');
     mainContent.innerHTML = `
         <div class="mb-6">
