@@ -3,8 +3,8 @@ import * as admin from "firebase-admin";
 import {
   generateJsonFromPrompt,
   generateTextFromPrompt
-} from "./gemini-api.js"; // OPRAVENÉ
-import {db} from "./firebase-admin-init.js"; // OPRAVENÉ
+} from "./gemini-api.js"; // OPRAVA č. 1
+import {db} from "./firebase-admin-init.js"; // OPRAVA č. 2
 
 // Nastavenie regiónu pre všetky funkcie
 const europeWest1 = functions.region("europe-west1");
