@@ -1,37 +1,31 @@
 import globals from "globals";
-import tseslint from "typescript-eslint";
 import pluginJs from "@eslint/js";
+import tseslint from "typescript-eslint";
+import eslintConfigGoogle from "eslint-config-google";
 
 export default [
-  // Globálna konfigurácia ignonovania
+  // Povieme ESLintu, aby ignoroval svoj vlastný konfiguračný súbor.
   {
-    ignores: [
-      "lib/",
-      "node_modules/",
-    ],
+    ignores: ["eslint.config.js"],
   },
-  
-  // Základné pravidlá odporúčané ESLintom
-  pluginJs.configs.recommended,
-  
-  // Konfigurácia pre TypeScript súbory
-  ...tseslint.configs.recommended,
-
-  // Vlastné pravidlá a nastavenia
   {
     languageOptions: {
       globals: {
         ...globals.browser,
         ...globals.node,
       },
-      parserOptions: {
-        project: true,
-        tsconfigRootDir: import.meta.dirname,
-      },
     },
+  },
+  pluginJs.configs.recommended,
+  ...tseslint.configs.recommended,
+  eslintConfigGoogle,
+  {
     rules: {
       "quotes": ["error", "double"],
-      "import/no-unresolved": 0,
+      "no-unused-vars": "warn",
+      "no-console": "off",
+      "indent": ["error", 2],
+      "object-curly-spacing": ["error", "always"],
     },
   },
 ];
