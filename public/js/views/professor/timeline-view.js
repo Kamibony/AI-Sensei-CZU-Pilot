@@ -119,10 +119,7 @@ function openLessonEditor(lesson) {
         </div>
     `;
 
-    // --- TOTO JE KĽÚČOVÁ ZMENA ---
-    // Počkáme 50 milisekúnd, aby sa externé skripty stihli načítať
-    setTimeout(() => {
-        const initialContent = (lesson.content && lesson.content.blocks) ? lesson.content.blocks : [];
-        initializeEditor('editor-container', initialContent);
-    }, 50);
+    // Odstránili sme setTimeout a voláme priamo. Čakanie je teraz vnútri initializeEditor.
+    const initialContent = (lesson.content && lesson.content.blocks) ? lesson.content.blocks : [];
+    initializeEditor('editor-container', initialContent);
 }
