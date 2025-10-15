@@ -1,54 +1,45 @@
-name: Build and Deploy to Firebase
+name: Deploy to Firebase
 
 on:
   push:
     branches:
-      - nova-stabilna-verzia
+      - main
+
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      # Kroky pre Frontend (public)
+      - name: Setup Node.js for Frontend
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-
+          node-version: '18'
+      
       - name: Install Frontend Dependencies
         run: npm install
 
-      # --- NOVÝ DIAGNOSTICKÝ KROK ---
-      - name: List files BEFORE build
-        run: ls -lR public
-
-      - name: Build CSS from Tailwind
+      - name: Build CSS
         run: npm run build:css
-
-      # --- NOVÝ DIAGNOSTICKÝ KROK ---
-      - name: List files AFTER build
-        run: ls -lR public
-
-      # --- NOVÝ DIAGNOSTICKÝ KROK: Uloženie výsledku ---
-      - name: Archive public folder as artifact
-        uses: actions/upload-artifact@v4
+      
+      # Kroky pre Backend (functions)
+      - name: Setup Node.js for Backend
+        uses: actions/setup-node@v4
         with:
-          name: public-folder
-          path: public
+          node-version: '20' # Firebase Functions bežia na Node.js 20
 
-      - name: Install and Build Functions
-        run: |
-          cd functions
-          npm install
-          npm run build
+      - name: Install Backend Dependencies
+        run: cd functions && npm install
 
+      # Finálne nasadenie oboch častí
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --force
+          action: deploy
+          project_id: 'ai-sensei-czu-pilot'
+          # Nasadíme VŠETKO: hosting (frontend) aj functions (backend)
+          args: --only hosting,functions
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-          PROJECT_ID: ${{ secrets.PROJECT_ID }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          PROFESSOR_TELEGRAM_CHAT_ID: ${{ secrets.PROFESSOR_TELEGRAM_CHAT_ID }}
