@@ -1,6 +1,5 @@
 import { onAuthStateChanged, signOut, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-// Zmena z /js/... na ./...
 import { showToast } from './utils.js'; 
 import { auth, db } from './firebase-init.js';
 
@@ -8,26 +7,38 @@ let loginSuccessCallback;
 
 export function startAuthFlow(loginCallback) {
     loginSuccessCallback = loginCallback;
+    console.log("Auth.js: Sledujem zmeny stavu prihlásenia..."); // DIAGNOSTIKA
     onAuthStateChanged(auth, (user) => {
+        console.log("Auth.js: Stav prihlásenia sa zmenil. User:", user); // DIAGNOSTIKA
         const role = sessionStorage.getItem('userRole');
+        console.log("Auth.js: Rola v sessionStorage:", role); // DIAGNOSTIKA
         if (user && role) {
+            console.log("Auth.js: Používateľ je prihlásený, volám login callback."); // DIAGNOSTIKA
             loginSuccessCallback(role);
         } else {
+            console.log("Auth.js: Používateľ nie je prihlásený, zobrazujem prihlasovaciu obrazovku."); // DIAGNOSTIKA
             sessionStorage.removeItem('userRole');
-            renderLogin();
+            renderLogin(); // Toto je kľúčové volanie, ktoré zobrazí formulár
         }
     });
 }
 
 function renderLogin() {
     const appContainer = document.getElementById('app-container');
-    if (!appContainer) return;
+    if (!appContainer) {
+        console.error("Auth.js: CHYBA! app-container nebol nájdený pri pokuse o renderLogin."); // DIAGNOSTIKA
+        return;
+    }
 
     const template = document.getElementById('login-template');
-    if (!template) return;
+    if (!template) {
+        console.error("Auth.js: CHYBA! login-template nebol nájdený."); // DIAGNOSTIKA
+        return;
+    }
 
     appContainer.innerHTML = '';
     appContainer.appendChild(template.content.cloneNode(true));
+    console.log("Auth.js: Prihlasovacia obrazovka by mala byť zobrazená."); // DIAGNOSTIKA
 
     document.getElementById('login-professor')?.addEventListener('click', handleProfessorLogin);
     
