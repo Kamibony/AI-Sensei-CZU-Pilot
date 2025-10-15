@@ -1,6 +1,7 @@
 import * as functions from "firebase-functions";
-// OPRAVA: Zmenený spôsob importu pre firebase-admin
-import admin from "firebase-admin"; 
+import admin from "firebase-admin";
+// OPRAVA: Zmenený 'require' na moderný 'import'
+import cors from "cors"; 
 import {
   generateJsonFromPrompt,
   generateTextFromPrompt,
@@ -10,11 +11,13 @@ import {
 admin.initializeApp();
 const db = admin.firestore();
 
-const cors = require("cors")({origin: true});
+// OPRAVA: Inicializácia CORS pomocou novej importovanej funkcie
+const corsHandler = cors({origin: true});
 
 export const getAiAssistantResponse = functions.https.onRequest(
   (request, response) => {
-    cors(request, response, async () => {
+    // OPRAVA: Použitie novej cors premennej
+    corsHandler(request, response, async () => { 
       try {
         functions.logger.info("Received request for AI assistant response", {
           body: request.body,
@@ -80,7 +83,7 @@ export const getAiAssistantResponse = functions.https.onRequest(
 
 export const generateQuestions = functions.https.onRequest(
   (request, response) => {
-    cors(request, response, async () => {
+    corsHandler(request, response, async () => {
       try {
         const {lessonId} = request.body;
         if (!lessonId) {
