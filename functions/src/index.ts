@@ -1,22 +1,15 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+// OPRAVA: Pridaná prípona .js, ktorú vyžaduje tvoje nastavenie TypeScriptu
 import {
   generateJsonFromPrompt,
   generateTextFromPrompt,
-} from "./gemini-api"; // OPRAVA: Odstránená prípona .js
-import {db} from "./firebase-admin-init"; // OPRAVA: Odstránená prípona .js
+} from "./gemini-api.js"; 
+// OPRAVA: Pridaná prípona .js
+import {db} from "./firebase-admin-init.js"; 
 
-// Nastavenie CORS pre všetky funkcie v tomto súbore
 const cors = require("cors")({origin: true});
 
-// Inicializácia Firebase Admin SDK
-// admin.initializeApp();
-// const db = admin.firestore();
-
-/**
- * Cloud Function na získanie odpovede od AI asistenta.
- * Očakáva `lessonId` a `userQuestion` v tele požiadavky.
- */
 export const getAiAssistantResponse = functions.https.onRequest(
   (request, response) => {
     cors(request, response, async () => {
@@ -26,8 +19,7 @@ export const getAiAssistantResponse = functions.https.onRequest(
         });
 
         const {lessonId, userQuestion} = request.body.data || request.body;
-        // const { lessonId, userQuestion } = request.body;
-
+        
         if (!lessonId || !userQuestion) {
           functions.logger.error("Missing lessonId or userQuestion in request");
           response.status(400).send({
@@ -37,7 +29,6 @@ export const getAiAssistantResponse = functions.https.onRequest(
           return;
         }
 
-        // Získanie dát lekcie z Firestore
         const lessonDoc = await db.collection("lessons").doc(lessonId).get();
         if (!lessonDoc.exists) {
           functions.logger.error(`Lesson with ID ${lessonId} not found`);
@@ -55,7 +46,6 @@ export const getAiAssistantResponse = functions.https.onRequest(
           return;
         }
 
-        // Príprava promptu pre Gemini
         const prompt = `
         You are an AI teaching assistant. Your role is to answer student's questions based on the provided lesson content.
         The answer should be clear, concise, and directly related to the lesson context.
@@ -86,10 +76,6 @@ export const getAiAssistantResponse = functions.https.onRequest(
 );
 
 
-/**
- * Cloud Function na generovanie otázok k lekcii.
- * Očakáva `lessonId` v tele požiadavky.
- */
 export const generateQuestions = functions.https.onRequest(
   (request, response) => {
     cors(request, response, async () => {
@@ -100,7 +86,6 @@ export const generateQuestions = functions.https.onRequest(
           return;
         }
 
-        // Získanie obsahu lekcie
         const lessonDoc = await db.collection("lessons").doc(lessonId).get();
         if (!lessonDoc.exists) {
           response.status(404).send("Lekcia nebola nájdená.");
@@ -108,7 +93,6 @@ export const generateQuestions = functions.https.onRequest(
         }
         const lessonContent = lessonDoc.data()?.content;
 
-        // Prompt pre generovanie otázok
         const prompt = `
         Na základe nasledujúceho textu vygeneruj 5 otázok s možnosťami a označ správnu odpoveď:
         ${lessonContent}
