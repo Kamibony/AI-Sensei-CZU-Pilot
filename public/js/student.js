@@ -1,4 +1,4 @@
-import { db } from './firebase-init.js';
+import { db, auth } from './firebase-init.js'; // Import 'auth'
 import { collection, query, where, getDocs, orderBy, limit, addDoc, serverTimestamp, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { getAiAssistantResponse } from './gemini-api.js';
@@ -7,26 +7,18 @@ let currentLessonId = null;
 let testTimerInterval = null;
 
 export async function initStudentDashboard() {
-    // --- OPRAVENÁ ČASŤ ---
-    // Najprv nájdeme hlavný wrapper, ktorý už existuje v DOM
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) {
         console.error("CHYBA: Element 'role-content-wrapper' nebol nájdený!");
         return;
     }
-
-    // Vložíme do neho štruktúru študentského panelu, ktorá teraz obsahuje aj 'main-content'
     roleContentWrapper.innerHTML = `
         <div class="p-4 md:p-6 lg:p-8 overflow-y-auto w-full">
-            <div id="main-content">
-                </div>
+            <div id="main-content"></div>
         </div>
     `;
-    // --- KONIEC OPRAVENEJ ČASTI ---
 
     const mainContent = document.getElementById('main-content');
-    if (!mainContent) return;
-
     mainContent.innerHTML = `
         <div id="student-dashboard" class="p-4 md:p-6 lg:p-8">
             <h2 class="text-2xl md:text-3xl font-bold mb-4">Můj studijní panel</h2>
@@ -47,9 +39,7 @@ export async function initStudentDashboard() {
     
     document.getElementById('send-chat-btn').addEventListener('click', sendChatMessage);
     document.getElementById('chat-input').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendChatMessage();
-        }
+        if (e.key === 'Enter') sendChatMessage();
     });
 }
 
@@ -109,8 +99,6 @@ async function loadLessonContent(lessonId) {
             loadChatHistory();
         } else {
             showToast("Lekce nebyla nalezena.", true);
-            contentContainer.classList.add('hidden');
-            chatContainer.classList.add('hidden');
         }
     } catch (error) {
         console.error("Error loading lesson content:", error);
@@ -325,12 +313,11 @@ function renderPodcast(podcast) {
     container.appendChild(podcastContainer);
 }
 
-
 async function loadChatHistory() {
     if (!currentLessonId) return;
 
     const chatHistoryEl = document.getElementById('chat-history');
-    chatHistoryEl.innerHTML = '';
+    chatHistoryEl.innerHTML = 'Načítání historie...';
 
     try {
         const q = query(
@@ -339,22 +326,27 @@ async function loadChatHistory() {
         );
         const querySnapshot = await getDocs(q);
 
-        querySnapshot.forEach(doc => {
-            const data = doc.data();
-            appendChatMessage(data.role, data.text);
-        });
-
+        chatHistoryEl.innerHTML = '';
+        if (querySnapshot.empty) {
+            chatHistoryEl.innerHTML = '<p class="text-center text-gray-500">Zatím žádná konverzace.</p>';
+        } else {
+            querySnapshot.forEach(doc => {
+                const data = doc.data();
+                appendChatMessage(data.role, data.text);
+            });
+        }
     } catch (error) {
         console.error("Error loading chat history:", error);
+        chatHistoryEl.innerHTML = '<p class="text-center text-red-500">Nepodařilo se načíst historii.</p>';
     }
 }
-
 
 async function sendChatMessage() {
     const inputEl = document.getElementById('chat-input');
     const userQuestion = inputEl.value.trim();
+    const user = auth.currentUser;
 
-    if (!userQuestion || !currentLessonId) return;
+    if (!userQuestion || !currentLessonId || !user) return;
 
     appendChatMessage('user', userQuestion);
     inputEl.value = '';
@@ -364,16 +356,15 @@ async function sendChatMessage() {
         const userMessage = {
             role: 'user',
             text: userQuestion,
-            timestamp: serverTimestamp()
+            timestamp: serverTimestamp(),
+            userId: user.uid 
         };
         await addDoc(collection(db, "lessons", currentLessonId, "interactions"), userMessage);
 
         const response = await getAiAssistantResponse({ lessonId: currentLessonId, userQuestion });
         
-        if (response.error) {
-             throw new Error(response.error);
-        }
-
+        if (response.error) throw new Error(response.error);
+        
         const aiMessage = {
             role: 'model',
             text: response.text,
@@ -398,7 +389,6 @@ function appendChatMessage(role, text) {
     
     const formattedText = text.replace(/\n/g, '<br>');
     msgDiv.innerHTML = formattedText;
-
     msgDiv.className = `p-3 my-2 rounded-lg max-w-xl`;
     
     if (role === 'user') {
