@@ -3,7 +3,7 @@ name: Build and Deploy to Firebase
 on:
   push:
     branches:
-      - main
+      - stara-verzia-oprava
 
 jobs:
   build_and_deploy:

@@ -173,7 +173,7 @@ function renderTelegramPage(container, userData) {
                     Aktivovat propojení s Telegramem
                 </a>
                 <p class="text-xs text-slate-400 mt-4">Po kliknutí budete přesměrováni do aplikace Telegram.</p>
-            </div>
+             </div>
         `;
     } else {
         contentHtml = `<p class="text-center text-slate-500">Informace o propojení s Telegramem se nepodařilo načíst.</p>`;
@@ -660,7 +660,7 @@ function renderPodcast(postData, container) {
         const playBtn = e.target.closest('.play-pause-btn');
         if (!playBtn) return;
 
-        const episodeIndex = parseInt(playBtn.dataset.episodeIndex, 10);
+        const episodeIndex = parseInt(playBtn.dataset.episode-index, 10);
         const episodeData = postData.episodes[episodeIndex];
         const episodeElement = playBtn.closest('.podcast-episode');
 

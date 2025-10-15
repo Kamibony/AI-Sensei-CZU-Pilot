@@ -2,13 +2,13 @@ import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp
 import { renderEditorMenu } from './editor-handler.js';
 import { showToast } from './utils.js';
 import { db } from './firebase-init.js';
-import { initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-handler.js';
-import { handleLogout } from './auth.js';
+import { initializeMediaUpload, renderMediaFiles } from './upload-handler.js';
+import { handleSignOut } from './auth.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { functions } from './firebase-init.js';
 
 let lessonsData = [];
-const MAIN_COURSE_ID = "main-course"; 
+const MAIN_COURSE_ID = "main-course";
 const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
 let conversationsUnsubscribe = null;
 let studentsUnsubscribe = null;
@@ -35,7 +35,7 @@ async function fetchLessons() {
 export async function initProfessorDashboard() {
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
-    
+
     roleContentWrapper.innerHTML = `
         <div id="dashboard-professor" class="w-full flex main-view active h-screen">
             <aside id="professor-sidebar" class="w-full md:w-96 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 h-full"></aside>
@@ -44,7 +44,7 @@ export async function initProfessorDashboard() {
     `;
 
     setupProfessorNav();
-    document.getElementById('logout-btn-nav').addEventListener('click', handleLogout);
+    document.getElementById('logout-btn-nav').addEventListener('click', handleSignOut);
 
     const lessonsLoaded = await fetchLessons();
     if (!lessonsLoaded) {
@@ -106,7 +106,7 @@ async function showProfessorContent(view, lesson = null) {
         if (view === 'interactions') renderStudentInteractions(mainArea);
         if (view === 'analytics') renderAnalytics(mainArea);
         if (view === 'results') renderResultsView(mainArea);
-    } else { 
+    } else {
         await fetchLessons();
         renderLessonLibrary(sidebar);
         renderTimeline(mainArea);
@@ -160,7 +160,7 @@ function renderLessonLibrary(container) {
             }
         });
     });
-    
+
     container.querySelector('#add-new-lesson-btn').addEventListener('click', () => showProfessorContent('editor', null));
 
     const listEl = container.querySelector('#lesson-list-container');
@@ -193,7 +193,7 @@ async function renderTimeline(container) {
         const dayWrapper = document.createElement('div');
         dayWrapper.className = 'day-slot bg-white rounded-xl p-3 border-2 border-transparent transition-colors min-h-[200px] shadow-sm flex flex-col';
         dayWrapper.dataset.dayIndex = i;
-        
+
         const dateStr = getLocalizedDate(i);
         dayWrapper.innerHTML = `
             <div class="text-center pb-2 mb-2 border-b border-slate-200">
@@ -203,7 +203,7 @@ async function renderTimeline(container) {
         `;
         timelineContainer.appendChild(dayWrapper);
     }
-    
+
     timelineEvents.forEach(event => {
         const dayIndex = event.dayIndex || 0;
         const daySlot = timelineContainer.querySelector(`.day-slot[data-day-index='${dayIndex}'] .lessons-container`);
@@ -248,7 +248,7 @@ function renderScheduledEvent(event) {
                 await deleteDoc(doc(db, 'timeline_events', event.id));
                 el.remove();
                 showToast("Lekce byla odebrána z plánu.");
-                await updateAllOrderIndexes();
+                updateAllOrderIndexes();
             } catch (error) {
                 console.error("Error deleting timeline event:", error);
                 showToast("Chyba při odstraňování události.", true);
@@ -262,7 +262,7 @@ async function handleLessonDrop(evt) {
     const lessonId = evt.item.dataset.lessonId;
     const dayIndex = evt.to.closest('.day-slot').dataset.dayIndex;
     const tempEl = evt.item;
-    
+
     tempEl.innerHTML = `Načítám...`;
 
     try {
@@ -270,15 +270,15 @@ async function handleLessonDrop(evt) {
             lessonId: lessonId,
             dayIndex: parseInt(dayIndex),
             createdAt: serverTimestamp(),
-            orderIndex: 0 
+            orderIndex: 0
         };
         const docRef = await addDoc(collection(db, 'timeline_events'), newEventData);
-        
+
         const newElement = renderScheduledEvent({ id: docRef.id, ...newEventData });
         evt.item.parentNode.replaceChild(newElement, evt.item);
 
         showToast("Lekce naplánována.");
-        await updateAllOrderIndexes();
+        updateAllOrderIndexes();
 
     } catch (error) {
         console.error("Error scheduling lesson:", error);
@@ -290,11 +290,11 @@ async function handleLessonDrop(evt) {
 async function handleLessonMove(evt) {
     const eventId = evt.item.dataset.eventId;
     const newDayIndex = evt.to.closest('.day-slot').dataset.dayIndex;
-    
+
     try {
         const docRef = doc(db, 'timeline_events', eventId);
         await updateDoc(docRef, { dayIndex: parseInt(newDayIndex) });
-        await updateAllOrderIndexes();
+        updateAllOrderIndexes();
     } catch (error) {
         console.error("Error moving lesson:", error);
         showToast("Chyba při přesouvání lekce.", true);
@@ -304,10 +304,10 @@ async function handleLessonMove(evt) {
 async function updateAllOrderIndexes() {
     const timelineContainer = document.getElementById('timeline-container');
     if (!timelineContainer) return;
-    
+
     const allEvents = Array.from(timelineContainer.querySelectorAll('.lesson-bubble'));
     const batch = writeBatch(db);
-    
+
     allEvents.forEach((item, index) => {
         const eventId = item.dataset.eventId;
         if (eventId) {
@@ -327,15 +327,16 @@ function renderMediaLibrary(container) {
     container.innerHTML = `
         <header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Knihovna médií</h1><p class="text-slate-500 mt-1">Spravujte všechny soubory pro váš kurz na jednom místě.</p></header>
         <div class="flex-grow overflow-y-auto p-4 md:p-6"><div class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-slate-500 mb-4">Nahrajte soubory (PDF), které chcete použít pro generování obsahu.</p><div id="course-media-upload-area" class="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center text-slate-500 cursor-pointer hover:bg-green-50 hover:border-green-400"><p class="font-semibold">Přetáhněte soubory sem nebo klikněte pro výběr</p></div><input type="file" id="course-media-file-input" multiple class="hidden" accept=".pdf"><h3 class="font-bold text-slate-700 mt-6 mb-2">Nahrané soubory:</h3><ul id="course-media-list" class="space-y-2"></ul></div></div>`;
-    initializeCourseMediaUpload(MAIN_COURSE_ID);
-    renderMediaLibraryFiles(MAIN_COURSE_ID);
+    
+    initializeMediaUpload(MAIN_COURSE_ID, 'course-media-file-input', 'course-media-upload-area', 'course-media-list');
+    renderMediaFiles(MAIN_COURSE_ID, 'course-media-list');
 }
 
 async function renderStudentsView(container) {
     container.innerHTML = `
         <header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Správa studentů</h1><p class="text-slate-500 mt-1">Zobrazte seznam zapsaných studentů.</p></header>
         <div class="flex-grow overflow-y-auto p-4 md:p-6"><div id="students-list-container" class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-center p-8 text-slate-400">Načítám studenty...</p></div></div>`;
-    
+
     const containerEl = document.getElementById('students-list-container');
     const q = query(collection(db, 'students'), orderBy("createdAt", "desc"));
 
@@ -343,7 +344,7 @@ async function renderStudentsView(container) {
 
     studentsUnsubscribe = onSnapshot(q, (querySnapshot) => {
         const students = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
+
         if (students.length === 0) {
             containerEl.innerHTML = '<p class="text-center p-8 text-slate-500">Zatím se nezaregistroval žádný student.</p>';
             return;
@@ -354,7 +355,7 @@ async function renderStudentsView(container) {
                 <div><p class="text-slate-800 font-semibold">${student.name || 'Jméno neuvedeno'}</p><p class="text-sm text-slate-500">${student.email}</p></div>
                 <span class="text-xs font-medium px-2 py-1 rounded-full ${student.telegramChatId ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-500'}">${student.telegramChatId ? 'Telegram připojen' : 'Telegram nepřipojen'}</span>
             </div>`).join('');
-        
+
         containerEl.innerHTML = `<div class="divide-y divide-slate-100">${studentsHtml}</div>`;
     }, (error) => {
         console.error("Error fetching students:", error);
@@ -375,7 +376,7 @@ async function renderStudentInteractions(container) {
     `;
 
     const conversationsListEl = document.getElementById('conversations-list');
-    
+
     if (conversationsUnsubscribe) conversationsUnsubscribe();
 
     const convQuery = query(collection(db, "conversations"), orderBy("lastMessageTimestamp", "desc"));
@@ -384,7 +385,7 @@ async function renderStudentInteractions(container) {
             conversationsListEl.innerHTML = `<p class="p-4 text-slate-400">Zatím zde nejsou žádné konverzace.</p>`;
             return;
         }
-        
+
         conversationsListEl.innerHTML = '';
         querySnapshot.forEach((doc) => {
             const conv = doc.data();
@@ -416,7 +417,7 @@ function renderChatWindow(studentId, studentName) {
                 <textarea id="chat-input" placeholder="Napište odpověď..." class="w-full bg-slate-100 border-transparent rounded-lg p-3 pr-28 focus:ring-2 focus:ring-green-500 resize-none" rows="1"></textarea>
                 <button id="ai-reply-btn" class="absolute right-14 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-amber-700" title="Navrhnout odpověď (AI)">✨</button>
                 <button id="send-reply-btn" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-green-700" title="Odeslat">
-                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                 </button>
             </div>
         </footer>
@@ -426,7 +427,7 @@ function renderChatWindow(studentId, studentName) {
 
     const messagesContainer = document.getElementById('messages-container');
     const messagesQuery = query(collection(db, "conversations", studentId, "messages"), orderBy("timestamp"));
-    
+
     onSnapshot(messagesQuery, (querySnapshot) => {
         messagesContainer.innerHTML = '';
         querySnapshot.forEach((doc) => {
@@ -462,7 +463,7 @@ function renderChatWindow(studentId, studentName) {
             chatInput.focus();
         }
     };
-    
+
     sendBtn.addEventListener('click', handleSend);
     chatInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -583,7 +584,7 @@ function renderAnalytics(container) {
                 <h2 class="font-bold text-lg mb-4">Zapojení studentů v čase</h2>
                 <div class="h-64 bg-slate-50 rounded-lg flex items-end justify-around p-4" id="chart-container"></div>
             </div>
-             <div class="bg-white p-6 rounded-2xl shadow-lg space-y-4">
+               <div class="bg-white p-6 rounded-2xl shadow-lg space-y-4">
                 <h2 class="font-bold text-lg mb-2">Klíčové metriky</h2>
                 <div><p class="text-3xl font-bold text-green-600">88%</p><p class="text-sm text-slate-500">Průměrná úspěšnost v kvízech</p></div>
                 <div><p class="text-3xl font-bold text-amber-800">32 min</p><p class="text-sm text-slate-500">Průměrný čas strávený v lekci</p></div>
@@ -615,8 +616,8 @@ function renderAnalytics(container) {
                 </div>
              </div>
         </div>
-     `;
-     
+    `;
+
     const chartContainer = document.getElementById('chart-container');
     const chartData = [60, 75, 50, 85, 95, 70, 80];
     chartData.forEach((height, index) => {

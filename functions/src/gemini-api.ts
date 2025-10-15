@@ -1,155 +1,101 @@
 // functions/src/gemini-api.ts
 
-import {
-  VertexAI,
-  GenerateContentRequest,
-  HarmCategory,
-  HarmBlockThreshold,
-  Part,
-} from "@google-cloud/vertexai";
-import { getStorage } from "firebase-admin/storage";
+import { VertexAI, Part, GenerateContentRequest } from "@google-cloud/vertexai";
+// Import 'auth' už nie je potrebný, ale necháme ho pre prípad, že ho využívajú iné súčasti
+import { auth } from "./firebase-admin-init.js";
 
-// --- KONFIGURACE MODELU ---
-const GCLOUD_PROJECT = process.env.GCLOUD_PROJECT;
-if (!GCLOUD_PROJECT) {
-    throw new Error("GCLOUD_PROJECT environment variable not set.");
-}
-
-const LOCATION = "europe-west1"; 
-
-const vertex_ai = new VertexAI({ project: GCLOUD_PROJECT, location: LOCATION });
-
-const model = vertex_ai.getGenerativeModel({
-    model: "gemini-2.5-pro", 
-    safetySettings: [
-        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    ],
+// --- FINÁLNA OPRAVA: Zjednodušená inicializácia ---
+// Knižnica si automaticky načíta oprávnenia z prostredia Firebase/Google Cloud.
+const vertex_ai = new VertexAI({
+    project: 'ai-sensei-czu-pilot',
+    location: 'europe-west1',
 });
 
-async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
-    const functionName = requestBody.generationConfig?.responseMimeType === "application/json"
-        ? "generateJson"
-        : "generateText";
+// Váš overený a funkčný model
+const modelName = 'gemini-2.5-pro'; 
 
-    if (process.env.FUNCTIONS_EMULATOR === "true") {
-        console.log(`EMULATOR_MOCK for ${functionName}: Bypassing real API call.`);
-        if (functionName === "generateJson") {
-            return JSON.stringify({ mock: "This is a mock JSON response from the emulator." });
-        }
-        return `This is a mock response from the emulator for a text prompt.`;
-    }
-
-    try {
-        console.log(`[gemini-api:${functionName}] Sending request to Vertex AI with model 'gemini-2.5-pro' in '${LOCATION}'...`);
-        const streamResult = await model.generateContentStream(requestBody);
-        let fullText = "";
-
-        for await (const item of streamResult.stream) {
-            if (item.candidates && item.candidates[0].content.parts[0].text) {
-                fullText += item.candidates[0].content.parts[0].text;
-            }
-        }
-
-        console.log(`[gemini-api:${functionName}] Successfully received and aggregated stream response.`);
-        return fullText;
-
-    } catch (error) {
-        console.error(`[gemini-api:${functionName}] Error calling Vertex AI API:`, error);
-        if (error instanceof Error) {
-            throw new Error(`Vertex AI API call failed: ${error.message}`);
-        }
-        throw new Error("An unknown error occurred while communicating with the Vertex AI API.");
-    }
-}
+// --- OPRAVENÉ FUNKCIE S KONTROLAMI PRE TYPESCRIPT ---
 
 export async function generateTextFromPrompt(prompt: string): Promise<string> {
-  const request: GenerateContentRequest = {
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-  };
-  return await streamGeminiResponse(request);
+    try {
+        const generativeModel = vertex_ai.getGenerativeModel({ model: modelName });
+        const result = await generativeModel.generateContent(prompt);
+        const response = result.response;
+
+        if (!response || !response.candidates || response.candidates.length === 0 || !response.candidates[0].content.parts[0].text) {
+            throw new Error("AI nevrátila platnou odpověď.");
+        }
+        return response.candidates[0].content.parts[0].text;
+    } catch (error) {
+        console.error("Chyba při generování textu:", error);
+        throw new Error("Nepodařilo se vygenerovat text.");
+    }
 }
 
-export async function generateJsonFromPrompt(prompt: string): Promise<unknown> {
-  const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
-  const request: GenerateContentRequest = {
-    contents: [{ role: "user", parts: [{ text: jsonPrompt }] }],
-    generationConfig: {
-        responseMimeType: "application/json",
-    },
-  };
+export async function generateJsonFromPrompt(prompt: string): Promise<any> {
+    try {
+        const generativeModel = vertex_ai.getGenerativeModel({ model: modelName });
+        const result = await generativeModel.generateContent(prompt);
+        const response = result.response;
 
-  const rawJsonText = await streamGeminiResponse(request);
-
-  try {
-    const parsedJson = JSON.parse(rawJsonText);
-    return parsedJson;
-  } catch (_e) {
-    console.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText);
-    throw new Error("Model returned a malformed JSON string.");
-  }
+        if (!response || !response.candidates || response.candidates.length === 0 || !response.candidates[0].content.parts[0].text) {
+            throw new Error("AI nevrátila platnou odpověď pro JSON.");
+        }
+        const responseText = response.candidates[0].content.parts[0].text;
+        const cleanedJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
+        return JSON.parse(cleanedJson);
+    } catch (error) {
+        console.error("Chyba při generování JSON:", error);
+        throw new Error("Nepodařilo se vygenerovat JSON.");
+    }
 }
 
 export async function generateTextFromDocuments(filePaths: string[], prompt: string): Promise<string> {
-    const bucket = getStorage().bucket();
-    const parts: Part[] = [];
+    try {
+        const fileParts: Part[] = filePaths.map(path => ({
+            fileData: { mimeType: "application/pdf", fileUri: `gs://${path}` }
+        }));
+        
+        const request: GenerateContentRequest = {
+            contents: [{ role: "user", parts: [{ text: prompt }, ...fileParts] }]
+        };
+        
+        const generativeModel = vertex_ai.getGenerativeModel({ model: modelName });
+        const result = await generativeModel.generateContent(request);
+        const response = result.response;
 
-    for (const filePath of filePaths) {
-        const file = bucket.file(filePath);
-        console.log(`[gemini-api:generateTextFromDocuments] Reading file from gs://${bucket.name}/${filePath}`);
-        const [fileBuffer] = await file.download();
-        parts.push({
-            inlineData: {
-                mimeType: "application/pdf",
-                data: fileBuffer.toString("base64"),
-            }
-        });
+        if (!response || !response.candidates || response.candidates.length === 0 || !response.candidates[0].content.parts[0].text) {
+            throw new Error("AI nevrátila platnou odpověď z dokumentů.");
+        }
+        return response.candidates[0].content.parts[0].text;
+    } catch (error) {
+        console.error("Chyba při generování textu z dokumentů:", error);
+        throw new Error("Nepodařilo se vygenerovat text z dokumentů.");
     }
-
-    parts.push({ text: prompt });
-
-    const request: GenerateContentRequest = {
-        contents: [{ role: "user", parts: parts }],
-    };
-
-    return await streamGeminiResponse(request);
 }
 
-// --- NOVÁ FUNKCIA PRE GENERAVANIE JSON Z DOKUMENTOV ---
-export async function generateJsonFromDocuments(filePaths: string[], prompt: string): Promise<unknown> {
-    const bucket = getStorage().bucket();
-    const parts: Part[] = [];
-
-    for (const filePath of filePaths) {
-        const file = bucket.file(filePath);
-        console.log(`[gemini-api:generateJsonFromDocuments] Reading file from gs://${bucket.name}/${filePath}`);
-        const [fileBuffer] = await file.download();
-        parts.push({
-            inlineData: {
-                mimeType: "application/pdf",
-                data: fileBuffer.toString("base64"),
-            }
-        });
-    }
-
-    const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
-    parts.push({ text: jsonPrompt });
-
-    const request: GenerateContentRequest = {
-        contents: [{ role: "user", parts: parts }],
-        generationConfig: {
-            responseMimeType: "application/json",
-        },
-    };
-
-    const rawJsonText = await streamGeminiResponse(request);
+export async function generateJsonFromDocuments(filePaths: string[], prompt: string): Promise<any> {
     try {
-        const parsedJson = JSON.parse(rawJsonText);
-        return parsedJson;
-    } catch (_e) {
-        console.error("[gemini-api:generateJsonFromDocuments] Failed to parse JSON from Gemini response:", rawJsonText);
-        throw new Error("Model returned a malformed JSON string.");
+        const fileParts: Part[] = filePaths.map(path => ({
+            fileData: { mimeType: "application/pdf", fileUri: `gs://${path}` }
+        }));
+
+        const request: GenerateContentRequest = {
+            contents: [{ role: "user", parts: [{ text: prompt }, ...fileParts] }]
+        };
+
+        const generativeModel = vertex_ai.getGenerativeModel({ model: modelName });
+        const result = await generativeModel.generateContent(request);
+        const response = result.response;
+
+        if (!response || !response.candidates || response.candidates.length === 0 || !response.candidates[0].content.parts[0].text) {
+            throw new Error("AI nevrátila platnou odpověď pro JSON z dokumentů.");
+        }
+        const responseText = response.candidates[0].content.parts[0].text;
+        const cleanedJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
+        return JSON.parse(cleanedJson);
+    } catch (error) {
+        console.error("Chyba při generování JSON z dokumentů:", error);
+        throw new Error("Nepodařilo se vygenerovat JSON z dokumentů.");
     }
 }
