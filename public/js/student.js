@@ -1,4 +1,3 @@
-// public/js/student.js
 import { collection, getDocs, doc, query, where, updateDoc, orderBy, onSnapshot, addDoc, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { db, auth, functions } from './firebase-init.js';
@@ -17,9 +16,7 @@ const sendMessageFromStudent = httpsCallable(functions, 'sendMessageFromStudent'
 const submitQuizResults = httpsCallable(functions, 'submitQuizResults');
 const submitTestResults = httpsCallable(functions, 'submitTestResults');
 
-/**
- * Hlavná inicializačná funkcia pre študentský panel.
- */
+
 export function initStudentDashboard() {
     const user = auth.currentUser;
     if (!user) {
@@ -139,18 +136,15 @@ async function fetchAndDisplayLessons() {
     }
 }
 
-/**
- * Normalizuje data lekcie
- */
 function normalizeLessonData(rawData) {
     const normalized = { ...rawData };
 
-    // --- FINÁLNA ÚPRAVA ---
     normalized.youtube_link = rawData.youtube_link || rawData.videoUrl || null;
-    normalized.presentation = rawData.presentation || null;
-    normalized.podcast_script = rawData.podcast_script || rawData.post || null;
-    // Ostatné (text_content, quiz, test) by už mali sedieť
-    // --- KONIEC ÚPRAVY ---
+    normalized.presentation = rawData.presentation || rawData.presentationData || null;
+    normalized.podcast_script = rawData.podcast_script || rawData.post || rawData.postData || null;
+    normalized.text_content = rawData.text_content || rawData.content || null;
+    normalized.quiz = rawData.quiz || rawData.quizData || null;
+    normalized.test = rawData.test || rawData.testData || null;
 
     return normalized;
 }
@@ -200,14 +194,12 @@ function renderLessonTabs() {
     tabsContainer.innerHTML = '';
     const availableTabs = [];
 
-    // --- FINÁLNA ÚPRAVA: Kontrolujeme správne názvy polí ---
     if (currentLessonData.text_content) availableTabs.push({ id: 'text', name: 'Text' });
     if (currentLessonData.youtube_link) availableTabs.push({ id: 'video', name: 'Video' });
     if (currentLessonData.presentation) availableTabs.push({ id: 'presentation', name: 'Prezentace' });
     if (currentLessonData.quiz) availableTabs.push({ id: 'quiz', name: 'Kvíz' });
     if (currentLessonData.test) availableTabs.push({ id: 'test', name: 'Test' });
     if (currentLessonData.podcast_script) availableTabs.push({ id: 'podcast', name: 'Podcast' });
-    // --- KONIEC ÚPRAVY ---
     
     availableTabs.forEach((tab) => {
         const tabEl = document.createElement('button');
@@ -245,9 +237,21 @@ function switchTab(tabId) {
                  contentArea.innerHTML = `<p class="text-red-500">Neplatný YouTube odkaz.</p>`;
             }
             break;
+        // --- ZAČIATOK DOPLNENEJ LOGIKY ---
         case 'presentation':
-             contentArea.innerHTML = currentLessonData.presentation.slides.map((slide, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${slide.points.map(p => `<li>${p}</li>`).join('')}</ul></div>`).join('');
+             if(currentLessonData.presentation && currentLessonData.presentation.slides) {
+                contentArea.innerHTML = currentLessonData.presentation.slides.map((slide, i) => `
+                    <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
+                        <h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4>
+                        <ul class="list-disc list-inside mt-2 text-sm text-slate-600">
+                            ${(slide.points || []).map(p => `<li>${p}</li>`).join('')}
+                        </ul>
+                    </div>`).join('');
+             } else {
+                contentArea.innerHTML = `<p>Obsah prezentace není ve správném formátu.</p>`;
+             }
              break;
+        // --- KONIEC DOPLNENEJ LOGIKY ---
         case 'quiz':
             renderQuiz();
             break;
@@ -262,13 +266,18 @@ function switchTab(tabId) {
 
 function renderQuiz() {
     const quiz = currentLessonData.quiz;
+    if (!quiz || !quiz.questions) {
+        document.getElementById('lesson-tab-content').innerHTML = `<p>Obsah kvízu není ve správném formátu.</p>`;
+        return;
+    }
+
     const contentArea = document.getElementById('lesson-tab-content');
     let html = `<h3 class="text-xl font-bold mb-4">${quiz.title || 'Kvíz'}</h3>`;
 
     quiz.questions.forEach((q, index) => {
         html += `<div class="mb-6" id="question-${index}">
                     <p class="font-semibold mb-2">${index + 1}. ${q.question_text}</p>`;
-        q.options.forEach(option => {
+        (q.options || []).forEach(option => {
             html += `<label class="block p-2 border rounded hover:bg-slate-50">
                         <input type="radio" name="q${index}" value="${option}" class="mr-2">
                         ${option}
@@ -294,7 +303,7 @@ function renderQuiz() {
             await submitQuizResults({ 
                 lessonId: currentLessonId, 
                 quizTitle: quiz.title, 
-                score: score, 
+                score: score / quiz.questions.length, // Skóre ako percento
                 totalQuestions: quiz.questions.length,
                 answers: userAnswers
             });
