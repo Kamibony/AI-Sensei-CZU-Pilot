@@ -1,5 +1,6 @@
-import { initializeFirebase } from '/js/firebase-init.js';
-import { startAuthFlow, handleLogout } from '/js/auth.js';
+// Zmena z /js/... na ./...
+import { initializeFirebase } from './firebase-init.js';
+import { startAuthFlow, handleLogout } from './auth.js';
 
 function initializeAppUI() {
     const appContainer = document.getElementById('app-container');
@@ -13,10 +14,12 @@ function initializeAppUI() {
         appContainer.appendChild(template.content.cloneNode(true));
         
         if (role === 'professor') {
-            const { initProfessorDashboard } = await import('/js/professor.js');
+            // Zmena z /js/... na ./...
+            const { initProfessorDashboard } = await import('./professor.js');
             await initProfessorDashboard();
         } else {
-            const { initStudentDashboard } = await import('/js/student.js');
+            // Zmena z /js/... na ./...
+            const { initStudentDashboard } = await import('./student.js');
             await initStudentDashboard();
         }
     };
