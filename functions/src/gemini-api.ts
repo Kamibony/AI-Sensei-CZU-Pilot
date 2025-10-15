@@ -9,11 +9,14 @@ const functions = getFunctions();
  */
 export async function getAiAssistantResponse(data) {
   try {
+    // OPRAVA: Názov funkcie musí presne zodpovedať exportovanému názvu v index.ts
     const callGetAiAssistantResponse = httpsCallable(functions, 'getAiAssistantResponse');
+    // OPRAVA: Dáta sa posielajú ako jeden objekt, čo Firebase funkcia očakáva
     const result = await callGetAiAssistantResponse(data);
     return result.data;
   } catch (error) {
     console.error("Chyba pri volaní getAiAssistantResponse:", error);
-    throw error;
+    // Vrátenie štruktúrovanej chybovej odpovede pre lepšie spracovanie na strane klienta
+    return { success: false, error: error.message || "Neznáma chyba pri volaní funkcie." };
   }
 }
