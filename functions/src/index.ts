@@ -1,12 +1,17 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-// OPRAVA: Pridaná povinná prípona .js
+// OPRAVA: Odstránili sme import chýbajúceho súboru a logiku presúvame priamo sem.
+// import {db} from "./firebase-admin-init.js"; 
 import {
   generateJsonFromPrompt,
   generateTextFromPrompt,
-} from "./gemini-api.js"; 
-// OPRAVA: Pridaná povinná prípona .js
-import {db} from "./firebase-admin-init.js"; 
+} from "./gemini-api.js";
+
+// --- NOVÝ KÓD: INICIALIZÁCIA FIREBASE ADMIN SDK ---
+// Toto nahrádza funkcionalitu chýbajúceho súboru.
+admin.initializeApp();
+const db = admin.firestore();
+// --- KONIEC NOVÉHO KÓDU ---
 
 const cors = require("cors")({origin: true});
 
