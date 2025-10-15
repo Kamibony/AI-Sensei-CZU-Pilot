@@ -1,3 +1,4 @@
+// public/js/student.js
 import { collection, getDocs, doc, query, where, updateDoc, orderBy, onSnapshot, addDoc, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 import { db, auth, functions } from './firebase-init.js';
@@ -62,9 +63,6 @@ export function initStudentDashboard() {
     });
 }
 
-/**
- * Zobrazí formulár na zadanie mena študenta.
- */
 function promptForStudentName(userId) {
     const appContainer = document.getElementById('app-container');
     appContainer.innerHTML = `
@@ -90,9 +88,6 @@ function promptForStudentName(userId) {
     });
 }
 
-/**
- * Vykreslí hlavnú štruktúru študentského panela.
- */
 async function renderStudentPanel() {
     const appContainer = document.getElementById('app-container');
     appContainer.innerHTML = `
@@ -111,9 +106,6 @@ async function renderStudentPanel() {
     await fetchAndDisplayLessons();
 }
 
-/**
- * Načíta lekcie z databázy a zobrazí ich.
- */
 async function fetchAndDisplayLessons() {
     const mainContent = document.getElementById('student-main-content');
     mainContent.innerHTML = `<h2 class="text-2xl font-bold mb-6 text-slate-800">Moje lekce</h2>
@@ -148,30 +140,21 @@ async function fetchAndDisplayLessons() {
 }
 
 /**
- * "Normalizuje" dáta lekcie, aby sa vyrovnali s nekonzistentnými názvami polí.
- * @param {object} rawData - Surové dáta lekcie z Firestore.
- * @returns {object} - Objekt lekcie s jednotnými a očakávanými názvami polí.
+ * Normalizuje data lekcie
  */
 function normalizeLessonData(rawData) {
     const normalized = { ...rawData };
 
-    normalized.text_content = rawData.text_content || rawData.textContent || rawData.text || null;
-    
-    // --- ZAČIATOK KĽÚČOVEJ ÚPRAVY ---
-    // Hľadáme 'youtube_link' (ideálny stav) alebo 'videoUrl' (stav, ako to ukladá editor).
+    // --- FINÁLNA ÚPRAVA ---
     normalized.youtube_link = rawData.youtube_link || rawData.videoUrl || null;
-    // --- KONIEC KĽÚČOVEJ ÚPRAVY ---
-
-    normalized.quiz = rawData.quiz || null;
-    normalized.test = rawData.test || null;
-    normalized.podcast_script = rawData.podcast_script || rawData.podcastScript || rawData.podcast || null;
+    normalized.presentation = rawData.presentation || null;
+    normalized.podcast_script = rawData.podcast_script || rawData.post || null;
+    // Ostatné (text_content, quiz, test) by už mali sedieť
+    // --- KONIEC ÚPRAVY ---
 
     return normalized;
 }
 
-/**
- * Zobrazí detail vybranej lekcie.
- */
 function showLessonDetail(lessonId) {
     currentLessonId = lessonId;
     const rawLessonData = lessonsData.find(l => l.id === lessonId);
@@ -212,21 +195,21 @@ function showLessonDetail(lessonId) {
     loadChatHistory();
 }
 
-/**
- * Vykreslí záložky pre obsah lekcie.
- */
 function renderLessonTabs() {
     const tabsContainer = document.getElementById('lesson-tabs');
     tabsContainer.innerHTML = '';
     const availableTabs = [];
 
+    // --- FINÁLNA ÚPRAVA: Kontrolujeme správne názvy polí ---
     if (currentLessonData.text_content) availableTabs.push({ id: 'text', name: 'Text' });
     if (currentLessonData.youtube_link) availableTabs.push({ id: 'video', name: 'Video' });
+    if (currentLessonData.presentation) availableTabs.push({ id: 'presentation', name: 'Prezentace' });
     if (currentLessonData.quiz) availableTabs.push({ id: 'quiz', name: 'Kvíz' });
     if (currentLessonData.test) availableTabs.push({ id: 'test', name: 'Test' });
     if (currentLessonData.podcast_script) availableTabs.push({ id: 'podcast', name: 'Podcast' });
+    // --- KONIEC ÚPRAVY ---
     
-    availableTabs.forEach((tab, index) => {
+    availableTabs.forEach((tab) => {
         const tabEl = document.createElement('button');
         tabEl.id = `${tab.id}-tab`;
         tabEl.className = 'px-6 py-3 font-semibold border-b-2 transition-colors';
@@ -242,9 +225,6 @@ function renderLessonTabs() {
     }
 }
 
-/**
- * Prepne na vybranú záložku.
- */
 function switchTab(tabId) {
     document.querySelectorAll('#lesson-tabs button').forEach(btn => {
         btn.classList.remove('border-green-700', 'text-green-700');
@@ -255,7 +235,7 @@ function switchTab(tabId) {
     const contentArea = document.getElementById('lesson-tab-content');
     switch (tabId) {
         case 'text':
-            contentArea.innerHTML = `<div class="prose max-w-none">${currentLessonData.text_content}</div>`;
+            contentArea.innerHTML = `<div class="prose max-w-none">${currentLessonData.text_content.replace(/\n/g, '<br>')}</div>`;
             break;
         case 'video':
             const videoIdMatch = currentLessonData.youtube_link.match(/(?:v=|\/embed\/|\.be\/)([\w-]{11})/);
@@ -265,6 +245,9 @@ function switchTab(tabId) {
                  contentArea.innerHTML = `<p class="text-red-500">Neplatný YouTube odkaz.</p>`;
             }
             break;
+        case 'presentation':
+             contentArea.innerHTML = currentLessonData.presentation.slides.map((slide, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${slide.points.map(p => `<li>${p}</li>`).join('')}</ul></div>`).join('');
+             break;
         case 'quiz':
             renderQuiz();
             break;
@@ -277,17 +260,14 @@ function switchTab(tabId) {
     }
 }
 
-/**
- * Vykreslí kvíz.
- */
 function renderQuiz() {
     const quiz = currentLessonData.quiz;
     const contentArea = document.getElementById('lesson-tab-content');
-    let html = `<h3 class="text-xl font-bold mb-4">${quiz.title}</h3>`;
+    let html = `<h3 class="text-xl font-bold mb-4">${quiz.title || 'Kvíz'}</h3>`;
 
     quiz.questions.forEach((q, index) => {
         html += `<div class="mb-6" id="question-${index}">
-                    <p class="font-semibold mb-2">${index + 1}. ${q.question}</p>`;
+                    <p class="font-semibold mb-2">${index + 1}. ${q.question_text}</p>`;
         q.options.forEach(option => {
             html += `<label class="block p-2 border rounded hover:bg-slate-50">
                         <input type="radio" name="q${index}" value="${option}" class="mr-2">
@@ -304,8 +284,8 @@ function renderQuiz() {
         const userAnswers = [];
         quiz.questions.forEach((q, index) => {
             const selected = document.querySelector(`input[name="q${index}"]:checked`);
-            userAnswers.push({ question: q.question, answer: selected ? selected.value : "Nezodpovězeno" });
-            if (selected && selected.value === q.correctAnswer) {
+            userAnswers.push({ question: q.question_text, answer: selected ? selected.value : "Nezodpovězeno" });
+            if (selected && selected.value === q.options[q.correct_option_index]) {
                 score++;
             }
         });
@@ -315,7 +295,7 @@ function renderQuiz() {
                 lessonId: currentLessonId, 
                 quizTitle: quiz.title, 
                 score: score, 
-                total: quiz.questions.length,
+                totalQuestions: quiz.questions.length,
                 answers: userAnswers
             });
             contentArea.innerHTML = `<h3 class="text-xl font-bold">Výsledky kvízu</h3>
@@ -328,17 +308,11 @@ function renderQuiz() {
     });
 }
 
-/**
- * Vykreslí test.
- */
 function renderTest() {
     const contentArea = document.getElementById('lesson-tab-content');
     contentArea.innerHTML = `<p>Test pre túto lekciu bude dostupný čoskoro.</p>`;
 }
 
-/**
- * Načíta históriu chatu.
- */
 async function loadChatHistory() {
     const chatHistoryEl = document.getElementById('chat-history');
     chatHistoryEl.innerHTML = 'Načítání konverzace...';
@@ -367,9 +341,6 @@ async function loadChatHistory() {
     }
 }
 
-/**
- * Odošle správu (AI alebo profesorovi).
- */
 async function sendMessage(type) {
     const inputEl = document.getElementById('chat-input');
     const text = inputEl.value.trim();
@@ -393,9 +364,6 @@ async function sendMessage(type) {
     }
 }
 
-/**
- * Pridá správu do okna chatu.
- */
 function appendChatMessage(data) {
     const chatHistoryEl = document.getElementById('chat-history');
     const msgDiv = document.createElement('div');
