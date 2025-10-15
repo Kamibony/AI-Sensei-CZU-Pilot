@@ -5,14 +5,21 @@ import { handleFileUpload } from './upload-handler.js';
 let editor;
 
 export async function initializeEditor(containerId, initialContent = '') {
-    // --- OPRAVENÁ ČASŤ ---
-    // Skontrolujeme, či sú globálne premenné z knižníc dostupné
-    if (typeof window.EditorJS === 'undefined' || typeof window.Header === 'undefined' || typeof window.List === 'undefined' || typeof window.SimpleImage === 'undefined') {
-        console.error("Editor.js alebo jeho doplnky neboli správne načítané. Skontrolujte <script> značky v index.html.");
+    // --- VYLEPŠENÁ KONTROLA ---
+    // Skontrolujeme, či sú globálne premenné z knižníc naozaj dostupné
+    if (typeof window.EditorJS === 'undefined' || typeof window.Header === 'undefined' || typeof window.List === 'undefined') {
+        const errorMsg = "Editor.js alebo jeho doplnky neboli správne načítané. Skontrolujte <script> značky v index.html a pripojenie k internetu.";
+        console.error(errorMsg);
         showToast("Chyba: Nepodarilo sa načítať editor.", true);
-        return;
+        
+        // Zobrazíme chybu priamo v mieste, kde mal byť editor
+        const editorContainer = document.getElementById(containerId);
+        if (editorContainer) {
+            editorContainer.innerHTML = `<div class="p-4 text-red-700 bg-red-100 border border-red-400 rounded">${errorMsg}</div>`;
+        }
+        return; // Zastavíme vykonávanie funkcie
     }
-    // --- KONIEC OPRAVENEJ ČASTI ---
+    // --- KONIEC KONTROLY ---
 
     const EditorJS = window.EditorJS;
     editor = new EditorJS({
@@ -20,13 +27,13 @@ export async function initializeEditor(containerId, initialContent = '') {
         tools: {
             header: window.Header,
             list: window.List,
-            image: window.SimpleImage,
+            image: window.SimpleImage, // SimpleImage môže byť voliteľný
         },
         data: {
             blocks: initialContent
         },
         autofocus: true,
-        placeholder: 'Zadejte / pro příkazy nebo začněte psát...',
+        placeholder: 'Zadajte / pre príkazy alebo začnite písať...',
     });
 
     try {
@@ -36,7 +43,6 @@ export async function initializeEditor(containerId, initialContent = '') {
         console.error('Editor.js sa nepodarilo inicializovať:', error);
         return;
     }
-
 
     document.getElementById('save-content-btn')?.addEventListener('click', saveContent);
 
@@ -113,45 +119,17 @@ async function generateAiContent() {
 }
 
 function handlePresentation(presentation) {
-    if (!editor) {
-        console.error("Editor nie je inicializovaný.");
-        return;
-    }
+    if (!editor) return;
     if (!presentation || !presentation.slides) {
         console.error("Invalid presentation data received");
         return;
     }
     const blocks = presentation.slides.map(slide => {
-        let block;
-        if (slide.title && slide.content) {
-             block = {
-                type: 'header',
-                data: {
-                    text: slide.title,
-                    level: 2
-                }
-            };
-            editor.blocks.insert(block.type, block.data);
-
-            const contentBlocks = slide.content.map(item => ({
-                type: 'list',
-                data: {
-                    style: 'unordered',
-                    items: [item]
-                }
-            }));
-             contentBlocks.forEach(b => editor.blocks.insert(b.type, b.data));
-
-        } else if (slide.title) {
-            block = {
-                type: 'header',
-                data: {
-                    text: slide.title,
-                    level: 1
-                }
-            };
-            editor.blocks.insert(block.type, block.data);
+        if (slide.title) {
+            editor.blocks.insert('header', { text: slide.title, level: 2 });
         }
-       
+        if (slide.content && slide.content.length > 0) {
+            editor.blocks.insert('list', { style: 'unordered', items: slide.content });
+        }
     });
 }
