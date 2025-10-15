@@ -3,9 +3,7 @@ import { showToast } from './utils.js';
 import { db, auth, functions } from './firebase-init.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { handleLogout } from './auth.js';
-// --- ZAČIATOK KĽÚČOVEJ ÚPRAVY: Chýbajúci import ---
 import { getAiAssistantResponse } from './gemini-api.js';
-// --- KONIEC KĽÚČOVEJ ÚPRAVY ---
 
 
 // Globálne premenné a listenery
@@ -260,9 +258,19 @@ function switchTab(tabId) {
         case 'test':
             renderTest();
             break;
+        // --- ZAČIATOK DOPLNENEJ LOGIKY ---
         case 'podcast':
-            contentArea.innerHTML = `<p>Podcast pre túto lekciu bude dostupný čoskoro.</p>`;
+            if(currentLessonData.podcast_script && currentLessonData.podcast_script.episodes) {
+                contentArea.innerHTML = currentLessonData.podcast_script.episodes.map((episode, i) => `
+                    <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
+                        <h4 class="font-bold text-green-700">Epizoda ${i+1}: ${episode.title}</h4>
+                        <p class="mt-2 text-sm text-slate-600">${(episode.script || '').replace(/\n/g, '<br>')}</p>
+                    </div>`).join('');
+            } else {
+                contentArea.innerHTML = `<p>Obsah podcastu není ve správném formátu.</p>`;
+            }
             break;
+        // --- KONIEC DOPLNENEJ LOGIKY ---
     }
 }
 
@@ -353,13 +361,11 @@ async function loadChatHistory() {
 }
 
 
-// --- ZAČIATOK KĽÚČOVEJ ÚPRAVY: Logika odosielania ---
 async function sendMessage(type) {
     const inputEl = document.getElementById('chat-input');
     const text = inputEl.value.trim();
     if (!text) return;
 
-    // Pridáme správu od študenta okamžite do UI
     appendChatMessage({
         text: text,
         sender: 'student'
@@ -368,7 +374,6 @@ async function sendMessage(type) {
 
     try {
         if (type === 'ai') {
-            // Správa pre AI
             appendChatMessage({ text: 'AI Asistent přemýšlí...', sender: 'ai-typing' });
 
             const response = await getAiAssistantResponse({
@@ -376,7 +381,6 @@ async function sendMessage(type) {
                 userQuestion: text
             });
 
-            // Odstránime "píše..." a pridáme finálnu odpoveď
             document.querySelector('.ai-typing-indicator')?.remove();
             
             if (response.error) {
@@ -386,7 +390,6 @@ async function sendMessage(type) {
             }
 
         } else {
-            // Správa pre profesora
             await sendMessageFromStudent({
                 lessonId: currentLessonId,
                 text: text,
@@ -419,4 +422,3 @@ function appendChatMessage(data) {
     chatHistoryEl.appendChild(msgDiv);
     chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
 }
-// --- KONIEC KĽÚČOVEJ ÚPRAVY ---
