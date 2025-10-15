@@ -3,6 +3,10 @@ import { showToast } from './utils.js';
 import { db, auth, functions } from './firebase-init.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { handleLogout } from './auth.js';
+// --- ZAČIATOK KĽÚČOVEJ ÚPRAVY: Chýbajúci import ---
+import { getAiAssistantResponse } from './gemini-api.js';
+// --- KONIEC KĽÚČOVEJ ÚPRAVY ---
+
 
 // Globálne premenné a listenery
 let studentDataUnsubscribe = null;
@@ -237,7 +241,6 @@ function switchTab(tabId) {
                  contentArea.innerHTML = `<p class="text-red-500">Neplatný YouTube odkaz.</p>`;
             }
             break;
-        // --- ZAČIATOK DOPLNENEJ LOGIKY ---
         case 'presentation':
              if(currentLessonData.presentation && currentLessonData.presentation.slides) {
                 contentArea.innerHTML = currentLessonData.presentation.slides.map((slide, i) => `
@@ -251,7 +254,6 @@ function switchTab(tabId) {
                 contentArea.innerHTML = `<p>Obsah prezentace není ve správném formátu.</p>`;
              }
              break;
-        // --- KONIEC DOPLNENEJ LOGIKY ---
         case 'quiz':
             renderQuiz();
             break;
@@ -303,7 +305,7 @@ function renderQuiz() {
             await submitQuizResults({ 
                 lessonId: currentLessonId, 
                 quizTitle: quiz.title, 
-                score: score / quiz.questions.length, // Skóre ako percento
+                score: score / quiz.questions.length,
                 totalQuestions: quiz.questions.length,
                 answers: userAnswers
             });
@@ -350,39 +352,66 @@ async function loadChatHistory() {
     }
 }
 
+
+// --- ZAČIATOK KĽÚČOVEJ ÚPRAVY: Logika odosielania ---
 async function sendMessage(type) {
     const inputEl = document.getElementById('chat-input');
     const text = inputEl.value.trim();
     if (!text) return;
-    
-    inputEl.value = '';
-    const messageData = {
-        lessonId: currentLessonId,
-        studentId: currentUserData.id,
+
+    // Pridáme správu od študenta okamžite do UI
+    appendChatMessage({
         text: text,
-        sender: 'student',
-        type: type,
-        timestamp: serverTimestamp()
-    };
+        sender: 'student'
+    });
+    inputEl.value = '';
 
     try {
-        await sendMessageFromStudent(messageData);
+        if (type === 'ai') {
+            // Správa pre AI
+            appendChatMessage({ text: 'AI Asistent přemýšlí...', sender: 'ai-typing' });
+
+            const response = await getAiAssistantResponse({
+                lessonId: currentLessonId,
+                userQuestion: text
+            });
+
+            // Odstránime "píše..." a pridáme finálnu odpoveď
+            document.querySelector('.ai-typing-indicator')?.remove();
+            
+            if (response.error) {
+                 appendChatMessage({ text: `Chyba: ${response.error}`, sender: 'ai' });
+            } else {
+                 appendChatMessage({ text: response.answer, sender: 'ai' });
+            }
+
+        } else {
+            // Správa pre profesora
+            await sendMessageFromStudent({
+                lessonId: currentLessonId,
+                text: text,
+            });
+            showToast("Vaše zpráva byla odeslána profesorovi.");
+        }
     } catch (error) {
         console.error("Error sending message:", error);
         showToast("Nepodařilo se odeslat zprávu.", true);
+        document.querySelector('.ai-typing-indicator')?.remove();
+        appendChatMessage({ text: 'Omlouvám se, došlo k chybě.', sender: 'ai' });
     }
 }
 
 function appendChatMessage(data) {
     const chatHistoryEl = document.getElementById('chat-history');
     const msgDiv = document.createElement('div');
-    msgDiv.className = `p-3 my-2 rounded-lg max-w-xl clear-both`;
     let senderPrefix = '';
 
     if (data.sender === 'student') {
-        msgDiv.classList.add('bg-blue-500', 'text-white', 'ml-auto', 'rounded-br-none', 'float-right');
+        msgDiv.className = `p-3 my-2 rounded-lg max-w-xl clear-both bg-blue-500 text-white ml-auto rounded-br-none float-right`;
+    } else if (data.sender === 'ai-typing') {
+        msgDiv.className = 'p-3 my-2 rounded-lg max-w-xl clear-both bg-slate-200 text-slate-500 italic mr-auto rounded-bl-none float-left ai-typing-indicator';
     } else {
-        msgDiv.classList.add('bg-slate-200', 'text-slate-800', 'mr-auto', 'rounded-bl-none', 'float-left');
+        msgDiv.className = `p-3 my-2 rounded-lg max-w-xl clear-both bg-slate-200 text-slate-800 mr-auto rounded-bl-none float-left`;
         senderPrefix = data.sender === 'ai' ? '<strong>AI Asistent:</strong> ' : '<strong>Profesor:</strong> ';
     }
     
@@ -390,3 +419,4 @@ function appendChatMessage(data) {
     chatHistoryEl.appendChild(msgDiv);
     chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
 }
+// --- KONIEC KĽÚČOVEJ ÚPRAVY ---
