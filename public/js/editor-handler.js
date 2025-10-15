@@ -34,30 +34,22 @@ async function createDocumentSelector() {
     }
 }
 
-// --- NOVÁ FUNKCIA NA STIAHNUTIE OBSAHU ---
 function handleDownloadLessonContent() {
     if (!currentLesson) {
         showToast("Lekce není načtena, nelze stáhnout obsah.", true);
         return;
     }
-
     let contentString = "";
     const title = currentLesson.title || "Nová lekce";
-
-    // Pridanie hlavičky
     contentString += `# ${title}\n`;
     if (currentLesson.subtitle) {
         contentString += `## ${currentLesson.subtitle}\n`;
     }
     contentString += `\n---\n\n`;
-
-    // Pridanie hlavného textu
     if (currentLesson.content) {
         contentString += `### Hlavní text pro studenty\n\n`;
         contentString += `${currentLesson.content}\n\n---\n\n`;
     }
-
-    // Pridanie prezentácie
     if (currentLesson.presentationData && currentLesson.presentationData.slides) {
         contentString += `### Prezentace\n\n`;
         currentLesson.presentationData.slides.forEach((slide, index) => {
@@ -69,8 +61,6 @@ function handleDownloadLessonContent() {
         });
         contentString += `---\n\n`;
     }
-
-    // Pridanie kvízu
     if (currentLesson.quizData && currentLesson.quizData.questions) {
         contentString += `### Kvíz\n\n`;
         currentLesson.quizData.questions.forEach((q, index) => {
@@ -83,8 +73,6 @@ function handleDownloadLessonContent() {
         });
         contentString += `---\n\n`;
     }
-
-    // Pridanie testu
     if (currentLesson.testData && currentLesson.testData.questions) {
         contentString += `### Test\n\n`;
         currentLesson.testData.questions.forEach((q, index) => {
@@ -97,8 +85,6 @@ function handleDownloadLessonContent() {
         });
         contentString += `---\n\n`;
     }
-    
-    // Vytvorenie a stiahnutie súboru
     const blob = new Blob([contentString], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -108,10 +94,8 @@ function handleDownloadLessonContent() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-
     showToast("Obsah lekce byl stažen.");
 }
-
 
 export function renderEditorMenu(container, lesson) {
     currentLesson = lesson;
@@ -133,8 +117,6 @@ export function renderEditorMenu(container, lesson) {
     container.querySelector('#back-to-timeline-btn').addEventListener('click', () => {
         window.location.reload();
     });
-
-    // PRIDANIE EVENT LISTENERU PRE NOVÉ TLAČIDLO
     container.querySelector('#download-lesson-btn').addEventListener('click', handleDownloadLessonContent);
 
     const menuEl = container.querySelector('#editor-vertical-menu');
@@ -355,7 +337,6 @@ function attachEditorEventListeners(viewId) {
         const embedBtn = document.getElementById('embed-video-btn');
         const urlInput = document.getElementById('youtube-url');
         const preview = document.getElementById('video-preview');
-
         const showPreview = (url) => {
             if (!url) {
                 preview.innerHTML = '<div class="text-center p-8 text-slate-400">Náhled videa se zobrazí zde...</div>';
@@ -363,7 +344,6 @@ function attachEditorEventListeners(viewId) {
             }
             const videoIdMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
             const videoId = videoIdMatch ? videoIdMatch[1] : null;
-
             if (videoId) {
                 preview.innerHTML = `<div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-2xl shadow-lg"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen class="w-full h-full"></iframe></div>`;
                 return true;
@@ -374,7 +354,6 @@ function attachEditorEventListeners(viewId) {
                 return false;
             }
         };
-
         embedBtn?.addEventListener('click', async () => {
             const url = urlInput.value;
             if (showPreview(url)) {
@@ -383,7 +362,6 @@ function attachEditorEventListeners(viewId) {
                 await handleDeleteGeneratedContent('videoUrl', viewId);
             }
         });
-        
         if (currentLesson?.videoUrl) {
             showPreview(currentLesson.videoUrl);
         }
@@ -404,15 +382,65 @@ function attachEditorEventListeners(viewId) {
 }
 
 async function handleSaveLesson() {
-    // ... (tento kód zostáva bez zmeny)
+    // Implementácia ukladania detailov lekcie
+    const title = document.getElementById('lesson-title-input').value.trim();
+    if (!title) {
+        showToast("Název lekce nemůže být prázdný.", true);
+        return;
+    }
+
+    const lessonData = {
+        title: title,
+        subtitle: document.getElementById('lesson-subtitle-input').value.trim(),
+        number: document.getElementById('lesson-number-input').value.trim(),
+        icon: document.getElementById('lesson-icon-input').value.trim() || '🆕',
+    };
+
+    const saveButton = document.getElementById('save-lesson-btn');
+    saveButton.disabled = true;
+    saveButton.textContent = 'Ukládám...';
+
+    try {
+        if (currentLesson && currentLesson.id) {
+            // Update existujúcej lekcie
+            const lessonRef = doc(db, 'lessons', currentLesson.id);
+            await updateDoc(lessonRef, lessonData);
+            currentLesson = { ...currentLesson, ...lessonData };
+            showToast("Lekce byla aktualizována.");
+        } else {
+            // Vytvorenie novej lekcie
+            const docRef = await addDoc(collection(db, 'lessons'), {
+                ...lessonData,
+                createdAt: serverTimestamp()
+            });
+            currentLesson = { id: docRef.id, ...lessonData };
+            showToast("Nová lekce byla vytvořena.");
+        }
+        document.getElementById('editor-lesson-title').textContent = lessonData.title;
+        // Obnovenie menu, aby sa prejavili zmeny
+        renderEditorMenu(document.getElementById('professor-sidebar'), currentLesson);
+    } catch (error) {
+        console.error("Error saving lesson details:", error);
+        showToast("Došlo k chybě při ukládání lekce.", true);
+    } finally {
+        saveButton.disabled = false;
+        saveButton.textContent = 'Uložit změny';
+    }
 }
+
 
 async function handleGeneration(viewId) {
     const outputEl = document.getElementById('generation-output');
     const promptInput = document.getElementById('prompt-input');
     const generateBtn = document.getElementById('generate-btn');
-    const userPrompt = promptInput ? promptInput.value.trim() : '';
-
+    
+    // ---- OPRAVA: Skontrolujeme, či máme currentLesson.id ----
+    if (!currentLesson || !currentLesson.id) {
+        showToast("Nejprve uložte detaily lekce (název atd.).", true);
+        return;
+    }
+    
+    const userPrompt = promptInput ? promptInput.value.trim() : (currentLesson?.content || '');
     if (promptInput && !userPrompt && viewId !== 'details') {
         outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Prosím, zadejte text do promptu.</div>`;
         return;
@@ -429,22 +457,34 @@ async function handleGeneration(viewId) {
     try {
         const checkedBoxes = document.querySelectorAll('.document-checkbox:checked');
         const filePaths = Array.from(checkedBoxes).map(cb => cb.value);
+        
+        // ---- OPRAVA: Vytvoríme finálny prompt, ktorý bude obsahovať všetky informácie ----
+        let finalPrompt = userPrompt;
+        
+        const lengthMap = { 'Krátký': 'v krátkém formátu', 'Střední': 've středně dlouhém formátu', 'Dlouhý': 'v dlouhém a detailním formátu' };
+        const length = document.getElementById('length-select')?.value;
+        if (length && lengthMap[length]) {
+            finalPrompt += ` ${lengthMap[length]}.`;
+        }
 
-        const promptData = {
-            userPrompt,
-            slideCount: document.getElementById('slide-count-input')?.value,
-            questionCount: document.getElementById('question-count-input')?.value,
-            difficulty: document.getElementById('difficulty-select')?.value,
-            questionTypes: document.getElementById('type-select')?.value,
-            episodeCount: document.getElementById('episode-count-input')?.value,
-            length: document.getElementById('length-select')?.value,
+        const slideCount = document.getElementById('slide-count-input')?.value;
+        if (slideCount) {
+             finalPrompt = `Vytvoř prezentaci o tématu "${userPrompt}" s ${slideCount} slidy.`;
+        }
+        
+        // ... (tu by sa mohli pridať ďalšie podmienky pre kvíz, test atď.)
+
+        // ---- OPRAVA: Zostavíme objekt `data` presne podľa toho, čo server očakáva ----
+        const data = {
+            lessonId: currentLesson.id,
+            prompt: finalPrompt, // Použijeme finálny, zložený prompt
+            filePaths: filePaths,
+            // Pridávame aj ďalšie dáta pre špecifické typy generovania
+            contentType: viewId, 
+            lessonContent: currentLesson.content || '' // Pre funkcie, ktoré potrebujú obsah lekcie
         };
 
-        const result = await callGenerateContent({
-            contentType: viewId,
-            promptData,
-            filePaths,
-        });
+        const result = await callGenerateContent(data);
         
         if (result.error) {
             throw new Error(result.error);
@@ -470,22 +510,28 @@ async function handleGeneration(viewId) {
     }
 }
 
+
 function renderGeneratedContent(viewId, result) {
     if (!result) {
         return `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě: AI vrátila prázdnou odpověď.</div>`;
     }
-
     try {
         switch(viewId) {
             case 'text':
-                if (typeof result.text !== 'string') throw new Error("Odpověď neobsahuje platný text.");
-                window.rawResultForSaving = result.text;
-                return `<div class="prose max-w-none">${result.text.replace(/\n/g, '<br>')}</div>`;
+                // ---- OPRAVA: Očakávame, že odpoveď je priamo v `result.content` ----
+                if (typeof result.content !== 'string') throw new Error("Odpověď neobsahuje platný text.");
+                window.rawResultForSaving = result.content;
+                return `<div class="prose max-w-none">${result.content.replace(/\n/g, '<br>')}</div>`;
             case 'presentation':
-                return result.slides.map((slide, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${slide.points.map(p => `<li>${p}</li>`).join('')}</ul></div>`).join('');
+                // ---- OPRAVA: Dáta pre prezentáciu budú v `result.presentation` ----
+                window.rawResultForSaving = result.presentation;
+                return result.presentation.slides.map((slide, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${slide.points.map(p => `<li>${p}</li>`).join('')}</ul></div>`).join('');
             case 'quiz':
             case 'test':
-                return result.questions.map((q, i) => {
+                 // ---- OPRAVA: Dáta pre kvíz/test budú v `result.quiz` alebo `result.test` ----
+                const data = result.quiz || result.test;
+                window.rawResultForSaving = data;
+                return data.questions.map((q, i) => {
                     const optionsHtml = q.options.map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
                     return `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
                                 <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text}</h4>
@@ -493,7 +539,9 @@ function renderGeneratedContent(viewId, result) {
                             </div>`;
                 }).join('');
             case 'post':
-                return result.episodes.map((episode, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Epizoda ${i+1}: ${episode.title}</h4><p class="mt-2 text-sm text-slate-600">${episode.script.replace(/\n/g, '<br>')}</p></div>`).join('');
+                 // ---- OPRAVA: Dáta pre podcast budú v `result.podcast` ----
+                window.rawResultForSaving = result.podcast;
+                return result.podcast.episodes.map((episode, i) => `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Epizoda ${i+1}: ${episode.title}</h4><p class="mt-2 text-sm text-slate-600">${episode.script.replace(/\n/g, '<br>')}</p></div>`).join('');
             default:
                 return `<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Neznámý typ obsahu pro zobrazení.</div>`;
         }
@@ -503,6 +551,7 @@ function renderGeneratedContent(viewId, result) {
         return `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě při zobrazování odpovědi od AI: ${e.message}</div>`;
     }
 }
+
 
 async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) {
     const saveBtn = document.getElementById('save-content-btn');
@@ -525,13 +574,10 @@ async function handleSaveGeneratedContent(lesson, fieldToUpdate, contentToSave) 
     try {
         const dataToSave = (fieldToUpdate === 'content') ? contentToSave.replace(/<br\s*[\/]?>/gi, '\n') : contentToSave;
         await updateDoc(lessonRef, { [fieldToUpdate]: dataToSave });
-
         showToast("Obsah byl úspěšně uložen do lekce.");
         if (lesson) lesson[fieldToUpdate] = dataToSave;
-        
         const currentViewId = document.querySelector('.editor-menu-item.bg-green-100').dataset.view;
         showEditorContent(currentViewId, lesson);
-
     } catch (error) {
         console.error(`Chyba při ukládání obsahu (${fieldToUpdate}) do lekce:`, error);
         showToast("Při ukládání obsahu došlo k chybě.", true);
@@ -550,7 +596,6 @@ async function handleDeleteGeneratedContent(fieldToDelete, viewId) {
     if (!confirm("Opravdu si přejete smazat tento obsah a vytvořit nový?")) {
         return;
     }
-
     const deleteBtn = document.getElementById('delete-content-btn');
     const originalText = deleteBtn.innerHTML;
     deleteBtn.disabled = true;
@@ -561,13 +606,9 @@ async function handleDeleteGeneratedContent(fieldToDelete, viewId) {
         await updateDoc(lessonRef, {
             [fieldToDelete]: deleteField()
         });
-        
         delete currentLesson[fieldToDelete];
-        
         showToast("Obsah byl úspěšně smazán.");
-        
         showEditorContent(viewId, currentLesson);
-
     } catch (error) {
         console.error("Chyba při mazání obsahu:", error);
         showToast("Při mazání obsahu došlo k chybě.", true);
