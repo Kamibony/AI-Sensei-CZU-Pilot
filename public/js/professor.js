@@ -1,55 +1,34 @@
-import { handleLogout } from '/js/auth.js'; // OPRAVA: Importujeme funkciu na odhlásenie
-import { setupProfessorNav } from '/js/views/professor/navigation.js';
-import { showTimeline } from '/js/views/professor/timeline-view.js';
-import { showStudents } from '/js/views/professor/students-view.js';
-import { showInteractions } from '/js/views/professor/interactions-view.js';
-import { showMediaLibrary } from '/js/views/professor/media-library-view.js';
-import { showAnalytics } from '/js/views/professor/analytics-view.js';
-
-let currentProfessorView = 'timeline';
-
-function showProfessorContent(viewId) {
-    const mainContentArea = document.getElementById('main-content-area');
-    if (!mainContentArea) return;
-
-    mainContentArea.innerHTML = '';
-    currentProfessorView = viewId;
-
-    switch (viewId) {
-        case 'timeline':
-            showTimeline(mainContentArea);
-            break;
-        case 'students':
-            showStudents(mainContentArea);
-            break;
-        case 'interactions':
-            showInteractions(mainContentArea);
-            break;
-        case 'media':
-            showMediaLibrary(mainContentArea);
-            break;
-        case 'analytics':
-            showAnalytics(mainContentArea);
-            break;
-        default:
-            mainContentArea.innerHTML = `<div class="p-8"><h2 class="text-2xl font-bold">Obsah pro '${viewId}' se připravuje.</h2></div>`;
-    }
-}
+import { db } from './firebase-init.js';
+import { collection, addDoc, getDocs, serverTimestamp, doc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { showToast } from './utils.js';
+import { setupNavigation } from './views/professor/navigation.js';
+import { renderTimeline } from './views/professor/timeline-view.js';
+import { renderStudents } from './views/professor/students-view.js';
+import { renderInteractions } from './views/professor/interactions-view.js';
+import { renderStudentProfile } from './views/professor/student-profile-view.js';
 
 export async function initProfessorDashboard() {
-    const roleContentWrapper = document.getElementById('role-content-wrapper');
-    if (!roleContentWrapper) return;
+    const mainContent = document.getElementById('main-content');
+    if (!mainContent) return;
 
-    roleContentWrapper.innerHTML = `
-        <div class="flex-grow flex h-screen">
-            <aside id="professor-sidebar" class="w-72 bg-white border-r border-slate-200 flex flex-col flex-shrink-0"></aside>
-            <main id="main-content-area" class="flex-grow bg-slate-50 overflow-y-auto"></main>
-        </div>
-    `;
+    // Load initial view
+    mainContent.innerHTML = `<h2>Načítání...</h2>`;
     
-    // OPRAVA: Posielame 'handleLogout' do navigačnej funkcie
-    setupProfessorNav(showProfessorContent, handleLogout); 
+    const lessons = await fetchLessons();
+    setupNavigation(lessons);
     
-    // Zobrazenie východiskového pohľadu
-    showProfessorContent(currentProfessorView);
+    // Default view
+    renderTimeline(lessons);
+}
+
+
+async function fetchLessons() {
+    try {
+        const querySnapshot = await getDocs(collection(db, "lessons"));
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error fetching lessons: ", error);
+        showToast("Nepodařilo se načíst lekce.", true);
+        return [];
+    }
 }
