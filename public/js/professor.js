@@ -1,163 +1,165 @@
-import {
-  getFirestore,
-  collection,
-  getDocs,
-  addDoc,
-  deleteDoc,
-  doc,
-  query,
-  where,
-  getDoc,
-  updateDoc,
-} from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+import { collection, getDocs, doc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { renderEditorMenu } from './editor-handler.js';
+import { showToast } from './utils.js';
+import { db, functions } from './firebase-init.js';
+import { initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-handler.js';
+import { setupProfessorNav } from './views/professor/navigation.js';
+import { renderTimeline } from './views/professor/timeline-view.js';
+import { renderStudentsView } from './views/professor/students-view.js';
+import { renderStudentProfile } from './views/professor/student-profile-view.js';
+import { renderStudentInteractions } from './views/professor/interactions-view.js';
+import { handleLogout } from './auth.js';
 
-const db = getFirestore();
+let lessonsData = [];
+let conversationsUnsubscribe = null;
+let studentsUnsubscribe = null;
 
-async function getProfessorIdByUid(uid) {
-  const professorsCol = collection(db, "professors");
-  const q = query(professorsCol, where("uid", "==", uid));
-  const querySnapshot = await getDocs(q);
-  if (!querySnapshot.empty) {
-    return querySnapshot.docs[0].id;
-  }
-  return null;
-}
-
-export async function createLesson(lessonData) {
-  try {
-    const docRef = await addDoc(collection(db, "lessons"), lessonData);
-    console.log("Lesson written with ID: ", docRef.id);
-  } catch (e) {
-    console.error("Error adding document: ", e);
-  }
-}
-
-export async function getLessons(professorId) {
-  const lessonsCol = collection(db, "lessons");
-  const q = query(lessonsCol, where("professorId", "==", professorId));
-  const lessonSnapshot = await getDocs(q);
-  const lessonList = lessonSnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  }));
-  return lessonList;
-}
-
-export async function deleteLesson(lessonId) {
-    const lessonRef = doc(db, "lessons", lessonId);
-    const lessonSnap = await getDoc(lessonRef);
-    const lessonToDelete = lessonSnap.data();
-
-    // Získání a smazání všech interakcí spojených s lekcí
-    const interactionsQuery = query(collection(db, "interactions"), where("lessonId", "==", lessonId));
-    const interactionsSnapshot = await getDocs(interactionsQuery);
-    const deletePromises = interactionsSnapshot.docs.map(doc => deleteDoc(doc.ref));
-    await Promise.all(deletePromises);
-    console.log(`Všechny interakce pro lekci ${lessonId} byly smazány.`);
-
-    if (confirm(`Opravdu chcete trvale smazat lekci "${lessonToDelete.title}"? Tato akce je nevratná.`)) {
-        await deleteDoc(lessonRef);
-        console.log("Lekce úspěšně smazána");
+async function fetchLessons() {
+    try {
+        const lessonsCollection = collection(db, 'lessons');
+        const querySnapshot = await getDocs(query(lessonsCollection, orderBy("createdAt")));
+        lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         return true;
+    } catch (error) {
+        console.error("Error fetching lessons for professor: ", error);
+        showToast("Nepodařilo se načíst data lekcí.", true);
+        return false;
     }
-    return false;
 }
 
+function renderLessonLibrary(container, showProfessorContent) {
+    const lessonsHtml = lessonsData.map(lesson => `
+        <div class="lesson-bubble-wrapper group p-1" data-lesson-id="${lesson.id}">
+            <div class="lesson-bubble-in-library p-4 bg-white border rounded-lg cursor-pointer hover:shadow-md flex justify-between items-center">
+                <div>
+                    <h3 class="font-semibold text-slate-800">${lesson.title}</h3>
+                    <p class="text-sm text-slate-500">${lesson.subtitle || ' '}</p>
+                </div>
+                <button class="delete-lesson-btn p-1 rounded-full text-slate-400 hover:bg-red-200 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" data-lesson-id="${lesson.id}" title="Smazat lekci">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+            </div>
+        </div>
+    `).join('');
 
-export async function getProfessorName(professorId) {
-  const professorRef = doc(db, "professors", professorId);
-  const professorSnap = await getDoc(professorRef);
-
-  if (professorSnap.exists()) {
-    return professorSnap.data().name;
-  } else {
-    console.log("No such document!");
-    return null;
-  }
-}
-
-export async function initProfessorHomePage(user) {
-  const professorId = await getProfessorIdByUid(user.uid);
-  if (!professorId) {
-    console.error("Professor not found for UID:", user.uid);
-    return;
-  }
-  const professorName = await getProfessorName(professorId);
-  document.getElementById(
-    "professor-name"
-  ).textContent = `Vítejte, ${professorName}`;
-  const lessons = await getLessons(professorId);
-  displayLessons(lessons, professorId);
-}
-
-function displayLessons(lessons, professorId) {
-  const mainArea = document.getElementById("main-area");
-  let lessonsHtml = `<div class="p-8"><h2 class="text-2xl font-bold mb-4">Moje lekce</h2><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
-  lessons.forEach((lesson) => {
-    lessonsHtml += `
-      <div class="bg-white p-4 rounded-lg shadow relative">
-        <h3 class="text-xl font-bold">${lesson.title}</h3>
-        <p>${lesson.description}</p>
-        <button class="delete-lesson-btn absolute top-2 right-2 text-red-500 hover:text-red-700" data-lesson-id="${lesson.id}">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-        </button>
-      </div>
+    container.innerHTML = `
+        <header class="p-4 border-b border-slate-200 flex-shrink-0"><h2 class="text-xl font-bold text-slate-800">Knihovna lekcí</h2></header>
+        <div class="flex-grow overflow-y-auto p-4" id="lesson-list-container">${lessonsHtml}</div>
+        <footer class="p-4 border-t border-slate-200 flex-shrink-0"><button id="add-new-lesson-btn" class="w-full p-3 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800">Přidat novou lekci</button></footer>
     `;
-  });
-  lessonsHtml += `</div></div>`;
-  mainArea.innerHTML = lessonsHtml;
 
-  // Add event listeners to delete buttons
-  document.querySelectorAll(".delete-lesson-btn").forEach((button) => {
-    button.addEventListener("click", async (event) => {
-      const lessonId = event.currentTarget.getAttribute("data-lesson-id");
-      const deleted = await deleteLesson(lessonId);
-      if (deleted) {
-        initProfessorHomePage({ uid: localStorage.getItem("userUID") }); // Refresh the list
-      }
+    container.querySelectorAll('.lesson-bubble-in-library').forEach(el => {
+        el.addEventListener('click', (e) => {
+            if (e.target.closest('.delete-lesson-btn')) return;
+            const lessonId = e.target.closest('.lesson-bubble-wrapper').dataset.lessonId;
+            const selectedLesson = lessonsData.find(l => l.id === lessonId);
+            showProfessorContent('editor', selectedLesson);
+        });
     });
-  });
+
+    container.querySelectorAll('.delete-lesson-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const lessonId = e.currentTarget.dataset.lessonId;
+            const lessonToDelete = lessonsData.find(l => l.id === lessonId);
+            if (confirm(`Opravdu chcete trvale smazat lekci "${lessonToDelete.title}"? Tato akce je nevratná.`)) {
+                try {
+                    await deleteDoc(doc(db, 'lessons', lessonId));
+                    showToast('Lekce byla smazána.');
+                    await initProfessorDashboard();
+                } catch (error) {
+                    console.error("Error deleting lesson:", error);
+                    showToast("Chyba při mazání lekce.", true);
+                }
+            }
+        });
+    });
+    
+    container.querySelector('#add-new-lesson-btn').addEventListener('click', () => showProfessorContent('editor', null));
+
+    const listEl = container.querySelector('#lesson-list-container');
+    if (listEl && typeof Sortable !== 'undefined') {
+        new Sortable(listEl, {
+            group: { name: 'lessons', pull: 'clone', put: false },
+            animation: 150,
+            sort: false,
+        });
+    }
 }
 
-export function setupProfessorNavigation(user) {
-  const navLinks = document.querySelectorAll("#sidebar-nav a");
-  const mainArea = document.getElementById("main-area");
-  const professorId = getProfessorIdByUid(user.uid);
+async function showProfessorContent(view, data = null) {
+    if (conversationsUnsubscribe) { conversationsUnsubscribe(); conversationsUnsubscribe = null; }
+    if (studentsUnsubscribe) { studentsUnsubscribe(); studentsUnsubscribe = null; }
 
-  navLinks.forEach((link) => {
-    link.addEventListener("click", (event) => {
-      event.preventDefault();
-      const target = link.getAttribute("data-target");
+    const sidebar = document.getElementById('professor-sidebar');
+    const mainArea = document.getElementById('main-content-area');
+    if (!sidebar || !mainArea) return;
 
-      if (target === "dashboard") {
-        initProfessorHomePage(user);
-      } else if (target === "analysis") {
-        mainArea.innerHTML = `<p class="p-8">Sekce Analýza se připravuje.</p>`;
-      } else if (target === "students") {
-        mainArea.innerHTML = `<p class="p-8">Sekce Studenti se připravuje.</p>`;
-      }
-      // Pροσθέστε další else if pro ostatní sekce
-    });
-  });
+    sidebar.style.display = 'flex';
+    mainArea.style.display = 'flex';
+
+    const navigateToStudentProfile = (studentId) => {
+        showProfessorContent('student-profile', studentId);
+    };
+
+    switch (view) {
+        case 'editor':
+            renderEditorMenu(sidebar, data); // data je tu objekt lekcie
+            break;
+        case 'student-profile':
+            sidebar.style.display = 'none';
+            const backToHub = () => showProfessorContent('students');
+            renderStudentProfile(mainArea, db, data, backToHub); // data je tu studentId
+            break;
+        case 'media':
+            sidebar.style.display = 'none';
+            mainArea.innerHTML = `<header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Knihovna médií</h1><p class="text-slate-500 mt-1">Spravujte všechny soubory pro váš kurz na jednom místě.</p></header>
+                                  <div class="flex-grow overflow-y-auto p-4 md:p-6"><div class="bg-white p-6 rounded-2xl shadow-lg"><p class="text-slate-500 mb-4">Nahrajte soubory (PDF), které chcete použít pro generování obsahu.</p><div id="course-media-upload-area" class="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center text-slate-500 cursor-pointer hover:bg-green-50 hover:border-green-400"><p class="font-semibold">Přetáhněte soubory sem nebo klikněte pro výběr</p></div><input type="file" id="course-media-file-input" multiple class="hidden" accept=".pdf"><h3 class="font-bold text-slate-700 mt-6 mb-2">Nahrané soubory:</h3><ul id="course-media-list" class="space-y-2"></ul></div></div>`;
+            initializeCourseMediaUpload("main-course");
+            renderMediaLibraryFiles("main-course");
+            break;
+        case 'students':
+            sidebar.style.display = 'none';
+            studentsUnsubscribe = renderStudentsView(mainArea, db, studentsUnsubscribe, navigateToStudentProfile);
+            break;
+        case 'interactions':
+            sidebar.style.display = 'none';
+            conversationsUnsubscribe = renderStudentInteractions(mainArea, db, functions, conversationsUnsubscribe);
+            break;
+        case 'analytics':
+             sidebar.style.display = 'none';
+             mainArea.innerHTML = `<p class="p-8">Sekce Analýza se připravuje.</p>`;
+             break;
+        default: // 'timeline'
+            await fetchLessons();
+            renderLessonLibrary(sidebar, showProfessorContent);
+            await renderTimeline(mainArea, db, lessonsData);
+            break;
+    }
 }
 
-// Funkce pro aktualizaci obsahu na základě hashe v URL
-export function updateContentForHash(user) {
-  const hash = window.location.hash;
-  const mainArea = document.getElementById("main-area");
+export async function initProfessorDashboard() {
+    const roleContentWrapper = document.getElementById('role-content-wrapper');
+    if (!roleContentWrapper) return;
+    
+    roleContentWrapper.innerHTML = `
+        <div id="dashboard-professor" class="w-full flex main-view active h-screen">
+            <aside id="professor-sidebar" class="w-full md:w-96 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 h-full"></aside>
+            <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-screen"></main>
+        </div>
+    `;
 
-  switch (hash) {
-      case '#dashboard':
-          initProfessorHomePage(user);
-          break;
-      case '#analysis':
-          mainArea.innerHTML = `<p class="p-8">Sekce Analýza se připravuje.</p>`;
-          break;
-      case '#students':
-          mainArea.innerHTML = `<p class="p-8">Sekce Studenti se připravuje.</p>`;
-          break;
-      default:
-          initProfessorHomePage(user); // Výchozí zobrazení
-          break;
-  }
+    setupProfessorNav(showProfessorContent);
+
+    const logoutBtn = document.getElementById('logout-btn-nav');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+
+    const lessonsLoaded = await fetchLessons();
+    if (!lessonsLoaded) {
+        document.getElementById('main-content-area').innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat.</div>`;
+        return;
+    }
+    showProfessorContent('timeline');
 }
