@@ -2,15 +2,14 @@ import {
     getAuth,
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
-    signOut,
-    onAuthStateChanged
+    signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase-init.js';
 import { showToast } from './utils.js';
 
-const auth = getAuth();
 let appContainerRef;
+let loginCallback;
 
 // Funkcia na zobrazenie prihlasovacieho formulára
 function showLoginForm() {
@@ -87,13 +86,15 @@ function showRegistrationForm() {
 }
 
 // Hlavná inicializačná funkcia pre autentifikáciu
-export function initAuth(appContainer) {
+export function initAuth(appContainer, loginFn) {
     appContainerRef = appContainer;
+    loginCallback = loginFn;
     showLoginForm();
 }
 
 // Funkcia na spracovanie registrácie
 async function handleRegistration(email, password) {
+    const auth = getAuth(); // Call getAuth() here, after initialization
     const registerBtn = document.getElementById('register-btn');
     const originalBtnText = registerBtn.innerHTML;
     registerBtn.innerHTML = `<div class="spinner"></div> Registruji...`;
@@ -136,6 +137,7 @@ async function handleRegistration(email, password) {
 
 // Funkcia na spracovanie prihlásenia
 async function handleLogin(email, password) {
+    const auth = getAuth(); // Call getAuth() here, after initialization
     const loginBtn = document.getElementById('login-btn');
     const originalBtnText = loginBtn.innerHTML;
     loginBtn.innerHTML = `<div class="spinner"></div> Přihlašuji...`;
@@ -144,7 +146,6 @@ async function handleLogin(email, password) {
     try {
         await signInWithEmailAndPassword(auth, email, password);
         // Po úspešnom prihlásení sa o zobrazenie panelu postará onAuthStateChanged v app.js
-        // Tu môžeme zobraziť krátku správu, ak chceme
         showToast("Přihlášení úspěšné!");
 
     } catch (error) {
@@ -165,10 +166,12 @@ async function handleLogin(email, password) {
 
 // Funkcia na odhlásenie
 export async function handleLogout() {
+    const auth = getAuth(); // Call getAuth() here, after initialization
     try {
         await signOut(auth);
         showToast("Odhlášení proběhlo úspěšně.");
         // onAuthStateChanged v app.js sa postará o zobrazenie prihlasovacej obrazovky
+        // a vyčistenie UI.
     } catch (error) {
         console.error("Chyba při odhlašování:", error);
         showToast("Při odhlašování došlo k chybě.", true);
