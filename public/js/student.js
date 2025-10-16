@@ -42,7 +42,7 @@ export function initStudentDashboard() {
         } else {
             console.warn(`Profil pre študenta s UID ${user.uid} nebol nájdený. Vytváram nový...`);
             try {
-                // Vytvoríme aj telegram token pre nových používateľov
+                // Pre nových používateľov vytvoríme token pre Telegram
                 const token = `TGM-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
                 await setDoc(doc(db, "students", user.uid), {
                     email: user.email,
@@ -92,12 +92,13 @@ function promptForStudentName(userId) {
 
 async function renderStudentPanel() {
     const appContainer = document.getElementById('app-container');
+    // Mobil-first header
     appContainer.innerHTML = `
         <div class="flex flex-col h-screen">
             <header class="bg-white shadow-md p-3 md:p-4 flex justify-between items-center flex-shrink-0">
                 <h1 class="text-lg md:text-xl font-bold text-green-800">AI Sensei - Student</h1>
                 <div>
-                    <span class="text-slate-700 text-sm mr-2 md:mr-4">Vítejte, <strong>${currentUserData.name}</strong>!</span>
+                    <span class="text-slate-700 text-sm mr-2 md:mr-4 hidden sm:inline">Vítejte, <strong>${currentUserData.name}</strong>!</span>
                     <button id="student-logout-btn" class="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1.5 px-3 md:py-2 md:px-4 rounded-lg">Odhlásit se</button>
                 </div>
             </header>
@@ -110,6 +111,7 @@ async function renderStudentPanel() {
 
 async function fetchAndDisplayLessons() {
     const mainContent = document.getElementById('student-main-content');
+    // Mobile-first grid
     mainContent.innerHTML = `<h2 class="text-2xl font-bold mb-6 text-slate-800">Moje lekce</h2>
                              <div id="lessons-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">Načítání lekcí...</div>`;
 
@@ -127,6 +129,7 @@ async function fetchAndDisplayLessons() {
         lessonsGrid.innerHTML = '';
         lessonsData.forEach(lesson => {
             const lessonCard = document.createElement('div');
+            // Responsive card styling
             lessonCard.className = 'bg-white p-5 rounded-xl shadow-lg cursor-pointer hover:shadow-xl hover:-translate-y-0.5 transition-all';
             lessonCard.innerHTML = `
                 <h3 class="text-lg font-bold text-slate-900">${lesson.title}</h3>
@@ -143,6 +146,7 @@ async function fetchAndDisplayLessons() {
 
 function normalizeLessonData(rawData) {
     const normalized = { ...rawData };
+    // Zjednotenie názvov polí pre robustnosť
     normalized.youtube_link = rawData.youtube_link || rawData.videoUrl || null;
     normalized.presentation = rawData.presentation || rawData.presentationData || null;
     normalized.podcast_script = rawData.podcast_script || rawData.post || rawData.postData || null;
@@ -166,13 +170,13 @@ function showLessonDetail(lessonId) {
         </div>
         <div class="bg-white p-4 md:p-8 rounded-2xl shadow-lg mb-6">
             <h2 class="text-2xl md:text-3xl font-bold mb-4">${currentLessonData.title}</h2>
-            <div id="lesson-tabs" class="border-b mb-4 md:mb-6 flex overflow-x-auto whitespace-nowrap"></div>
+            <div id="lesson-tabs" class="border-b mb-4 md:mb-6 flex overflow-x-auto whitespace-nowrap scrollable-tabs"></div>
             <div id="lesson-tab-content"></div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
             
-            <div class="bg-white p-0 rounded-2xl shadow-xl flex flex-col">
+            <div class="bg-white p-0 rounded-2xl shadow-xl flex flex-col h-[70vh] lg:h-auto">
                 <div class="w-full h-full flex flex-col">
                     <div class="bg-[#56A0D3] text-white p-3 rounded-t-2xl flex items-center shadow-md flex-shrink-0">
                         <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center font-bold text-xl text-[#56A0D3]">A</div>
@@ -193,7 +197,7 @@ function showLessonDetail(lessonId) {
                     <div class="bg-white p-3 border-t flex-shrink-0">
                         <div class="flex items-center">
                             <input type="text" id="ai-chat-input" placeholder="Zpráva" class="flex-grow bg-gray-100 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#56A0D3]">
-                            <button id="send-ai-btn" class="ml-2 w-10 h-10 bg-green-700 text-white rounded-full flex items-center justify-center hover:bg-green-800 transition-colors">
+                            <button id="send-ai-btn" class="ml-2 w-10 h-10 bg-[#56A0D3] text-white rounded-full flex items-center justify-center hover:bg-[#4396C8] transition-colors">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                             </button>
                         </div>
@@ -201,7 +205,7 @@ function showLessonDetail(lessonId) {
                 </div>
             </div>
             
-            <div class="bg-white p-4 md:p-6 rounded-2xl shadow-lg flex flex-col">
+            <div class="bg-white p-4 md:p-6 rounded-2xl shadow-lg flex flex-col h-[70vh] lg:h-auto">
                 <h3 class="text-2xl font-bold mb-4">Konzultace s profesorem</h3>
                 <div id="prof-chat-history" class="h-96 max-h-[60vh] overflow-y-auto border p-3 rounded-lg bg-slate-50 mb-4 flex-grow"></div>
                 <div class="flex gap-2">
@@ -211,7 +215,7 @@ function showLessonDetail(lessonId) {
             </div>
 
         </div>
-        `;
+    `;
 
     document.getElementById('back-to-lessons-btn').addEventListener('click', fetchAndDisplayLessons);
     renderLessonTabs();
@@ -247,7 +251,7 @@ function renderLessonTabs() {
     availableTabs.forEach((tab) => {
         const tabEl = document.createElement('button');
         tabEl.id = `${tab.id}-tab`;
-        // Apply responsive classes: full width text on mobile, slightly less padding
+        // Responsive classes for tabs
         tabEl.className = 'px-3 py-2 md:px-6 md:py-3 font-semibold border-b-2 transition-colors text-sm md:text-base'; 
         tabEl.textContent = tab.name;
         tabEl.addEventListener('click', () => switchTab(tab.id));
@@ -269,6 +273,7 @@ function switchTab(tabId) {
     document.getElementById(`${tabId}-tab`).classList.add('border-green-700', 'text-green-700');
 
     const contentArea = document.getElementById('lesson-tab-content');
+    // Všetok obsah vo switchi používa mobil-first (p-4 md:p-8)
     switch (tabId) {
         case 'text':
             contentArea.innerHTML = `<div class="prose max-w-none">${currentLessonData.text_content.replace(/\n/g, '<br>')}</div>`;
@@ -314,6 +319,7 @@ function switchTab(tabId) {
     }
 }
 
+// Funkcia pre vykreslenie kvízu, teraz vrátane mobil-first a ID pre feedback
 function renderQuiz() {
     const quiz = currentLessonData.quiz;
     if (!quiz || !quiz.questions) {
@@ -322,49 +328,132 @@ function renderQuiz() {
     }
 
     const contentArea = document.getElementById('lesson-tab-content');
-    let html = `<h3 class="text-xl font-bold mb-4">${quiz.title || 'Kvíz'}</h3>`;
+    let html = `<h3 class="text-xl md:text-2xl font-bold mb-4">${quiz.title || 'Kvíz'}</h3>`;
 
     quiz.questions.forEach((q, index) => {
-        html += `<div class="mb-6" id="question-${index}">
-                    <p class="font-semibold mb-2">${index + 1}. ${q.question_text}</p>`;
-        (q.options || []).forEach(option => {
-            html += `<label class="block p-2 border rounded hover:bg-slate-50">
-                        <input type="radio" name="q${index}" value="${option}" class="mr-2">
+        html += `<div class="mb-6 p-4 border border-gray-200 rounded-lg bg-white shadow-sm" id="question-container-${index}">
+                    <p class="font-semibold mb-3 text-lg">${index + 1}. ${q.question_text}</p>`;
+        (q.options || []).forEach((option, optionIndex) => {
+            html += `<label class="block p-3 border border-gray-300 rounded-md mb-2 cursor-pointer hover:bg-slate-50 transition-colors" id="option-label-${index}-${optionIndex}">
+                        <input type="radio" name="q${index}" value="${option}" class="mr-3 transform scale-110 text-green-600">
                         ${option}
                      </label>`;
         });
+        html += `<div id="feedback-${index}" class="mt-2 font-bold text-sm"></div>`; // Placeholder for feedback
         html += `</div>`;
     });
-    html += `<button id="submit-quiz" class="w-full bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Odevzdat kvíz</button>`;
+    html += `<button id="submit-quiz" class="w-full bg-green-700 text-white font-bold py-3 px-4 rounded-lg text-lg hover:bg-green-800 transition-colors">Odevzdat kvíz</button>`;
     contentArea.innerHTML = html;
 
     document.getElementById('submit-quiz').addEventListener('click', async () => {
-        let score = 0;
         const userAnswers = [];
+        let allAnswered = true;
+
         quiz.questions.forEach((q, index) => {
             const selected = document.querySelector(`input[name="q${index}"]:checked`);
-            userAnswers.push({ question: q.question_text, answer: selected ? selected.value : "Nezodpovězeno" });
-            if (selected && selected.value === q.options[q.correct_option_index]) {
-                score++;
+            const userAnswerText = selected ? selected.value : "Nezodpovězeno";
+            userAnswers.push({ question: q.question_text, answer: userAnswerText });
+            if (!selected) {
+                allAnswered = false;
             }
         });
         
+        if (!allAnswered) {
+             showToast("Prosím, odpovězte na všechny otázky!", true);
+             return;
+        }
+
+        // 1. Zobrazenie výsledkov/feedbacku
+        displayQuizResults(quiz, userAnswers); 
+        
+        // 2. Odoslanie výsledkov do Firebase
+        let finalScore = 0;
+        quiz.questions.forEach((q) => {
+            const userAnswer = userAnswers.find(ua => ua.question === q.question_text)?.answer;
+            const correctOption = q.options[q.correct_option_index];
+            if (userAnswer === correctOption) {
+                finalScore++;
+            }
+        });
+
         try {
             await submitQuizResults({ 
                 lessonId: currentLessonId, 
                 quizTitle: quiz.title, 
-                score: score / quiz.questions.length,
+                score: finalScore / quiz.questions.length, // Skóre ako ratio/percento
                 totalQuestions: quiz.questions.length,
                 answers: userAnswers
             });
-            contentArea.innerHTML = `<h3 class="text-xl font-bold">Výsledky kvízu</h3>
-                                     <p class="text-2xl mt-4">Vaše skóre: ${score} / ${quiz.questions.length}</p>`;
-            showToast("Kvíz úspěšně odevzdán!");
+            showToast("Kvíz úspešne odovzdaný a vyhodnotený!");
         } catch (error) {
-            showToast("Nepodařilo se odevzdat kvíz.", true);
+            showToast("Nepodarilo sa odovzdať kvíz do databázy.", true);
             console.error("Error submitting quiz:", error);
         }
     });
+}
+
+// Funkcia pre vizuálne vyhodnotenie kvízu po odovzdaní
+function displayQuizResults(quiz, userAnswers) {
+    const contentArea = document.getElementById('lesson-tab-content');
+    let score = 0;
+    
+    // Disable submission button
+    document.getElementById('submit-quiz')?.remove();
+
+    // Calculate final score and inject detailed feedback
+    quiz.questions.forEach((q, index) => {
+        const correctOptionIndex = q.correct_option_index;
+        const correctOption = q.options[correctOptionIndex];
+        const userAnswer = userAnswers.find(ua => ua.question === q.question_text)?.answer;
+        
+        const isCorrect = userAnswer === correctOption;
+        if (isCorrect) {
+            score++;
+        }
+        
+        const questionContainer = document.getElementById(`question-container-${index}`);
+        const feedbackEl = document.getElementById(`feedback-${index}`);
+        if (!questionContainer || !feedbackEl) return;
+
+        // Vizuálna zmena celého kontajnera otázky
+        questionContainer.classList.remove('border-gray-200');
+        questionContainer.classList.add(isCorrect ? 'border-green-500' : 'border-red-500');
+        
+        // Detailný feedback pod otázkou
+        const userFeedbackText = isCorrect 
+            ? `<span class="text-green-600">✅ Správne!</span>`
+            : `<span class="text-red-600">❌ Chyba. Správna odpoveď: <strong>${correctOption}</strong></span>`;
+        
+        feedbackEl.innerHTML = userFeedbackText;
+
+        // Iterácia cez možnosti a zafarbenie štítkov
+        q.options.forEach((option, optionIndex) => {
+            const labelEl = document.getElementById(`option-label-${index}-${optionIndex}`);
+            const inputEl = labelEl ? labelEl.querySelector('input') : null;
+            if (!labelEl || !inputEl) return;
+            
+            inputEl.disabled = true; // Zablokovanie po odovzdaní
+
+            if (optionIndex === correctOptionIndex) {
+                // Zelené pozadie pre správnu odpoveď
+                labelEl.classList.remove('border-gray-300', 'hover:bg-slate-50');
+                labelEl.classList.add('bg-green-100', 'border-green-500', 'font-semibold');
+            } else if (option === userAnswer && !isCorrect) {
+                // Červené pozadie pre nesprávne zvolenú odpoveď
+                labelEl.classList.remove('border-gray-300', 'hover:bg-slate-50');
+                labelEl.classList.add('bg-red-100', 'border-red-500', 'line-through');
+            }
+        });
+    });
+
+    // Vložíme finálne skóre nad kvíz
+    const scoreHtml = `
+        <div class="text-center p-6 mb-6 rounded-xl bg-green-700 text-white shadow-lg">
+            <h3 class="text-xl md:text-2xl font-bold">Váš konečný výsledek</h3>
+            <p class="text-3xl md:text-4xl font-extrabold mt-2">${score} / ${quiz.questions.length}</p>
+        </div>
+    `;
+    contentArea.insertAdjacentHTML('afterbegin', scoreHtml);
 }
 
 function renderTest() {
