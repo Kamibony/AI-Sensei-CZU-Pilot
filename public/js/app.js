@@ -1,14 +1,19 @@
 import { initializeFirebase } from './firebase-init.js';
-import { startAuthFlow, handleLogout } from './auth.js';
+// --- OPRAVA: Importujeme správnu funkciu 'initAuth' ---
+import { initAuth } from './auth.js';
 
 function initializeAppUI() {
     const appContainer = document.getElementById('app-container');
 
     const login = async (role) => {
         if (!appContainer) return;
-        const template = document.getElementById('main-app-template');
-        if (!template) return;
-
+        
+        // Načítanie hlavnej šablóny aplikácie
+        const templateResponse = await fetch('/main-app-template.html');
+        const templateHtml = await templateResponse.text();
+        const template = document.createElement('template');
+        template.innerHTML = templateHtml;
+        
         appContainer.innerHTML = '';
         appContainer.appendChild(template.content.cloneNode(true));
         
@@ -21,7 +26,8 @@ function initializeAppUI() {
         }
     };
     
-    startAuthFlow(login);
+    // --- OPRAVA: Voláme správnu funkciu 'initAuth' ---
+    initAuth(appContainer, login);
 }
 
 // Spustenie celej aplikácie
