@@ -60,14 +60,15 @@ export function initStudentDashboard() {
     });
 }
 
-// --- NOVÁ FUNKCIA ---
+// --- PRIDANÁ FUNKCIA ---
 export function cleanupStudentDashboard() {
     if (studentDataUnsubscribe) {
         studentDataUnsubscribe();
         studentDataUnsubscribe = null;
+        console.log("Student dashboard listener cleaned up.");
     }
 }
-// --- KONIEC NOVEJ FUNKCIE ---
+// --- KONIEC PRIDANEJ FUNKCIE ---
 
 function promptForStudentName(userId) {
     const appContainer = document.getElementById('app-container');
