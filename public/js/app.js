@@ -12,9 +12,19 @@ function startApp() {
     // Centrálny listener pre stav prihlásenia
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            // Používateľ je prihlásený. Zistíme, či je to profesor.
-            appContainer.innerHTML = '<div class="spinner-container"><div class="spinner"></div></div>';
+            // Používateľ je prihlásený.
+            
+            // --- KĽÚČOVÁ OPRAVA: Načítanie hlavnej šablóny aplikácie ---
+            // Tento krok chýbal a spôsoboval, že sa panel nezobrazil.
+            const templateResponse = await fetch('/main-app-template.html');
+            const templateHtml = await templateResponse.text();
+            const template = document.createElement('template');
+            template.innerHTML = templateHtml;
+            appContainer.innerHTML = '';
+            appContainer.appendChild(template.content.cloneNode(true));
+            // --- KONIEC KĽÚČOVEJ OPRAVY ---
 
+            // Teraz, keď je šablóna načítaná, môžeme zobraziť správny panel.
             if (user.email === 'profesor@profesor.cz') {
                 console.log("Professor identified. Loading professor dashboard.");
                 await initProfessorDashboard();
