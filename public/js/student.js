@@ -94,14 +94,14 @@ async function renderStudentPanel() {
     const appContainer = document.getElementById('app-container');
     appContainer.innerHTML = `
         <div class="flex flex-col h-screen">
-            <header class="bg-white shadow-md p-4 flex justify-between items-center">
-                <h1 class="text-xl font-bold text-green-800">AI Sensei - Panel studenta</h1>
+            <header class="bg-white shadow-md p-3 md:p-4 flex justify-between items-center flex-shrink-0">
+                <h1 class="text-lg md:text-xl font-bold text-green-800">AI Sensei - Student</h1>
                 <div>
-                    <span class="text-slate-700 mr-4">Vítejte, <strong>${currentUserData.name}</strong>!</span>
-                    <button id="student-logout-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Odhlásit se</button>
+                    <span class="text-slate-700 text-sm mr-2 md:mr-4">Vítejte, <strong>${currentUserData.name}</strong>!</span>
+                    <button id="student-logout-btn" class="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1.5 px-3 md:py-2 md:px-4 rounded-lg">Odhlásit se</button>
                 </div>
             </header>
-            <main id="student-main-content" class="flex-grow overflow-y-auto p-8 bg-slate-50"></main>
+            <main id="student-main-content" class="flex-grow overflow-y-auto p-4 md:p-8 bg-slate-50"></main>
         </div>
     `;
     document.getElementById('student-logout-btn').addEventListener('click', handleLogout);
@@ -111,7 +111,7 @@ async function renderStudentPanel() {
 async function fetchAndDisplayLessons() {
     const mainContent = document.getElementById('student-main-content');
     mainContent.innerHTML = `<h2 class="text-2xl font-bold mb-6 text-slate-800">Moje lekce</h2>
-                             <div id="lessons-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">Načítání lekcí...</div>`;
+                             <div id="lessons-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">Načítání lekcí...</div>`;
 
     try {
         const q = query(collection(db, "lessons"), orderBy("createdAt", "desc"));
@@ -127,10 +127,10 @@ async function fetchAndDisplayLessons() {
         lessonsGrid.innerHTML = '';
         lessonsData.forEach(lesson => {
             const lessonCard = document.createElement('div');
-            lessonCard.className = 'bg-white p-6 rounded-xl shadow-lg cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all';
+            lessonCard.className = 'bg-white p-5 rounded-xl shadow-lg cursor-pointer hover:shadow-xl hover:-translate-y-0.5 transition-all';
             lessonCard.innerHTML = `
-                <h3 class="text-xl font-bold text-slate-900">${lesson.title}</h3>
-                <p class="text-sm text-slate-500 mt-2">Vytvořeno: ${lesson.createdAt ? new Date(lesson.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</p>
+                <h3 class="text-lg font-bold text-slate-900">${lesson.title}</h3>
+                <p class="text-xs text-slate-500 mt-2">Vytvořeno: ${lesson.createdAt ? new Date(lesson.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</p>
             `;
             lessonCard.addEventListener('click', () => showLessonDetail(lesson.id));
             lessonsGrid.appendChild(lessonCard);
@@ -162,52 +162,51 @@ function showLessonDetail(lessonId) {
     const mainContent = document.getElementById('student-main-content');
     mainContent.innerHTML = `
         <div class="mb-6">
-            <button id="back-to-lessons-btn" class="text-green-700 hover:underline">&larr; Zpět na přehled lekcí</button>
+            <button id="back-to-lessons-btn" class="text-green-700 hover:underline flex items-center">&larr; Zpět na přehled lekcí</button>
         </div>
-        <div class="bg-white p-8 rounded-2xl shadow-lg mb-8">
-            <h2 class="text-3xl font-bold mb-4">${currentLessonData.title}</h2>
-            <div id="lesson-tabs" class="border-b mb-6"></div>
+        <div class="bg-white p-4 md:p-8 rounded-2xl shadow-lg mb-6">
+            <h2 class="text-2xl md:text-3xl font-bold mb-4">${currentLessonData.title}</h2>
+            <div id="lesson-tabs" class="border-b mb-4 md:mb-6 flex overflow-x-auto whitespace-nowrap"></div>
             <div id="lesson-tab-content"></div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
             
-            <div class="bg-white p-0 rounded-2xl shadow-xl w-full max-w-none">
-                <div class="w-full h-full lg:h-[700px] max-h-[90vh] bg-black lg:rounded-[40px] p-0 lg:p-3 lg:shadow-2xl lg:border-4 lg:border-gray-800">
-                    <div class="w-full h-full bg-white rounded-2xl lg:rounded-[30px] flex flex-col">
-                        <div class="bg-[#242d34] text-white p-3 rounded-t-2xl lg:rounded-t-[30px] flex items-center shadow-md">
-                            <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center font-bold text-xl">A</div>
-                            <div class="ml-3">
-                                <h4 class="font-semibold">AI Sensei</h4>
-                                <p class="text-xs text-gray-300">online</p>
-                            </div>
-                        </div>
-                        
-                        <div class="p-2 bg-blue-100 text-center text-xs text-blue-800">
-                            <p>Propojte se s botem v Telegramu!</p>
-                            <a href="https://t.me/ai_sensei_czu_bot" target="_blank" class="font-bold hover:underline">Otevřete bota</a> a pošlete mu kód:
-                            <strong class="block bg-white p-1 mt-1 rounded select-all">${currentUserData.telegramLinkToken || 'CHYBA: Kód nenalezen'}</strong>
-                        </div>
+            <div class="bg-white p-0 rounded-2xl shadow-xl flex flex-col">
+                <div class="bg-slate-100 p-4 rounded-t-2xl flex items-center border-b">
+                    <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center font-bold text-xl text-white">A</div>
+                    <div class="ml-3">
+                        <h3 class="text-xl font-bold text-slate-800">AI Asistent</h3>
+                        <p class="text-sm text-gray-500">Ptejte se na cokoliv k lekci</p>
+                    </div>
+                </div>
 
-                        <div id="ai-chat-history" class="flex-grow overflow-y-auto p-3 bg-gray-100"></div>
-                        
-                        <div class="bg-white p-2 rounded-b-2xl lg:rounded-b-[30px] border-t">
-                            <div class="flex items-center">
-                                <input type="text" id="ai-chat-input" placeholder="Zpráva" class="flex-grow bg-gray-100 rounded-full px-4 py-2 focus:outline-none">
-                                <button id="send-ai-btn" class="ml-2 w-10 h-10 bg-green-500 text-white rounded-full flex items-center justify-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                                </button>
-                            </div>
+                <div class="flex flex-col flex-grow bg-gray-100" style="min-height: 400px; max-height: 80vh;">
+                    
+                    <div class="sticky top-0 z-10 p-2 bg-yellow-100 text-center text-sm text-yellow-800 border-b border-yellow-200">
+                        <p class="font-semibold mb-1">Telegram Chat</p>
+                        <a href="https://t.me/ai_sensei_czu_bot" target="_blank" class="font-bold hover:underline">Otevřete bota</a> a pošlete mu kód:
+                        <strong class="block bg-white text-slate-700 p-1 mt-1 rounded text-xs select-all">${currentUserData.telegramLinkToken || 'CHYBA: Kód nenalezen'}</strong>
+                    </div>
+
+                    <div id="ai-chat-history" class="flex-grow overflow-y-auto p-3"></div>
+                    
+                    <div class="bg-white p-3 border-t">
+                        <div class="flex items-center">
+                            <input type="text" id="ai-chat-input" placeholder="Zpráva" class="flex-grow bg-gray-100 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500">
+                            <button id="send-ai-btn" class="ml-2 w-10 h-10 bg-green-700 text-white rounded-full flex items-center justify-center hover:bg-green-800 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
             
-            <div class="bg-white p-6 rounded-2xl shadow-lg">
+            <div class="bg-white p-4 md:p-6 rounded-2xl shadow-lg flex flex-col">
                 <h3 class="text-2xl font-bold mb-4">Konzultace s profesorem</h3>
-                <div id="prof-chat-history" class="h-96 max-h-[60vh] overflow-y-auto border p-4 rounded-lg bg-slate-50 mb-4"></div>
+                <div id="prof-chat-history" class="h-96 max-h-[60vh] overflow-y-auto border p-3 rounded-lg bg-slate-50 mb-4 flex-grow"></div>
                 <div class="flex gap-2">
-                    <input type="text" id="prof-chat-input" placeholder="Zadejte dotaz pro profesora..." class="flex-grow p-3 border rounded-lg focus:ring-2 focus:ring-green-500">
+                    <input type="text" id="prof-chat-input" placeholder="Zadejte dotaz pro profesora..." class="flex-grow p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">
                     <button id="send-prof-btn" class="bg-slate-700 text-white font-bold py-3 px-5 rounded-lg hover:bg-slate-800 transition-colors">Odeslat</button>
                 </div>
             </div>
@@ -249,7 +248,8 @@ function renderLessonTabs() {
     availableTabs.forEach((tab) => {
         const tabEl = document.createElement('button');
         tabEl.id = `${tab.id}-tab`;
-        tabEl.className = 'px-6 py-3 font-semibold border-b-2 transition-colors';
+        // Apply responsive classes: full width text on mobile, slightly less padding
+        tabEl.className = 'px-3 py-2 md:px-6 md:py-3 font-semibold border-b-2 transition-colors text-sm md:text-base'; 
         tabEl.textContent = tab.name;
         tabEl.addEventListener('click', () => switchTab(tab.id));
         tabsContainer.appendChild(tabEl);
@@ -336,7 +336,7 @@ function renderQuiz() {
         });
         html += `</div>`;
     });
-    html += `<button id="submit-quiz" class="bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Odevzdat kvíz</button>`;
+    html += `<button id="submit-quiz" class="w-full bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Odevzdat kvíz</button>`;
     contentArea.innerHTML = html;
 
     document.getElementById('submit-quiz').addEventListener('click', async () => {
@@ -449,19 +449,20 @@ function appendChatMessage(data, type) {
     const msgDiv = document.createElement('div');
     const isAI = type === 'ai';
 
-    let baseClasses = 'p-2 px-3 my-1 rounded-lg max-w-xs clear-both text-sm';
+    let baseClasses = 'p-2 px-3 my-1 rounded-lg text-sm';
     let senderPrefix = '';
-    
-    // Adjust max-width for AI chat bubbles for better mobile look
-    let maxWidthClass = isAI ? 'max-w-[80%]' : 'max-w-xs'; 
+    let maxWidthClass = 'max-w-[80%]'; // Default to 80% width for mobile readability
 
     if (data.sender === 'student') {
-        msgDiv.className = `${baseClasses} ${maxWidthClass} ${isAI ? 'bg-[#D9F7C4]' : 'bg-blue-500 text-white'} ml-auto rounded-br-none float-right`;
+        // Student messages (right-aligned)
+        msgDiv.className = `${baseClasses} ${maxWidthClass} ${isAI ? 'bg-[#DCF8C6]' : 'bg-blue-500 text-white'} ml-auto rounded-tr-none float-right clear-both`;
     } else if (data.sender === 'ai-typing') {
-        msgDiv.className = `${baseClasses} ${maxWidthClass} bg-gray-200 text-gray-500 italic mr-auto rounded-bl-none float-left ai-typing-indicator`;
-        data.text = 'píše...'; // Show "píše..." for typing
-    } else { // professor or ai
-        msgDiv.className = `${baseClasses} ${maxWidthClass} bg-gray-200 text-slate-800 mr-auto rounded-bl-none float-left`;
+        // Typing indicator
+        msgDiv.className = `${baseClasses} ${maxWidthClass} bg-gray-200 text-gray-500 italic mr-auto rounded-tl-none float-left ai-typing-indicator clear-both`;
+        data.text = 'píše...'; 
+    } else { 
+        // AI or Professor messages (left-aligned)
+        msgDiv.className = `${baseClasses} ${maxWidthClass} bg-gray-200 text-slate-800 mr-auto rounded-tl-none float-left clear-both`;
         if (data.sender === 'ai') senderPrefix = '<strong>AI Asistent:</strong><br>';
         if (data.sender === 'professor') senderPrefix = '<strong>Profesor:</strong><br>';
     }
