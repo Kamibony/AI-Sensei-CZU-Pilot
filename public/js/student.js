@@ -163,7 +163,7 @@ function showLessonDetail(lessonId) {
     currentLessonData = normalizeLessonData(rawLessonData);
     
     const mainContent = document.getElementById('student-main-content');
-    // Main Lesson View Template - Removed fixed chat container here
+    // Final, clean HTML structure: ONLY the main lesson box with tabs
     mainContent.innerHTML = `
         <div class="mb-6">
             <button id="back-to-lessons-btn" class="text-green-700 hover:underline flex items-center">&larr; Zpět na přehled lekcí</button>
@@ -321,14 +321,17 @@ function renderAIChatView() {
 function switchAIChatSubView(viewType) {
     const contentContainer = document.getElementById('ai-chat-content');
     const menuButtons = document.getElementById('ai-chat-menu').querySelectorAll('button');
-    const currentActive = document.getElementById('ai-chat-menu').querySelector('.border-[#56A0D3]');
 
     // Manage tab styles
     menuButtons.forEach(btn => {
         btn.classList.remove('border-[#56A0D3]', 'text-[#56A0D3]');
         btn.classList.add('border-transparent', 'text-slate-500');
     });
-    document.getElementById(`ai-tab-${viewType}`).classList.add('border-[#56A0D3]', 'text-[#56A0D3]');
+    
+    const selectedButton = document.getElementById(`ai-tab-${viewType}`);
+    // OPAVNÁ LOGIKA: Používame priamo Tailwind triedy, ktoré prehliadač správne aplikuje
+    selectedButton.classList.add('border-[#56A0D3]', 'text-[#56A0D3]');
+    selectedButton.classList.remove('border-transparent', 'text-slate-500');
     
     // Render content and attach specific listeners
     if (viewType === 'web') {
@@ -575,6 +578,9 @@ async function sendMessage(type) {
     try {
         if (type === 'ai') {
             appendChatMessage({ text: '...', sender: 'ai-typing' }, type);
+
+            // Import the function from gemini-api.js
+            const { getAiAssistantResponse } = await import('./gemini-api.js'); 
 
             const response = await getAiAssistantResponse({
                 lessonId: currentLessonId,
