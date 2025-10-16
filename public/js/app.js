@@ -13,18 +13,19 @@ function startApp() {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             // Používateľ je prihlásený.
-            
-            // --- KĽÚČOVÁ OPRAVA: Načítanie hlavnej šablóny aplikácie ---
-            // Tento krok chýbal a spôsoboval, že sa panel nezobrazil.
-            const templateResponse = await fetch('/main-app-template.html');
-            const templateHtml = await templateResponse.text();
-            const template = document.createElement('template');
-            template.innerHTML = templateHtml;
+
+            // --- KĽÚČOVÁ OPRAVA: Načítanie šablóny z DOMu, nie cez fetch() ---
+            const template = document.getElementById('main-app-template');
+            if (!template) {
+                console.error("Kritická chyba: Šablóna 'main-app-template' nebola nájdená v index.html!");
+                appContainer.innerHTML = "<p>Chyba: Chybí hlavní šablona aplikace.</p>";
+                return;
+            }
             appContainer.innerHTML = '';
             appContainer.appendChild(template.content.cloneNode(true));
             // --- KONIEC KĽÚČOVEJ OPRAVY ---
 
-            // Teraz, keď je šablóna načítaná, môžeme zobraziť správny panel.
+            // Teraz, keď je šablóna správne načítaná, môžeme zobraziť panel.
             if (user.email === 'profesor@profesor.cz') {
                 console.log("Professor identified. Loading professor dashboard.");
                 await initProfessorDashboard();
