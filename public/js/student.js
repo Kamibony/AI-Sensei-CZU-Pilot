@@ -5,19 +5,15 @@ import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { handleLogout } from './auth.js';
 import { getAiAssistantResponse } from './gemini-api.js';
 
-
-// Globálne premenné a listenery
 let studentDataUnsubscribe = null;
 let lessonsData = [];
 let currentUserData = null;
 let currentLessonData = null;
 let currentLessonId = null;
 
-// Firebase Functions callables
 const sendMessageFromStudent = httpsCallable(functions, 'sendMessageFromStudent');
 const submitQuizResults = httpsCallable(functions, 'submitQuizResults');
 const submitTestResults = httpsCallable(functions, 'submitTestResults');
-
 
 export function initStudentDashboard() {
     const user = auth.currentUser;
@@ -42,7 +38,6 @@ export function initStudentDashboard() {
         } else {
             console.warn(`Profil pre študenta s UID ${user.uid} nebol nájdený. Vytváram nový...`);
             try {
-                // Pre nových používateľov vytvoríme token pre Telegram
                 const token = `TGM-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
                 await setDoc(doc(db, "students", user.uid), {
                     email: user.email,
@@ -64,6 +59,15 @@ export function initStudentDashboard() {
         document.getElementById('app-container').innerHTML = `<p class="text-red-500 text-center p-8">Chyba oprávnení. Uistite sa, že máte prístup k dátam.</p>`;
     });
 }
+
+// --- NOVÁ FUNKCIA ---
+export function cleanupStudentDashboard() {
+    if (studentDataUnsubscribe) {
+        studentDataUnsubscribe();
+        studentDataUnsubscribe = null;
+    }
+}
+// --- KONIEC NOVEJ FUNKCIE ---
 
 function promptForStudentName(userId) {
     const appContainer = document.getElementById('app-container');
@@ -92,7 +96,6 @@ function promptForStudentName(userId) {
 
 async function renderStudentPanel() {
     const appContainer = document.getElementById('app-container');
-    // Mobil-first header
     appContainer.innerHTML = `
         <div class="flex flex-col h-screen">
             <header class="bg-white shadow-md p-3 md:p-4 flex justify-between items-center flex-shrink-0">
@@ -128,7 +131,6 @@ async function fetchAndDisplayLessons() {
         lessonsGrid.innerHTML = '';
         lessonsData.forEach(lesson => {
             const lessonCard = document.createElement('div');
-            // Responsive card styling
             lessonCard.className = 'bg-white p-5 rounded-xl shadow-lg cursor-pointer hover:shadow-xl hover:-translate-y-0.5 transition-all';
             lessonCard.innerHTML = `
                 <h3 class="text-lg font-bold text-slate-900">${lesson.title}</h3>
@@ -145,7 +147,6 @@ async function fetchAndDisplayLessons() {
 
 function normalizeLessonData(rawData) {
     const normalized = { ...rawData };
-    // Zjednotenie názvov polí pre robustnosť
     normalized.youtube_link = rawData.youtube_link || rawData.videoUrl || null;
     normalized.presentation = rawData.presentation || rawData.presentationData || null;
     normalized.podcast_script = rawData.podcast_script || rawData.post || rawData.postData || null;
@@ -163,7 +164,6 @@ function showLessonDetail(lessonId) {
     currentLessonData = normalizeLessonData(rawLessonData);
     
     const mainContent = document.getElementById('student-main-content');
-    // Final, clean HTML structure: ONLY the main lesson box with tabs
     mainContent.innerHTML = `
         <div class="mb-6">
             <button id="back-to-lessons-btn" class="text-green-700 hover:underline flex items-center">&larr; Zpět na přehled lekcí</button>
@@ -178,7 +178,6 @@ function showLessonDetail(lessonId) {
     document.getElementById('back-to-lessons-btn').addEventListener('click', fetchAndDisplayLessons);
     renderLessonTabs();
     
-    // Load history for professor and AI chat, even if we don't display them initially, to subscribe to updates
     loadChatHistory('professor');
     loadChatHistory('ai');
 }
@@ -188,7 +187,6 @@ function renderLessonTabs() {
     tabsContainer.innerHTML = '';
     const availableTabs = [];
 
-    // --- LESSON CONTENT TABS ---
     if (currentLessonData.text_content) availableTabs.push({ id: 'text', name: 'Text' });
     if (currentLessonData.youtube_link) availableTabs.push({ id: 'video', name: 'Video' });
     if (currentLessonData.presentation) availableTabs.push({ id: 'presentation', name: 'Prezentace' });
@@ -196,14 +194,12 @@ function renderLessonTabs() {
     if (currentLessonData.test) availableTabs.push({ id: 'test', name: 'Test' });
     if (currentLessonData.podcast_script) availableTabs.push({ id: 'podcast', name: 'Podcast' });
     
-    // --- COMMUNICATION TABS ---
     availableTabs.push({ id: 'ai-assistant', name: 'AI Asistent' });
     availableTabs.push({ id: 'professor-chat', name: 'Konzultace' });
     
     availableTabs.forEach((tab) => {
         const tabEl = document.createElement('button');
         tabEl.id = `${tab.id}-tab`;
-        // Responsive classes for tabs
         tabEl.className = 'px-3 py-2 md:px-6 md:py-3 font-semibold border-b-2 transition-colors text-sm md:text-base flex-shrink-0'; 
         tabEl.textContent = tab.name;
         tabEl.addEventListener('click', () => switchTab(tab.id));
@@ -227,7 +223,6 @@ function switchTab(tabId) {
     const contentArea = document.getElementById('lesson-tab-content');
     
     switch (tabId) {
-        // --- LESSON CONTENT VIEWS ---
         case 'text':
             contentArea.innerHTML = `<div class="prose max-w-none">${currentLessonData.text_content.replace(/\n/g, '<br>')}</div>`;
             break;
@@ -269,21 +264,15 @@ function switchTab(tabId) {
                 contentArea.innerHTML = `<p>Obsah podcastu není ve správném formátu.</p>`;
             }
             break;
-        // --- COMMUNICATION VIEWS ---
         case 'ai-assistant':
-            // Render the AI chat container, which includes the Web Chat/Telegram Submenu
             contentArea.innerHTML = renderAIChatView();
-            // Attach AI Chat Submenu Listeners
             document.getElementById('ai-chat-menu').querySelectorAll('button').forEach(button => {
                 button.addEventListener('click', () => switchAIChatSubView(button.dataset.chatType));
             });
-            // Default to web view
             switchAIChatSubView('web'); 
             break;
         case 'professor-chat':
-            // Render the Professor chat container
             contentArea.innerHTML = renderProfessorChatView();
-            // Attach listeners and load history after rendering
             document.getElementById('send-prof-btn').addEventListener('click', () => sendMessage('professor'));
             document.getElementById('prof-chat-input').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') document.getElementById('send-prof-btn').click();
@@ -294,7 +283,6 @@ function switchTab(tabId) {
 }
 
 function renderAIChatView() {
-    // Mobil-First layout pre AI chat (hlavný kontajner, ktorý obsahuje submenu)
     return `
         <div class="bg-white p-0 rounded-2xl shadow-xl flex flex-col h-[60vh] lg:h-[70vh]">
             <div class="w-full h-full flex flex-col">
@@ -311,8 +299,7 @@ function renderAIChatView() {
                     <button id="ai-tab-telegram" data-chat-type="telegram" class="px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-[#56A0D3] transition-colors">Telegram App</button>
                 </div>
 
-                <div id="ai-chat-content" class="flex-grow flex flex-col bg-[#EAEAEA]">
-                    </div>
+                <div id="ai-chat-content" class="flex-grow flex flex-col bg-[#EAEAEA]"></div>
             </div>
         </div>
     `;
@@ -322,21 +309,17 @@ function switchAIChatSubView(viewType) {
     const contentContainer = document.getElementById('ai-chat-content');
     const menuButtons = document.getElementById('ai-chat-menu').querySelectorAll('button');
 
-    // Manage tab styles
     menuButtons.forEach(btn => {
         btn.classList.remove('border-[#56A0D3]', 'text-[#56A0D3]');
         btn.classList.add('border-transparent', 'text-slate-500');
     });
     
     const selectedButton = document.getElementById(`ai-tab-${viewType}`);
-    // OPAVNÁ LOGIKA: Používame priamo Tailwind triedy, ktoré prehliadač správne aplikuje
     selectedButton.classList.add('border-[#56A0D3]', 'text-[#56A0D3]');
     selectedButton.classList.remove('border-transparent', 'text-slate-500');
     
-    // Render content and attach specific listeners
     if (viewType === 'web') {
         contentContainer.innerHTML = renderAIChatWebInterface();
-        // Attach Web Chat Listeners
         document.getElementById('send-ai-btn').addEventListener('click', () => sendMessage('ai'));
         document.getElementById('ai-chat-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') document.getElementById('send-ai-btn').click();
@@ -350,7 +333,6 @@ function switchAIChatSubView(viewType) {
 function renderAIChatWebInterface() {
     return `
         <div id="ai-chat-history" class="flex-grow overflow-y-auto p-3 bg-[#EAEAEA]"></div>
-        
         <div class="bg-white p-3 border-t flex-shrink-0">
             <div class="flex items-center">
                 <input type="text" id="ai-chat-input" placeholder="Zpráva" class="flex-grow bg-gray-100 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#56A0D3]">
@@ -434,10 +416,8 @@ function renderQuiz() {
              return;
         }
 
-        // 1. Zobrazenie výsledkov/feedbacku
         displayQuizResults(quiz, userAnswers); 
         
-        // 2. Odoslanie výsledkov do Firebase
         let finalScore = 0;
         quiz.questions.forEach((q) => {
             const userAnswer = userAnswers.find(ua => ua.question === q.question_text)?.answer;
@@ -451,7 +431,7 @@ function renderQuiz() {
             await submitQuizResults({ 
                 lessonId: currentLessonId, 
                 quizTitle: quiz.title, 
-                score: finalScore / quiz.questions.length, // Skóre ako ratio/percento
+                score: finalScore / quiz.questions.length,
                 totalQuestions: quiz.questions.length,
                 answers: userAnswers
             });
@@ -463,15 +443,12 @@ function renderQuiz() {
     });
 }
 
-// Funkcia pre vizuálne vyhodnotenie kvízu po odovzdaní
 function displayQuizResults(quiz, userAnswers) {
     const contentArea = document.getElementById('lesson-tab-content');
     let score = 0;
     
-    // Disable submission button
     document.getElementById('submit-quiz')?.remove();
 
-    // Calculate final score and inject detailed feedback
     quiz.questions.forEach((q, index) => {
         const correctOptionIndex = q.correct_option_index;
         const correctOption = q.options[correctOptionIndex];
@@ -486,38 +463,32 @@ function displayQuizResults(quiz, userAnswers) {
         const feedbackEl = document.getElementById(`feedback-${index}`);
         if (!questionContainer || !feedbackEl) return;
 
-        // Vizuálna zmena celého kontajnera otázky
         questionContainer.classList.remove('border-gray-200');
         questionContainer.classList.add(isCorrect ? 'border-green-500' : 'border-red-500');
         
-        // Detailný feedback pod otázkou
         const userFeedbackText = isCorrect 
             ? `<span class="text-green-600">✅ Správne!</span>`
             : `<span class="text-red-600">❌ Chyba. Správna odpoveď: <strong>${correctOption}</strong></span>`;
         
         feedbackEl.innerHTML = userFeedbackText;
 
-        // Iterácia cez možnosti a zafarbenie štítkov
         q.options.forEach((option, optionIndex) => {
             const labelEl = document.getElementById(`option-label-${index}-${optionIndex}`);
             const inputEl = labelEl ? labelEl.querySelector('input') : null;
             if (!labelEl || !inputEl) return;
             
-            inputEl.disabled = true; // Zablokovanie po odovzdaní
+            inputEl.disabled = true;
 
             if (optionIndex === correctOptionIndex) {
-                // Zelené pozadie pre správnu odpoveď
                 labelEl.classList.remove('border-gray-300', 'hover:bg-slate-50');
                 labelEl.classList.add('bg-green-100', 'border-green-500', 'font-semibold');
             } else if (option === userAnswer && !isCorrect) {
-                // Červené pozadie pre nesprávne zvolenú odpoveď
                 labelEl.classList.remove('border-gray-300', 'hover:bg-slate-50');
                 labelEl.classList.add('bg-red-100', 'border-red-500', 'line-through');
             }
         });
     });
 
-    // Vložíme finálne skóre nad kvíz
     const scoreHtml = `
         <div class="text-center p-6 mb-6 rounded-xl bg-green-700 text-white shadow-lg">
             <h3 class="text-xl md:text-2xl font-bold">Váš konečný výsledek</h3>
@@ -532,20 +503,19 @@ function renderTest() {
     contentArea.innerHTML = `<p>Test pre túto lekciu bude dostupný čoskoro.</p>`;
 }
 
-async function loadChatHistory(type) { // type can be 'ai' or 'professor'
+async function loadChatHistory(type) { 
     const chatHistoryEl = document.getElementById(type === 'ai' ? 'ai-chat-history' : 'prof-chat-history');
-    if (!chatHistoryEl) return; // Exit if the current tab doesn't have a chat history element
+    if (!chatHistoryEl) return; 
 
     chatHistoryEl.innerHTML = 'Načítání konverzace...';
     try {
         const q = query(
             collection(db, `conversations/${currentUserData.id}/messages`),
             where("lessonId", "==", currentLessonId),
-            where("type", "==", type), // Filter messages by type
+            where("type", "==", type), 
             orderBy("timestamp", "asc")
         );
         onSnapshot(q, (snapshot) => {
-            // Check if the element is still in the DOM before updating
             if (!document.getElementById(type === 'ai' ? 'ai-chat-history' : 'prof-chat-history')) return;
 
             chatHistoryEl.innerHTML = '';
@@ -571,7 +541,6 @@ async function sendMessage(type) {
     const text = inputEl.value.trim();
     if (!text) return;
 
-    // Immediately append the student's message to the correct UI
     appendChatMessage({ text: text, sender: 'student' }, type);
     inputEl.value = '';
 
@@ -579,7 +548,6 @@ async function sendMessage(type) {
         if (type === 'ai') {
             appendChatMessage({ text: '...', sender: 'ai-typing' }, type);
 
-            // Import the function from gemini-api.js
             const { getAiAssistantResponse } = await import('./gemini-api.js'); 
 
             const response = await getAiAssistantResponse({
@@ -595,7 +563,7 @@ async function sendMessage(type) {
                  appendChatMessage({ text: response.answer, sender: 'ai' }, type);
             }
 
-        } else { // type === 'professor'
+        } else { 
             await sendMessageFromStudent({
                 lessonId: currentLessonId,
                 text: text
@@ -613,30 +581,21 @@ async function sendMessage(type) {
 
 function appendChatMessage(data, type) {
     const chatHistoryEl = document.getElementById(type === 'ai' ? 'ai-chat-history' : 'prof-chat-history');
-    if (!chatHistoryEl) return; // Prevent errors if the chat view is not active
+    if (!chatHistoryEl) return; 
     
     const isAI = type === 'ai';
 
     const msgDiv = document.createElement('div');
-    // Common classes for all messages
     let baseClasses = 'p-2 px-3 my-1 rounded-lg text-sm';
     let senderPrefix = '';
-    // Max width for chat bubbles
     let maxWidthClass = 'max-w-[80%]'; 
 
     if (data.sender === 'student') {
-        // Student messages (right-aligned)
-        // AI Chat style: Telegram user green (#DCF8C6)
-        // Professor Chat style: Standard blue
         msgDiv.className = `${baseClasses} ${maxWidthClass} ${isAI ? 'bg-[#DCF8C6]' : 'bg-blue-500 text-white'} ml-auto rounded-tr-none float-right clear-both`;
     } else if (data.sender === 'ai-typing') {
-        // Typing indicator
         msgDiv.className = `${baseClasses} ${maxWidthClass} bg-gray-200 text-gray-500 italic mr-auto rounded-tl-none float-left ai-typing-indicator clear-both`;
         data.text = 'píše...'; 
     } else { 
-        // AI or Professor messages (left-aligned)
-        // AI Chat style: White background
-        // Professor Chat style: Standard grey
         msgDiv.className = `${baseClasses} ${maxWidthClass} ${isAI ? 'bg-white' : 'bg-gray-200'} text-slate-800 mr-auto rounded-tl-none float-left clear-both`;
         if (data.sender === 'ai') senderPrefix = '<strong>AI Asistent:</strong><br>';
         if (data.sender === 'professor') senderPrefix = '<strong>Profesor:</strong><br>';
