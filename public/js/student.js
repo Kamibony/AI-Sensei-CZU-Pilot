@@ -111,7 +111,6 @@ async function renderStudentPanel() {
 
 async function fetchAndDisplayLessons() {
     const mainContent = document.getElementById('student-main-content');
-    // Mobile-first grid
     mainContent.innerHTML = `<h2 class="text-2xl font-bold mb-6 text-slate-800">Moje lekce</h2>
                              <div id="lessons-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">Načítání lekcí...</div>`;
 
@@ -164,6 +163,7 @@ function showLessonDetail(lessonId) {
     currentLessonData = normalizeLessonData(rawLessonData);
     
     const mainContent = document.getElementById('student-main-content');
+    // Main Lesson View Template
     mainContent.innerHTML = `
         <div class="mb-6">
             <button id="back-to-lessons-btn" class="text-green-700 hover:underline flex items-center">&larr; Zpět na přehled lekcí</button>
@@ -173,67 +173,17 @@ function showLessonDetail(lessonId) {
             <div id="lesson-tabs" class="border-b mb-4 md:mb-6 flex overflow-x-auto whitespace-nowrap scrollable-tabs"></div>
             <div id="lesson-tab-content"></div>
         </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-            
-            <div class="bg-white p-0 rounded-2xl shadow-xl flex flex-col h-[70vh] lg:h-auto">
-                <div class="w-full h-full flex flex-col">
-                    <div class="bg-[#56A0D3] text-white p-3 rounded-t-2xl flex items-center shadow-md flex-shrink-0">
-                        <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center font-bold text-xl text-[#56A0D3]">A</div>
-                        <div class="ml-3">
-                            <h3 class="font-semibold text-lg">AI Asistent</h3>
-                            <p class="text-sm text-gray-200">Konzultace k lekci</p>
-                        </div>
-                    </div>
-
-                    <div class="sticky top-0 z-10 p-2 bg-yellow-100 text-center text-sm text-yellow-800 border-b border-t">
-                        <p class="font-semibold mb-1">Telegram Chat</p>
-                        <a href="https://t.me/ai_sensei_czu_bot" target="_blank" class="font-bold hover:underline">Otevřete bota</a> a pošlete mu kód:
-                        <strong class="block bg-white text-slate-700 p-1 mt-1 rounded text-xs select-all">${currentUserData.telegramLinkToken || 'CHYBA: Kód nenalezen'}</strong>
-                    </div>
-
-                    <div id="ai-chat-history" class="flex-grow overflow-y-auto p-3 bg-[#EAEAEA]"></div>
-                    
-                    <div class="bg-white p-3 border-t flex-shrink-0">
-                        <div class="flex items-center">
-                            <input type="text" id="ai-chat-input" placeholder="Zpráva" class="flex-grow bg-gray-100 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#56A0D3]">
-                            <button id="send-ai-btn" class="ml-2 w-10 h-10 bg-[#56A0D3] text-white rounded-full flex items-center justify-center hover:bg-[#4396C8] transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="bg-white p-4 md:p-6 rounded-2xl shadow-lg flex flex-col h-[70vh] lg:h-auto">
-                <h3 class="text-2xl font-bold mb-4">Konzultace s profesorem</h3>
-                <div id="prof-chat-history" class="h-96 max-h-[60vh] overflow-y-auto border p-3 rounded-lg bg-slate-50 mb-4 flex-grow"></div>
-                <div class="flex gap-2">
-                    <input type="text" id="prof-chat-input" placeholder="Zadejte dotaz pro profesora..." class="flex-grow p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                    <button id="send-prof-btn" class="bg-slate-700 text-white font-bold py-3 px-5 rounded-lg hover:bg-slate-800 transition-colors">Odeslat</button>
-                </div>
-            </div>
-
-        </div>
     `;
 
     document.getElementById('back-to-lessons-btn').addEventListener('click', fetchAndDisplayLessons);
     renderLessonTabs();
     
-    // Attach new event listeners for separate chats
-    document.getElementById('send-ai-btn').addEventListener('click', () => sendMessage('ai'));
-    document.getElementById('ai-chat-input').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') document.getElementById('send-ai-btn').click();
-    });
-
-    document.getElementById('send-prof-btn').addEventListener('click', () => sendMessage('professor'));
-    document.getElementById('prof-chat-input').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') document.getElementById('send-prof-btn').click();
-    });
+    // NOTE: Chat views are now handled by switchTab and are rendered into #lesson-tab-content
+    // Listeners for chats are attached inside the rendering functions
     
-    // Load histories for both chats
-    loadChatHistory('ai');
+    // Load Professor chat history if we switch to that tab
     loadChatHistory('professor');
+    loadChatHistory('ai');
 }
 
 function renderLessonTabs() {
@@ -241,6 +191,7 @@ function renderLessonTabs() {
     tabsContainer.innerHTML = '';
     const availableTabs = [];
 
+    // --- LESSON CONTENT TABS ---
     if (currentLessonData.text_content) availableTabs.push({ id: 'text', name: 'Text' });
     if (currentLessonData.youtube_link) availableTabs.push({ id: 'video', name: 'Video' });
     if (currentLessonData.presentation) availableTabs.push({ id: 'presentation', name: 'Prezentace' });
@@ -248,11 +199,15 @@ function renderLessonTabs() {
     if (currentLessonData.test) availableTabs.push({ id: 'test', name: 'Test' });
     if (currentLessonData.podcast_script) availableTabs.push({ id: 'podcast', name: 'Podcast' });
     
+    // --- COMMUNICATION TABS ---
+    availableTabs.push({ id: 'ai-assistant', name: 'AI Asistent' });
+    availableTabs.push({ id: 'professor-chat', name: 'Konzultace' });
+    
     availableTabs.forEach((tab) => {
         const tabEl = document.createElement('button');
         tabEl.id = `${tab.id}-tab`;
         // Responsive classes for tabs
-        tabEl.className = 'px-3 py-2 md:px-6 md:py-3 font-semibold border-b-2 transition-colors text-sm md:text-base'; 
+        tabEl.className = 'px-3 py-2 md:px-6 md:py-3 font-semibold border-b-2 transition-colors text-sm md:text-base flex-shrink-0'; 
         tabEl.textContent = tab.name;
         tabEl.addEventListener('click', () => switchTab(tab.id));
         tabsContainer.appendChild(tabEl);
@@ -273,8 +228,14 @@ function switchTab(tabId) {
     document.getElementById(`${tabId}-tab`).classList.add('border-green-700', 'text-green-700');
 
     const contentArea = document.getElementById('lesson-tab-content');
-    // Všetok obsah vo switchi používa mobil-first (p-4 md:p-8)
+    
+    // Clear chat listeners before switching away from chat views
+    if (tabId !== 'ai-assistant' && tabId !== 'professor-chat') {
+        // Disconnect chat listeners if needed, though onSnapshot is usually persistent
+    }
+    
     switch (tabId) {
+        // --- LESSON CONTENT VIEWS ---
         case 'text':
             contentArea.innerHTML = `<div class="prose max-w-none">${currentLessonData.text_content.replace(/\n/g, '<br>')}</div>`;
             break;
@@ -316,10 +277,113 @@ function switchTab(tabId) {
                 contentArea.innerHTML = `<p>Obsah podcastu není ve správném formátu.</p>`;
             }
             break;
+        // --- COMMUNICATION VIEWS ---
+        case 'ai-assistant':
+            contentArea.innerHTML = renderAIChatView();
+            // Default to web view
+            switchAIChatSubView('web'); 
+            break;
+        case 'professor-chat':
+            contentArea.innerHTML = renderProfessorChatView();
+            // Attach listeners and load history after rendering
+            document.getElementById('send-prof-btn').addEventListener('click', () => sendMessage('professor'));
+            document.getElementById('prof-chat-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') document.getElementById('send-prof-btn').click();
+            });
+            loadChatHistory('professor');
+            break;
     }
 }
 
-// Funkcia pre vykreslenie kvízu, teraz vrátane mobil-first a ID pre feedback
+function renderAIChatView() {
+    // Mobil-First layout pre AI chat
+    return `
+        <div class="bg-white p-0 rounded-2xl shadow-xl flex flex-col h-[60vh] lg:h-[70vh]">
+            <div class="w-full h-full flex flex-col">
+                <div id="ai-chat-menu" class="flex border-b border-gray-200 bg-slate-50 flex-shrink-0">
+                    <button id="ai-tab-web" data-chat-type="web" class="px-4 py-2 text-sm font-semibold border-b-2 text-[#56A0D3] transition-colors">Web Chat</button>
+                    <button id="ai-tab-telegram" data-chat-type="telegram" class="px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-[#56A0D3] transition-colors">Telegram App</button>
+                </div>
+
+                <div id="ai-chat-content" class="flex-grow flex flex-col bg-[#EAEAEA]">
+                    </div>
+            </div>
+        </div>
+    `;
+}
+
+function switchAIChatSubView(viewType) {
+    const contentContainer = document.getElementById('ai-chat-content');
+    const menuButtons = document.getElementById('ai-chat-menu').querySelectorAll('button');
+    const currentActive = document.getElementById('ai-chat-menu').querySelector('.border-[#56A0D3]');
+
+    if (currentActive) {
+        currentActive.classList.remove('border-[#56A0D3]', 'text-[#56A0D3]');
+        currentActive.classList.add('border-transparent', 'text-slate-500');
+    }
+
+    const selectedButton = document.getElementById(`ai-tab-${viewType}`);
+    selectedButton.classList.add('border-[#56A0D3]', 'text-[#56A0D3]');
+    selectedButton.classList.remove('border-transparent', 'text-slate-500');
+
+    if (viewType === 'web') {
+        contentContainer.innerHTML = renderAIChatWebInterface();
+        // Attach Web Chat Listeners
+        document.getElementById('send-ai-btn').addEventListener('click', () => sendMessage('ai'));
+        document.getElementById('ai-chat-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('send-ai-btn').click();
+        });
+        loadChatHistory('ai');
+    } else if (viewType === 'telegram') {
+        contentContainer.innerHTML = renderAITelegramLink();
+    }
+}
+
+function renderAIChatWebInterface() {
+    return `
+        <div id="ai-chat-history" class="flex-grow overflow-y-auto p-3 bg-[#EAEAEA]"></div>
+        
+        <div class="bg-white p-3 border-t flex-shrink-0">
+            <div class="flex items-center">
+                <input type="text" id="ai-chat-input" placeholder="Zpráva" class="flex-grow bg-gray-100 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#56A0D3]">
+                <button id="send-ai-btn" class="ml-2 w-10 h-10 bg-[#56A0D3] text-white rounded-full flex items-center justify-center hover:bg-[#4396C8] transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function renderAITelegramLink() {
+    return `
+        <div class="flex flex-col items-center justify-center p-8 text-center flex-grow">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-[#56A0D3] mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 17l-4 4-4-4"></path><path d="M13 19V5"></path><path d="M9 13l4-4 4 4"></path></svg>
+            <h3 class="text-xl font-bold mb-2">Komunikujte cez Telegram</h3>
+            <p class="text-slate-600 mb-4">Pre jednoduchšiu a rýchlejšiu komunikáciu v mobile použite nášho bota v aplikácii Telegram.</p>
+            <a href="https://t.me/ai_sensei_czu_bot" target="_blank" class="bg-[#56A0D3] text-white font-bold py-3 px-6 rounded-full hover:bg-[#4396C8] transition-colors mb-4">
+                Otvoriť Telegram Bota
+            </a>
+            <p class="text-sm text-slate-500 mt-2">Po otvorení pošlite botovi pre spárovanie tento kód:</p>
+            <strong class="block bg-gray-200 text-slate-800 p-2 rounded-lg text-lg select-all font-mono">${currentUserData.telegramLinkToken || 'CHYBA: Kód nenalezen'}</strong>
+        </div>
+    `;
+}
+
+function renderProfessorChatView() {
+    return `
+        <div class="bg-white p-4 md:p-6 rounded-2xl shadow-lg flex flex-col h-[60vh] lg:h-[70vh]">
+            <h3 class="text-2xl font-bold mb-4">Konzultace s profesorem</h3>
+            <div id="prof-chat-history" class="h-96 max-h-[60vh] overflow-y-auto border p-3 rounded-lg bg-slate-50 mb-4 flex-grow"></div>
+            <div class="flex gap-2">
+                <input type="text" id="prof-chat-input" placeholder="Zadejte dotaz pro profesora..." class="flex-grow p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                <button id="send-prof-btn" class="bg-slate-700 text-white font-bold py-3 px-5 rounded-lg hover:bg-slate-800 transition-colors">Odeslat</button>
+            </div>
+        </div>
+    `;
+}
+
+
+// --- OSTATNÉ FUNKCIE (renderQuiz, loadChatHistory, sendMessage, appendChatMessage) zostávajú nezmenené, pretože sú mobil-first a správne riešia logiku. ---
 function renderQuiz() {
     const quiz = currentLessonData.quiz;
     if (!quiz || !quiz.questions) {
@@ -463,6 +527,8 @@ function renderTest() {
 
 async function loadChatHistory(type) { // type can be 'ai' or 'professor'
     const chatHistoryEl = document.getElementById(type === 'ai' ? 'ai-chat-history' : 'prof-chat-history');
+    if (!chatHistoryEl) return; // Exit if the current tab doesn't have a chat history element
+
     chatHistoryEl.innerHTML = 'Načítání konverzace...';
     try {
         const q = query(
@@ -472,6 +538,9 @@ async function loadChatHistory(type) { // type can be 'ai' or 'professor'
             orderBy("timestamp", "asc")
         );
         onSnapshot(q, (snapshot) => {
+            // Check if the element is still in the DOM before updating
+            if (!document.getElementById(type === 'ai' ? 'ai-chat-history' : 'prof-chat-history')) return;
+
             chatHistoryEl.innerHTML = '';
             if (snapshot.empty) {
                 chatHistoryEl.innerHTML = `<p class="text-center text-slate-400 p-4">Začněte konverzaci...</p>`;
@@ -534,6 +603,8 @@ async function sendMessage(type) {
 
 function appendChatMessage(data, type) {
     const chatHistoryEl = document.getElementById(type === 'ai' ? 'ai-chat-history' : 'prof-chat-history');
+    if (!chatHistoryEl) return; // Prevent errors if the chat view is not active
+    
     const isAI = type === 'ai';
 
     const msgDiv = document.createElement('div');
