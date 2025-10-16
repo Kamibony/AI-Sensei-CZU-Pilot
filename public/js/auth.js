@@ -9,7 +9,6 @@ import { db } from './firebase-init.js';
 import { showToast } from './utils.js';
 
 let appContainerRef;
-let loginCallback;
 
 // Funkcia na zobrazenie prihlasovacieho formulára
 function showLoginForm() {
@@ -86,15 +85,14 @@ function showRegistrationForm() {
 }
 
 // Hlavná inicializačná funkcia pre autentifikáciu
-export function initAuth(appContainer, loginFn) {
+export function initAuth(appContainer) {
     appContainerRef = appContainer;
-    loginCallback = loginFn;
     showLoginForm();
 }
 
 // Funkcia na spracovanie registrácie
 async function handleRegistration(email, password) {
-    const auth = getAuth(); // Call getAuth() here, after initialization
+    const auth = getAuth();
     const registerBtn = document.getElementById('register-btn');
     const originalBtnText = registerBtn.innerHTML;
     registerBtn.innerHTML = `<div class="spinner"></div> Registruji...`;
@@ -113,21 +111,18 @@ async function handleRegistration(email, password) {
             telegramLinkToken: token
         });
 
-        // ÚSPECH: Zobrazenie správy a prepnutie na prihlásenie
         showToast("Registrace úspěšná! Nyní se můžete přihlásit.");
         showLoginForm();
 
     } catch (error) {
-        // Spracovanie chýb
         let message = "Při registraci došlo k chybě.";
         if (error.code === 'auth/email-already-in-use') {
             message = "Tento email je již zaregistrován.";
         } else if (error.code === 'auth/weak-password') {
             message = "Heslo je příliš slabé. Musí mít alespoň 6 znaků.";
         }
-        showToast(message, true); // true pre zobrazenie chybovej správy
+        showToast(message, true);
     } finally {
-        // Obnovenie tlačidla, aj keď sa to už neukáže po presmerovaní
         if (document.getElementById('register-btn')) {
             registerBtn.innerHTML = originalBtnText;
             registerBtn.disabled = false;
@@ -137,7 +132,7 @@ async function handleRegistration(email, password) {
 
 // Funkcia na spracovanie prihlásenia
 async function handleLogin(email, password) {
-    const auth = getAuth(); // Call getAuth() here, after initialization
+    const auth = getAuth();
     const loginBtn = document.getElementById('login-btn');
     const originalBtnText = loginBtn.innerHTML;
     loginBtn.innerHTML = `<div class="spinner"></div> Přihlašuji...`;
@@ -145,18 +140,16 @@ async function handleLogin(email, password) {
 
     try {
         await signInWithEmailAndPassword(auth, email, password);
-        // Po úspešnom prihlásení sa o zobrazenie panelu postará onAuthStateChanged v app.js
         showToast("Přihlášení úspěšné!");
+        // Po úspešnom prihlásení sa o zobrazenie panelu postará onAuthStateChanged v app.js
 
     } catch (error) {
-        // Spracovanie chýb
         let message = "Při přihlašování došlo k chybě.";
         if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
             message = "Nesprávný email nebo heslo.";
         }
         showToast(message, true);
     } finally {
-        // V prípade chyby obnovíme tlačidlo
         if (document.getElementById('login-btn')) {
             loginBtn.innerHTML = originalBtnText;
             loginBtn.disabled = false;
@@ -166,12 +159,11 @@ async function handleLogin(email, password) {
 
 // Funkcia na odhlásenie
 export async function handleLogout() {
-    const auth = getAuth(); // Call getAuth() here, after initialization
+    const auth = getAuth();
     try {
         await signOut(auth);
         showToast("Odhlášení proběhlo úspěšně.");
         // onAuthStateChanged v app.js sa postará o zobrazenie prihlasovacej obrazovky
-        // a vyčistenie UI.
     } catch (error) {
         console.error("Chyba při odhlašování:", error);
         showToast("Při odhlašování došlo k chybě.", true);
