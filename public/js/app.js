@@ -1,39 +1,41 @@
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirebase } from './firebase-init.js';
-// --- OPRAVA: Importujeme správnu funkciu 'initAuth' ---
 import { initAuth } from './auth.js';
+import { initProfessorDashboard } from './professor.js';
+import { initStudentDashboard, cleanupStudentDashboard } from './student.js';
 
-function initializeAppUI() {
-    const appContainer = document.getElementById('app-container');
+// Inicializácia Firebase a získanie referencií
+initializeFirebase();
+const auth = getAuth();
+const appContainer = document.getElementById('app-container');
 
-    const login = async (role) => {
-        if (!appContainer) return;
-        
-        // Načítanie hlavnej šablóny aplikácie
-        const templateResponse = await fetch('/main-app-template.html');
-        const templateHtml = await templateResponse.text();
-        const template = document.createElement('template');
-        template.innerHTML = templateHtml;
-        
-        appContainer.innerHTML = '';
-        appContainer.appendChild(template.content.cloneNode(true));
-        
-        if (role === 'professor') {
-            const { initProfessorDashboard } = await import('./professor.js');
+// Centrálny listener pre stav prihlásenia (hlavná logika aplikácie)
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        // Používateľ je prihlásený. Teraz zistíme, či je to profesor.
+        appContainer.innerHTML = '<div class="spinner-container"><div class="spinner"></div></div>'; // Zobrazí načítavanie
+
+        // --- Logika pre rozpoznanie Profesora podľa emailu ---
+        if (user.email === 'profesor@profesor.cz') {
+            // Ak sa email zhoduje, je to profesor
+            console.log("Professor identified. Loading professor dashboard.");
             await initProfessorDashboard();
         } else {
-            const { initStudentDashboard } = await import('./student.js');
+            // Inak je to študent
+            console.log("Student identified. Loading student dashboard.");
             await initStudentDashboard();
         }
-    };
-    
-    // --- OPRAVA: Voláme správnu funkciu 'initAuth' ---
-    initAuth(appContainer, login);
-}
 
-// Spustenie celej aplikácie
-initializeFirebase().then(() => {
-    initializeAppUI();
-}).catch(error => {
-    console.error("Firebase initialization failed:", error);
-    document.body.innerHTML = '<p style="color: red; text-align: center; margin-top: 50px;">Critical error: Could not initialize Firebase.</p>';
+    } else {
+        // Používateľ nie je prihlásený.
+        console.log("No user signed in. Showing login form.");
+        
+        // Vyčistíme listenery, ak by nejaké zostali po odhlásení
+        if (typeof cleanupStudentDashboard === 'function') {
+            cleanupStudentDashboard();
+        }
+
+        // Zobrazíme prihlasovací/registračný formulár
+        initAuth(appContainer);
+    }
 });
