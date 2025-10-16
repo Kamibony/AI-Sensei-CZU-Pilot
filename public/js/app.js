@@ -4,38 +4,42 @@ import { initAuth } from './auth.js';
 import { initProfessorDashboard } from './professor.js';
 import { initStudentDashboard, cleanupStudentDashboard } from './student.js';
 
-// Inicializácia Firebase a získanie referencií
-initializeFirebase();
-const auth = getAuth();
-const appContainer = document.getElementById('app-container');
+// Hlavná funkcia aplikácie, ktorá sa spustí až po inicializácii Firebase
+function startApp() {
+    const auth = getAuth();
+    const appContainer = document.getElementById('app-container');
 
-// Centrálny listener pre stav prihlásenia (hlavná logika aplikácie)
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        // Používateľ je prihlásený. Teraz zistíme, či je to profesor.
-        appContainer.innerHTML = '<div class="spinner-container"><div class="spinner"></div></div>'; // Zobrazí načítavanie
+    // Centrálny listener pre stav prihlásenia
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            // Používateľ je prihlásený. Zistíme, či je to profesor.
+            appContainer.innerHTML = '<div class="spinner-container"><div class="spinner"></div></div>';
 
-        // --- Logika pre rozpoznanie Profesora podľa emailu ---
-        if (user.email === 'profesor@profesor.cz') {
-            // Ak sa email zhoduje, je to profesor
-            console.log("Professor identified. Loading professor dashboard.");
-            await initProfessorDashboard();
+            if (user.email === 'profesor@profesor.cz') {
+                console.log("Professor identified. Loading professor dashboard.");
+                await initProfessorDashboard();
+            } else {
+                console.log("Student identified. Loading student dashboard.");
+                await initStudentDashboard();
+            }
+
         } else {
-            // Inak je to študent
-            console.log("Student identified. Loading student dashboard.");
-            await initStudentDashboard();
-        }
+            // Používateľ nie je prihlásený.
+            console.log("No user signed in. Showing login form.");
+            
+            if (typeof cleanupStudentDashboard === 'function') {
+                cleanupStudentDashboard();
+            }
 
-    } else {
-        // Používateľ nie je prihlásený.
-        console.log("No user signed in. Showing login form.");
-        
-        // Vyčistíme listenery, ak by nejaké zostali po odhlásení
-        if (typeof cleanupStudentDashboard === 'function') {
-            cleanupStudentDashboard();
+            initAuth(appContainer);
         }
+    });
+}
 
-        // Zobrazíme prihlasovací/registračný formulár
-        initAuth(appContainer);
-    }
+// Spustenie inicializácie a následne hlavnej logiky aplikácie
+initializeFirebase().then(() => {
+    startApp();
+}).catch(error => {
+    console.error("Firebase initialization failed:", error);
+    document.body.innerHTML = '<p style="color: red; text-align: center; margin-top: 50px;">Critical error: Could not initialize Firebase.</p>';
 });
