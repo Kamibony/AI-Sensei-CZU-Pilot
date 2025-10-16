@@ -163,7 +163,7 @@ function showLessonDetail(lessonId) {
     currentLessonData = normalizeLessonData(rawLessonData);
     
     const mainContent = document.getElementById('student-main-content');
-    // Main Lesson View Template
+    // Main Lesson View Template - Removed fixed chat container here
     mainContent.innerHTML = `
         <div class="mb-6">
             <button id="back-to-lessons-btn" class="text-green-700 hover:underline flex items-center">&larr; Zpět na přehled lekcí</button>
@@ -178,10 +178,7 @@ function showLessonDetail(lessonId) {
     document.getElementById('back-to-lessons-btn').addEventListener('click', fetchAndDisplayLessons);
     renderLessonTabs();
     
-    // NOTE: Chat views are now handled by switchTab and are rendered into #lesson-tab-content
-    // Listeners for chats are attached inside the rendering functions
-    
-    // Load Professor chat history if we switch to that tab
+    // Load history for professor and AI chat, even if we don't display them initially, to subscribe to updates
     loadChatHistory('professor');
     loadChatHistory('ai');
 }
@@ -229,11 +226,6 @@ function switchTab(tabId) {
 
     const contentArea = document.getElementById('lesson-tab-content');
     
-    // Clear chat listeners before switching away from chat views
-    if (tabId !== 'ai-assistant' && tabId !== 'professor-chat') {
-        // Disconnect chat listeners if needed, though onSnapshot is usually persistent
-    }
-    
     switch (tabId) {
         // --- LESSON CONTENT VIEWS ---
         case 'text':
@@ -279,11 +271,17 @@ function switchTab(tabId) {
             break;
         // --- COMMUNICATION VIEWS ---
         case 'ai-assistant':
+            // Render the AI chat container, which includes the Web Chat/Telegram Submenu
             contentArea.innerHTML = renderAIChatView();
+            // Attach AI Chat Submenu Listeners
+            document.getElementById('ai-chat-menu').querySelectorAll('button').forEach(button => {
+                button.addEventListener('click', () => switchAIChatSubView(button.dataset.chatType));
+            });
             // Default to web view
             switchAIChatSubView('web'); 
             break;
         case 'professor-chat':
+            // Render the Professor chat container
             contentArea.innerHTML = renderProfessorChatView();
             // Attach listeners and load history after rendering
             document.getElementById('send-prof-btn').addEventListener('click', () => sendMessage('professor'));
@@ -296,12 +294,20 @@ function switchTab(tabId) {
 }
 
 function renderAIChatView() {
-    // Mobil-First layout pre AI chat
+    // Mobil-First layout pre AI chat (hlavný kontajner, ktorý obsahuje submenu)
     return `
         <div class="bg-white p-0 rounded-2xl shadow-xl flex flex-col h-[60vh] lg:h-[70vh]">
             <div class="w-full h-full flex flex-col">
+                <div class="bg-[#56A0D3] text-white p-3 rounded-t-2xl flex items-center shadow-md flex-shrink-0">
+                    <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center font-bold text-xl text-[#56A0D3]">A</div>
+                    <div class="ml-3">
+                        <h3 class="font-semibold text-lg">AI Asistent</h3>
+                        <p class="text-sm text-gray-200">Vyberte způsob komunikace</p>
+                    </div>
+                </div>
+
                 <div id="ai-chat-menu" class="flex border-b border-gray-200 bg-slate-50 flex-shrink-0">
-                    <button id="ai-tab-web" data-chat-type="web" class="px-4 py-2 text-sm font-semibold border-b-2 text-[#56A0D3] transition-colors">Web Chat</button>
+                    <button id="ai-tab-web" data-chat-type="web" class="px-4 py-2 text-sm font-semibold border-b-2 transition-colors">Web Chat</button>
                     <button id="ai-tab-telegram" data-chat-type="telegram" class="px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-[#56A0D3] transition-colors">Telegram App</button>
                 </div>
 
@@ -317,15 +323,14 @@ function switchAIChatSubView(viewType) {
     const menuButtons = document.getElementById('ai-chat-menu').querySelectorAll('button');
     const currentActive = document.getElementById('ai-chat-menu').querySelector('.border-[#56A0D3]');
 
-    if (currentActive) {
-        currentActive.classList.remove('border-[#56A0D3]', 'text-[#56A0D3]');
-        currentActive.classList.add('border-transparent', 'text-slate-500');
-    }
-
-    const selectedButton = document.getElementById(`ai-tab-${viewType}`);
-    selectedButton.classList.add('border-[#56A0D3]', 'text-[#56A0D3]');
-    selectedButton.classList.remove('border-transparent', 'text-slate-500');
-
+    // Manage tab styles
+    menuButtons.forEach(btn => {
+        btn.classList.remove('border-[#56A0D3]', 'text-[#56A0D3]');
+        btn.classList.add('border-transparent', 'text-slate-500');
+    });
+    document.getElementById(`ai-tab-${viewType}`).classList.add('border-[#56A0D3]', 'text-[#56A0D3]');
+    
+    // Render content and attach specific listeners
     if (viewType === 'web') {
         contentContainer.innerHTML = renderAIChatWebInterface();
         // Attach Web Chat Listeners
@@ -383,7 +388,6 @@ function renderProfessorChatView() {
 }
 
 
-// --- OSTATNÉ FUNKCIE (renderQuiz, loadChatHistory, sendMessage, appendChatMessage) zostávajú nezmenené, pretože sú mobil-first a správne riešia logiku. ---
 function renderQuiz() {
     const quiz = currentLessonData.quiz;
     if (!quiz || !quiz.questions) {
