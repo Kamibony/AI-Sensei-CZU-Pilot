@@ -173,27 +173,26 @@ function showLessonDetail(lessonId) {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
             
             <div class="bg-white p-0 rounded-2xl shadow-xl flex flex-col">
-                <div class="bg-slate-100 p-4 rounded-t-2xl flex items-center border-b">
-                    <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center font-bold text-xl text-white">A</div>
-                    <div class="ml-3">
-                        <h3 class="text-xl font-bold text-slate-800">AI Asistent</h3>
-                        <p class="text-sm text-gray-500">Ptejte se na cokoliv k lekci</p>
+                <div class="w-full h-full flex flex-col">
+                    <div class="bg-[#56A0D3] text-white p-3 rounded-t-2xl flex items-center shadow-md flex-shrink-0">
+                        <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center font-bold text-xl text-[#56A0D3]">A</div>
+                        <div class="ml-3">
+                            <h3 class="font-semibold text-lg">AI Asistent</h3>
+                            <p class="text-sm text-gray-200">Konzultace k lekci</p>
+                        </div>
                     </div>
-                </div>
 
-                <div class="flex flex-col flex-grow bg-gray-100" style="min-height: 400px; max-height: 80vh;">
-                    
-                    <div class="sticky top-0 z-10 p-2 bg-yellow-100 text-center text-sm text-yellow-800 border-b border-yellow-200">
+                    <div class="sticky top-0 z-10 p-2 bg-yellow-100 text-center text-sm text-yellow-800 border-b border-t">
                         <p class="font-semibold mb-1">Telegram Chat</p>
                         <a href="https://t.me/ai_sensei_czu_bot" target="_blank" class="font-bold hover:underline">Otevřete bota</a> a pošlete mu kód:
                         <strong class="block bg-white text-slate-700 p-1 mt-1 rounded text-xs select-all">${currentUserData.telegramLinkToken || 'CHYBA: Kód nenalezen'}</strong>
                     </div>
 
-                    <div id="ai-chat-history" class="flex-grow overflow-y-auto p-3"></div>
+                    <div id="ai-chat-history" class="flex-grow overflow-y-auto p-3 bg-[#EAEAEA]"></div>
                     
-                    <div class="bg-white p-3 border-t">
+                    <div class="bg-white p-3 border-t flex-shrink-0">
                         <div class="flex items-center">
-                            <input type="text" id="ai-chat-input" placeholder="Zpráva" class="flex-grow bg-gray-100 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500">
+                            <input type="text" id="ai-chat-input" placeholder="Zpráva" class="flex-grow bg-gray-100 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#56A0D3]">
                             <button id="send-ai-btn" class="ml-2 w-10 h-10 bg-green-700 text-white rounded-full flex items-center justify-center hover:bg-green-800 transition-colors">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                             </button>
@@ -446,15 +445,19 @@ async function sendMessage(type) {
 
 function appendChatMessage(data, type) {
     const chatHistoryEl = document.getElementById(type === 'ai' ? 'ai-chat-history' : 'prof-chat-history');
-    const msgDiv = document.createElement('div');
     const isAI = type === 'ai';
 
+    const msgDiv = document.createElement('div');
+    // Common classes for all messages
     let baseClasses = 'p-2 px-3 my-1 rounded-lg text-sm';
     let senderPrefix = '';
-    let maxWidthClass = 'max-w-[80%]'; // Default to 80% width for mobile readability
+    // Max width for chat bubbles
+    let maxWidthClass = 'max-w-[80%]'; 
 
     if (data.sender === 'student') {
         // Student messages (right-aligned)
+        // AI Chat style: Telegram user green (#DCF8C6)
+        // Professor Chat style: Standard blue
         msgDiv.className = `${baseClasses} ${maxWidthClass} ${isAI ? 'bg-[#DCF8C6]' : 'bg-blue-500 text-white'} ml-auto rounded-tr-none float-right clear-both`;
     } else if (data.sender === 'ai-typing') {
         // Typing indicator
@@ -462,7 +465,9 @@ function appendChatMessage(data, type) {
         data.text = 'píše...'; 
     } else { 
         // AI or Professor messages (left-aligned)
-        msgDiv.className = `${baseClasses} ${maxWidthClass} bg-gray-200 text-slate-800 mr-auto rounded-tl-none float-left clear-both`;
+        // AI Chat style: White background
+        // Professor Chat style: Standard grey
+        msgDiv.className = `${baseClasses} ${maxWidthClass} ${isAI ? 'bg-white' : 'bg-gray-200'} text-slate-800 mr-auto rounded-tl-none float-left clear-both`;
         if (data.sender === 'ai') senderPrefix = '<strong>AI Asistent:</strong><br>';
         if (data.sender === 'professor') senderPrefix = '<strong>Profesor:</strong><br>';
     }
