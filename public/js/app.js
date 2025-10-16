@@ -1,6 +1,7 @@
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirebase } from './firebase-init.js';
-import { initAuth } from './auth.js';
+// --- OPRAVA: Pridaný import handleLogout ---
+import { initAuth, handleLogout } from './auth.js'; 
 import { initProfessorDashboard } from './professor.js';
 import { initStudentDashboard, cleanupStudentDashboard } from './student.js';
 
@@ -13,8 +14,7 @@ function startApp() {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             // Používateľ je prihlásený.
-
-            // --- KĽÚČOVÁ OPRAVA: Načítanie šablóny z DOMu, nie cez fetch() ---
+            
             const template = document.getElementById('main-app-template');
             if (!template) {
                 console.error("Kritická chyba: Šablóna 'main-app-template' nebola nájdená v index.html!");
@@ -23,9 +23,7 @@ function startApp() {
             }
             appContainer.innerHTML = '';
             appContainer.appendChild(template.content.cloneNode(true));
-            // --- KONIEC KĽÚČOVEJ OPRAVY ---
 
-            // Teraz, keď je šablóna správne načítaná, môžeme zobraziť panel.
             if (user.email === 'profesor@profesor.cz') {
                 console.log("Professor identified. Loading professor dashboard.");
                 await initProfessorDashboard();
