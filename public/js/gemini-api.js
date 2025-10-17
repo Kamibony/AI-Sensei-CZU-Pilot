@@ -1,29 +1,50 @@
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { functions } from './firebase-init.js';
+// --- ZMENA: Importujeme celú firebase-init, aby sme mali prístup k AKTUALIZOVANÉMU functions ---
+import * as firebaseInit from './firebase-init.js';
 
-// --- PRIDANÝ CONSOLE.LOG ---
-// Logujeme, čo sa naimportovalo
-console.log("Functions object imported in gemini-api.js:", functions);
-// -------------------------
+// --- ZMENA: Premenné na ukladanie callable funkcií, inicializované na null ---
+let _generateContentFunction = null;
+let _getAiAssistantResponseFunction = null;
 
-// --- PRIDANÝ CONSOLE.LOG ---
-// Logujeme tesne pred použitím
-console.log("Functions object before httpsCallable (generateContent):", functions);
-// -------------------------
-const generateContentFunction = httpsCallable(functions, 'generateContent');
+// --- ZMENA: Funkcia na získanie (alebo vytvorenie) callable funkcie ---
+function getGenerateContentCallable() {
+    if (!_generateContentFunction) {
+        // Získame AKTUÁLNY functions objekt
+        console.log("Lazy initializing generateContent callable. Current functions object:", firebaseInit.functions);
+        if (!firebaseInit.functions) {
+            console.error("CRITICAL: Firebase Functions object is still not available when trying to create generateContent callable!");
+            // Môžete tu vyhodiť chybu alebo vrátiť nejakú placeholder funkciu
+            throw new Error("Firebase Functions not initialized.");
+        }
+        _generateContentFunction = httpsCallable(firebaseInit.functions, 'generateContent');
+    }
+    return _generateContentFunction;
+}
 
-// --- PRIDANÝ CONSOLE.LOG ---
-// Logujeme tesne pred použitím
-console.log("Functions object before httpsCallable (getAiAssistantResponse):", functions);
-// -------------------------
-const getAiAssistantResponseFunction = httpsCallable(functions, 'getAiAssistantResponse');
+// --- ZMENA: Funkcia na získanie (alebo vytvorenie) callable funkcie ---
+function getAiAssistantResponseCallable() {
+    if (!_getAiAssistantResponseFunction) {
+        // Získame AKTUÁLNY functions objekt
+        console.log("Lazy initializing getAiAssistantResponse callable. Current functions object:", firebaseInit.functions);
+         if (!firebaseInit.functions) {
+            console.error("CRITICAL: Firebase Functions object is still not available when trying to create getAiAssistantResponse callable!");
+            // Môžete tu vyhodiť chybu alebo vrátiť nejakú placeholder funkciu
+            throw new Error("Firebase Functions not initialized.");
+        }
+        _getAiAssistantResponseFunction = httpsCallable(firebaseInit.functions, 'getAiAssistantResponse');
+    }
+    return _getAiAssistantResponseFunction;
+}
+
 
 /**
  * Univerzálna funkcia na volanie AI na backende pre generovanie obsahu (pre profesora).
  */
 export async function callGenerateContent(data) {
     try {
-        const result = await generateContentFunction(data);
+        // --- ZMENA: Voláme funkciu na získanie callable ---
+        const callableFunc = getGenerateContentCallable();
+        const result = await callableFunc(data);
         return result.data;
     } catch (error) {
         console.error("Error calling 'generateContent' function:", error);
@@ -34,11 +55,11 @@ export async function callGenerateContent(data) {
 /**
  * Funkcia na volanie AI asistenta pre študentov.
  */
-// --- KĽÚČOVÁ ZMENA: Funkcia teraz očakáva jeden objekt s vlastnosťami lessonId a userQuestion ---
 export async function getAiAssistantResponse({ lessonId, userQuestion }) {
     try {
-        // Voláme správnu backendovú funkciu 'getAiAssistantResponse'
-        const result = await getAiAssistantResponseFunction({ lessonId, userQuestion });
+        // --- ZMENA: Voláme funkciu na získanie callable ---
+        const callableFunc = getAiAssistantResponseCallable();
+        const result = await callableFunc({ lessonId, userQuestion });
         return result.data;
     } catch (error) {
         console.error("Error calling 'getAiAssistantResponse' function:", error);
