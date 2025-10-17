@@ -20,6 +20,11 @@ export async function initializeFirebase() {
         db = getFirestore(app);
         storage = getStorage(app);
         functions = getFunctions(app, 'europe-west1');
+        
+        // --- PRIDANÝ CONSOLE.LOG ---
+        console.log("Functions object initialized (production):", functions); 
+        // -------------------------
+
         console.log("Firebase initialized from production config.");
     } catch (e) {
         console.warn("Could not load Firebase config. Initializing for emulators...");
@@ -33,6 +38,11 @@ export async function initializeFirebase() {
         db = getFirestore(app);
         storage = getStorage(app);
         functions = getFunctions(app, 'europe-west1');
+
+        // --- PRIDANÝ CONSOLE.LOG ---
+        console.log("Functions object initialized (emulators):", functions);
+        // -------------------------
+
         console.log("Connecting to Firebase Emulators...");
         connectAuthEmulator(auth, "http://127.0.0.1:9099");
         connectFirestoreEmulator(db, '127.0.0.1', 8080);
