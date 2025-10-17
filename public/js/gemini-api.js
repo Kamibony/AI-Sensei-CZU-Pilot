@@ -1,8 +1,21 @@
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { functions } from './firebase-init.js';
 
-// Odkazy na cloudové funkcie, ktoré reálne existujú na backende
+// --- PRIDANÝ CONSOLE.LOG ---
+// Logujeme, čo sa naimportovalo
+console.log("Functions object imported in gemini-api.js:", functions);
+// -------------------------
+
+// --- PRIDANÝ CONSOLE.LOG ---
+// Logujeme tesne pred použitím
+console.log("Functions object before httpsCallable (generateContent):", functions);
+// -------------------------
 const generateContentFunction = httpsCallable(functions, 'generateContent');
+
+// --- PRIDANÝ CONSOLE.LOG ---
+// Logujeme tesne pred použitím
+console.log("Functions object before httpsCallable (getAiAssistantResponse):", functions);
+// -------------------------
 const getAiAssistantResponseFunction = httpsCallable(functions, 'getAiAssistantResponse');
 
 /**
