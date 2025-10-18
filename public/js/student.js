@@ -1,6 +1,7 @@
 import { collection, getDocs, doc, query, where, updateDoc, orderBy, onSnapshot, addDoc, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
-import { db, auth, functions } from './firebase-init.js';
+// --- ZMENA: Importujeme celý firebaseInit, aby sme mali prístup k aktualizovaným objektom ---
+import * as firebaseInit from './firebase-init.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { handleLogout } from './auth.js';
 import { getAiAssistantResponse } from './gemini-api.js';
@@ -11,12 +12,54 @@ let currentUserData = null;
 let currentLessonData = null;
 let currentLessonId = null;
 
-const sendMessageFromStudent = httpsCallable(functions, 'sendMessageFromStudent');
-const submitQuizResults = httpsCallable(functions, 'submitQuizResults');
-const submitTestResults = httpsCallable(functions, 'submitTestResults');
+// --- ZMENA: Premenné pre callable funkcie, inicializované na null ---
+let _sendMessageFromStudentCallable = null;
+let _submitQuizResultsCallable = null;
+let _submitTestResultsCallable = null;
+
+// --- ZMENA: Funkcia na získanie (alebo vytvorenie) callable funkcie ---
+function getSendMessageFromStudentCallable() {
+    if (!_sendMessageFromStudentCallable) {
+        console.log("Lazy initializing sendMessageFromStudent callable. Current functions object:", firebaseInit.functions);
+        if (!firebaseInit.functions) {
+            console.error("CRITICAL: Firebase Functions object is still not available when trying to create sendMessageFromStudent callable!");
+            throw new Error("Firebase Functions not initialized.");
+        }
+        _sendMessageFromStudentCallable = httpsCallable(firebaseInit.functions, 'sendMessageFromStudent');
+    }
+    return _sendMessageFromStudentCallable;
+}
+
+// --- ZMENA: Funkcia na získanie (alebo vytvorenie) callable funkcie ---
+function getSubmitQuizResultsCallable() {
+    if (!_submitQuizResultsCallable) {
+        console.log("Lazy initializing submitQuizResults callable. Current functions object:", firebaseInit.functions);
+        if (!firebaseInit.functions) {
+            console.error("CRITICAL: Firebase Functions object is still not available when trying to create submitQuizResults callable!");
+            throw new Error("Firebase Functions not initialized.");
+        }
+        _submitQuizResultsCallable = httpsCallable(firebaseInit.functions, 'submitQuizResults');
+    }
+    return _submitQuizResultsCallable;
+}
+
+// --- ZMENA: Funkcia na získanie (alebo vytvorenie) callable funkcie ---
+function getSubmitTestResultsCallable() {
+    if (!_submitTestResultsCallable) {
+        console.log("Lazy initializing submitTestResults callable. Current functions object:", firebaseInit.functions);
+        if (!firebaseInit.functions) {
+            console.error("CRITICAL: Firebase Functions object is still not available when trying to create submitTestResults callable!");
+            throw new Error("Firebase Functions not initialized.");
+        }
+        _submitTestResultsCallable = httpsCallable(firebaseInit.functions, 'submitTestResults');
+    }
+    return _submitTestResultsCallable;
+}
+
 
 export function initStudentDashboard() {
-    const user = auth.currentUser;
+    // --- ZMENA: Používame firebaseInit.auth ---
+    const user = firebaseInit.auth.currentUser;
     if (!user) {
         console.error("Kritická chyba: initStudentDashboard bol spustený bez prihláseného používateľa!");
         document.getElementById('app-container').innerHTML = `<p class="p-8 text-center text-red-600">Nastala kritická chyba pri prihlasovaní. Skúste obnoviť stránku.</p>`;
@@ -25,7 +68,8 @@ export function initStudentDashboard() {
 
     if (studentDataUnsubscribe) studentDataUnsubscribe();
 
-    const userDocRef = doc(db, "students", user.uid);
+    // --- ZMENA: Používame firebaseInit.db ---
+    const userDocRef = doc(firebaseInit.db, "students", user.uid);
     
     studentDataUnsubscribe = onSnapshot(userDocRef, async (docSnapshot) => {
         if (docSnapshot.exists()) {
@@ -39,7 +83,8 @@ export function initStudentDashboard() {
             console.warn(`Profil pre študenta s UID ${user.uid} nebol nájdený. Vytváram nový...`);
             try {
                 const token = `TGM-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-                await setDoc(doc(db, "students", user.uid), {
+                // --- ZMENA: Používame firebaseInit.db ---
+                await setDoc(doc(firebaseInit.db, "students", user.uid), {
                     email: user.email,
                     createdAt: serverTimestamp(),
                     name: '',
@@ -87,7 +132,8 @@ function promptForStudentName(userId) {
         if (!name) return showToast('Jméno nemůže být prázdné.', true);
 
         try {
-            await updateDoc(doc(db, 'students', userId), { name: name });
+            // --- ZMENA: Používame firebaseInit.db ---
+            await updateDoc(doc(firebaseInit.db, 'students', userId), { name: name });
             showToast('Jméno úspěšně uloženo!');
         } catch (error) {
             showToast('Nepodařilo se uložit jméno.', true);
@@ -119,7 +165,8 @@ async function fetchAndDisplayLessons() {
                              <div id="lessons-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">Načítání lekcí...</div>`;
 
     try {
-        const q = query(collection(db, "lessons"), orderBy("createdAt", "desc"));
+        // --- ZMENA: Používame firebaseInit.db ---
+        const q = query(collection(firebaseInit.db, "lessons"), orderBy("createdAt", "desc"));
         const querySnapshot = await getDocs(q);
         lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -429,7 +476,9 @@ function renderQuiz() {
         });
 
         try {
-            await submitQuizResults({ 
+            // --- ZMENA: Používame "lazy" funkciu ---
+            const submitCallable = getSubmitQuizResultsCallable();
+            await submitCallable({ 
                 lessonId: currentLessonId, 
                 quizTitle: quiz.title, 
                 score: finalScore / quiz.questions.length,
@@ -510,8 +559,9 @@ async function loadChatHistory(type) {
 
     chatHistoryEl.innerHTML = 'Načítání konverzace...';
     try {
+        // --- ZMENA: Používame firebaseInit.db ---
         const q = query(
-            collection(db, `conversations/${currentUserData.id}/messages`),
+            collection(firebaseInit.db, `conversations/${currentUserData.id}/messages`),
             where("lessonId", "==", currentLessonId),
             where("type", "==", type), 
             orderBy("timestamp", "asc")
@@ -542,6 +592,23 @@ async function sendMessage(type) {
     const text = inputEl.value.trim();
     if (!text) return;
 
+    // --- ZMENA: Ukladáme správu študenta do DB VŽDY ---
+    const messageData = { 
+        lessonId: currentLessonId, 
+        text: text,
+        sender: 'student',
+        type: type, // 'ai' alebo 'professor'
+        timestamp: serverTimestamp() 
+    };
+    try {
+         // --- ZMENA: Používame firebaseInit.db ---
+         await addDoc(collection(firebaseInit.db, `conversations/${currentUserData.id}/messages`), messageData);
+         console.log(`Student message saved to DB for type: ${type}`);
+    } catch (dbError) {
+         console.error(`Error saving student message to DB for type ${type}:`, dbError);
+    }
+
+    // Zobrazenie v UI (zostáva rovnaké)
     appendChatMessage({ text: text, sender: 'student' }, type);
     inputEl.value = '';
 
@@ -549,8 +616,7 @@ async function sendMessage(type) {
         if (type === 'ai') {
             appendChatMessage({ text: '...', sender: 'ai-typing' }, type);
 
-            const { getAiAssistantResponse } = await import('./gemini-api.js'); 
-
+            // --- ZMENA: Používame priamo importovanú funkciu, nie dynamický import ---
             const response = await getAiAssistantResponse({
                 lessonId: currentLessonId,
                 userQuestion: text
@@ -558,24 +624,62 @@ async function sendMessage(type) {
 
             document.querySelector('#ai-chat-history .ai-typing-indicator')?.remove();
             
+            let aiResponseText = '';
             if (response.error) {
-                 appendChatMessage({ text: `Chyba: ${response.error}`, sender: 'ai' }, type);
+                 aiResponseText = `Chyba: ${response.error}`;
+                 appendChatMessage({ text: aiResponseText, sender: 'ai' }, type);
             } else {
-                 appendChatMessage({ text: response.answer, sender: 'ai' }, type);
+                 aiResponseText = response.answer;
+                 appendChatMessage({ text: aiResponseText, sender: 'ai' }, type);
             }
+            
+            // --- ZMENA: Uloženie odpovede AI do DB ---
+             try {
+                 await addDoc(collection(firebaseInit.db, `conversations/${currentUserData.id}/messages`), {
+                     lessonId: currentLessonId,
+                     text: aiResponseText,
+                     sender: 'ai',
+                     type: 'ai',
+                     timestamp: serverTimestamp()
+                 });
+                 console.log("AI response saved to DB.");
+             } catch(dbError) {
+                  console.error("Error saving AI response to DB:", dbError);
+             }
 
         } else { 
-            await sendMessageFromStudent({
-                lessonId: currentLessonId,
+            // --- ZMENA: Používame "lazy" funkciu ---
+            const sendMessageCallable = getSendMessageFromStudentCallable();
+            await sendMessageCallable({
+                // lessonId a text sa posielajú v backende, 
+                // ale funkcia 'sendMessageFromStudent' v backende berie len {text: string}
+                // Ak backend očakáva aj lessonId, odkomentujte to:
+                // lessonId: currentLessonId,
                 text: text
             });
+            // Správa bola odoslaná, backend ju uloží do konverzácie profesora
         }
     } catch (error) {
         console.error("Error sending message:", error);
         showToast("Nepodařilo se odeslat zprávu.", true);
         if (type === 'ai') {
             document.querySelector('#ai-chat-history .ai-typing-indicator')?.remove();
-            appendChatMessage({ text: 'Omlouvám se, došlo k chybě.', sender: 'ai' }, type);
+            const errorText = `Omlouvám se, došlo k chybě: ${error.message}`;
+            appendChatMessage({ text: errorText, sender: 'ai' }, type);
+            
+            // --- ZMENA: Uloženie chybovej odpovede AI do DB ---
+             try {
+                 await addDoc(collection(firebaseInit.db, `conversations/${currentUserData.id}/messages`), {
+                     lessonId: currentLessonId,
+                     text: errorText,
+                     sender: 'ai',
+                     type: 'ai',
+                     timestamp: serverTimestamp()
+                 });
+                 console.log("AI error response saved to DB.");
+             } catch(dbError) {
+                  console.error("Error saving AI error response to DB:", dbError);
+             }
         }
     }
 }
