@@ -1,58 +1,61 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Študenti: Môžu čítať a upravovať svoj profil, nemôžu vytvárať nové ani mazať
-    match /students/{studentId} {
-      allow read, update: if request.auth != null && request.auth.uid == studentId;
-      allow create, delete: if false; // Zakázané pre klientov
+  
+    // Funkcia na overenie, či je používateľ profesor
+    function isProfessor() {
+      return request.auth != null && request.auth.token.email == 'profesor@profesor.cz';
     }
 
-    // Lekcie: Študenti môžu čítať, profesor (alebo admin) môže robiť všetko
+    // Študenti:
+    // Študent môže čítať a upravovať svoj profil.
+    // Profesor môže čítať profily všetkých študentov.
+    match /students/{studentId} {
+      allow read: if (request.auth != null && request.auth.uid == studentId) || isProfessor();
+      allow update: if request.auth != null && request.auth.uid == studentId;
+      // Vytváranie a mazanie je riadené z backendu alebo pri registrácii
+      allow create, delete: if false;
+    }
+
+    // Lekcie:
+    // Každý prihlásený môže čítať lekcie.
+    // Iba profesor môže vytvárať, upravovať a mazať lekcie.
     match /lessons/{lessonId} {
       allow read: if request.auth != null;
-      // Tu by ste mohli pridať pravidlo pre profesora, napr.
-      // allow write: if request.auth != null && request.auth.token.email == 'profesor@profesor.cz';
-      // Pre jednoduchosť zatiaľ necháme zápis povolený pre všetkých prihlásených
-      allow write: if request.auth != null;
+      allow write: if isProfessor();
     }
 
-    // Konverzácie: Študent môže čítať a zapisovať *iba* do svojej konverzácie
+    // Konverzácie:
+    // Profesor môže čítať a zapisovať do všetkých konverzácií a správ.
+    // Študent môže čítať a zapisovať iba do svojej vlastnej konverzácie a správ.
     match /conversations/{studentId} {
-      // Povolí čítať informácie o konverzácii (napr. lastMessage), ak je to ID študenta
-      allow read, update: if request.auth != null && request.auth.uid == studentId;
-      // Zakáže vytvárať/mazať hlavné dokumenty konverzácií z klienta
-      allow create, delete: if false;
-
-      // Správy v subkolekcii: Študent môže čítať a vytvárať správy *iba* vo svojej konverzácií
-      match /messages/{messageId} {
-        allow read, create: if request.auth != null && request.auth.uid == studentId;
-        // Zakáže upravovať alebo mazať správy z klienta
-        allow update, delete: if false;
+      match /{document=**} {
+        allow read, write: if (request.auth != null && request.auth.uid == studentId) || isProfessor();
       }
     }
+    
+    // Časová os (timeline):
+    // Iba profesor môže čítať a zapisovať.
+    match /timeline_events/{eventId} {
+       allow read, write: if isProfessor();
+    }
 
-    // Výsledky kvízov: Študent môže vytvárať (odosielať) iba svoje výsledky
+    // Výsledky kvízov:
+    // Študent môže iba vytvárať (odosielať) svoje výsledky.
+    // Profesor ich môže všetky čítať.
     match /quiz_submissions/{submissionId} {
       allow create: if request.auth != null && request.resource.data.studentId == request.auth.uid;
-      // Čítanie, úprava, mazanie zakázané z klienta (môže čítať profesor cez backend)
-      allow read, update, delete: if false;
+      allow read: if isProfessor();
+      allow update, delete: if false;
     }
 
-    // Výsledky testov: Študent môže vytvárať (odosielať) iba svoje výsledky
+    // Výsledky testov:
+    // Podobne ako pri kvízoch.
     match /test_submissions/{submissionId} {
        allow create: if request.auth != null && request.resource.data.studentId == request.auth.uid;
-       allow read, update, delete: if false;
-    }
-    
-    // Časová os (timeline): Študenti by nemali mať prístup
-    match /timeline_events/{eventId} {
-       allow read, write: if request.auth != null && request.auth.token.email == 'profesor@profesor.cz'; // Alebo iná kontrola pre profesora
-    }
-
-    // Akékoľvek iné dokumenty (fallback) - zakázať prístup
-    match /{document=**} {
-      allow read, write: if false;
+       allow read: if isProfessor();
+       allow update, delete: if false;
     }
   }
 }
