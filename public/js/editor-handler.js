@@ -346,28 +346,32 @@ export async function showEditorContent(viewId) {
           }
           // ======================================================================
 
+          // ===== ZMENA 2: Kompletná oprava logiky pre RAG tlačidlo =====
           const ragSelectBtn = document.getElementById('select-files-btn-rag');
           if (ragSelectBtn) {
-               // ===== ZMENA 2: Nahradenie 'showToast' plnou logikou modálu =====
                ragSelectBtn.addEventListener('click', () => {
-                   // --- Logika pre otvorenie modálu ---
+                   // --- Hľadáme elementy AŽ TERAZ, po kliknutí ---
                    const modal = document.getElementById('media-library-modal');
                    const modalContent = document.getElementById('modal-library-content');
                    const modalConfirm = document.getElementById('modal-confirm-btn');
                    const modalCancel = document.getElementById('modal-cancel-btn');
                    const modalClose = document.getElementById('modal-close-btn');
-
-                   // 1. Nájdeme kontajner knižnice (ktorý je pravdepodobne v inom tabe)
-                   // Toto ID '#course-media-library-container' musí existovať niekde inde (asi v professor.js)
+                   // Hľadáme kontajner knižnice až teraz!
                    const libraryContainer = document.getElementById('course-media-library-container'); 
-                    
-                   if (!modal || !modalContent || !libraryContainer) {
-                       console.error("Chybějící elementy pro modální okno knihovny (#media-library-modal, #modal-library-content alebo #course-media-library-container)");
-                       showToast("Chyba: Nepodařilo se načíst komponentu knihovny.", true);
-                       return;
+
+                   // Vylepšená kontrola chýb
+                   if (!modal || !modalContent || !modalConfirm || !modalCancel || !modalClose) {
+                        console.error("Chybějící elementy pro modální okno (modal, content, buttons). Zkontrolujte index.html.");
+                        showToast("Chyba: Nepodařilo se načíst komponentu pro výběr souborů.", true);
+                        return;
                    }
-                    
-                   // 2. Zapamätáme si pôvodného rodiča, aby sme knižnicu mohli vrátiť
+                   if (!libraryContainer) {
+                       console.error("Kritická chyba: Element '#course-media-library-container' nebyl nalezen v DOM. Byl už inicializován (např. v professor.js)?");
+                       showToast("Chyba: Komponenta knihovny médií nebyla nalezena.", true);
+                       return; // Zastavíme, ak knižnica neexistuje
+                   }
+                   // --- Koniec vylepšenej kontroly ---
+
                    const originalParent = libraryContainer.parentElement;
                    let isLibraryInModal = false;
 
@@ -390,26 +394,28 @@ export async function showEditorContent(viewId) {
                        modal.classList.add('hidden');
                         
                        // Odstránime listenery ich klonovaním, aby sa nespúšťali viackrát
-                       modalConfirm.replaceWith(modalConfirm.cloneNode(true));
-                       modalCancel.replaceWith(modalCancel.cloneNode(true));
-                       modalClose.replaceWith(modalClose.cloneNode(true));
+                       // Musíme ich znova nájsť, lebo klonovanie ich nahrádza
+                       document.getElementById('modal-confirm-btn').replaceWith(document.getElementById('modal-confirm-btn').cloneNode(true));
+                       document.getElementById('modal-cancel-btn').replaceWith(document.getElementById('modal-cancel-btn').cloneNode(true));
+                       document.getElementById('modal-close-btn').replaceWith(document.getElementById('modal-close-btn').cloneNode(true));
                    };
 
                    // 6. Priradíme listenery (použijeme .onclick namiesto addEventListener pre jednoduché prepísanie)
-                   modalConfirm.onclick = () => {
+                   // Musíme ich znova nájsť, lebo predchádzajúci `moveLibraryBack` ich mohol klonovať
+                   document.getElementById('modal-confirm-btn').onclick = () => {
                        renderSelectedFiles(); // Aktualizujeme zoznam v RAG UI
                        moveLibraryBack();
                    };
-                    
-                   modalCancel.onclick = moveLibraryBack;
-                   modalClose.onclick = moveLibraryBack;
+                   document.getElementById('modal-cancel-btn').onclick = moveLibraryBack;
+                   document.getElementById('modal-close-btn').onclick = moveLibraryBack;
 
                    // 7. Otvoríme modal
                    moveLibraryToModal();
                    // --- Koniec logiky pre modal ---
                });
-               // ===== KONIEC ZMENY 2 =====
           }
+          // ===== KONIEC ZMENY 2 =====
+
           // Prezentácia - nastavíme style selector, ak existuje uložená hodnota
           if (viewId === 'presentation' && currentLesson?.presentation?.styleId) {
              const selector = document.getElementById('presentation-style-selector');
