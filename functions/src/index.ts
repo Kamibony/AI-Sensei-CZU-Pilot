@@ -47,7 +47,7 @@ export const generateContent = onCall({ region: "europe-west1" }, async (request
                     finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
                     break;
                 case 'test':
-                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${promptData.questionCount || 5} otázkami. Obtížnost: ${promptData.difficulty || 'Střední'}. Typy otázek: ${promptData.questionTypes || 'Mix'}. Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
+                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${promptData.questionCount || 5} otázkami. Obtížnost: ${promptData.difficulty || 'Střední'}. Typy otázek: ${promptData.questionTypes || 'Mix'}. Odpověď musí být JSON objekt s klíčem 'questions', ktorý obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
                     break;
                 case 'post':
                      finalPrompt = `Vytvoř sérii ${promptData.episodeCount || 3} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string).`;
@@ -55,7 +55,7 @@ export const generateContent = onCall({ region: "europe-west1" }, async (request
             }
         }
         if (filePaths && filePaths.length > 0) {
-            return isJson
+            return isJson 
                 ? await GeminiAPI.generateJsonFromDocuments(filePaths, finalPrompt)
                 : { text: await GeminiAPI.generateTextFromDocuments(filePaths, finalPrompt) };
         } else {
@@ -112,6 +112,10 @@ export const sendMessageFromStudent = onCall({ region: "europe-west1" }, async (
         }
         const studentName = studentDoc.data()?.name || "Neznámý student";
         const conversationRef = db.collection("conversations").doc(studentId);
+        
+        // Táto funkcia je volaná z `student.js` ako `type: 'professor'`
+        // `student.js` už správu ukladá do DB. Táto funkcia len aktualizuje "prehľad" pre profesora.
+        
         await conversationRef.set({
             studentId: studentId,
             studentName: studentName,
@@ -119,11 +123,16 @@ export const sendMessageFromStudent = onCall({ region: "europe-west1" }, async (
             lastMessageTimestamp: FieldValue.serverTimestamp(),
             professorHasUnread: true,
         }, { merge: true });
+
+        // Samotnú správu už ukladá `student.js` do `conversations/{studentId}/messages`
+        // Tento kód je duplicitný a používa zlé pole 'senderId'
+        /*
         await conversationRef.collection("messages").add({
-            senderId: studentId,
+            senderId: studentId, // <-- TOTO JE PROBLÉM (má byť 'sender')
             text: text,
             timestamp: FieldValue.serverTimestamp(),
         });
+        */
         return { success: true };
     } catch (error) {
         logger.error("Error in sendMessageFromStudent:", error);
@@ -138,11 +147,16 @@ export const sendMessageToStudent = onCall({ region: "europe-west1", secrets: ["
     }
     try {
         const conversationRef = db.collection("conversations").doc(studentId);
+        
+        // ===== OPRAVA: Používame 'sender' a 'type' =====
         await conversationRef.collection("messages").add({
-            senderId: "professor",
+            sender: "professor", // Namiesto senderId
             text: text,
+            type: "professor", // Pridáme typ
             timestamp: FieldValue.serverTimestamp(),
         });
+        // ============================================
+
         await conversationRef.update({
             lastMessage: text,
             lastMessageTimestamp: FieldValue.serverTimestamp(),
@@ -167,12 +181,6 @@ export const sendMessageToStudent = onCall({ region: "europe-west1", secrets: ["
 
 // NOVÁ FUNKCIA: Globálna analýza
 export const getGlobalAnalytics = onCall({ region: "europe-west1" }, async (request) => {
-    // Táto funkcia zatiaľ nevyžaduje autentifikáciu profesora,
-    // ale v produkcii by mala overovať, či je volajúci profesor.
-    // if (!request.auth || !request.auth.token.isProfessor) { // Hypotetická kontrola
-    //     throw new HttpsError("unauthenticated", "Musíte být přihlášen jako profesor.");
-    // }
-
     try {
         // 1. Získať počet študentov
         const studentsSnapshot = await db.collection("students").get();
@@ -239,8 +247,6 @@ export const getGlobalAnalytics = onCall({ region: "europe-west1" }, async (requ
 
 // NOVÁ FUNKCIA: AI Analýza študenta
 export const getAiStudentSummary = onCall({ region: "europe-west1" }, async (request) => {
-    // Tu by tiež mala byť kontrola, či je volajúci profesor
-
     const { studentId } = request.data;
     if (!studentId) {
         throw new HttpsError("invalid-argument", "Chybí ID studenta.");
@@ -263,7 +269,7 @@ export const getAiStudentSummary = onCall({ region: "europe-west1" }, async (req
         
         const quizResults = quizSnapshot.docs.map(doc => {
             const data = doc.data();
-            return `Kvíz '${data.quizTitle || 'bez názvu'}': ${(data.score * 100).toFixed(0)}%`; // Pridaný fallback
+            return `Kvíz '${data.quizTitle || 'bez názvu'}': ${(data.score * 100).toFixed(0)}%`;
         });
 
         // 3. Získať výsledky testov
@@ -275,16 +281,17 @@ export const getAiStudentSummary = onCall({ region: "europe-west1" }, async (req
             
         const testResults = testSnapshot.docs.map(doc => {
             const data = doc.data();
-            return `Test '${data.testTitle || 'bez názvu'}': ${(data.score * 100).toFixed(0)}%`; // Pridaný fallback
+            return `Test '${data.testTitle || 'bez názvu'}': ${(data.score * 100).toFixed(0)}%`;
         });
 
         // 4. Získať konverzácie (len otázky od študenta)
-        // Použijeme subkolekciu conversations/{studentId}/messages
+        
+        // ===== OPRAVA: Používame 'sender' a odstraňujeme 'orderBy' kvôli indexu =====
         const messagesSnapshot = await db.collection(`conversations/${studentId}/messages`)
-            .where("sender", "==", "student") // Zmenené zo senderId
-            .orderBy("timestamp", "desc")
+            .where("sender", "==", "student") // Správne pole je 'sender'
             .limit(15) // Obmedzíme na posledných 15 správ
             .get();
+        // ========================================================================
 
         const studentQuestions = messagesSnapshot.docs.map(doc => doc.data().text);
 
@@ -323,6 +330,10 @@ ${promptContext}
 
     } catch (error) {
         logger.error("Error in getAiStudentSummary:", error);
+        // Poskytneme viac detailov o chybe
+        if (error instanceof Error) {
+            throw new HttpsError("internal", `Nepodařilo se vygenerovat AI analýzu: ${error.message}`);
+        }
         throw new HttpsError("internal", "Nepodařilo se vygenerovat AI analýzu.");
     }
 });
@@ -351,15 +362,14 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
             if (text && text.startsWith("/start")) {
                 const token = text.split(' ')[1];
                 if (token) {
-                    // --- ZMENA: Správny názov poľa je 'telegramLinkToken' ---
+                    // ===== OPRAVA: Používame 'telegramLinkToken' =====
                     const q = db.collection("students").where("telegramLinkToken", "==", token).limit(1);
                     const querySnapshot = await q.get();
                     if (!querySnapshot.empty) {
                         const studentDoc = querySnapshot.docs[0];
-                        await studentDoc.ref.update({
+                        await studentDoc.ref.update({ 
                             telegramChatId: chatId,
-                            // --- ZMENA: Odstránenie správneho tokenu ---
-                            telegramLinkToken: FieldValue.delete()
+                            telegramLinkToken: FieldValue.delete() // Zmažeme token
                         });
                         await sendTelegramMessage(chatId, "✅ Váš účet byl úspěšně propojen! Nyní se můžete ptát AI asistenta na otázky k vaší poslední aktivní lekci.");
                     } else {
@@ -401,13 +411,16 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
                     lastMessageTimestamp: FieldValue.serverTimestamp(),
                     professorHasUnread: true,
                 }, { merge: true });
-                // --- ZMENA: Ukladáme do subkolekcie správne ---
+                
+                // ===== OPRAVA: Používame 'sender' a 'type' =====
                 await conversationRef.collection("messages").add({
-                    sender: "student", // Zmenené zo senderId
+                    sender: "student", // Namiesto senderId
                     text: messageForProfessor,
+                    type: "professor", // Pridáme typ
                     timestamp: FieldValue.serverTimestamp(),
-                    type: "professor", // Pridané pre konzistenciu
                 });
+                // ============================================
+
                 await sendTelegramMessage(chatId, "Vaše zpráva byla odeslána profesorovi.");
                 res.status(200).send("OK");
                 return;
@@ -416,7 +429,10 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
             await sendTelegramMessage(chatId, "🤖 AI Sensei přemýšlí...");
             
             let lessonContextPrompt = `Answer the student's question in a helpful and informative way. The user's question is: "${text}"`;
-            const lastLessonId = studentData.lastActiveLessonId; // Potrebujeme toto pole v profile študenta
+            
+            // ===== OPRAVA: Hľadáme správne pole =====
+            const lastLessonId = studentData.lastActiveLessonId; // Toto pole musí existovať v profile študenta
+            // ======================================
 
             if (lastLessonId) {
                 const lessonRef = db.collection("lessons").doc(lastLessonId);
