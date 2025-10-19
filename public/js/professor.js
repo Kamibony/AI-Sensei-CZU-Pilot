@@ -125,7 +125,7 @@ async function showProfessorContent(view, data = null) {
     const navigateToStudentProfile = (studentId) => {
         showProfessorContent('student-profile', studentId);
     };
-
+    
     // Špecifické zobrazenia, ktoré skryjú sidebar
     const fullWidthViews = ['students', 'student-profile', 'interactions', 'analytics', 'media'];
     if (fullWidthViews.includes(view)) {
@@ -144,7 +144,10 @@ async function showProfessorContent(view, data = null) {
         case 'student-profile':
             const backToStudentsList = () => showProfessorContent('students');
             // ===== OPRAVA PARAMETROV PRE renderStudentProfile =====
-            renderStudentProfile(mainArea, data, backToStudentsList); // data je tu studentId
+            // 1. parameter: container
+            // 2. parameter: studentId (čo je 'data')
+            // 3. parameter: callback funkcia
+            renderStudentProfile(mainArea, data, backToStudentsList);
             // =======================================================
             break;
         case 'media':
