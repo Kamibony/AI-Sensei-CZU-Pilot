@@ -125,7 +125,7 @@ async function showProfessorContent(view, data = null) {
     const navigateToStudentProfile = (studentId) => {
         showProfessorContent('student-profile', studentId);
     };
-    
+
     // Špecifické zobrazenia, ktoré skryjú sidebar
     const fullWidthViews = ['students', 'student-profile', 'interactions', 'analytics', 'media'];
     if (fullWidthViews.includes(view)) {
@@ -143,8 +143,9 @@ async function showProfessorContent(view, data = null) {
             break;
         case 'student-profile':
             const backToStudentsList = () => showProfessorContent('students');
-            // Zmenený názov funkcie a pridanie db
-            renderStudentProfile(mainArea, firebaseInit.db, data, backToStudentsList); // data je tu studentId
+            // ===== OPRAVA PARAMETROV PRE renderStudentProfile =====
+            renderStudentProfile(mainArea, data, backToStudentsList); // data je tu studentId
+            // =======================================================
             break;
         case 'media':
             mainArea.innerHTML = `<header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Knihovna médií</h1><p class="text-slate-500 mt-1">Spravujte všechny soubory pro váš kurz na jednom místě.</p></header>
@@ -253,8 +254,8 @@ export async function initProfessorDashboard() {
 
     roleContentWrapper.innerHTML = `
         <div id="dashboard-professor" class="w-full flex main-view active h-screen">
-            <aside id="professor-sidebar" class="w-full md:w-80 lg:w-96 bg-slate-100 border-r border-slate-200 flex flex-col flex-shrink-0 h-full"></aside> {/* Upravená šírka */}
-            <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-screen overflow-y-auto"></main> {/* Pridaný overflow */}
+            <aside id="professor-sidebar" class="w-full md:w-80 lg:w-96 bg-slate-100 border-r border-slate-200 flex flex-col flex-shrink-0 h-full"></aside>
+            <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-screen overflow-y-auto"></main>
         </div>
     `;
 
