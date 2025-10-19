@@ -62,7 +62,7 @@ function handleFileUpload(files, courseId, mediaListElement) {
             return;
         }
 
-        // ===== VRÁTENÉ NA PÔVODNÚ CESTU (Možnosť 1) =====
+        // ===== ZMENA 1: Opravená cesta pre nahrávanie =====
         // Súbory sa budú nahrávať do 'courses/${courseId}/media'
         const filePath = `courses/${courseId}/media/${file.name}`;
         // ================================================
@@ -152,7 +152,7 @@ export async function renderMediaLibraryFiles(courseId = "main-course") {
     try {
         const storage = getStorage(firebaseInit.app);
         
-        // ===== VRÁTENÉ NA PÔVODNÚ CESTU (Možnosť 1) =====
+        // ===== ZMENA 2: Opravená cesta pre načítanie =====
         // Načítame súbory z 'courses/${courseId}/media'
         const listRef = ref(storage, `courses/${courseId}/media`);
         // ================================================
@@ -173,6 +173,7 @@ export async function renderMediaLibraryFiles(courseId = "main-course") {
             listItem.className = 'bg-gray-100 p-2 rounded flex justify-between items-center group'; // Add group for hover effect
             
             // ===== OPRAVA 3: Odstránený chybný JSX komentár =====
+            // (Túto opravu si tam už mal, ponechávam)
             listItem.innerHTML = `
                 <span class="text-sm font-medium text-gray-700 truncate mr-2">${itemRef.name}</span>
                  <div class="flex items-center space-x-2 flex-shrink-0">
@@ -190,6 +191,13 @@ export async function renderMediaLibraryFiles(courseId = "main-course") {
 
             // Add selection functionality (add to selectedFilesForGeneration array)
              const checkbox = listItem.querySelector('.file-select-checkbox');
+             
+             // ===== ZMENA 3: Zaškrtneme checkboxy, ktoré už sú vo výbere =====
+             if (selectedFilesForGeneration.some(f => f.fullPath === itemRef.fullPath)) {
+                 checkbox.checked = true;
+             }
+             // ==========================================================
+
              checkbox.addEventListener('change', (e) => {
                  const filePath = e.target.dataset.filePath;
                  const fileName = e.target.dataset.fileName;
