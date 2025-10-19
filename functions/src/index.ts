@@ -124,15 +124,7 @@ export const sendMessageFromStudent = onCall({ region: "europe-west1" }, async (
             professorHasUnread: true,
         }, { merge: true });
 
-        // Samotnú správu už ukladá `student.js` do `conversations/{studentId}/messages`
-        // Tento kód je duplicitný a používa zlé pole 'senderId'
-        /*
-        await conversationRef.collection("messages").add({
-            senderId: studentId, // <-- TOTO JE PROBLÉM (má byť 'sender')
-            text: text,
-            timestamp: FieldValue.serverTimestamp(),
-        });
-        */
+        // Duplicitný kód odstránený - `student.js` to už robí
         return { success: true };
     } catch (error) {
         logger.error("Error in sendMessageFromStudent:", error);
@@ -148,14 +140,14 @@ export const sendMessageToStudent = onCall({ region: "europe-west1", secrets: ["
     try {
         const conversationRef = db.collection("conversations").doc(studentId);
         
-        // ===== OPRAVA: Používame 'sender' a 'type' =====
+        // Zjednotenie na 'sender' a 'type'
         await conversationRef.collection("messages").add({
             sender: "professor", // Namiesto senderId
             text: text,
             type: "professor", // Pridáme typ
+            lessonId: "general", // Pridáme všeobecné ID lekcie pre konzistenciu
             timestamp: FieldValue.serverTimestamp(),
         });
-        // ============================================
 
         await conversationRef.update({
             lastMessage: text,
@@ -179,9 +171,9 @@ export const sendMessageToStudent = onCall({ region: "europe-west1", secrets: ["
 // =================== ZAČIATOK ÚPRAVY PRE ANALÝZU =====================
 // ==================================================================
 
-// NOVÁ FUNKCIA: Globálna analýza
 export const getGlobalAnalytics = onCall({ region: "europe-west1" }, async (request) => {
     try {
+        // ... (kód zostáva nezmenený) ...
         // 1. Získať počet študentov
         const studentsSnapshot = await db.collection("students").get();
         const studentCount = studentsSnapshot.size;
@@ -245,10 +237,11 @@ export const getGlobalAnalytics = onCall({ region: "europe-west1" }, async (requ
     }
 });
 
-// NOVÁ FUNKCIA: AI Analýza študenta
+// UPRAVENÁ FUNKCIA: AI Analýza študenta
 export const getAiStudentSummary = onCall({ region: "europe-west1" }, async (request) => {
     const { studentId } = request.data;
     if (!studentId) {
+        logger.error("getAiStudentSummary called without studentId.");
         throw new HttpsError("invalid-argument", "Chybí ID studenta.");
     }
 
@@ -264,7 +257,7 @@ export const getAiStudentSummary = onCall({ region: "europe-west1" }, async (req
         const quizSnapshot = await db.collection("quiz_submissions")
             .where("studentId", "==", studentId)
             .orderBy("submittedAt", "desc")
-            .limit(10) // Obmedzíme na posledných 10
+            .limit(10)
             .get();
         
         const quizResults = quizSnapshot.docs.map(doc => {
@@ -285,13 +278,10 @@ export const getAiStudentSummary = onCall({ region: "europe-west1" }, async (req
         });
 
         // 4. Získať konverzácie (len otázky od študenta)
-        
-        // ===== OPRAVA: Používame 'sender' a odstraňujeme 'orderBy' kvôli indexu =====
         const messagesSnapshot = await db.collection(`conversations/${studentId}/messages`)
-            .where("sender", "==", "student") // Správne pole je 'sender'
-            .limit(15) // Obmedzíme na posledných 15 správ
+            .where("sender", "==", "student") // Hľadáme pole 'sender'
+            .limit(15) // Odstránené orderBy, aby sme nepotrebovali index
             .get();
-        // ========================================================================
 
         const studentQuestions = messagesSnapshot.docs.map(doc => doc.data().text);
 
@@ -299,14 +289,11 @@ export const getAiStudentSummary = onCall({ region: "europe-west1" }, async (req
         let promptContext = `
 Data studenta:
 Jméno: ${studentName}
-
 Výsledky kvízů (posledních 10):
 ${quizResults.length > 0 ? quizResults.join("\n") : "Žádné odevzdané kvízy."}
-
 Výsledky testů (posledních 10):
 ${testResults.length > 0 ? testResults.join("\n") : "Žádné odevzdané testy."}
-
-Poslední dotazy studenta (AI asistentovi nebo profesorovi):
+Dotazy studenta (AI asistentovi nebo profesorovi):
 ${studentQuestions.length > 0 ? studentQuestions.map(q => `- ${q}`).join("\n") : "Žádné dotazy."}
 `;
 
@@ -317,20 +304,33 @@ Na základě jeho výsledků v kvízech a testech a jeho dotazů identifikuj:
 1.  **Klíčové silné stránky:** V čem student vyniká?
 2.  **Oblasti ke zlepšení:** Kde má student problémy? (Např. nízké skóre, časté dotazy na jedno téma).
 3.  **Doporučení:** Navrhni 1-2 kroky pro profesora, jak studentovi pomoci.
-
 Odpověz stručně, v bodech, v češtině.
-
 ${promptContext}
 `;
         
         // 7. Zavolať Gemini
         const summary = await GeminiAPI.generateTextFromPrompt(finalPrompt);
 
-        return { summary: summary };
+        // ===== NOVÝ KROK: Uloženie analýzy do profilu študenta =====
+        try {
+            const studentRef = db.collection("students").doc(studentId);
+            await studentRef.update({
+                aiSummary: {
+                    text: summary, // Vygenerovaný text
+                    generatedAt: FieldValue.serverTimestamp() // Dátum generovania
+                }
+            });
+            logger.log(`AI Summary saved for student ${studentId}`);
+        } catch (saveError) {
+            logger.error(`Failed to save AI summary for student ${studentId}:`, saveError);
+            // Nezastavíme funkciu, vrátime súhrn aj tak, len sa neuloží
+        }
+        // ========================================================
+
+        return { summary: summary }; // Vrátime vygenerovaný text
 
     } catch (error) {
         logger.error("Error in getAiStudentSummary:", error);
-        // Poskytneme viac detailov o chybe
         if (error instanceof Error) {
             throw new HttpsError("internal", `Nepodařilo se vygenerovat AI analýzu: ${error.message}`);
         }
@@ -344,6 +344,7 @@ ${promptContext}
 
 export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, (req, res) => {
     corsHandler(req, res, async () => {
+        // ... (kód zostáva nezmenený, ale s opravami) ...
         if (req.method !== 'POST') {
             res.status(405).send('Method Not Allowed');
             return;
@@ -362,14 +363,13 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
             if (text && text.startsWith("/start")) {
                 const token = text.split(' ')[1];
                 if (token) {
-                    // ===== OPRAVA: Používame 'telegramLinkToken' =====
                     const q = db.collection("students").where("telegramLinkToken", "==", token).limit(1);
                     const querySnapshot = await q.get();
                     if (!querySnapshot.empty) {
                         const studentDoc = querySnapshot.docs[0];
                         await studentDoc.ref.update({ 
                             telegramChatId: chatId,
-                            telegramLinkToken: FieldValue.delete() // Zmažeme token
+                            telegramLinkToken: FieldValue.delete()
                         });
                         await sendTelegramMessage(chatId, "✅ Váš účet byl úspěšně propojen! Nyní se můžete ptát AI asistenta na otázky k vaší poslední aktivní lekci.");
                     } else {
@@ -412,14 +412,13 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
                     professorHasUnread: true,
                 }, { merge: true });
                 
-                // ===== OPRAVA: Používame 'sender' a 'type' =====
                 await conversationRef.collection("messages").add({
-                    sender: "student", // Namiesto senderId
+                    sender: "student",
                     text: messageForProfessor,
-                    type: "professor", // Pridáme typ
+                    type: "professor",
+                    lessonId: "general",
                     timestamp: FieldValue.serverTimestamp(),
                 });
-                // ============================================
 
                 await sendTelegramMessage(chatId, "Vaše zpráva byla odeslána profesorovi.");
                 res.status(200).send("OK");
@@ -429,10 +428,7 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
             await sendTelegramMessage(chatId, "🤖 AI Sensei přemýšlí...");
             
             let lessonContextPrompt = `Answer the student's question in a helpful and informative way. The user's question is: "${text}"`;
-            
-            // ===== OPRAVA: Hľadáme správne pole =====
-            const lastLessonId = studentData.lastActiveLessonId; // Toto pole musí existovať v profile študenta
-            // ======================================
+            const lastLessonId = studentData.lastActiveLessonId; 
 
             if (lastLessonId) {
                 const lessonRef = db.collection("lessons").doc(lastLessonId);
@@ -444,6 +440,27 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
             }
             
             const answer = await GeminiAPI.generateTextFromPrompt(lessonContextPrompt);
+
+            // Uloženie konverzácie z Telegramu do DB
+            try {
+                await db.collection(`conversations/${studentId}/messages`).add({
+                    sender: "student",
+                    text: text,
+                    type: "ai",
+                    lessonId: lastLessonId || "general",
+                    timestamp: FieldValue.serverTimestamp()
+                });
+                 await db.collection(`conversations/${studentId}/messages`).add({
+                    sender: "ai",
+                    text: answer,
+                    type: "ai",
+                    lessonId: lastLessonId || "general",
+                    timestamp: FieldValue.serverTimestamp()
+                });
+            } catch (dbError) {
+                logger.error("Error saving telegram chat to DB:", dbError);
+            }
+
             await sendTelegramMessage(chatId, answer);
             res.status(200).send("OK");
 
@@ -457,6 +474,7 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
 
 // --- FUNKCIA PRE UKLADANIE VÝSLEDKOV KVÍZU ---
 export const submitQuizResults = onCall({ region: "europe-west1" }, async (request) => {
+    // ... (kód zostáva nezmenený) ...
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
     }
@@ -491,6 +509,7 @@ export const submitQuizResults = onCall({ region: "europe-west1" }, async (reque
 
 // --- ODDELENÁ FUNKCIA PRE UKLADANIE VÝSLEDKOV TESTU ---
 export const submitTestResults = onCall({ region: "europe-west1" }, async (request) => {
+    // ... (kód zostáva nezmenený) ...
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
     }
