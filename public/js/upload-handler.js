@@ -62,9 +62,9 @@ function handleFileUpload(files, courseId, mediaListElement) {
             return;
         }
 
-        // ===== OPRAVA 1: Odstránené ${courseId} z cesty =====
-        // Súbory sa budú nahrávať priamo do 'course-media'
-        const filePath = `course-media/${file.name}`;
+        // ===== VRÁTENÉ NA PÔVODNÚ CESTU (Možnosť 1) =====
+        // Súbory sa budú nahrávať do 'courses/${courseId}/media'
+        const filePath = `courses/${courseId}/media/${file.name}`;
         // ================================================
         const storageRef = ref(storage, filePath);
         const uploadTask = uploadBytesResumable(storageRef, file);
@@ -152,9 +152,9 @@ export async function renderMediaLibraryFiles(courseId = "main-course") {
     try {
         const storage = getStorage(firebaseInit.app);
         
-        // ===== OPRAVA 2: Odstránené ${courseId} z cesty =====
-        // Načítame všetky súbory priamo z 'course-media'
-        const listRef = ref(storage, 'course-media');
+        // ===== VRÁTENÉ NA PÔVODNÚ CESTU (Možnosť 1) =====
+        // Načítame súbory z 'courses/${courseId}/media'
+        const listRef = ref(storage, `courses/${courseId}/media`);
         // ================================================
         
         const res = await listAll(listRef);
