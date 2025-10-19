@@ -62,7 +62,10 @@ function handleFileUpload(files, courseId, mediaListElement) {
             return;
         }
 
-        const filePath = `course-media/${courseId}/${file.name}`;
+        // ===== OPRAVA 1: Odstránené ${courseId} z cesty =====
+        // Súbory sa budú nahrávať priamo do 'course-media'
+        const filePath = `course-media/${file.name}`;
+        // ================================================
         const storageRef = ref(storage, filePath);
         const uploadTask = uploadBytesResumable(storageRef, file);
 
@@ -129,7 +132,7 @@ function handleFileUpload(files, courseId, mediaListElement) {
                  deleteButton.onclick = () => handleDeleteFile(storageRef, listItem);
                 delete currentUploadTasks[fileId];
                 showToast(`Soubor ${file.name} úspěšně nahrán.`);
-                 // Po úspešnom nahraní môžeme rovno obnoviť zoznam súborov
+                 // Po úspešnom nahraní obnovíme zoznam súborov
                  renderMediaLibraryFiles(courseId);
             }
         );
@@ -148,7 +151,12 @@ export async function renderMediaLibraryFiles(courseId = "main-course") {
 
     try {
         const storage = getStorage(firebaseInit.app);
-        const listRef = ref(storage, `course-media/${courseId}`);
+        
+        // ===== OPRAVA 2: Odstránené ${courseId} z cesty =====
+        // Načítame všetky súbory priamo z 'course-media'
+        const listRef = ref(storage, 'course-media');
+        // ================================================
+        
         const res = await listAll(listRef);
 
         if (res.items.length === 0) {
@@ -164,7 +172,7 @@ export async function renderMediaLibraryFiles(courseId = "main-course") {
             listItem.id = fileId;
             listItem.className = 'bg-gray-100 p-2 rounded flex justify-between items-center group'; // Add group for hover effect
             
-            // ===== OPRAVA: Odstránený JSX komentár =====
+            // ===== OPRAVA 3: Odstránený chybný JSX komentár =====
             listItem.innerHTML = `
                 <span class="text-sm font-medium text-gray-700 truncate mr-2">${itemRef.name}</span>
                  <div class="flex items-center space-x-2 flex-shrink-0">
@@ -172,7 +180,7 @@ export async function renderMediaLibraryFiles(courseId = "main-course") {
                     <button class="delete-file-btn text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity" title="Smazat soubor">🗑️</button>
                  </div>
             `;
-            // ==========================================
+            // ===============================================
             
             mediaListElement.appendChild(listItem);
 
