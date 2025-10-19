@@ -129,9 +129,8 @@ function handleFileUpload(files, courseId, mediaListElement) {
                  deleteButton.onclick = () => handleDeleteFile(storageRef, listItem);
                 delete currentUploadTasks[fileId];
                 showToast(`Soubor ${file.name} úspěšně nahrán.`);
-                 // Optionally: Refresh the file list or add download URL logic if needed immediately
-                 // const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                 // console.log('File available at', downloadURL);
+                 // Po úspešnom nahraní môžeme rovno obnoviť zoznam súborov
+                 renderMediaLibraryFiles(courseId);
             }
         );
     });
@@ -141,7 +140,7 @@ function handleFileUpload(files, courseId, mediaListElement) {
 export async function renderMediaLibraryFiles(courseId = "main-course") {
     const mediaListElement = document.getElementById('course-media-list');
     if (!mediaListElement) {
-        console.warn("Element '#course-media-list' not found. Cannot render media library files."); // Pridaný warn pre istotu
+        console.warn("Element '#course-media-list' not found. Cannot render media library files.");
         return;
     }
 
@@ -164,14 +163,17 @@ export async function renderMediaLibraryFiles(courseId = "main-course") {
             const fileId = `file-${itemRef.fullPath.replace(/[^a-zA-Z0-9]/g, '-')}`;
             listItem.id = fileId;
             listItem.className = 'bg-gray-100 p-2 rounded flex justify-between items-center group'; // Add group for hover effect
+            
+            // ===== OPRAVA: Odstránený JSX komentár =====
             listItem.innerHTML = `
                 <span class="text-sm font-medium text-gray-700 truncate mr-2">${itemRef.name}</span>
                  <div class="flex items-center space-x-2 flex-shrink-0">
-                     {/* Checkbox for selection - initially hidden, shown on hover/select mode */}
                      <input type="checkbox" class="file-select-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 hidden group-hover:inline-block" data-file-path="${itemRef.fullPath}" data-file-name="${itemRef.name}">
                     <button class="delete-file-btn text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity" title="Smazat soubor">🗑️</button>
                  </div>
             `;
+            // ==========================================
+            
             mediaListElement.appendChild(listItem);
 
             // Add delete functionality
@@ -262,5 +264,3 @@ export function clearSelectedFiles() {
     
     console.log("Cleared selected files for generation."); 
 }
-
-// ===== ODSTRÁNENÁ ZÁTVORKA NAVYŠE ODTIAĽTO =====
