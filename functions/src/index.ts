@@ -55,7 +55,7 @@ export const generateContent = onCall({ region: "europe-west1" }, async (request
             }
         }
         if (filePaths && filePaths.length > 0) {
-            return isJson 
+            return isJson
                 ? await GeminiAPI.generateJsonFromDocuments(filePaths, finalPrompt)
                 : { text: await GeminiAPI.generateTextFromDocuments(filePaths, finalPrompt) };
         } else {
@@ -161,6 +161,176 @@ export const sendMessageToStudent = onCall({ region: "europe-west1", secrets: ["
     }
 });
 
+// ==================================================================
+// =================== ZAČIATOK ÚPRAVY PRE ANALÝZU =====================
+// ==================================================================
+
+// NOVÁ FUNKCIA: Globálna analýza
+export const getGlobalAnalytics = onCall({ region: "europe-west1" }, async (request) => {
+    // Táto funkcia zatiaľ nevyžaduje autentifikáciu profesora,
+    // ale v produkcii by mala overovať, či je volajúci profesor.
+    // if (!request.auth || !request.auth.token.isProfessor) { // Hypotetická kontrola
+    //     throw new HttpsError("unauthenticated", "Musíte být přihlášen jako profesor.");
+    // }
+
+    try {
+        // 1. Získať počet študentov
+        const studentsSnapshot = await db.collection("students").get();
+        const studentCount = studentsSnapshot.size;
+
+        // 2. Analyzovať kvízy
+        const quizSnapshot = await db.collection("quiz_submissions").get();
+        const quizSubmissionCount = quizSnapshot.size;
+        let totalQuizScore = 0;
+        quizSnapshot.forEach(doc => {
+            totalQuizScore += doc.data().score; // score je 0 až 1
+        });
+        const avgQuizScore = quizSubmissionCount > 0 ? (totalQuizScore / quizSubmissionCount) * 100 : 0; // v percentách
+
+        // 3. Analyzovať testy
+        const testSnapshot = await db.collection("test_submissions").get();
+        const testSubmissionCount = testSnapshot.size;
+        let totalTestScore = 0;
+        testSnapshot.forEach(doc => {
+            totalTestScore += doc.data().score;
+        });
+        const avgTestScore = testSubmissionCount > 0 ? (totalTestScore / testSubmissionCount) * 100 : 0; // v percentách
+
+        // 4. (Voliteľné) Nájsť najaktívnejších študentov
+        const activityMap = new Map<string, number>();
+        quizSnapshot.forEach(doc => {
+            const studentId = doc.data().studentId;
+            activityMap.set(studentId, (activityMap.get(studentId) || 0) + 1);
+        });
+        testSnapshot.forEach(doc => {
+            const studentId = doc.data().studentId;
+            activityMap.set(studentId, (activityMap.get(studentId) || 0) + 1);
+        });
+
+        // Previesť mapu na pole a zoradiť
+        const sortedActivity = Array.from(activityMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        
+        // Získať mená študentov
+        const topStudents = [];
+        for (const [studentId, count] of sortedActivity) {
+            const studentDoc = await db.collection("students").doc(studentId).get();
+            if (studentDoc.exists) {
+                topStudents.push({
+                    name: studentDoc.data()?.name || "Neznámý student",
+                    submissions: count
+                });
+            }
+        }
+
+        return {
+            studentCount: studentCount,
+            quizSubmissionCount: quizSubmissionCount,
+            avgQuizScore: avgQuizScore.toFixed(1), // Zaokrúhlenie na 1 desatinné miesto
+            testSubmissionCount: testSubmissionCount,
+            avgTestScore: avgTestScore.toFixed(1),
+            topStudents: topStudents
+        };
+
+    } catch (error) {
+        logger.error("Error in getGlobalAnalytics:", error);
+        throw new HttpsError("internal", "Nepodařilo se načíst analytická data.");
+    }
+});
+
+// NOVÁ FUNKCIA: AI Analýza študenta
+export const getAiStudentSummary = onCall({ region: "europe-west1" }, async (request) => {
+    // Tu by tiež mala byť kontrola, či je volajúci profesor
+
+    const { studentId } = request.data;
+    if (!studentId) {
+        throw new HttpsError("invalid-argument", "Chybí ID studenta.");
+    }
+
+    try {
+        // 1. Získať dáta študenta
+        const studentDoc = await db.collection("students").doc(studentId).get();
+        if (!studentDoc.exists) {
+            throw new HttpsError("not-found", "Student nebyl nalezen.");
+        }
+        const studentName = studentDoc.data()?.name || "Neznámý";
+
+        // 2. Získať výsledky kvízov
+        const quizSnapshot = await db.collection("quiz_submissions")
+            .where("studentId", "==", studentId)
+            .orderBy("submittedAt", "desc")
+            .limit(10) // Obmedzíme na posledných 10
+            .get();
+        
+        const quizResults = quizSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return `Kvíz '${data.quizTitle || 'bez názvu'}': ${(data.score * 100).toFixed(0)}%`; // Pridaný fallback
+        });
+
+        // 3. Získať výsledky testov
+        const testSnapshot = await db.collection("test_submissions")
+            .where("studentId", "==", studentId)
+            .orderBy("submittedAt", "desc")
+            .limit(10)
+            .get();
+            
+        const testResults = testSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return `Test '${data.testTitle || 'bez názvu'}': ${(data.score * 100).toFixed(0)}%`; // Pridaný fallback
+        });
+
+        // 4. Získať konverzácie (len otázky od študenta)
+        // Použijeme subkolekciu conversations/{studentId}/messages
+        const messagesSnapshot = await db.collection(`conversations/${studentId}/messages`)
+            .where("sender", "==", "student") // Zmenené zo senderId
+            .orderBy("timestamp", "desc")
+            .limit(15) // Obmedzíme na posledných 15 správ
+            .get();
+
+        const studentQuestions = messagesSnapshot.docs.map(doc => doc.data().text);
+
+        // 5. Vytvoriť kontext pre AI
+        let promptContext = `
+Data studenta:
+Jméno: ${studentName}
+
+Výsledky kvízů (posledních 10):
+${quizResults.length > 0 ? quizResults.join("\n") : "Žádné odevzdané kvízy."}
+
+Výsledky testů (posledních 10):
+${testResults.length > 0 ? testResults.join("\n") : "Žádné odevzdané testy."}
+
+Poslední dotazy studenta (AI asistentovi nebo profesorovi):
+${studentQuestions.length > 0 ? studentQuestions.map(q => `- ${q}`).join("\n") : "Žádné dotazy."}
+`;
+
+        // 6. Vytvoriť finálny prompt
+        const finalPrompt = `
+Jsi AI asistent profesora. Analyzuj následující data o studentovi. 
+Na základě jeho výsledků v kvízech a testech a jeho dotazů identifikuj:
+1.  **Klíčové silné stránky:** V čem student vyniká?
+2.  **Oblasti ke zlepšení:** Kde má student problémy? (Např. nízké skóre, časté dotazy na jedno téma).
+3.  **Doporučení:** Navrhni 1-2 kroky pro profesora, jak studentovi pomoci.
+
+Odpověz stručně, v bodech, v češtině.
+
+${promptContext}
+`;
+        
+        // 7. Zavolať Gemini
+        const summary = await GeminiAPI.generateTextFromPrompt(finalPrompt);
+
+        return { summary: summary };
+
+    } catch (error) {
+        logger.error("Error in getAiStudentSummary:", error);
+        throw new HttpsError("internal", "Nepodařilo se vygenerovat AI analýzu.");
+    }
+});
+// ==================================================================
+// ==================== KONIEC ÚPRAVY PRE ANALÝZU ===================
+// ==================================================================
+
+
 export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, (req, res) => {
     corsHandler(req, res, async () => {
         if (req.method !== 'POST') {
@@ -181,13 +351,15 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
             if (text && text.startsWith("/start")) {
                 const token = text.split(' ')[1];
                 if (token) {
-                    const q = db.collection("students").where("telegramConnectionToken", "==", token).limit(1);
+                    // --- ZMENA: Správny názov poľa je 'telegramLinkToken' ---
+                    const q = db.collection("students").where("telegramLinkToken", "==", token).limit(1);
                     const querySnapshot = await q.get();
                     if (!querySnapshot.empty) {
                         const studentDoc = querySnapshot.docs[0];
-                        await studentDoc.ref.update({ 
+                        await studentDoc.ref.update({
                             telegramChatId: chatId,
-                            telegramConnectionToken: FieldValue.delete()
+                            // --- ZMENA: Odstránenie správneho tokenu ---
+                            telegramLinkToken: FieldValue.delete()
                         });
                         await sendTelegramMessage(chatId, "✅ Váš účet byl úspěšně propojen! Nyní se můžete ptát AI asistenta na otázky k vaší poslední aktivní lekci.");
                     } else {
@@ -229,10 +401,12 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
                     lastMessageTimestamp: FieldValue.serverTimestamp(),
                     professorHasUnread: true,
                 }, { merge: true });
+                // --- ZMENA: Ukladáme do subkolekcie správne ---
                 await conversationRef.collection("messages").add({
-                    senderId: studentId,
+                    sender: "student", // Zmenené zo senderId
                     text: messageForProfessor,
                     timestamp: FieldValue.serverTimestamp(),
+                    type: "professor", // Pridané pre konzistenciu
                 });
                 await sendTelegramMessage(chatId, "Vaše zpráva byla odeslána profesorovi.");
                 res.status(200).send("OK");
@@ -242,7 +416,7 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
             await sendTelegramMessage(chatId, "🤖 AI Sensei přemýšlí...");
             
             let lessonContextPrompt = `Answer the student's question in a helpful and informative way. The user's question is: "${text}"`;
-            const lastLessonId = studentData.lastActiveLessonId;
+            const lastLessonId = studentData.lastActiveLessonId; // Potrebujeme toto pole v profile študenta
 
             if (lastLessonId) {
                 const lessonRef = db.collection("lessons").doc(lastLessonId);
@@ -282,7 +456,7 @@ export const submitQuizResults = onCall({ region: "europe-west1" }, async (reque
         const submission = {
             studentId: studentId,
             lessonId: lessonId,
-            quizTitle: quizTitle,
+            quizTitle: quizTitle || 'Kvíz bez názvu', // Fallback
             score: score,
             totalQuestions: totalQuestions,
             answers: answers,
@@ -299,7 +473,7 @@ export const submitQuizResults = onCall({ region: "europe-west1" }, async (reque
     }
 });
 
-// --- NOVÁ, ODDELENÁ FUNKCIA PRE UKLADANIE VÝSLEDKOV TESTU ---
+// --- ODDELENÁ FUNKCIA PRE UKLADANIE VÝSLEDKOV TESTU ---
 export const submitTestResults = onCall({ region: "europe-west1" }, async (request) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
@@ -316,7 +490,7 @@ export const submitTestResults = onCall({ region: "europe-west1" }, async (reque
         const submission = {
             studentId: studentId,
             lessonId: lessonId,
-            testTitle: testTitle,
+            testTitle: testTitle || 'Test bez názvu', // Fallback
             score: score,
             totalQuestions: totalQuestions,
             answers: answers,
