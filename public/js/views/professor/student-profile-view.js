@@ -1,9 +1,7 @@
-// === CELÝ OBSAH SÚBORU public/js/views/professor/student-profile-view.js ===
-
 // ===== OPRAVENÉ IMPORTY =====
 import { getDoc, doc, collection, query, where, getDocs, orderBy, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import * as firebaseInit from '../../firebase-init.js';
+import * as firebaseInit from '../../firebase-init.js'; // Použijeme importovaný firebaseInit
 import { showToast } from "../../utils.js";
 // ==========================
 
@@ -25,16 +23,13 @@ function getAiStudentSummaryCallable() {
 }
 // === KONIEC PRIDANÉHO KÓDU ===
 
-// ===== OPRAVA PARAMETROV FUNKCIE =====
+// ===== OPRAVA: Definícia funkcie teraz berie (container, studentId, backCallback) =====
 export async function renderStudentProfile(container, studentId, backCallback) {
-// ===================================
     container.innerHTML = `<div class="p-8"><div class="text-center">Načítání dat studenta...</div></div>`;
 
     try {
-        // 1. Fetch Data - Len dáta študenta, ostatné sa načítajú v taboch
-        // ===== OPRAVA: Používame firebaseInit.db =====
+        // 1. Fetch Data - Používame importovaný firebaseInit.db
         const studentDocRef = doc(firebaseInit.db, 'students', studentId);
-        // ==========================================
         const studentDoc = await getDoc(studentDocRef);
 
         if (!studentDoc.exists()) {
@@ -47,13 +42,14 @@ export async function renderStudentProfile(container, studentId, backCallback) {
         renderUIShell(container, currentStudent, backCallback);
 
         // 3. Initial render - Zobraziť prehľad ako prvý
-        await switchTab('overview'); // Zmenené na async
+        await switchTab('overview');
 
     } catch (error) {
         console.error("Error rendering student profile shell:", error);
         container.innerHTML = `<div class="p-8 text-red-500">Došlo k chybě při načítání profilu studenta.</div>`;
     }
 }
+// =================================================================================
 
 function renderUIShell(container, studentData, backCallback) {
     container.innerHTML = `
@@ -91,7 +87,7 @@ function renderUIShell(container, studentData, backCallback) {
     container.querySelector('#back-to-list-btn').addEventListener('click', backCallback);
 }
 
-async function switchTab(tabId) { // Zmenené na async
+async function switchTab(tabId) {
     if (!currentStudent) return; // Kontrola, či máme dáta študenta
 
     const tabContent = document.getElementById('tab-content');
@@ -110,13 +106,12 @@ async function switchTab(tabId) { // Zmenené na async
 
     // Zobraziť správny obsah
     if (tabId === 'overview') {
-        await renderOverviewContent(tabContent, currentStudent); // Zmenené na async
+        await renderOverviewContent(tabContent, currentStudent);
     } else if (tabId === 'results') {
-        await renderResultsContent(tabContent, currentStudent); // Zmenené na async
+        await renderResultsContent(tabContent, currentStudent);
     }
 }
 
-// === UPRAVENÁ FUNKCIA renderOverviewContent (predtým renderOverview) ===
 async function renderOverviewContent(container, student) {
     container.innerHTML = `
         <div class="bg-white p-6 rounded-lg shadow">
@@ -135,7 +130,10 @@ async function renderOverviewContent(container, student) {
 
     try {
         const getSummary = getAiStudentSummaryCallable();
+        
+        // ===== OPRAVA: Tu je kľúčová oprava. Musíme poslať { studentId: student.id } =====
         const result = await getSummary({ studentId: student.id });
+        // ============================================================================
 
         if (!document.getElementById('ai-summary-container')) return; // Check if still on the same tab
 
@@ -163,12 +161,11 @@ async function renderOverviewContent(container, student) {
         showToast("Nepodařilo se vygenerovat AI analýzu.", true);
     }
 }
-// === KONIEC UPRAVENEJ FUNKCIE ===
 
 // Funkcia na načítanie a zobrazenie výsledkov
 async function renderResultsContent(container, student) {
     try {
-        // Načítame dáta priamo tu
+        // ===== OPRAVA: Používame importovaný firebaseInit.db =====
         const quizQuery = query(
             collection(firebaseInit.db, "quiz_submissions"),
             where("studentId", "==", student.id),
@@ -179,6 +176,7 @@ async function renderResultsContent(container, student) {
             where("studentId", "==", student.id),
             orderBy('submittedAt', 'desc')
         );
+        // ======================================================
 
         const [quizSnapshot, testSnapshot] = await Promise.all([
             getDocs(quizQuery),
@@ -215,7 +213,6 @@ async function renderResultsContent(container, student) {
     }
 }
 
-// Zostáva rovnaká
 function renderSubmissionsTable(submissions) {
     if (submissions.length === 0) {
         return '<p class="text-gray-500">Tento student zatím neodevzdal žádné testy ani kvízy.</p>';
@@ -259,18 +256,7 @@ function renderSubmissionsTable(submissions) {
     `;
 }
 
-// Cleanup funkcia pre unsubscribe - už nie je potrebná v tomto súbore,
-// lebo onSnapshot sa nepoužíva globálne pre profil.
 export function cleanupStudentProfileView() {
-    // Ak by ste v budúcnosti pridali onSnapshot, odkomentujte:
-    // if (studentDataUnsubscribe) {
-    //     studentDataUnsubscribe();
-    //     studentDataUnsubscribe = null;
-    // }
-    // if (submissionsUnsubscribe) {
-    //     submissionsUnsubscribe();
-    //     submissionsUnsubscribe = null;
-    // }
     currentStudent = null; // Resetovať dáta pri odchode z pohľadu
     console.log("Cleaned up student profile view data.");
 }
