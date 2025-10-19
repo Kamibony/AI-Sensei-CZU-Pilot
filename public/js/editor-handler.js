@@ -5,8 +5,8 @@ import { doc, addDoc, updateDoc, collection, serverTimestamp, deleteField } from
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from './firebase-init.js'; // Používame firebaseInit pre db, storage, functions
 import { showToast } from './utils.js';
-// Importy pre RAG z upload-handler.js
-import { renderSelectedFiles, clearSelectedFiles, getSelectedFiles } from './upload-handler.js';
+// ===== ZMENA 1: Pridaný import 'renderMediaLibraryFiles' =====
+import { renderSelectedFiles, clearSelectedFiles, getSelectedFiles, renderMediaLibraryFiles } from './upload-handler.js';
 
 let currentLesson = null; // Aktuálne editovaná lekcia
 let generateContentCallable = null; // Lazy loaded AI funkcia
@@ -82,6 +82,7 @@ export function renderEditorMenu(container, lesson) {
     lastGeneratedData = null; // Reset
     
     // ===== OPRAVA 1: Volanie bez nesprávneho argumentu =====
+    // (Túto opravu si tam už mal, ponechávam)
     clearSelectedFiles(); // Vyčistíme RAG výber
     // =======================================================
 
@@ -338,6 +339,7 @@ export async function showEditorContent(viewId) {
           attachEditorEventListeners(viewId);
           
           // ===== OPRAVA 2: Volanie iba pre relevantné pohľady a bez argumentu =====
+          // (Túto opravu si tam už mal, ponechávam)
           // Aktualizujeme RAG zoznam, iba ak sme v pohľade, ktorý ho reálne používa
           if (viewId !== 'details' && viewId !== 'video') {
                renderSelectedFiles(); 
@@ -346,10 +348,67 @@ export async function showEditorContent(viewId) {
 
           const ragSelectBtn = document.getElementById('select-files-btn-rag');
           if (ragSelectBtn) {
+               // ===== ZMENA 2: Nahradenie 'showToast' plnou logikou modálu =====
                ragSelectBtn.addEventListener('click', () => {
-                   // TODO: Otvoriť modal na výber súborov z knižnice
-                   showToast("Funkce výběru souborů pro RAG zatím není implementována.");
+                   // --- Logika pre otvorenie modálu ---
+                   const modal = document.getElementById('media-library-modal');
+                   const modalContent = document.getElementById('modal-library-content');
+                   const modalConfirm = document.getElementById('modal-confirm-btn');
+                   const modalCancel = document.getElementById('modal-cancel-btn');
+                   const modalClose = document.getElementById('modal-close-btn');
+
+                   // 1. Nájdeme kontajner knižnice (ktorý je pravdepodobne v inom tabe)
+                   // Toto ID '#course-media-library-container' musí existovať niekde inde (asi v professor.js)
+                   const libraryContainer = document.getElementById('course-media-library-container'); 
+                    
+                   if (!modal || !modalContent || !libraryContainer) {
+                       console.error("Chybějící elementy pro modální okno knihovny (#media-library-modal, #modal-library-content alebo #course-media-library-container)");
+                       showToast("Chyba: Nepodařilo se načíst komponentu knihovny.", true);
+                       return;
+                   }
+                    
+                   // 2. Zapamätáme si pôvodného rodiča, aby sme knižnicu mohli vrátiť
+                   const originalParent = libraryContainer.parentElement;
+                   let isLibraryInModal = false;
+
+                   const moveLibraryToModal = () => {
+                       // 3. Načítame čerstvé dáta do knižnice (znovu vykreslíme súbory)
+                       renderMediaLibraryFiles(); // Funkcia z upload-handler.js
+                       // 4. Presunieme ju do modálu
+                       modalContent.innerHTML = ''; // Vyčistíme "Načítání..."
+                       modalContent.appendChild(libraryContainer);
+                       isLibraryInModal = true;
+                       modal.classList.remove('hidden');
+                   };
+
+                   const moveLibraryBack = () => {
+                       if (isLibraryInModal && originalParent) {
+                           // 5. Vrátime ju pôvodnému rodičovi
+                           originalParent.appendChild(libraryContainer);
+                       }
+                       isLibraryInModal = false;
+                       modal.classList.add('hidden');
+                        
+                       // Odstránime listenery ich klonovaním, aby sa nespúšťali viackrát
+                       modalConfirm.replaceWith(modalConfirm.cloneNode(true));
+                       modalCancel.replaceWith(modalCancel.cloneNode(true));
+                       modalClose.replaceWith(modalClose.cloneNode(true));
+                   };
+
+                   // 6. Priradíme listenery (použijeme .onclick namiesto addEventListener pre jednoduché prepísanie)
+                   modalConfirm.onclick = () => {
+                       renderSelectedFiles(); // Aktualizujeme zoznam v RAG UI
+                       moveLibraryBack();
+                   };
+                    
+                   modalCancel.onclick = moveLibraryBack;
+                   modalClose.onclick = moveLibraryBack;
+
+                   // 7. Otvoríme modal
+                   moveLibraryToModal();
+                   // --- Koniec logiky pre modal ---
                });
+               // ===== KONIEC ZMENY 2 =====
           }
           // Prezentácia - nastavíme style selector, ak existuje uložená hodnota
           if (viewId === 'presentation' && currentLesson?.presentation?.styleId) {
