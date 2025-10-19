@@ -211,13 +211,14 @@ export async function showEditorContent(viewId) {
              } else {
                 contentHTML = renderWrapper('AI Prezentace', `
                     <p class="text-slate-500 mb-4">Zadejte téma a počet slidů. Můžete vybrat dokumenty (RAG).</p>
+                    
                     ${createDocumentSelectorUI()}
+
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div class="md:col-span-2"><label class="block font-medium text-slate-600">Téma prezentace</label><input id="prompt-input" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" placeholder="Např. Klíčové momenty Římské republiky"></div>
                         <div><label class="block font-medium text-slate-600">Počet slidů</label><input id="slide-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="5"></div>
                     </div>
                     
-                    {/* ===== KĽÚČOVÁ ČASŤ: Výber štýlu ===== */}
                     <div class="mb-4">
                         <label for="presentation-style-selector" class="block text-sm font-medium text-gray-700 mb-1">Styl prezentace:</label>
                         <select id="presentation-style-selector" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
@@ -226,8 +227,7 @@ export async function showEditorContent(viewId) {
                             <option value="vibrant">Živý (Oranžová)</option>
                         </select>
                     </div>
-                    {/* ================================== */}
-
+                    
                     <div class="text-right mt-4">
                          <button id="generate-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ml-auto ai-glow">✨<span class="ml-2">Generovat prezentaci</span></button>
                     </div>
@@ -341,14 +341,11 @@ export async function showEditorContent(viewId) {
                    showToast("Funkce výběru souborů pro RAG zatím není implementována.");
                });
           }
-          
-          // ===== KĽÚČOVÁ ČASŤ: Nastavenie hodnoty selectora pri načítaní =====
+          // Prezentácia - nastavíme style selector, ak existuje uložená hodnota
           if (viewId === 'presentation' && currentLesson?.presentation?.styleId) {
              const selector = document.getElementById('presentation-style-selector');
              if (selector) selector.value = currentLesson.presentation.styleId;
           }
-          // ================================================================
-
            // Aplikujeme transition
            requestAnimationFrame(() => container.classList.remove('opacity-0'));
      }, 50); 
@@ -599,7 +596,6 @@ function renderGeneratedContent(viewId, data) { // Názov premennej zmenený na 
                 // Použijeme <pre> pre zachovanie formátovania, ale s 'whitespace-pre-wrap' pre zalomenie
                 return `<pre class="whitespace-pre-wrap font-sans text-sm">${textContent}</pre>`; 
             case 'presentation':
-                 // ===== KĽÚČOVÁ ČASŤ: Zobrazenie štýlu =====
                  // Data by mali byť objekt { styleId: '...', slides: [...] }
                  // alebo objekt { slides: [...] } priamo z generátora
                  const slides = data?.slides || [];
@@ -612,7 +608,6 @@ function renderGeneratedContent(viewId, data) { // Názov premennej zmenený na 
                      const selector = document.getElementById('presentation-style-selector');
                      styleId = selector ? selector.value : 'default'; // Z aktuálneho <select> pre náhľad
                  }
-                 // =============================================
 
                  if (!Array.isArray(slides)) throw new Error("Data neobsahují platné pole 'slides'.");
                  return slides.map((slide, i) => `
@@ -676,11 +671,10 @@ async function handleSaveGeneratedContent(fieldToUpdate, contentToSave) {
     try {
         let dataToSave;
         
-        // ===== KĽÚČOVÁ ČASŤ: Uloženie objektu pre prezentáciu =====
+        // Špeciálne ošetrenie pre prezentáciu - pridáme/aktualizujeme styleId
         if (fieldToUpdate === 'presentation') {
              const styleSelector = document.getElementById('presentation-style-selector');
              const selectedStyleId = styleSelector ? styleSelector.value : 'default';
-             
              // Uistíme sa, že contentToSave (lastGeneratedData) je objekt a má pole slides
              if (typeof contentToSave === 'object' && Array.isArray(contentToSave.slides)) {
                   dataToSave = { 
@@ -698,8 +692,6 @@ async function handleSaveGeneratedContent(fieldToUpdate, contentToSave) {
                   return; // Zastavíme ukladanie
              }
         } 
-        // =========================================================
-
         // Pre text berieme len pole 'text', ak prišlo v objekte
         else if (fieldToUpdate === 'text_content' && typeof contentToSave === 'object' && contentToSave.text) {
              dataToSave = contentToSave.text;
@@ -717,24 +709,31 @@ async function handleSaveGeneratedContent(fieldToUpdate, contentToSave) {
         const updateData = { updatedAt: serverTimestamp() };
         updateData[fieldToUpdate] = dataToSave;
         
-        // Tento blok kódu zaisťuje, že pri uložení JEDNÉHO typu obsahu sa
-        // OSTATNÉ typy obsahu (text, video, kvíz...) v databáze zmažú.
-        // Ak to nie je požadované správanie, tento blok treba odstrániť.
-        // const allContentFields = ['text_content', 'presentation', 'quiz', 'test', 'podcast_script', 'videoUrl'];
-        // allContentFields.forEach(field => {
-        //      if (field !== fieldToUpdate && field !== 'videoUrl') { // Nechceme mazať video len preto, že ukladáme text
-        //           updateData[field] = deleteField(); // Označí ostatné polia na zmazanie
-        //      }
-        //  });
-        // Poznámka: Kód vyššie bol upravený (zakomentovaný), pretože pôvodná logika mazala VŠETKO ostatné.
-        // Ak chcete, aby sa pri uložení prezentácie zmazal napr. starý text, musíte túto logiku upraviť.
-        // Pre video to bolo riešené samostatne.
+        // Poznámka: Pôvodná logika tu mazala VŠETKY ostatné polia. 
+        // Ak chceš, aby uloženie prezentácie zmazalo text, musíš to explicitne
+        // odkomentovať alebo upraviť. Momentálne to ukladá len toto jedno pole
+        // a ostatné necháva tak.
+
+        /*
+        const allContentFields = ['text_content', 'presentation', 'quiz', 'test', 'podcast_script', 'videoUrl'];
+        allContentFields.forEach(field => {
+             if (field !== fieldToUpdate) {
+                  updateData[field] = deleteField(); // Označí ostatné polia na zmazanie
+             }
+         });
+        */
 
         await updateDoc(lessonRef, updateData);
 
         // Aktualizujeme lokálny currentLesson
         if (currentLesson) {
              currentLesson[fieldToUpdate] = dataToSave;
+             // Ak si odkomentoval logiku mazania vyššie, odkomentuj aj toto:
+             /*
+             allContentFields.forEach(field => {
+                  if (field !== fieldToUpdate) delete currentLesson[field];
+             });
+             */
              currentLesson.updatedAt = new Date(); // Približný čas
         }
         
