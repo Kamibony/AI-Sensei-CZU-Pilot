@@ -80,7 +80,10 @@ function handleDownloadLessonContent() {
 export function renderEditorMenu(container, lesson) {
     currentLesson = lesson;
     lastGeneratedData = null; // Reset
-    clearSelectedFiles('selected-files-list-rag'); // Vyčistíme RAG výber
+    
+    // ===== OPRAVA 1: Volanie bez nesprávneho argumentu =====
+    clearSelectedFiles(); // Vyčistíme RAG výber
+    // =======================================================
 
     container.innerHTML = `
         <header class="p-4 border-b border-slate-200 flex-shrink-0">
@@ -333,7 +336,14 @@ export async function showEditorContent(viewId) {
     // Počkáme krátko a pridáme listenery + RAG + transition
      setTimeout(() => {
           attachEditorEventListeners(viewId);
-          renderSelectedFiles('selected-files-list-rag'); // Aktualizujeme RAG zoznam
+          
+          // ===== OPRAVA 2: Volanie iba pre relevantné pohľady a bez argumentu =====
+          // Aktualizujeme RAG zoznam, iba ak sme v pohľade, ktorý ho reálne používa
+          if (viewId !== 'details' && viewId !== 'video') {
+               renderSelectedFiles(); 
+          }
+          // ======================================================================
+
           const ragSelectBtn = document.getElementById('select-files-btn-rag');
           if (ragSelectBtn) {
                ragSelectBtn.addEventListener('click', () => {
