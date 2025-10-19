@@ -260,6 +260,3 @@ export function clearSelectedFiles() {
     console.log("Cleared selected files for generation."); // Pridané logovanie pre kontrolu
 }
 // ==========================
-
-// CHYBA BOLA TU: Táto prebytočná zátvorka bola odstránená
-// }
