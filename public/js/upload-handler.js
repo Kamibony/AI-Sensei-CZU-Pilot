@@ -140,7 +140,10 @@ function handleFileUpload(files, courseId, mediaListElement) {
 // Render the list of files already in Storage
 export async function renderMediaLibraryFiles(courseId = "main-course") {
     const mediaListElement = document.getElementById('course-media-list');
-    if (!mediaListElement) return;
+    if (!mediaListElement) {
+        console.warn("Element '#course-media-list' not found. Cannot render media library files."); // Pridaný warn pre istotu
+        return;
+    }
 
     mediaListElement.innerHTML = '<li class="text-sm text-gray-500">Načítám soubory...</li>'; // Loading indicator
 
@@ -188,7 +191,7 @@ export async function renderMediaLibraryFiles(courseId = "main-course") {
                  } else {
                      selectedFilesForGeneration = selectedFilesForGeneration.filter(f => f.fullPath !== filePath);
                  }
-                 renderSelectedFiles(); // Update the list in editor-handler
+                 renderSelectedFiles(); // Update the list in editor-handler (RAG list)
              });
 
         });
@@ -210,7 +213,7 @@ async function handleDeleteFile(fileRef, listItemElement) {
         listItemElement.remove(); // Remove from UI
         // Remove from selection if it was selected
         selectedFilesForGeneration = selectedFilesForGeneration.filter(f => f.fullPath !== fileRef.fullPath);
-        renderSelectedFiles();
+        renderSelectedFiles(); // Update RAG list if needed
         showToast(`Soubor "${fileRef.name}" byl smazán.`);
     } catch (error) {
         console.error("Error deleting file:", error);
@@ -219,44 +222,45 @@ async function handleDeleteFile(fileRef, listItemElement) {
 }
 
 
-// --- Functions for managing file selection for generation ---
+// --- Functions for managing file selection for generation (RAG) ---
 
-// Called by editor-handler to display selected files
+// Called by editor-handler to display selected files in the RAG UI
 export function renderSelectedFiles() {
-    // Upravené: Cieľový element sa môže líšiť (editor vs. knižnica)
-    const listElement = document.getElementById('selected-files-list-rag'); // ID z createDocumentSelectorUI
+    const listElement = document.getElementById('selected-files-list-rag'); // ID z createDocumentSelectorUI in editor-handler.js
+    
+    // Check if the RAG list element exists before trying to manipulate it
     if (!listElement) {
-         console.warn("Element 'selected-files-list-rag' not found. Cannot render selected files.");
-         return;
+         // This is expected when not in a view with the RAG selector
+         // console.warn("Element 'selected-files-list-rag' not found. Cannot render selected files."); 
+         return; 
     }
 
     if (selectedFilesForGeneration.length === 0) {
         listElement.innerHTML = '<li>Žádné soubory nevybrány.</li>';
-        // Štýlovanie pre prázdny zoznam (prípadne odstrániť list-disc)
     } else {
         listElement.innerHTML = selectedFilesForGeneration.map(file => `<li>${file.name}</li>`).join('');
-        // Štýlovanie pre plný zoznam
     }
 }
 
-// Called by editor-handler to get the list of selected file paths
+// Called by editor-handler to get the list of selected file paths for generation
 export function getSelectedFiles() {
     return selectedFilesForGeneration;
 }
 
-// Called by editor-handler when opening the editor for a new/different lesson
-// ===== PRIDANÝ `export` =====
+// Called by editor-handler when opening the editor for a new/different lesson, to clear RAG selection
 export function clearSelectedFiles() {
-    selectedFilesForGeneration = []; // Resetujeme pole
+    selectedFilesForGeneration = []; // Reset the array
     
-    // Upravené: Prekreslíme zoznam v editore (ak existuje)
+    // Attempt to update the RAG list in the editor UI (if it exists)
     const listElement = document.getElementById('selected-files-list-rag');
     if (listElement) {
-        renderSelectedFiles(); // Prekreslíme zoznam (ktorý bude prázdny)
+        renderSelectedFiles(); // Re-render the RAG list (which will now be empty)
     }
     
-    // Tiež odznačíme checkboxy v knižnici médií, ak je zobrazená
-    document.querySelectorAll('.file-select-checkbox:checked').forEach(cb => cb.checked = false);
-    console.log("Cleared selected files for generation."); // Pridané logovanie pre kontrolu
+    // Also uncheck checkboxes in the media library UI (if it's currently displayed)
+    document.querySelectorAll('#course-media-list .file-select-checkbox:checked').forEach(cb => cb.checked = false);
+    
+    console.log("Cleared selected files for generation."); 
 }
-// ==========================
+
+// ===== ODSTRÁNENÁ ZÁTVORKA NAVYŠE ODTIAĽTO =====
