@@ -1,9 +1,12 @@
-import { collection, getDocs, doc, query, where, updateDoc, orderBy, onSnapshot, addDoc, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, query, where, updateDoc, orderBy, onSnapshot, addDoc, serverTimestamp, setDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; // Pridaný Timestamp
 import { showToast } from './utils.js';
 import * as firebaseInit from './firebase-init.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { handleLogout } from './auth.js';
 import { getAiAssistantResponse } from './gemini-api.js';
+// ===== NOVÝ IMPORT pre prezentáciu =====
+import { renderPresentation } from './student/presentation-handler.js';
+// =====================================
 
 let studentDataUnsubscribe = null;
 let lessonsData = [];
@@ -22,7 +25,7 @@ let currentPlayingEpisodeIndex = -1;
 
 function getSendMessageFromStudentCallable() {
     if (!_sendMessageFromStudentCallable) {
-        console.log("Lazy initializing sendMessageFromStudent callable. Current functions object:", firebaseInit.functions);
+        // console.log("Lazy initializing sendMessageFromStudent callable. Current functions object:", firebaseInit.functions); // Odstránené logovanie
         if (!firebaseInit.functions) {
             console.error("CRITICAL: Firebase Functions object is still not available when trying to create sendMessageFromStudent callable!");
             throw new Error("Firebase Functions not initialized.");
@@ -34,7 +37,7 @@ function getSendMessageFromStudentCallable() {
 
 function getSubmitQuizResultsCallable() {
     if (!_submitQuizResultsCallable) {
-        console.log("Lazy initializing submitQuizResults callable. Current functions object:", firebaseInit.functions);
+        // console.log("Lazy initializing submitQuizResults callable. Current functions object:", firebaseInit.functions); // Odstránené logovanie
         if (!firebaseInit.functions) {
             console.error("CRITICAL: Firebase Functions object is still not available when trying to create submitQuizResults callable!");
             throw new Error("Firebase Functions not initialized.");
@@ -46,7 +49,7 @@ function getSubmitQuizResultsCallable() {
 
 function getSubmitTestResultsCallable() {
     if (!_submitTestResultsCallable) {
-        console.log("Lazy initializing submitTestResults callable. Current functions object:", firebaseInit.functions);
+        // console.log("Lazy initializing submitTestResults callable. Current functions object:", firebaseInit.functions); // Odstránené logovanie
         if (!firebaseInit.functions) {
             console.error("CRITICAL: Firebase Functions object is still not available when trying to create submitTestResults callable!");
             throw new Error("Firebase Functions not initialized.");
@@ -75,7 +78,10 @@ export function initStudentDashboard() {
             if (!currentUserData.name || currentUserData.name.trim() === '') {
                 promptForStudentName(user.uid);
             } else {
-                await renderStudentPanel();
+                // Skontrolujeme, či už panel existuje, aby sme ho zbytočne neprekresľovali pri každej zmene mena
+                if (!document.getElementById('student-main-content')) {
+                    await renderStudentPanel();
+                }
             }
         } else {
             console.warn(`Profil pre študenta s UID ${user.uid} nebol nájdený. Vytváram nový...`);
@@ -89,7 +95,7 @@ export function initStudentDashboard() {
                 });
                 console.log(`Profil pre študenta ${user.uid} bol úspešne vytvorený.`);
                 // Po vytvorení profilu hneď zobrazíme výzvu na zadanie mena
-                // promptForStudentName(user.uid); // Toto spôsobí nekonečnú slučku, ak onSnapshot zareaguje ihneď
+                promptForStudentName(user.uid);
             } catch (error) {
                 console.error("Nepodarilo sa automaticky vytvoriť profil študenta:", error);
                 const appContainer = document.getElementById('app-container');
@@ -235,10 +241,6 @@ function showLessonDetail(lessonId) {
     }
     currentSpeechUtterance = null;
     currentPlayingEpisodeIndex = -1;
-
-    // Načítanie histórie chatu (ak je to potrebné)
-    // loadChatHistory('professor'); // Tieto sa načítajú až pri kliknutí na tab
-    // loadChatHistory('ai');
 }
 
 function renderLessonTabs() {
@@ -307,32 +309,19 @@ function switchTab(tabId) {
                  contentArea.innerHTML = `<p class="text-red-500">Neplatný nebo chybějící YouTube odkaz.</p>`;
             }
             break;
+        // ===== ÚPRAVA PRE PREZENTÁCIU =====
         case 'presentation':
-             if(currentLessonData.presentation && currentLessonData.presentation.slides) {
-                contentArea.innerHTML = currentLessonData.presentation.slides.map((slide, i) => `
-                    <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm bg-white">
-                        <h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title || 'Bez názvu'}</h4>
-                        <ul class="list-disc list-inside mt-2 text-sm text-slate-600">
-                            ${(slide.points || []).map(p => `<li>${p}</li>`).join('')}
-                        </ul>
-                    </div>`).join('');
-             } else {
-                contentArea.innerHTML = `<p>Obsah prezentace není k dispozici nebo není ve správném formátu.</p>`;
-             }
+             renderPresentation(contentArea, currentLessonData.presentation);
              break;
+        // ===================================
         case 'quiz':
             renderQuiz();
             break;
         case 'test':
             renderTest();
             break;
-        // ==============================================================
-        // ============ ZAČIATOK ÚPRAVY PRE SPEECH SYNTHESIS ============
-        // ==============================================================
         case 'podcast':
             if (currentLessonData.podcast_script && currentLessonData.podcast_script.episodes && Array.isArray(currentLessonData.podcast_script.episodes)) {
-                
-                // Kontrola podpory Speech Synthesis API
                 if (!('speechSynthesis' in window)) {
                      contentArea.innerHTML = `<p class="text-red-500">Váš prohlížeč nepodporuje přehrávání podcastů pomocí Speech Synthesis.</p>`;
                      break;
@@ -344,11 +333,9 @@ function switchTab(tabId) {
                     const pauseButtonId = `pause-podcast-btn-${i}`;
                     const stopButtonId = `stop-podcast-btn-${i}`;
                     
-                    // Celkové HTML pre epizódu
                     return `
                         <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm bg-white" id="${episodeId}">
                             <h4 class="font-bold text-green-700">${i + 1}. ${episode.title || 'Epizoda bez názvu'}</h4>
-                            
                             <div class="flex space-x-2 mt-3 mb-2 podcast-controls" data-episode-index="${i}">
                                 <button id="${playButtonId}" data-index="${i}" class="play-podcast-btn text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-3 rounded-md flex items-center">
                                     <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
@@ -363,24 +350,17 @@ function switchTab(tabId) {
                                     Zastavit
                                 </button>
                             </div>
-
                             <details class="mt-3">
                                 <summary class="cursor-pointer text-sm text-slate-500 hover:text-slate-700">Zobrazit skript</summary>
                                 <p class="mt-2 text-sm text-slate-600">${(episode.script || '').replace(/\n/g, '<br>')}</p>
                             </details>
                         </div>`;
                 }).join('');
-
-                // Pridanie event listenerov na tlačidlá
                 setupPodcastListeners();
-
             } else {
                 contentArea.innerHTML = `<p>Obsah podcastu není k dispozici nebo není ve správném formátu.</p>`;
             }
             break;
-        // ============================================================
-        // ============ KONIEC ÚPRAVY PRE SPEECH SYNTHESIS ============
-        // ============================================================
         case 'ai-assistant':
             contentArea.innerHTML = renderAIChatView();
             document.getElementById('ai-chat-menu').querySelectorAll('button').forEach(button => {
@@ -395,7 +375,7 @@ function switchTab(tabId) {
             if (profSendBtn) {
                  profSendBtn.addEventListener('click', () => sendMessage('professor'));
             }
-            if(profInput && profSendBtn) { // Kontrola pre istotu
+            if(profInput && profSendBtn) { 
                 profInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') profSendBtn.click();
                 });
@@ -405,9 +385,7 @@ function switchTab(tabId) {
     }
 }
 
-// ==============================================================
-// ============ NOVÉ FUNKCIE PRE SPEECH SYNTHESIS =============
-// ==============================================================
+// Funkcie pre podcast zostávajú nezmenené (alebo s opravou z predchádzajúcej správy)
 function setupPodcastListeners() {
     document.querySelectorAll('.play-podcast-btn').forEach(button => {
         button.addEventListener('click', handlePlayPodcast);
@@ -445,39 +423,67 @@ function handlePlayPodcast(event) {
         currentSpeechUtterance.lang = 'cs-CZ'; // Nastavenie jazyka
         currentPlayingEpisodeIndex = index;
 
-        // Event listenery pre utterance
+        // Event listener pre koniec (prirodzený alebo cancel())
         currentSpeechUtterance.onend = () => {
-             console.log('Speech finished.');
+             console.log('Speech finished or cancelled.');
              resetPodcastButtons(); // Resetovať všetky tlačidlá
              currentPlayingEpisodeIndex = -1;
              currentSpeechUtterance = null;
         };
+
+        // ===== UPRAVENÝ Event listener pre chybu (ignoruje 'cancel') =====
         currentSpeechUtterance.onerror = (event) => {
-            console.error('SpeechSynthesisUtterance.onerror', event);
-            showToast(`Chyba při přehrávání: ${event.error}`, true);
-            resetPodcastButtons();
-            currentPlayingEpisodeIndex = -1;
-            currentSpeechUtterance = null;
+            // Ignorujeme chyby spôsobené úmyselným zastavením
+            if (event.error === 'canceled' || event.error === 'interrupted' || event.error === 'cancel') {
+                console.log(`Speech synthesis intentionally stopped: ${event.error}`);
+                // Nerobíme nič - onend sa postará o reset
+            } else {
+                // Skutočná chyba pri prehrávaní
+                console.error('SpeechSynthesisUtterance.onerror', event);
+                showToast(`Chyba při přehrávání: ${event.error}`, true);
+                resetPodcastButtons(); // Resetujeme aj tu pre istotu
+                currentPlayingEpisodeIndex = -1;
+                currentSpeechUtterance = null;
+            }
         };
+        // ===== KONIEC ÚPRAVY =====
         
-        // Hľadanie českého hlasu (voliteľné, prehliadač si zvyčajne vyberie)
-        const voices = synth.getVoices();
-        const czechVoice = voices.find(voice => voice.lang === 'cs-CZ');
-        if (czechVoice) {
-            currentSpeechUtterance.voice = czechVoice;
-        } else {
-            console.warn("Český hlas nenalezen, použije se výchozí.");
-        }
+        // Hľadanie českého hlasu (voliteľné)
+        try { // getVoices() môže niekedy zlyhať pri prvom načítaní
+             const voices = synth.getVoices();
+             const czechVoice = voices.find(voice => voice.lang === 'cs-CZ');
+             if (czechVoice) {
+                 currentSpeechUtterance.voice = czechVoice;
+             } else {
+                 console.warn("Český hlas nenalezen, použije se výchozí.");
+             }
+         } catch (e) {
+             console.warn("Nepodařilo se získat seznam hlasů:", e);
+         }
 
         // Spustenie syntézy
-        synth.speak(currentSpeechUtterance);
-        updatePodcastButtons(index, true); // Zobraziť ako hrajúcu
+        // Niekedy je potrebné počkať na načítanie hlasov, pridáme malý timeout pre istotu
+        setTimeout(() => {
+            if (currentSpeechUtterance && window.speechSynthesis) { // Overíme, či medzitým nebol zrušený a API existuje
+                 try {
+                     synth.speak(currentSpeechUtterance);
+                     updatePodcastButtons(index, true); // Zobraziť ako hrajúcu
+                 } catch (e) {
+                      console.error("Error calling synth.speak:", e);
+                      showToast("Chyba při spuštění přehrávání.", true);
+                      resetPodcastButtons();
+                      currentPlayingEpisodeIndex = -1;
+                      currentSpeechUtterance = null;
+                 }
+            }
+        }, 100); // 100ms by malo stačiť
     }
 }
 
+
 function handlePausePodcast() {
     const synth = window.speechSynthesis;
-    if (synth.speaking && !synth.paused) {
+    if (synth && synth.speaking && !synth.paused) {
         synth.pause();
         updatePodcastButtons(currentPlayingEpisodeIndex, false); // Zobraziť ako pauznutú
     }
@@ -485,13 +491,12 @@ function handlePausePodcast() {
 
 function handleStopPodcast() {
     const synth = window.speechSynthesis;
-    if (synth.speaking) {
+    if (synth && synth.speaking) {
         synth.cancel(); // Toto spustí 'onend' listener
     }
     // Reset sa udeje v 'onend'
 }
 
-// Funkcia na aktualizáciu vzhľadu tlačidiel
 function updatePodcastButtons(index, isPlaying) {
     resetPodcastButtons(); // Najprv resetujeme všetky
 
@@ -510,7 +515,6 @@ function updatePodcastButtons(index, isPlaying) {
     }
 }
 
-// Funkcia na resetovanie všetkých tlačidiel do východzieho stavu
 function resetPodcastButtons() {
      document.querySelectorAll('.podcast-controls').forEach(controls => {
          const index = controls.dataset.episodeIndex;
@@ -524,12 +528,9 @@ function resetPodcastButtons() {
      });
 }
 
-// ==============================================================
-// ============ KONIEC NOVÝCH FUNKCIÍ PRE SYNTHESIS ===========
-// ==============================================================
-
 
 function renderAIChatView() {
+    // ... (kód zostáva nezmenený)
     return `
         <div class="bg-white p-0 rounded-2xl shadow-xl flex flex-col h-[60vh] lg:h-[70vh]">
             <div class="w-full h-full flex flex-col">
@@ -553,6 +554,7 @@ function renderAIChatView() {
 }
 
 function switchAIChatSubView(viewType) {
+    // ... (kód zostáva nezmenený)
     const contentContainer = document.getElementById('ai-chat-content');
     const menuButtons = document.getElementById('ai-chat-menu')?.querySelectorAll('button'); // Pridaná kontrola
 
@@ -586,6 +588,7 @@ function switchAIChatSubView(viewType) {
 }
 
 function renderAIChatWebInterface() {
+    // ... (kód zostáva nezmenený)
     return `
         <div id="ai-chat-history" class="flex-grow overflow-y-auto p-3 bg-[#EAEAEA]"></div>
         <div class="bg-white p-3 border-t flex-shrink-0">
@@ -600,6 +603,7 @@ function renderAIChatWebInterface() {
 }
 
 function renderAITelegramLink() {
+    // ... (kód zostáva nezmenený)
     const token = currentUserData?.telegramLinkToken || 'CHYBA: Kód nenalezen'; // Bezpečnejší prístup
     return `
         <div class="flex flex-col items-center justify-center p-8 text-center flex-grow">
@@ -616,7 +620,8 @@ function renderAITelegramLink() {
 }
 
 function renderProfessorChatView() {
-    return `
+    // ... (kód zostáva nezmenený)
+     return `
         <div class="bg-white p-4 md:p-6 rounded-2xl shadow-lg flex flex-col h-[60vh] lg:h-[70vh]">
             <h3 class="text-2xl font-bold mb-4">Konzultace s profesorem</h3>
             <div id="prof-chat-history" class="overflow-y-auto border p-3 rounded-lg bg-slate-50 mb-4 flex-grow"></div> {/* Odstránená fixná výška */}
@@ -630,6 +635,7 @@ function renderProfessorChatView() {
 
 
 function renderQuiz() {
+    // ... (kód zostáva nezmenený)
     const quiz = currentLessonData?.quiz; // Bezpečnejší prístup
     if (!quiz || !quiz.questions || !Array.isArray(quiz.questions)) { // Pridaná kontrola Array.isArray
         document.getElementById('lesson-tab-content').innerHTML = `<p>Obsah kvízu není k dispozici nebo není ve správném formátu.</p>`;
@@ -697,6 +703,7 @@ function renderQuiz() {
 }
 
 function displayQuizResults(quiz, userAnswers) {
+    // ... (kód zostáva nezmenený)
     const contentArea = document.getElementById('lesson-tab-content');
     let score = 0;
     
@@ -764,6 +771,7 @@ function displayQuizResults(quiz, userAnswers) {
 
 
 function renderTest() {
+    // ... (kód zostáva nezmenený)
     const test = currentLessonData?.test;
     if (!test || !test.questions || !Array.isArray(test.questions) || test.questions.length === 0) {
         document.getElementById('lesson-tab-content').innerHTML = `<p>Obsah testu není k dispozici nebo není ve správném formátu.</p>`;
@@ -831,6 +839,7 @@ function renderTest() {
 
 
 function displayTestResults(test, userAnswers) {
+    // ... (kód zostáva nezmenený)
     const contentArea = document.getElementById('lesson-tab-content');
     let score = 0;
     
@@ -895,6 +904,7 @@ function displayTestResults(test, userAnswers) {
 
 
 async function loadChatHistory(type) { 
+    // ... (kód zostáva nezmenený)
     const chatHistoryElId = type === 'ai' ? 'ai-chat-history' : 'prof-chat-history';
     const chatHistoryEl = document.getElementById(chatHistoryElId);
     if (!chatHistoryEl) {
@@ -944,6 +954,7 @@ async function loadChatHistory(type) {
 }
 
 async function sendMessage(type) {
+    // ... (kód zostáva nezmenený)
     const inputEl = document.getElementById(type === 'ai' ? 'ai-chat-input' : 'prof-chat-input');
     if (!inputEl) return;
     const text = inputEl.value.trim();
@@ -965,8 +976,7 @@ async function sendMessage(type) {
          await addDoc(messageRef, messageData);
          console.log(`Student message saved to DB for type: ${type}`);
 
-         // Zobrazenie v UI už rieši onSnapshot, ale môžeme pridať dočasnú správu pre rýchlejšiu odozvu?
-         // appendChatMessage({ text: text, sender: 'student', timestamp: new Date() }, type); // Možnosť pre rýchlejšie zobrazenie
+         // Zobrazenie v UI už rieši onSnapshot
 
          // 2. Ak je pre AI, získame odpoveď
          if (type === 'ai') {
@@ -998,7 +1008,6 @@ async function sendMessage(type) {
                  });
                  console.log("AI response saved to DB.");
                  // Zobrazenie v UI opäť rieši onSnapshot
-                 // appendChatMessage({ text: aiResponseText, sender: 'ai', timestamp: new Date() }, 'ai');
 
             } catch (aiError) {
                 console.error("Error getting AI response:", aiError);
@@ -1017,7 +1026,6 @@ async function sendMessage(type) {
                       console.error("Error saving AI error response to DB:", dbError);
                  }
                  // Zobrazenie v UI opäť rieši onSnapshot
-                 // appendChatMessage({ text: errorText, sender: 'ai', timestamp: new Date() }, 'ai');
             }
 
         } else { // Ak je pre profesora
@@ -1042,6 +1050,7 @@ async function sendMessage(type) {
 
 
 function appendChatMessage(data, type, elementId = null) {
+    // ... (kód zostáva nezmenený)
     const chatHistoryElId = elementId || (type === 'ai' ? 'ai-chat-history' : 'prof-chat-history');
     const chatHistoryEl = document.getElementById(chatHistoryElId);
     if (!chatHistoryEl) return null; 
@@ -1079,9 +1088,15 @@ function appendChatMessage(data, type, elementId = null) {
     let timestampText = '';
     if (data.timestamp) {
          try {
-             const date = (data.timestamp instanceof Date) ? data.timestamp : data.timestamp.toDate();
+             // ===== OPRAVA: Bezpečnejšia kontrola Timestamp =====
+             const date = (data.timestamp && typeof data.timestamp.toDate === 'function') 
+                          ? data.timestamp.toDate() 
+                          : new Date(data.timestamp); // Fallback pre prípad, že to nie je Timestamp
+             // ===============================================
              timestampText = `<span class="block text-xs ${data.sender === 'student' ? (isAI ? 'text-gray-500' : 'text-blue-200') : 'text-gray-400'} mt-1 text-right">${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
-         } catch (e) { /* Ignorovať chybu pri konverzii dátumu */ }
+         } catch (e) { 
+             console.warn("Error formatting timestamp:", data.timestamp, e);
+         }
     }
     
     msgDiv.innerHTML = senderPrefix + (data.text || '').replace(/\n/g, '<br>') + timestampText;
@@ -1089,7 +1104,7 @@ function appendChatMessage(data, type, elementId = null) {
     
     // Scroll to bottom only if the element is currently visible near the bottom
     const isScrolledToBottom = chatHistoryEl.scrollHeight - chatHistoryEl.clientHeight <= chatHistoryEl.scrollTop + 50; // Tolerancia 50px
-    if (isScrolledToBottom) {
+    if (isScrolledToBottom || data.sender === 'student' || data.sender === 'ai-typing') { // Scroll vždy pre študenta a typing
         chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
     }
 
