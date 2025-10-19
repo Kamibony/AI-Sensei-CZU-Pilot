@@ -548,10 +548,157 @@ function displayQuizResults(quiz, userAnswers) {
     contentArea.insertAdjacentHTML('afterbegin', scoreHtml);
 }
 
+// ==================================================================
+// =================== ZAČIATOK ÚPRAVY PRE TEST =====================
+// ==================================================================
+
+// NAHRADENÁ PÔVODNÁ FUNKCIA renderTest
 function renderTest() {
+    const test = currentLessonData.test;
+    if (!test || !test.questions || test.questions.length === 0) {
+        document.getElementById('lesson-tab-content').innerHTML = `<p>Obsah testu není k dispozici nebo není ve správném formátu.</p>`;
+        return;
+    }
+
     const contentArea = document.getElementById('lesson-tab-content');
-    contentArea.innerHTML = `<p>Test pre túto lekciu bude dostupný čoskoro.</p>`;
+    // Používame titulok z testu, alebo fallback 'Test'
+    let html = `<h3 class="text-xl md:text-2xl font-bold mb-4">${test.title || 'Test'}</h3>
+                <p class="text-slate-600 mb-6">Odpovězte na všechny otázky. Výsledky testu se započítají do vašeho hodnocení.</p>`;
+
+    test.questions.forEach((q, index) => {
+        // Používame prefix "t-" pre name a "test-" pre ID, aby sme sa vyhli kolíziám s kvízom
+        html += `<div class="mb-6 p-4 border border-gray-200 rounded-lg bg-white shadow-sm" id="test-question-container-${index}">
+                    <p class="font-semibold mb-3 text-lg">${index + 1}. ${q.question_text}</p>`;
+        (q.options || []).forEach((option, optionIndex) => {
+            html += `<label class="block p-3 border border-gray-300 rounded-md mb-2 cursor-pointer hover:bg-slate-50 transition-colors" id="test-option-label-${index}-${optionIndex}">
+                        <input type="radio" name="t${index}" value="${option}" class="mr-3 transform scale-110 text-green-600">
+                        ${option}
+                     </label>`;
+        });
+        html += `<div id="test-feedback-${index}" class="mt-2 font-bold text-sm"></div>`; // Placeholder pre spätnú väzbu
+        html += `</div>`;
+    });
+    html += `<button id="submit-test" class="w-full bg-green-700 text-white font-bold py-3 px-4 rounded-lg text-lg hover:bg-green-800 transition-colors">Odevzdat test</button>`;
+    contentArea.innerHTML = html;
+
+    // Pridáme listener na nové tlačidlo #submit-test
+    document.getElementById('submit-test').addEventListener('click', async () => {
+        const userAnswers = [];
+        let allAnswered = true;
+
+        test.questions.forEach((q, index) => {
+            // Hľadáme odpoveď v skupine "t" (test)
+            const selected = document.querySelector(`input[name="t${index}"]:checked`);
+            const userAnswerText = selected ? selected.value : "Nezodpovězeno";
+            userAnswers.push({ question: q.question_text, answer: userAnswerText });
+            if (!selected) {
+                allAnswered = false;
+            }
+        });
+        
+        if (!allAnswered) {
+             showToast("Prosím, odpovězte na všechny otázky!", true);
+             return;
+        }
+
+        // 1. Zobrazíme výsledky (nová funkcia displayTestResults)
+        displayTestResults(test, userAnswers); 
+        
+        // 2. Vypočítame skóre
+        let finalScore = 0;
+        test.questions.forEach((q) => {
+            const userAnswer = userAnswers.find(ua => ua.question === q.question_text)?.answer;
+            // Dátová štruktúra je rovnaká ako pri kvíze
+            const correctOption = q.options[q.correct_option_index];
+            if (userAnswer === correctOption) {
+                finalScore++;
+            }
+        });
+
+        // 3. Odoslanie výsledkov na backend
+        try {
+            // Použijeme už existujúcu lazy-loaded funkciu pre testy
+            const submitCallable = getSubmitTestResultsCallable();
+            await submitCallable({ 
+                lessonId: currentLessonId, 
+                testTitle: test.title || 'Test', // Posielame titulok
+                score: finalScore / test.questions.length, // Posielame skóre ako percento
+                totalQuestions: test.questions.length,
+                answers: userAnswers // Posielame pole odpovedí
+            });
+            showToast("Test úspěšně odevzdán a vyhodnocen!");
+        } catch (error) {
+            showToast("Nepodařilo se odevzdat test do databáze.", true);
+            console.error("Error submitting test:", error);
+        }
+    });
 }
+
+// NOVÁ POMOCNÁ FUNKCIA (pridaná za displayQuizResults)
+// Je to kópia displayQuizResults, upravená pre IDčka testu
+function displayTestResults(test, userAnswers) {
+    const contentArea = document.getElementById('lesson-tab-content');
+    let score = 0;
+    
+    // Odstrániť tlačidlo odovzdania
+    document.getElementById('submit-test')?.remove();
+
+    test.questions.forEach((q, index) => {
+        const correctOptionIndex = q.correct_option_index;
+        const correctOption = q.options[correctOptionIndex];
+        const userAnswer = userAnswers.find(ua => ua.question === q.question_text)?.answer;
+        
+        const isCorrect = userAnswer === correctOption;
+        if (isCorrect) {
+            score++;
+        }
+        
+        // Používame IDčka špecifické pre test
+        const questionContainer = document.getElementById(`test-question-container-${index}`);
+        const feedbackEl = document.getElementById(`test-feedback-${index}`);
+        if (!questionContainer || !feedbackEl) return;
+
+        questionContainer.classList.remove('border-gray-200');
+        questionContainer.classList.add(isCorrect ? 'border-green-500' : 'border-red-500');
+        
+        const userFeedbackText = isCorrect 
+            ? `<span class="text-green-600">✅ Správně!</span>`
+            : `<span class="text-red-600">❌ Chyba. Správná odpověď: <strong>${correctOption}</strong></span>`;
+        
+        feedbackEl.innerHTML = userFeedbackText;
+
+        // Vypnúť a zvýrazniť odpovede
+        q.options.forEach((option, optionIndex) => {
+            const labelEl = document.getElementById(`test-option-label-${index}-${optionIndex}`);
+            const inputEl = labelEl ? labelEl.querySelector('input') : null;
+            if (!labelEl || !inputEl) return;
+            
+            inputEl.disabled = true;
+
+            if (optionIndex === correctOptionIndex) {
+                labelEl.classList.remove('border-gray-300', 'hover:bg-slate-50');
+                labelEl.classList.add('bg-green-100', 'border-green-500', 'font-semibold');
+            } else if (option === userAnswer && !isCorrect) {
+                labelEl.classList.remove('border-gray-300', 'hover:bg-slate-50');
+                labelEl.classList.add('bg-red-100', 'border-red-500', 'line-through');
+            }
+        });
+    });
+
+    // Zobraziť celkové skóre
+    const scoreHtml = `
+        <div class="text-center p-6 mb-6 rounded-xl bg-green-700 text-white shadow-lg">
+            <h3 class="text-xl md:text-2xl font-bold">Váš konečný výsledek testu</h3>
+            <p class="text-3xl md:text-4xl font-extrabold mt-2">${score} / ${test.questions.length}</p>
+        </div>
+    `;
+    contentArea.insertAdjacentHTML('afterbegin', scoreHtml);
+}
+
+// ==================================================================
+// ==================== KONIEC ÚPRAVY PRE TEST ======================
+// ==================================================================
+
 
 async function loadChatHistory(type) { 
     const chatHistoryEl = document.getElementById(type === 'ai' ? 'ai-chat-history' : 'prof-chat-history');
