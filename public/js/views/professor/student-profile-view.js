@@ -106,61 +106,125 @@ async function switchTab(tabId) {
 
     // Zobraziť správny obsah
     if (tabId === 'overview') {
-        await renderOverviewContent(tabContent, currentStudent);
+        // ===== ZMENA: Už nevoláme async, pretože dáta (currentStudent) už máme =====
+        renderOverviewContent(tabContent, currentStudent);
     } else if (tabId === 'results') {
         await renderResultsContent(tabContent, currentStudent);
     }
 }
 
-async function renderOverviewContent(container, student) {
+// ==================================================================
+// ============ ZAČIATOK ÚPRAVY PRE renderOverviewContent ===========
+// ==================================================================
+function renderOverviewContent(container, student) {
+    // Dátový model pre AI súhrn
+    const aiSummary = student.aiSummary || null;
+    let summaryHtml = '';
+
+    if (aiSummary && aiSummary.text) {
+        // Ak máme uložený súhrn, zobrazíme ho
+        const date = (aiSummary.generatedAt instanceof Timestamp)
+                      ? aiSummary.generatedAt.toDate().toLocaleString('cs-CZ')
+                      : (aiSummary.generatedAt ? new Date(aiSummary.generatedAt).toLocaleString('cs-CZ') : 'Neznámé datum');
+        
+        // Formátovanie textu
+        let formattedText = aiSummary.text
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/\n\* /g, '<br>• ')
+            .replace(/\n\d+\. /g, (match) => `<br>${match.trim()} `)
+            .replace(/\n/g, '<br>');
+
+        summaryHtml = `
+            <h3 class="text-lg font-semibold text-green-800 mb-3">AI Postřehy</h3>
+            <p class="text-xs text-slate-500 mb-3">Poslední generování: ${date}</p>
+            <div class="prose prose-sm max-w-none text-slate-800">${formattedText}</div>
+        `;
+    } else {
+        // Ak nemáme súhrn
+        summaryHtml = `
+            <h3 class="text-lg font-semibold text-slate-700 mb-3">AI Postřehy</h3>
+            <p class="text-slate-500">Pro tohoto studenta zatím nebyla vygenerována žádná AI analýza.</p>
+        `;
+    }
+
+    // Vykreslenie základného HTML
     container.innerHTML = `
         <div class="bg-white p-6 rounded-lg shadow">
             <h2 class="text-xl font-semibold mb-4">Přehled studenta</h2>
             <p><strong>Jméno:</strong> ${student.name}</p>
             <p><strong>Email:</strong> ${student.email}</p>
-            <div class="mt-6 border-t pt-6" id="ai-summary-container">
-                 <p class="text-slate-500 animate-pulse">Generuji AI analýzu...</p>
-                 <p class="text-xs text-slate-400 mt-2">Analyzuji poslední aktivitu, výsledky testů a konverzace...</p>
+            
+            <div class="mt-6 border-t pt-6" id="ai-summary-wrapper">
+                <div id="ai-summary-content">
+                    ${summaryHtml}
+                </div>
+                
+                <div id="ai-summary-loader" class="hidden text-center p-4">
+                    <p class="text-slate-500 animate-pulse">Generuji novou analýzu...</p>
+                    <p class="text-xs text-slate-400 mt-1">Analyzuji poslední aktivitu, výsledky testů a konverzace...</p>
+                </div>
+                
+                <button id="refresh-ai-summary-btn" class="mt-4 bg-green-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-800 transition-colors">
+                    Vynutit aktualizaci AI analýzy
+                </button>
             </div>
         </div>
     `;
 
-    const summaryContainer = document.getElementById('ai-summary-container');
-    if (!summaryContainer) return;
+    // Pridanie Event Listenera na nové tlačidlo
+    const refreshButton = document.getElementById('refresh-ai-summary-btn');
+    const loader = document.getElementById('ai-summary-loader');
+    const content = document.getElementById('ai-summary-content');
 
-    try {
-        const getSummary = getAiStudentSummaryCallable();
-        
-        // ===== OPRAVA: Tu je kľúčová oprava. Musíme poslať { studentId: student.id } =====
-        const result = await getSummary({ studentId: student.id });
-        // ============================================================================
+    if (refreshButton) {
+        refreshButton.addEventListener('click', async () => {
+            if (!confirm("Opravdu chcete vygenerovat novou AI analýzu? Tím se přepíše ta stávající a může to chvíli trvat.")) {
+                return;
+            }
 
-        if (!document.getElementById('ai-summary-container')) return; // Check if still on the same tab
+            // Zobraziť loader a skryť tlačidlo/obsah
+            loader.classList.remove('hidden');
+            content.classList.add('hidden');
+            refreshButton.disabled = true; // Zneaktívnime tlačidlo
+            refreshButton.textContent = "Generuji...";
 
-        // Formátovanie odpovede z AI (prevod markdown na HTML)
-        let formattedSummary = result.data.summary || "AI nevrátila žádný souhrn."; // Handle empty summary
-        formattedSummary = formattedSummary
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
-            .replace(/\*(.*?)\*/g, '<em>$1</em>')     // Italic
-            .replace(/\n\* /g, '<br>• ')              // Bullet points (*)
-            .replace(/\n\d+\. /g, (match) => `<br>${match.trim()} `) // Numbered lists (1., 2.)
-            .replace(/\n/g, '<br>');                  // Newlines
+            try {
+                const getSummary = getAiStudentSummaryCallable();
+                
+                // Zavoláme backend. Backend vráti nový text a zároveň ho uloží do DB.
+                const result = await getSummary({ studentId: student.id });
+                const newSummaryText = result.data.summary;
 
-        summaryContainer.innerHTML = `
-            <h3 class="text-lg font-semibold text-green-800 mb-3">AI Postřehy</h3>
-            <div class="prose prose-sm max-w-none text-slate-800">${formattedSummary}</div>
-        `;
-    } catch (error) {
-        console.error("Error fetching AI summary:", error);
-         if (!document.getElementById('ai-summary-container')) return; // Check again
-        summaryContainer.innerHTML = `
-            <h3 class="text-lg font-semibold text-red-600 mb-3">Chyba analýzy</h3>
-            <p class="text-red-500">Analýzu se nepodařilo vygenerovat.</p>
-            <p class="text-xs text-slate-400 mt-1">${error.message}</p>
-        `;
-        showToast("Nepodařilo se vygenerovat AI analýzu.", true);
+                // Aktualizujeme lokálny 'currentStudent' objekt pre konzistenciu
+                // Použijeme klientský čas ako dočasný placeholder, kým sa stránka nenačíta znova
+                currentStudent.aiSummary = {
+                    text: newSummaryText,
+                    generatedAt: new Date() 
+                };
+                
+                // Znovu vykreslíme obsah s novými dátami
+                // (currentStudent je už aktualizovaný)
+                renderOverviewContent(container, currentStudent);
+                
+                showToast("AI analýza byla úspěšně aktualizována.");
+
+            } catch (error) {
+                console.error("Error refreshing AI summary:", error);
+                showToast("Nepodařilo se aktualizovat AI analýzu.", true);
+                
+                // V prípade chyby obnovíme pôvodný stav
+                loader.classList.add('hidden');
+                content.classList.remove('hidden');
+                refreshButton.disabled = false;
+                refreshButton.textContent = "Vynutit aktualizaci AI analýzy";
+            }
+        });
     }
 }
+// ==================================================================
+// ============= KONIEC ÚPRAVY PRE renderOverviewContent ============
+// ==================================================================
 
 // Funkcia na načítanie a zobrazenie výsledkov
 async function renderResultsContent(container, student) {
@@ -186,15 +250,15 @@ async function renderResultsContent(container, student) {
         let allSubmissions = [];
         quizSnapshot.forEach(doc => {
             const data = doc.data();
-            allSubmissions.push({ type: 'Kvíz', lessonName: data.quizTitle || 'N/A', ...data }); // Pridaný lessonName
+            allSubmissions.push({ type: 'Kvíz', lessonName: data.quizTitle || 'N/A', ...data });
         });
         testSnapshot.forEach(doc => {
             const data = doc.data();
-            allSubmissions.push({ type: 'Test', lessonName: data.testTitle || 'N/A', ...data }); // Pridaný lessonName
+            allSubmissions.push({ type: 'Test', lessonName: data.testTitle || 'N/A', ...data });
         });
 
         // Sort by date, newest first
-        allSubmissions.sort((a, b) => (b.submittedAt?.toMillis() || 0) - (a.submittedAt?.toMillis() || 0)); // Bezpečnejšie zoradenie
+        allSubmissions.sort((a, b) => (b.submittedAt?.toMillis() || 0) - (a.submittedAt?.toMillis() || 0));
 
          if (!document.getElementById('tab-content')) return; // Check if still on the same tab
 
@@ -220,7 +284,6 @@ function renderSubmissionsTable(submissions) {
 
     const rows = submissions.map(sub => {
         const score = typeof sub.score === 'number' ? `${(sub.score * 100).toFixed(0)}%` : 'N/A';
-        // Skontrolujeme, či submittedAt existuje a je Timestamp
         const date = (sub.submittedAt instanceof Timestamp)
                       ? sub.submittedAt.toDate().toLocaleDateString('cs-CZ')
                       : 'Neznámé datum';
