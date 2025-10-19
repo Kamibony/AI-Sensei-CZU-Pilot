@@ -1,9 +1,11 @@
 // === CELÝ OBSAH SÚBORU public/js/views/professor/student-profile-view.js ===
 
-import { getDoc, doc, collection, query, where, getDocs, orderBy, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; // Pridaný Timestamp
+// ===== OPRAVENÉ IMPORTY =====
+import { getDoc, doc, collection, query, where, getDocs, orderBy, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from "../../utils.js";
+// ==========================
 
 let currentStudent = null; // Uchováme si dáta študenta pre prepínanie tabov
 
@@ -23,12 +25,16 @@ function getAiStudentSummaryCallable() {
 }
 // === KONIEC PRIDANÉHO KÓDU ===
 
-export async function renderStudentProfile(container, db, studentId, backCallback) {
+// ===== OPRAVA PARAMETROV FUNKCIE =====
+export async function renderStudentProfile(container, studentId, backCallback) {
+// ===================================
     container.innerHTML = `<div class="p-8"><div class="text-center">Načítání dat studenta...</div></div>`;
 
     try {
         // 1. Fetch Data - Len dáta študenta, ostatné sa načítajú v taboch
-        const studentDocRef = doc(db, 'students', studentId);
+        // ===== OPRAVA: Používame firebaseInit.db =====
+        const studentDocRef = doc(firebaseInit.db, 'students', studentId);
+        // ==========================================
         const studentDoc = await getDoc(studentDocRef);
 
         if (!studentDoc.exists()) {
@@ -67,7 +73,7 @@ function renderUIShell(container, studentData, backCallback) {
                     <button id="tab-overview" data-tab="overview" class="student-tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
                         Přehled
                     </button>
-                    <button id="tab-results" data-tab="results" class="student-tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"> {/* Defaultne neaktívny */}
+                    <button id="tab-results" data-tab="results" class="student-tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
                         Výsledky
                     </button>
                 </nav>
@@ -226,7 +232,7 @@ function renderSubmissionsTable(submissions) {
                           : 'text-gray-500';
         return `
             <tr class="border-b">
-                <td class="py-3 px-4">${sub.lessonName || 'Neznámá lekce'}</td> {/* Používame lessonName */}
+                <td class="py-3 px-4">${sub.lessonName || 'Neznámá lekce'}</td>
                 <td class="py-3 px-4">${sub.type}</td>
                 <td class="py-3 px-4 font-semibold ${scoreClass}">${score}</td>
                 <td class="py-3 px-4 text-sm text-gray-500">${date}</td>
