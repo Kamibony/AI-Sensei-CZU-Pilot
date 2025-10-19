@@ -23,9 +23,10 @@ function getAiStudentSummaryCallable() {
 }
 // === KONIEC PRIDANÉHO KÓDU ===
 
-// ===== OPRAVA: Definícia funkcie teraz berie (container, studentId, backCallback) =====
+// ===== Definícia funkcie berie (container, studentId, backCallback) =====
 export async function renderStudentProfile(container, studentId, backCallback) {
     container.innerHTML = `<div class="p-8"><div class="text-center">Načítání dat studenta...</div></div>`;
+    currentStudent = null; // Reset pri načítaní nového profilu
 
     try {
         // 1. Fetch Data - Používame importovaný firebaseInit.db
@@ -37,19 +38,22 @@ export async function renderStudentProfile(container, studentId, backCallback) {
             return;
         }
         currentStudent = { id: studentDoc.id, ...studentDoc.data() }; // Uložíme dáta
+        
+        // ===== LOGOVANIE: Vypíšeme načítané dáta študenta =====
+        console.log("Student data loaded:", currentStudent); 
+        // =======================================================
 
         // 2. Render the UI Shell
         renderUIShell(container, currentStudent, backCallback);
 
         // 3. Initial render - Zobraziť prehľad ako prvý
-        await switchTab('overview');
+        await switchTab('overview'); // Počkáme na vykreslenie tabu
 
     } catch (error) {
         console.error("Error rendering student profile shell:", error);
         container.innerHTML = `<div class="p-8 text-red-500">Došlo k chybě při načítání profilu studenta.</div>`;
     }
 }
-// =================================================================================
 
 function renderUIShell(container, studentData, backCallback) {
     container.innerHTML = `
@@ -88,7 +92,10 @@ function renderUIShell(container, studentData, backCallback) {
 }
 
 async function switchTab(tabId) {
-    if (!currentStudent) return; // Kontrola, či máme dáta študenta
+    if (!currentStudent) {
+        console.error("switchTab called but currentStudent is null!");
+        return; 
+    }
 
     const tabContent = document.getElementById('tab-content');
     if (!tabContent) return;
@@ -106,26 +113,30 @@ async function switchTab(tabId) {
 
     // Zobraziť správny obsah
     if (tabId === 'overview') {
-        // ===== ZMENA: Už nevoláme async, pretože dáta (currentStudent) už máme =====
-        renderOverviewContent(tabContent, currentStudent);
+        renderOverviewContent(tabContent, currentStudent); // Už nie je async
     } else if (tabId === 'results') {
         await renderResultsContent(tabContent, currentStudent);
     }
 }
 
-// ==================================================================
-// ============ ZAČIATOK ÚPRAVY PRE renderOverviewContent ===========
-// ==================================================================
+// Funkcia na vykreslenie obsahu prehľadu (už nie je async)
 function renderOverviewContent(container, student) {
     // Dátový model pre AI súhrn
     const aiSummary = student.aiSummary || null;
+    
+    // ===== LOGOVANIE: Aký aiSummary vidíme? =====
+    console.log("Rendering overview with aiSummary:", aiSummary);
+    // ============================================
+
     let summaryHtml = '';
 
     if (aiSummary && aiSummary.text) {
         // Ak máme uložený súhrn, zobrazíme ho
-        const date = (aiSummary.generatedAt instanceof Timestamp)
-                      ? aiSummary.generatedAt.toDate().toLocaleString('cs-CZ')
-                      : (aiSummary.generatedAt ? new Date(aiSummary.generatedAt).toLocaleString('cs-CZ') : 'Neznámé datum');
+        // ===== OPRAVA: Bezpečnejšia kontrola Timestamp =====
+        const date = (aiSummary.generatedAt && typeof aiSummary.generatedAt.toDate === 'function') 
+                      ? aiSummary.generatedAt.toDate().toLocaleString('cs-CZ') 
+                      : (aiSummary.generatedAt ? new Date(aiSummary.generatedAt).toLocaleString('cs-CZ') : 'Neznámé datum'); // Fallback pre prípad, že to nie je Timestamp
+        // ===============================================
         
         // Formátovanie textu
         let formattedText = aiSummary.text
@@ -177,7 +188,10 @@ function renderOverviewContent(container, student) {
     const loader = document.getElementById('ai-summary-loader');
     const content = document.getElementById('ai-summary-content');
 
-    if (refreshButton) {
+    if (refreshButton && loader && content) { // Pridaná kontrola pre loader a content
+        // ===== LOGOVANIE: Pridáva sa listener? =====
+        console.log("Adding refresh listener...");
+        // ==========================================
         refreshButton.addEventListener('click', async () => {
             if (!confirm("Opravdu chcete vygenerovat novou AI analýzu? Tím se přepíše ta stávající a může to chvíli trvat.")) {
                 return;
@@ -196,16 +210,18 @@ function renderOverviewContent(container, student) {
                 const result = await getSummary({ studentId: student.id });
                 const newSummaryText = result.data.summary;
 
-                // Aktualizujeme lokálny 'currentStudent' objekt pre konzistenciu
-                // Použijeme klientský čas ako dočasný placeholder, kým sa stránka nenačíta znova
+                // ===== Aktualizácia lokálneho objektu =====
+                // Potrebujeme Timestamp z Firebase, ale nemáme ho hneď k dispozícii.
+                // Použijeme klientský čas ako dočasný a spoliehame sa, že pri ďalšom načítaní profilu sa to zosynchronizuje.
                 currentStudent.aiSummary = {
                     text: newSummaryText,
-                    generatedAt: new Date() 
+                    generatedAt: new Date() // Použijeme Date object
                 };
+                // =========================================
                 
                 // Znovu vykreslíme obsah s novými dátami
                 // (currentStudent je už aktualizovaný)
-                renderOverviewContent(container, currentStudent);
+                renderOverviewContent(container, currentStudent); 
                 
                 showToast("AI analýza byla úspěšně aktualizována.");
 
@@ -213,34 +229,29 @@ function renderOverviewContent(container, student) {
                 console.error("Error refreshing AI summary:", error);
                 showToast("Nepodařilo se aktualizovat AI analýzu.", true);
                 
-                // V prípade chyby obnovíme pôvodný stav
-                loader.classList.add('hidden');
-                content.classList.remove('hidden');
-                refreshButton.disabled = false;
-                refreshButton.textContent = "Vynutit aktualizaci AI analýzy";
+                // V prípade chyby obnovíme pôvodný stav (znovu vykreslíme s pôvodnými dátami)
+                renderOverviewContent(container, student); // Vykreslíme pôvodný stav
             }
         });
+    } else {
+        console.error("Refresh button, loader or content element not found!");
     }
 }
-// ==================================================================
-// ============= KONIEC ÚPRAVY PRE renderOverviewContent ============
-// ==================================================================
 
 // Funkcia na načítanie a zobrazenie výsledkov
 async function renderResultsContent(container, student) {
     try {
-        // ===== OPRAVA: Používame importovaný firebaseInit.db =====
+        // Používame importovaný firebaseInit.db
         const quizQuery = query(
             collection(firebaseInit.db, "quiz_submissions"),
             where("studentId", "==", student.id),
-            orderBy('submittedAt', 'desc') // Zoradenie pre prehľadnosť
+            orderBy('submittedAt', 'desc') 
         );
         const testQuery = query(
             collection(firebaseInit.db, "test_submissions"),
             where("studentId", "==", student.id),
             orderBy('submittedAt', 'desc')
         );
-        // ======================================================
 
         const [quizSnapshot, testSnapshot] = await Promise.all([
             getDocs(quizQuery),
@@ -270,7 +281,7 @@ async function renderResultsContent(container, student) {
         `;
     } catch (error) {
         console.error("Error fetching submissions:", error);
-        if (document.getElementById('tab-content')) { // Check if still on the same tab
+        if (document.getElementById('tab-content')) { 
              container.innerHTML = '<p class="text-center p-8 text-red-500">Nepodařilo se načíst aktivitu studenta.</p>';
         }
         showToast("Chyba při načítání výsledků studenta.", true);
@@ -284,9 +295,11 @@ function renderSubmissionsTable(submissions) {
 
     const rows = submissions.map(sub => {
         const score = typeof sub.score === 'number' ? `${(sub.score * 100).toFixed(0)}%` : 'N/A';
-        const date = (sub.submittedAt instanceof Timestamp)
-                      ? sub.submittedAt.toDate().toLocaleDateString('cs-CZ')
+        // ===== OPRAVA: Bezpečnejšia kontrola Timestamp =====
+         const date = (sub.submittedAt && typeof sub.submittedAt.toDate === 'function') 
+                      ? sub.submittedAt.toDate().toLocaleDateString('cs-CZ') 
                       : 'Neznámé datum';
+        // ===============================================
         const scoreClass = typeof sub.score === 'number'
                           ? (sub.score >= 0.5 ? 'text-green-600' : 'text-red-600')
                           : 'text-gray-500';
