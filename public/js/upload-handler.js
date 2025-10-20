@@ -20,7 +20,6 @@ export function initializeCourseMediaUpload(courseId = "main-course") {
 
     // Handle file selection via button/input click
     fileInput.addEventListener('change', (e) => {
-        // Použijeme ID "course-media-list" špecifické pre túto záložku
         handleFileUpload(e.target.files, courseId, "course-media-list");
     });
 
@@ -38,22 +37,18 @@ export function initializeCourseMediaUpload(courseId = "main-course") {
         e.preventDefault();
         uploadArea.classList.remove('bg-green-50', 'border-green-400');
         if (e.dataTransfer.files) {
-            // Použijeme ID "course-media-list" špecifické pre túto záložku
             handleFileUpload(e.dataTransfer.files, courseId, "course-media-list");
         }
     });
 
     // Initial load of existing files
-    // Použijeme ID "course-media-list" špecifické pre túto záložku
     renderMediaLibraryFiles(courseId, "course-media-list");
 }
 
 // Handle the actual file upload process
-// ===== OPRAVA: mediaListElement je teraz listElementId (string) =====
 function handleFileUpload(files, courseId, listElementId) {
     if (!files || files.length === 0) return;
 
-    // Nájdeme element až tu
     const mediaListElement = document.getElementById(listElementId);
     if (!mediaListElement) {
         console.error(`handleFileUpload: Element ID "${listElementId}" not found.`);
@@ -72,9 +67,9 @@ function handleFileUpload(files, courseId, listElementId) {
             return;
         }
 
-        // ===== OPRAVA 1: Cesta opravená na 'courses/...' =====
+        // --- Používa správnu cestu ---
         const filePath = `courses/${courseId}/media/${file.name}`;
-        // ================================================
+        // -----------------------------
         const storageRef = ref(storage, filePath);
         const uploadTask = uploadBytesResumable(storageRef, file);
 
@@ -146,9 +141,12 @@ function handleFileUpload(files, courseId, listElementId) {
 }
 
 // Render the list of files already in Storage
-// ===== OPRAVA: Funkcia teraz prijíma ID elementu zoznamu =====
 export async function renderMediaLibraryFiles(courseId = "main-course", listElementId = "course-media-list") {
     
+    // ===== DEBUG LOG 1 =====
+    console.log(`renderMediaLibraryFiles called for listElementId: "${listElementId}"`);
+    // =======================
+
     const mediaListElement = document.getElementById(listElementId);
     if (!mediaListElement) {
         console.warn(`Element '#${listElementId}' not found. Cannot render media library files.`);
@@ -160,11 +158,20 @@ export async function renderMediaLibraryFiles(courseId = "main-course", listElem
     try {
         const storage = getStorage(firebaseInit.app);
         
-        // ===== OPRAVA 2: Cesta opravená na 'courses/...' =====
+        // --- Používa správnu cestu ---
         const listRef = ref(storage, `courses/${courseId}/media`);
-        // ================================================
+        // -----------------------------
         
+        // ===== DEBUG LOG 2 =====
+        console.log(`Listing files from path: courses/${courseId}/media`);
+        // =======================
+
         const res = await listAll(listRef);
+
+        // ===== DEBUG LOG 3 =====
+        console.log(`Found ${res.items.length} files in Storage:`, res.items.map(item => item.name));
+        // =======================
+
 
         if (res.items.length === 0) {
             mediaListElement.innerHTML = '<li class="text-sm text-gray-400 italic">Zatím nebyly nahrány žádné soubory.</li>';
@@ -172,13 +179,18 @@ export async function renderMediaLibraryFiles(courseId = "main-course", listElem
         }
 
         mediaListElement.innerHTML = ''; 
-        res.items.forEach((itemRef) => {
+        res.items.forEach((itemRef, index) => { // Pridaný index pre logovanie
+            
+            // ===== DEBUG LOG 4 =====
+            console.log(`Processing file ${index + 1}/${res.items.length}: ${itemRef.name}`);
+            // =======================
+
             const listItem = document.createElement('li');
             const fileId = `file-${itemRef.fullPath.replace(/[^a-zA-Z0-9]/g, '-')}`;
             listItem.id = fileId;
             listItem.className = 'bg-gray-100 p-2 rounded flex justify-between items-center group';
             
-            // ===== OPRAVA 3: Odstránené 'hidden' a 'group-hover:inline-block' =====
+            // --- Používa opravenú viditeľnosť checkboxov ---
             listItem.innerHTML = `
                 <span class="text-sm font-medium text-gray-700 truncate mr-2">${itemRef.name}</span>
                  <div class="flex items-center space-x-2 flex-shrink-0">
@@ -186,7 +198,7 @@ export async function renderMediaLibraryFiles(courseId = "main-course", listElem
                     <button class="delete-file-btn text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity" title="Smazat soubor">🗑️</button>
                  </div>
             `;
-            // ====================================================================
+            // ----------------------------------------------
             
             mediaListElement.appendChild(listItem);
 
@@ -197,6 +209,9 @@ export async function renderMediaLibraryFiles(courseId = "main-course", listElem
              
              if (selectedFilesForGeneration.some(f => f.fullPath === itemRef.fullPath)) {
                  checkbox.checked = true;
+                 // ===== DEBUG LOG 5 =====
+                 console.log(`Checkbox checked for: ${itemRef.name}`);
+                 // =======================
              }
 
              checkbox.addEventListener('change', (e) => {
@@ -209,6 +224,9 @@ export async function renderMediaLibraryFiles(courseId = "main-course", listElem
                  } else {
                      selectedFilesForGeneration = selectedFilesForGeneration.filter(f => f.fullPath !== filePath);
                  }
+                 // ===== DEBUG LOG 6 =====
+                 console.log('selectedFilesForGeneration updated:', selectedFilesForGeneration);
+                 // =======================
                  renderSelectedFiles(); 
              });
 
@@ -236,12 +254,10 @@ async function handleDeleteFile(fileRef, listItemElement, listElementId) {
              renderMediaLibraryFiles("main-course", listElementId); 
         }
         
-        // ===== OPRAVA: Musíme prekresliť aj druhý zoznam, ak existuje =====
         const otherListId = listElementId === "course-media-list" ? "modal-media-list" : "course-media-list";
         if (document.getElementById(otherListId)) {
             renderMediaLibraryFiles("main-course", otherListId);
         }
-        // ==========================================================
 
         showToast(`Soubor "${fileRef.name}" byl smazán.`);
     } catch (error) {
@@ -272,23 +288,18 @@ export function getSelectedFiles() {
 }
 
 // ===== NOVÁ FUNKCIA =====
-/**
- * Načíta pole súborov (zvyčajne z lesson objektu) do globálneho stavu.
- * @param {Array<Object>} files - Pole objektov súborov, napr. [{ name: "file.pdf", fullPath: "courses/..." }]
- */
 export function loadSelectedFiles(files) {
     if (Array.isArray(files)) {
-        selectedFilesForGeneration = [...files]; // Vytvorí kópiu poľa
+        selectedFilesForGeneration = [...files]; 
     } else {
         selectedFilesForGeneration = [];
     }
-    // Hneď aj prekreslíme RAG zoznam v editore, ak existuje
     renderSelectedFiles();
 }
 
 // ===== UPRAVENÁ FUNKCIA =====
 export function clearSelectedFiles() {
-    selectedFilesForGeneration = []; // Reset the array
+    selectedFilesForGeneration = []; 
     
     const listElement = document.getElementById('selected-files-list-rag');
     if (listElement) {
