@@ -3,7 +3,8 @@ name: Build and Deploy to Firebase
 on:
   push:
     branches:
-      - main
+      - main     # Spustí sa pri push na 'main'
+      - release  # Spustí sa pri push na 'release'
 
 jobs:
   build_and_deploy:
@@ -20,36 +21,38 @@ jobs:
       - name: Install Frontend Dependencies
         run: npm install
 
-      # --- NOVÝ DIAGNOSTICKÝ KROK ---
-      - name: List files BEFORE build
-        run: ls -lR public
-
       - name: Build CSS from Tailwind
         run: npm run build:css
-
-      # --- NOVÝ DIAGNOSTICKÝ KROK ---
-      - name: List files AFTER build
-        run: ls -lR public
-
-      # --- NOVÝ DIAGNOSTICKÝ KROK: Uloženie výsledku ---
-      - name: Archive public folder as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: public-folder
-          path: public
 
       - name: Install and Build Functions
         run: |
           cd functions
           npm install
           npm run build
+          cd .. # Vráti sa späť do koreňového adresára
 
-      - name: Deploy to Firebase
+      # --- KROK 1: Nasadenie na DEVELOPMENT ---
+      - name: Deploy to Development (ai-sensei-czu-pilot)
+        if: github.ref == 'refs/heads/main' # Podmienka: Spustiť len pre 'main' vetvu
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --force
+          args: deploy --only hosting:dev,functions,firestore,storage --force
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
           PROJECT_ID: ${{ secrets.PROJECT_ID }}
+          # Pridajte sem ďalšie secrets, ak sú potrebné pre DEV
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          PROFESSOR_TELEGRAM_CHAT_ID: ${{ secrets.PROFESSOR_TELEGRAM_CHAT_ID }}
+
+      # --- KROK 2: Nasadenie na PRODUCTION ---
+      - name: Deploy to Production (via.academy)
+        if: github.ref == 'refs/heads/release' # Podmienka: Spustiť len pre 'release' vetvu
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only hosting:prod,functions,firestore,storage --force
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          PROJECT_ID: ${{ secrets.PROJECT_ID }}
+          # Pridajte sem ďalšie secrets, ak sú potrebné pre PROD
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           PROFESSOR_TELEGRAM_CHAT_ID: ${{ secrets.PROFESSOR_TELEGRAM_CHAT_ID }}
