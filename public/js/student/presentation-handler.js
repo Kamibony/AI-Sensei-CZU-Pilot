@@ -39,16 +39,17 @@ export function renderPresentation(containerElement, presentationData) {
         const styleId = presentationData.styleId || 'default'; // Načítame ID štýlu
         const styles = getPresentationStyles(styleId); // Získame triedy pre daný štýl
 
+        // ===== OPRAVA: Odstránené komentáre, ktoré sa zobrazovali v HTML =====
         containerElement.innerHTML = presentationData.slides.map((slide, i) => `
-            <div class="${styles.container}"> {/* Aplikujeme štýl kontajnera */}
-                <h4 class="${styles.title}"> {/* Aplikujeme štýl nadpisu */}
+            <div class="${styles.container}">
+                <h4 class="${styles.title}">
                     Slide ${i + 1}: ${slide.title || 'Bez názvu'}
                 </h4>
-                <ul class="${styles.list}"> {/* Aplikujeme štýl zoznamu */}
-                    {/* Zabezpečíme, že body sú pole a joinujeme ich */}
-                    ${(Array.isArray(slide.points) ? slide.points : []).map(p => `<li class="${styles.listItem}">${p}</li>`).join('')} 
+                <ul class="${styles.list}">
+                    ${(Array.isArray(slide.points) ? slide.points : []).map(p => `<li class="${styles.listItem}">${p}</li>`).join('')}
                 </ul>
             </div>`).join('');
+        // =================================================================
     } else {
         containerElement.innerHTML = `<p>Obsah prezentace není k dispozici nebo není ve správném formátu.</p>`;
     }
