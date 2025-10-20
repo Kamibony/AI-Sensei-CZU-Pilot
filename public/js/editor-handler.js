@@ -5,7 +5,7 @@ import { doc, addDoc, updateDoc, collection, serverTimestamp, deleteField } from
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from './firebase-init.js'; // Používame firebaseInit pre db, storage, functions
 import { showToast } from './utils.js';
-// ===== OPRAVA: Importujeme všetky 4 funkcie =====
+// Importujeme všetky 4 funkcie
 import { renderSelectedFiles, clearSelectedFiles, getSelectedFiles, renderMediaLibraryFiles } from './upload-handler.js';
 
 let currentLesson = null; // Aktuálne editovaná lekcia
@@ -342,7 +342,7 @@ export async function showEditorContent(viewId) {
                renderSelectedFiles(); 
           }
           
-          // ===== OPRAVA: Kompletná prepracovaná logika pre RAG tlačidlo =====
+          // ===== OPRAVA: Prepracovaná logika pre RAG tlačidlo =====
           const ragSelectBtn = document.getElementById('select-files-btn-rag');
           if (ragSelectBtn) {
                ragSelectBtn.addEventListener('click', () => {
@@ -857,4 +857,5 @@ async function handleDeleteGeneratedContent(fieldToDelete, viewId) {
     }
 }
 
-}
+// ===== OPRAVA: Odstránená extra zátvorka =====
+// (žiadna zátvorka tu nemá byť)
