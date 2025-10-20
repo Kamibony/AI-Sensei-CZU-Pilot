@@ -8,6 +8,8 @@ import {
   Part,
 } from "@google-cloud/vertexai";
 import { getStorage } from "firebase-admin/storage";
+import { logger } from "firebase-functions"; // <--- PRIDANÉ
+import { HttpsError } from "firebase-functions/v2/https"; // <--- PRIDANÉ
 
 // --- KONFIGURACE MODELU ---
 const GCLOUD_PROJECT = process.env.GCLOUD_PROJECT;
@@ -86,9 +88,10 @@ export async function generateJsonFromPrompt(prompt: string): Promise<unknown> {
   try {
     const parsedJson = JSON.parse(rawJsonText);
     return parsedJson;
-  } catch (_e) {
-    console.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText);
-    throw new Error("Model returned a malformed JSON string.");
+  } catch (e) { // <--- ZMENENÉ
+    logger.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText, e); // <--- ZMENENÉ
+    // Hádzanie HttpsError namiesto new Error(), aby sa zabránilo 500 Internal Server Error
+    throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText }); // <--- ZMENENÉ
   }
 }
 
@@ -148,8 +151,10 @@ export async function generateJsonFromDocuments(filePaths: string[], prompt: str
     try {
         const parsedJson = JSON.parse(rawJsonText);
         return parsedJson;
-    } catch (_e) {
-        console.error("[gemini-api:generateJsonFromDocuments] Failed to parse JSON from Gemini response:", rawJsonText);
-        throw new Error("Model returned a malformed JSON string.");
+    } catch (e) { // <--- ZMENENÉ
+        logger.error("[gemini-api:generateJsonFromDocuments] Failed to parse JSON from Gemini response:", rawJsonText, e); // <--- ZMENENÉ
+        // Hádzanie HttpsError namiesto new Error(), aby sa zabránilo 500 Internal Server Error
+        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText }); // <--- ZMENENÉ
     }
 }
+// <--- ODSTRÁNENÁ prebytočná '}'
