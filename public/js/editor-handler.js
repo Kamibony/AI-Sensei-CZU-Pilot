@@ -3,14 +3,14 @@
 // Importy Firebase a pomocných funkcií
 import { doc, addDoc, updateDoc, collection, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import * as firebaseInit from './firebase-init.js'; // Používame firebaseInit pre db, storage, functions
+import * as firebaseInit from './firebase-init.js'; 
 import { showToast } from './utils.js';
-// Importujeme všetky 4 funkcie
-import { renderSelectedFiles, clearSelectedFiles, getSelectedFiles, renderMediaLibraryFiles } from './upload-handler.js';
+// ===== OPRAVA: Importujeme 'loadSelectedFiles' =====
+import { renderSelectedFiles, clearSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from './upload-handler.js';
 
-let currentLesson = null; // Aktuálne editovaná lekcia
-let generateContentCallable = null; // Lazy loaded AI funkcia
-let lastGeneratedData = null; // Posledný výsledok generovania
+let currentLesson = null; 
+let generateContentCallable = null; 
+let lastGeneratedData = null; 
 
 // Lazy load the callable function pre generovanie obsahu
 function getGenerateContentCallable() {
@@ -56,7 +56,6 @@ function handleDownloadLessonContent() {
     if (currentLesson.subtitle) contentString += `## ${currentLesson.subtitle}\n`;
     contentString += `\n---\n\n`;
 
-    // Poradie podľa vášho pôvodného kódu
     if (currentLesson.text_content) contentString += `### Text pro studenty\n\n${currentLesson.text_content}\n\n---\n\n`;
     if (currentLesson.presentation?.slides) contentString += `### Prezentace (Styl: ${currentLesson.presentation.styleId || 'default'})\n\n${currentLesson.presentation.slides.map((s, i) => `**Slide ${i + 1}: ${s.title}**\n${(s.points || []).map(p => `- ${p}`).join('\n')}\n`).join('\n')}\n---\n\n`;
     if (currentLesson.videoUrl) contentString += `### Video\n\n${currentLesson.videoUrl}\n\n---\n\n`;
@@ -79,10 +78,13 @@ function handleDownloadLessonContent() {
 // Vykreslí ľavé menu editora
 export function renderEditorMenu(container, lesson) {
     currentLesson = lesson;
-    lastGeneratedData = null; // Reset
+    lastGeneratedData = null; 
     
-    // (Ponechaná oprava)
-    clearSelectedFiles(); // Vyčistíme RAG výber
+    // ===== ZMENA: Namiesto clearSelectedFiles() načítame dáta z lekcie =====
+    // Ak je to nová lekcia (lesson je null) alebo lekcia nemá uložené súbory, pošle sa prázdne pole.
+    // 'ragFilePaths' je názov poľa, kam budeme ukladať súbory.
+    loadSelectedFiles(currentLesson?.ragFilePaths || []);
+    // ===================================================================
 
     container.innerHTML = `
         <header class="p-4 border-b border-slate-200 flex-shrink-0">
@@ -100,7 +102,6 @@ export function renderEditorMenu(container, lesson) {
         <div class="flex-grow overflow-y-auto p-2"><nav id="editor-vertical-menu" class="flex flex-col space-y-1"></nav></div>`;
 
     container.querySelector('#back-to-timeline-btn').addEventListener('click', () => {
-        // TODO: Zavolať funkciu z professor.js na zobrazenie timeline namiesto reloadu
         window.location.reload(); 
     });
 
@@ -114,7 +115,7 @@ export function renderEditorMenu(container, lesson) {
         { id: 'video', label: 'Video', icon: '▶️' },
         { id: 'quiz', label: 'Kvíz', icon: '❓' },
         { id: 'test', label: 'Test', icon: '✅' },
-        { id: 'post', label: 'Podcast Skript', icon: '🎙️' }, // Upravený label
+        { id: 'post', label: 'Podcast Skript', icon: '🎙️' }, 
     ];
 
     menuEl.innerHTML = menuItems.map(item => `<a href="#" data-view="${item.id}" class="editor-menu-item flex items-center p-3 text-sm font-medium rounded-md hover:bg-slate-100 transition-colors">${item.icon}<span class="ml-3">${item.label}</span></a>`).join('');
@@ -124,16 +125,15 @@ export function renderEditorMenu(container, lesson) {
             e.preventDefault();
             menuEl.querySelectorAll('.editor-menu-item').forEach(i => i.classList.remove('bg-green-100', 'text-green-800', 'font-semibold'));
             item.classList.add('bg-green-100', 'text-green-800', 'font-semibold');
-            showEditorContent(item.dataset.view); // Už neposielame lesson
+            showEditorContent(item.dataset.view); 
         });
     });
     
-    // Zobrazíme defaultne detaily lekcie
     const defaultItem = menuEl.querySelector('.editor-menu-item[data-view="details"]');
      if (defaultItem) {
-         defaultItem.click(); // Simulujeme kliknutie
+         defaultItem.click(); 
      } else {
-         showEditorContent('details'); // Fallback
+         showEditorContent('details'); 
      }
 }
 
@@ -185,6 +185,7 @@ export async function showEditorContent(viewId) {
                         <div><label class="block font-medium text-slate-600">Číslo lekce</label><input type="text" id="lesson-number-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.number || ''}" placeholder="Např. 101"></div>
                         <div><label class="block font-medium text-slate-600">Ikona</label><input type="text" id="lesson-icon-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.icon || '🆕'}" placeholder="🆕"></div>
                     </div>
+                    ${createDocumentSelectorUI()} {/* Presunuté sem pre ukladanie */}
                     <div class="text-right pt-4"><button id="save-lesson-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105">Uložit změny</button></div>
                 </div>`);
             break;
@@ -208,7 +209,6 @@ export async function showEditorContent(viewId) {
             break;
         case 'presentation':
              if (currentLesson?.[currentField]) {
-                // Vykreslíme uloženú prezentáciu pomocou renderGeneratedContent
                 contentHTML = renderSavedContent('AI Prezentace', currentField, (data) => renderGeneratedContent('presentation', data)); 
              } else {
                 contentHTML = renderWrapper('AI Prezentace', `
@@ -332,22 +332,23 @@ export async function showEditorContent(viewId) {
     }
 
     container.innerHTML = contentHTML;
-    // Počkáme krátko a pridáme listenery + RAG + transition
+
+    // ===== ZMENA: Presunuté PRED setTimeout =====
+    // Musíme zavolať renderSelectedFiles() hneď, aby sa zoznam RAG zobrazil
+    // so súbormi načítanými v 'renderEditorMenu'.
+    if (viewId === 'details' || viewId !== 'video') { // Zobrazí sa aj v 'details'
+         renderSelectedFiles(); 
+    }
+    // ===========================================
+    
      setTimeout(() => {
           attachEditorEventListeners(viewId);
           
-          // (Ponechaná oprava)
-          // Aktualizujeme RAG zoznam, iba ak sme v pohľade, ktorý ho reálne používa
-          if (viewId !== 'details' && viewId !== 'video') {
-               renderSelectedFiles(); 
-          }
-          
-          // ===== OPRAVA: Prepracovaná logika pre RAG tlačidlo =====
+          // Logika modálu (zostáva rovnaká z minula)
           const ragSelectBtn = document.getElementById('select-files-btn-rag');
           if (ragSelectBtn) {
                ragSelectBtn.addEventListener('click', () => {
                    
-                   // --- Hľadáme elementy modálu, ktoré sú v index.html ---
                    const modal = document.getElementById('media-library-modal');
                    const modalConfirm = document.getElementById('modal-confirm-btn');
                    const modalCancel = document.getElementById('modal-cancel-btn');
@@ -359,12 +360,8 @@ export async function showEditorContent(viewId) {
                         return;
                    }
                    
-                   // --- Definujeme funkcie na zatvorenie (pre removeEventListener) ---
-                   // Tieto funkcie sa musia definovať nanovo pri každom kliknutí,
-                   // aby sme mohli správne pridať a odobrať listenery.
-                   
                    const handleConfirm = () => {
-                       renderSelectedFiles(); // Aktualizujeme zoznam v RAG UI
+                       renderSelectedFiles(); 
                        closeModal();
                    };
                    
@@ -374,30 +371,20 @@ export async function showEditorContent(viewId) {
                    
                    const closeModal = () => {
                        modal.classList.add('hidden');
-                       // Odstránime listenery, aby sa nedupľovali
                        modalConfirm.removeEventListener('click', handleConfirm);
                        modalCancel.removeEventListener('click', handleCancel);
                        modalClose.removeEventListener('click', handleCancel);
                    };
 
-                   // --- Otvorenie modálu ---
-                   
-                   // 1. Zavoláme renderovaciu funkciu a povieme jej, aby kreslila do ID 'modal-media-list'
                    renderMediaLibraryFiles("main-course", "modal-media-list");
                    
-                   // 2. Pridáme listenery
                    modalConfirm.addEventListener('click', handleConfirm);
                    modalCancel.addEventListener('click', handleCancel);
                    modalClose.addEventListener('click', handleCancel);
                    
-                   // 3. Zobrazíme modál
                    modal.classList.remove('hidden');
-                   
-                   // --- Koniec logiky pre modal ---
                });
           }
-          // ===== KONIEC OPRAVY =====
-
 
           // Prezentácia - nastavíme style selector, ak existuje uložená hodnota
           if (viewId === 'presentation' && currentLesson?.presentation?.styleId) {
@@ -431,7 +418,7 @@ function attachEditorEventListeners(viewId) {
         const urlInput = document.getElementById('youtube-url');
         const preview = document.getElementById('video-preview');
 
-        const showVideoPreview = (url) => { /* ... kód showVideoPreview zostáva rovnaký ... */ 
+        const showVideoPreview = (url) => { 
             if (!url) {
                 preview.innerHTML = '<div class="text-center p-8 text-slate-400">Náhled videa se zobrazí zde...</div>';
                 return false;
@@ -449,16 +436,15 @@ function attachEditorEventListeners(viewId) {
 
         embedBtn?.addEventListener('click', async () => {
             const url = urlInput ? urlInput.value.trim() : '';
-            if (showVideoPreview(url)) { // Ak je URL platná, uložíme
+            if (showVideoPreview(url)) { 
                 await handleSaveGeneratedContent('videoUrl', url); 
-            } else if (url === '') { // Ak je pole prázdne, chápeme to ako žiadosť o zmazanie
+            } else if (url === '') { 
                 await handleDeleteGeneratedContent('videoUrl', viewId);
             } else {
                  showToast("Zadajte platnú YouTube URL adresu.", true);
             }
         });
         
-        // Zobraziť náhľad pre existujúcu URL pri načítaní
         if (currentLesson?.videoUrl) {
             showVideoPreview(currentLesson.videoUrl);
         }
@@ -481,12 +467,12 @@ function attachEditorEventListeners(viewId) {
 }
 
 // Uloží základné detaily lekcie (názov, ikona...)
-async function handleSaveLessonDetails() { // Premenovaná funkcia
+async function handleSaveLessonDetails() { 
     const titleInput = document.getElementById('lesson-title-input');
     const subtitleInput = document.getElementById('lesson-subtitle-input');
     const numberInput = document.getElementById('lesson-number-input');
     const iconInput = document.getElementById('lesson-icon-input');
-    const saveBtn = document.getElementById('save-lesson-btn'); // Tento save button je v sekcii details
+    const saveBtn = document.getElementById('save-lesson-btn'); 
 
     if (!titleInput || !saveBtn) {
          showToast("Chyba: Chybějící elementy formuláře.", true);
@@ -499,38 +485,38 @@ async function handleSaveLessonDetails() { // Premenovaná funkcia
         return;
     }
 
+    // ===== ZMENA: Pridávame 'ragFilePaths' do ukladaných dát =====
+    const currentSelection = getSelectedFiles(); // Získame aktuálny RAG výber
+
     const lessonData = {
         title: title,
         subtitle: subtitleInput ? subtitleInput.value.trim() : '',
         number: numberInput ? numberInput.value.trim() : '',
         icon: iconInput ? (iconInput.value.trim() || '🆕') : '🆕',
-        updatedAt: serverTimestamp() // Vždy aktualizujeme čas
+        ragFilePaths: currentSelection, // Uložíme pole objektov súborov
+        updatedAt: serverTimestamp() 
     };
+    // ========================================================
 
     const originalText = saveBtn.textContent;
     saveBtn.disabled = true;
-    saveBtn.innerHTML = `<div class="spinner"></div>`; // Jednoduchý spinner
+    saveBtn.innerHTML = `<div class="spinner"></div>`; 
 
     try {
         if (currentLesson && currentLesson.id) {
             // Aktualizácia existujúcej lekcie
             await updateDoc(doc(firebaseInit.db, 'lessons', currentLesson.id), lessonData);
-            // Aktualizujeme aj globálnu premennú
             currentLesson = { ...currentLesson, ...lessonData }; 
             showToast("Detaily lekce byly úspěšně aktualizovány.");
-            // Aktualizujeme aj názov v ľavom menu
             document.getElementById('editor-lesson-title').textContent = lessonData.title;
         } else {
             // Vytvorenie novej lekcie
-            lessonData.createdAt = serverTimestamp(); // Pridáme čas vytvorenia
+            lessonData.createdAt = serverTimestamp(); 
             const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonData);
-            currentLesson = { id: docRef.id, ...lessonData }; // Uložíme si novú lekciu
+            currentLesson = { id: docRef.id, ...lessonData }; 
             showToast("Nová lekce byla úspěšně vytvořena.");
-            // Aktualizujeme UI editora
             document.getElementById('editor-lesson-title').textContent = lessonData.title;
-            // TODO: Oznámiť zmene v knižnici lekcií
              console.log("New lesson created, library refresh needed.");
-            // window.dispatchEvent(new CustomEvent('lessonSaved', { detail: { newLesson: true, lesson: currentLesson } }));
         }
     } catch (error) {
         console.error("Error saving lesson details:", error);
@@ -564,15 +550,13 @@ async function handleGeneration(viewId) {
     if (promptInput) promptInput.disabled = true;
     outputEl.innerHTML = `<div class="p-8 text-center pulse-loader text-slate-500">🤖 AI Sensei přemýšlí a tvoří obsah...</div>`;
 
-    lastGeneratedData = null; // Reset pred generovaním
+    lastGeneratedData = null; 
 
     try {
-        // Získanie vybraných RAG súborov
-        const selectedFiles = getSelectedFiles(); // Z upload-handler.js
+        const selectedFiles = getSelectedFiles(); 
         const filePaths = selectedFiles.map(f => f.fullPath);
-        console.log("Using files for RAG:", filePaths); // Logovanie
+        console.log("Using files for RAG:", filePaths); 
 
-        // Získanie špecifických parametrov pre generovanie
         const promptData = { userPrompt };
         switch (viewId) {
             case 'presentation':
@@ -588,33 +572,26 @@ async function handleGeneration(viewId) {
                 break;
         }
 
-        // Volanie backend funkcie
-        const generateContent = getGenerateContentCallable(); // Použijeme lazy-loaded funkciu
+        const generateContent = getGenerateContentCallable(); 
         const result = await generateContent({
             contentType: viewId,
             promptData,
-            filePaths, // Posielame cesty k súborom
+            filePaths, 
         });
         
-        // Spracovanie výsledku
         if (!result || !result.data) {
              throw new Error("AI nevrátila žádná data.");
         }
-        if (result.data.error) { // Backend môže vrátiť chybu
+        if (result.data.error) { 
             throw new Error(result.data.error);
         }
         
-        // Uloženie surového výsledku pre tlačidlo "Uložiť"
-        // Pre text ukladáme priamo text, pre ostatné celý objekt
         lastGeneratedData = (viewId === 'text' && result.data.text) ? result.data.text : result.data; 
         
-        // Zobrazenie náhľadu
-        outputEl.innerHTML = renderGeneratedContent(viewId, result.data); // Posielame result.data
+        outputEl.innerHTML = renderGeneratedContent(viewId, result.data); 
 
-        // Zobrazenie tlačidla "Uložiť"
         const saveBtn = document.getElementById('save-content-btn');
         if (saveBtn) {
-            // Nastavenie správneho field pre uloženie
              const fieldMapping = { 
                  'text': 'text_content', 
                  'presentation': 'presentation', 
@@ -631,7 +608,7 @@ async function handleGeneration(viewId) {
     } catch (e) {
         console.error("Error during AI generation:", e);
         outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě: ${e.message || e}</div>`;
-        lastGeneratedData = null; // Reset v prípade chyby
+        lastGeneratedData = null; 
     } finally {
         generateBtn.innerHTML = originalText;
         generateBtn.disabled = false;
@@ -640,7 +617,7 @@ async function handleGeneration(viewId) {
 }
 
 // Vykreslí náhľad vygenerovaného alebo uloženého obsahu
-function renderGeneratedContent(viewId, data) { // Názov premennej zmenený na 'data'
+function renderGeneratedContent(viewId, data) { 
     if (!data) {
         return `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě: Nebyla přijata žádná data k zobrazení.</div>`;
     }
@@ -648,23 +625,17 @@ function renderGeneratedContent(viewId, data) { // Názov premennej zmenený na 
     try {
         switch(viewId) {
             case 'text':
-                 // Ak 'data' je string (z uloženia) alebo objekt s 'text' (z generovania)
                 const textContent = (typeof data === 'string') ? data : data.text; 
                 if (typeof textContent !== 'string') throw new Error("Data neobsahují platný text.");
-                // Použijeme <pre> pre zachovanie formátovania, ale s 'whitespace-pre-wrap' pre zalomenie
                 return `<pre class="whitespace-pre-wrap font-sans text-sm">${textContent}</pre>`; 
             case 'presentation':
-                 // Data by mali byť objekt { styleId: '...', slides: [...] }
-                 // alebo objekt { slides: [...] } priamo z generátora
                  const slides = data?.slides || [];
-                 // Pri zobrazení uloženého obsahu vezmeme styleId z dát.
-                 // Pri zobrazení *náhľadu* po generovaní vezmeme styleId z <select>
                  let styleId;
                  if (data?.styleId) {
-                     styleId = data.styleId; // Z uložených dát
+                     styleId = data.styleId; 
                  } else {
                      const selector = document.getElementById('presentation-style-selector');
-                     styleId = selector ? selector.value : 'default'; // Z aktuálneho <select> pre náhľad
+                     styleId = selector ? selector.value : 'default'; 
                  }
 
                  if (!Array.isArray(slides)) throw new Error("Data neobsahují platné pole 'slides'.");
@@ -686,12 +657,11 @@ function renderGeneratedContent(viewId, data) { // Názov premennej zmenený na 
                                 <div class="mt-2 space-y-2">${optionsHtml}</div>
                             </div>`;
                 }).join('');
-            case 'post': // Podcast Script
+            case 'post': 
                 if (!Array.isArray(data?.episodes)) throw new Error("Data neobsahují platné pole 'episodes'.");
                  return data.episodes.map((episode, i) => `
                     <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
                         <h4 class="font-bold text-green-700">Epizoda ${i+1}: ${episode.title || 'Bez názvu'}</h4>
-                        {/* Použijeme <pre> pre zachovanie formátovania skriptu */}
                         <pre class="mt-2 text-sm text-slate-600 whitespace-pre-wrap font-sans">${episode.script || ''}</pre> 
                     </div>`).join('');
             default:
@@ -699,7 +669,7 @@ function renderGeneratedContent(viewId, data) { // Názov premennej zmenený na 
         }
     } catch(e) {
         console.error("Error rendering content:", e);
-        console.error("Received data that caused the error:", data); // Vypíšeme, čo prišlo
+        console.error("Received data that caused the error:", data); 
         return `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě při zobrazování obsahu: ${e.message}</div>`;
     }
 }
@@ -708,13 +678,12 @@ function renderGeneratedContent(viewId, data) { // Názov premennej zmenený na 
 async function handleSaveGeneratedContent(fieldToUpdate, contentToSave) {
     const saveBtn = document.getElementById('save-content-btn');
     
-    // Ak lekcia ešte neexistuje, najprv uložíme detaily
     if (!currentLesson || !currentLesson.id) {
         showToast("Nejprve uložte detaily lekce pomocí tlačítka 'Uložit změny' v sekci Detaily.", true);
          return;
     }
 
-    if (!contentToSave && fieldToUpdate !== 'videoUrl') { // Pre video je prázdny string platný (zmazanie)
+    if (!contentToSave && fieldToUpdate !== 'videoUrl') { 
         showToast("Není co uložit. Vygenerujte prosím nejprve obsah.", true);
         return;
     }
@@ -723,81 +692,52 @@ async function handleSaveGeneratedContent(fieldToUpdate, contentToSave) {
     const originalText = saveBtn ? saveBtn.innerHTML : 'Uložit do lekce';
     if (saveBtn) {
         saveBtn.disabled = true;
-        saveBtn.innerHTML = `<div class="spinner"></div>`; // Spinner v tlačidle
+        saveBtn.innerHTML = `<div class="spinner"></div>`; 
     }
 
     try {
         let dataToSave;
         
-        // Špeciálne ošetrenie pre prezentáciu - pridáme/aktualizujeme styleId
         if (fieldToUpdate === 'presentation') {
              const styleSelector = document.getElementById('presentation-style-selector');
              const selectedStyleId = styleSelector ? styleSelector.value : 'default';
-             // Uistíme sa, že contentToSave (lastGeneratedData) je objekt a má pole slides
              if (typeof contentToSave === 'object' && Array.isArray(contentToSave.slides)) {
                   dataToSave = { 
                       styleId: selectedStyleId, 
                       slides: contentToSave.slides 
                   };
              } else {
-                  // Fallback, ak by 'contentToSave' nemal správnu štruktúru
                   console.error("Invalid structure for contentToSave in presentation:", contentToSave);
                   showToast("Chyba: Nepodařilo se získat data slidů pro uložení.", true);
-                  if (saveBtn) { // Obnovíme tlačidlo
+                  if (saveBtn) { 
                       saveBtn.disabled = false;
                       saveBtn.innerHTML = originalText;
                   }
-                  return; // Zastavíme ukladanie
+                  return; 
              }
         } 
-        // Pre text berieme len pole 'text', ak prišlo v objekte
         else if (fieldToUpdate === 'text_content' && typeof contentToSave === 'object' && contentToSave.text) {
              dataToSave = contentToSave.text;
         } 
-        // Pre videoUrl berieme priamo string
         else if (fieldToUpdate === 'videoUrl') {
             dataToSave = (typeof contentToSave === 'string') ? contentToSave.trim() : null;
         }
-        // Pre ostatné JSON typy (quiz, test, post) berieme celý objekt
         else {
              dataToSave = contentToSave;
         }
 
-        // Vytvoríme objekt pre updateDoc, ktorý obsahuje iba pole, ktoré chceme aktualizovať
         const updateData = { updatedAt: serverTimestamp() };
         updateData[fieldToUpdate] = dataToSave;
         
-        // Poznámka: Pôvodná logika tu mazala VŠETKY ostatné polia. 
-        // Ak chceš, aby uloženie prezentácie zmazalo text, musíš to explicitne
-        // odkomentovať alebo upraviť. Momentálne to ukladá len toto jedno pole
-        // a ostatné necháva tak.
-
-        /*
-        const allContentFields = ['text_content', 'presentation', 'quiz', 'test', 'podcast_script', 'videoUrl'];
-        allContentFields.forEach(field => {
-             if (field !== fieldToUpdate) {
-                  updateData[field] = deleteField(); // Označí ostatné polia na zmazanie
-             }
-         });
-        */
-
         await updateDoc(lessonRef, updateData);
 
-        // Aktualizujeme lokálny currentLesson
         if (currentLesson) {
              currentLesson[fieldToUpdate] = dataToSave;
-             // Ak si odkomentoval logiku mazania vyššie, odkomentuj aj toto:
-             /*
-             allContentFields.forEach(field => {
-                  if (field !== fieldToUpdate) delete currentLesson[field];
-             });
-             */
-             currentLesson.updatedAt = new Date(); // Približný čas
+             currentLesson.updatedAt = new Date(); 
         }
         
         showToast("Obsah byl úspěšně uložen do lekce.");
         
-        // Znovu zobrazíme aktuálny pohľad s uloženými dátami
         const currentViewId = document.querySelector('.editor-menu-item.bg-green-100')?.dataset.view;
         if (currentViewId) {
             showEditorContent(currentViewId);
@@ -806,7 +746,7 @@ async function handleSaveGeneratedContent(fieldToUpdate, contentToSave) {
     } catch (error) {
         console.error(`Chyba při ukládání obsahu (${fieldToUpdate}) do lekce:`, error);
         showToast("Při ukládání obsahu došlo k chybě.", true);
-         if (saveBtn) { // Obnovíme tlačidlo len v prípade chyby
+         if (saveBtn) { 
             saveBtn.disabled = false;
             saveBtn.innerHTML = originalText;
         }
@@ -832,19 +772,16 @@ async function handleDeleteGeneratedContent(fieldToDelete, viewId) {
 
     try {
         const lessonRef = doc(firebaseInit.db, 'lessons', currentLesson.id);
-        // Použijeme deleteField() na odstránenie poľa z dokumentu
         await updateDoc(lessonRef, {
             [fieldToDelete]: deleteField(),
-            updatedAt: serverTimestamp() // Aktualizujeme čas úpravy
+            updatedAt: serverTimestamp() 
         });
         
-        // Odstránime pole aj z lokálnej kópie
         delete currentLesson[fieldToDelete];
-        currentLesson.updatedAt = new Date(); // Približný čas
+        currentLesson.updatedAt = new Date(); 
         
         showToast("Obsah byl úspěšně smazán.");
         
-        // Znovu zobrazíme editor pre daný viewId, ktorý by teraz mal ukázať formulár
         showEditorContent(viewId);
 
     } catch (error) {
@@ -856,6 +793,3 @@ async function handleDeleteGeneratedContent(fieldToDelete, viewId) {
         }
     }
 }
-
-// ===== OPRAVA: Odstránená extra zátvorka =====
-// (žiadna zátvorka tu nemá byť)
