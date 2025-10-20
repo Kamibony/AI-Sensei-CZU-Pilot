@@ -5,7 +5,7 @@ import { doc, addDoc, updateDoc, collection, serverTimestamp, deleteField } from
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from './firebase-init.js'; // Používame firebaseInit pre db, storage, functions
 import { showToast } from './utils.js';
-// ===== ZMENA 1: Pridaný import 'renderMediaLibraryFiles' =====
+// Importujeme všetky 4 funkcie
 import { renderSelectedFiles, clearSelectedFiles, getSelectedFiles, renderMediaLibraryFiles } from './upload-handler.js';
 
 let currentLesson = null; // Aktuálne editovaná lekcia
@@ -81,11 +81,9 @@ export function renderEditorMenu(container, lesson) {
     currentLesson = lesson;
     lastGeneratedData = null; // Reset
     
-    // ===== OPRAVA 1: Volanie bez nesprávneho argumentu =====
-    // (Túto opravu si tam už mal, ponechávam)
+    // (Ponechaná oprava)
     clearSelectedFiles(); // Vyčistíme RAG výber
-    // =======================================================
-
+    
     container.innerHTML = `
         <header class="p-4 border-b border-slate-200 flex-shrink-0">
             <button id="back-to-timeline-btn" class="flex items-center text-sm text-green-700 hover:underline mb-3">&larr; Zpět na plán výuky</button>
@@ -338,83 +336,68 @@ export async function showEditorContent(viewId) {
      setTimeout(() => {
           attachEditorEventListeners(viewId);
           
-          // ===== OPRAVA 2: Volanie iba pre relevantné pohľady a bez argumentu =====
-          // (Túto opravu si tam už mal, ponechávam)
+          // (Ponechaná oprava)
           // Aktualizujeme RAG zoznam, iba ak sme v pohľade, ktorý ho reálne používa
           if (viewId !== 'details' && viewId !== 'video') {
                renderSelectedFiles(); 
           }
-          // ======================================================================
+          
 
-          // ===== ZMENA 2: Kompletná oprava logiky pre RAG tlačidlo =====
+          // ===== ZMENA: Kompletná prepracovaná logika pre RAG tlačidlo =====
           const ragSelectBtn = document.getElementById('select-files-btn-rag');
           if (ragSelectBtn) {
                ragSelectBtn.addEventListener('click', () => {
-                   // --- Hľadáme elementy AŽ TERAZ, po kliknutí ---
+                   
+                   // --- Hľadáme elementy modálu, ktoré sú v index.html ---
                    const modal = document.getElementById('media-library-modal');
-                   const modalContent = document.getElementById('modal-library-content');
                    const modalConfirm = document.getElementById('modal-confirm-btn');
                    const modalCancel = document.getElementById('modal-cancel-btn');
                    const modalClose = document.getElementById('modal-close-btn');
-                   // Hľadáme kontajner knižnice až teraz!
-                   const libraryContainer = document.getElementById('course-media-library-container'); 
 
-                   // Vylepšená kontrola chýb
-                   if (!modal || !modalContent || !modalConfirm || !modalCancel || !modalClose) {
+                   if (!modal || !modalConfirm || !modalCancel || !modalClose) {
                         console.error("Chybějící elementy pro modální okno (modal, content, buttons). Zkontrolujte index.html.");
                         showToast("Chyba: Nepodařilo se načíst komponentu pro výběr souborů.", true);
                         return;
                    }
-                   if (!libraryContainer) {
-                       console.error("Kritická chyba: Element '#course-media-library-container' nebyl nalezen v DOM. Byl už inicializován (např. v professor.js)?");
-                       showToast("Chyba: Komponenta knihovny médií nebyla nalezena.", true);
-                       return; // Zastavíme, ak knižnica neexistuje
-                   }
-                   // --- Koniec vylepšenej kontroly ---
-
-                   const originalParent = libraryContainer.parentElement;
-                   let isLibraryInModal = false;
-
-                   const moveLibraryToModal = () => {
-                       // 3. Načítame čerstvé dáta do knižnice (znovu vykreslíme súbory)
-                       renderMediaLibraryFiles(); // Funkcia z upload-handler.js
-                       // 4. Presunieme ju do modálu
-                       modalContent.innerHTML = ''; // Vyčistíme "Načítání..."
-                       modalContent.appendChild(libraryContainer);
-                       isLibraryInModal = true;
-                       modal.classList.remove('hidden');
-                   };
-
-                   const moveLibraryBack = () => {
-                       if (isLibraryInModal && originalParent) {
-                           // 5. Vrátime ju pôvodnému rodičovi
-                           originalParent.appendChild(libraryContainer);
-                       }
-                       isLibraryInModal = false;
-                       modal.classList.add('hidden');
-                        
-                       // Odstránime listenery ich klonovaním, aby sa nespúšťali viackrát
-                       // Musíme ich znova nájsť, lebo klonovanie ich nahrádza
-                       document.getElementById('modal-confirm-btn').replaceWith(document.getElementById('modal-confirm-btn').cloneNode(true));
-                       document.getElementById('modal-cancel-btn').replaceWith(document.getElementById('modal-cancel-btn').cloneNode(true));
-                       document.getElementById('modal-close-btn').replaceWith(document.getElementById('modal-close-btn').cloneNode(true));
-                   };
-
-                   // 6. Priradíme listenery (použijeme .onclick namiesto addEventListener pre jednoduché prepísanie)
-                   // Musíme ich znova nájsť, lebo predchádzajúci `moveLibraryBack` ich mohol klonovať
-                   document.getElementById('modal-confirm-btn').onclick = () => {
+                   
+                   // --- Definujeme funkcie na zatvorenie (pre removeEventListener) ---
+                   // Tieto funkcie sa musia definovať nanovo pri každom kliknutí,
+                   // aby sme mohli správne pridať a odobrať listenery.
+                   
+                   const handleConfirm = () => {
                        renderSelectedFiles(); // Aktualizujeme zoznam v RAG UI
-                       moveLibraryBack();
+                       closeModal();
                    };
-                   document.getElementById('modal-cancel-btn').onclick = moveLibraryBack;
-                   document.getElementById('modal-close-btn').onclick = moveLibraryBack;
+                   
+                   const handleCancel = () => {
+                       closeModal();
+                   };
+                   
+                   const closeModal = () => {
+                       modal.classList.add('hidden');
+                       // Odstránime listenery, aby sa nedupľovali
+                       modalConfirm.removeEventListener('click', handleConfirm);
+                       modalCancel.removeEventListener('click', handleCancel);
+                       modalClose.removeEventListener('click', handleCancel);
+                   };
 
-                   // 7. Otvoríme modal
-                   moveLibraryToModal();
+                   // --- Otvorenie modálu ---
+                   
+                   // 1. Zavoláme renderovaciu funkciu a povieme jej, aby kreslila do ID 'modal-media-list'
+                   renderMediaLibraryFiles("main-course", "modal-media-list");
+                   
+                   // 2. Pridáme listenery
+                   modalConfirm.addEventListener('click', handleConfirm);
+                   modalCancel.addEventListener('click', handleCancel);
+                   modalClose.addEventListener('click', handleCancel);
+                   
+                   // 3. Zobrazíme modál
+                   modal.classList.remove('hidden');
+                   
                    // --- Koniec logiky pre modal ---
                });
           }
-          // ===== KONIEC ZMENY 2 =====
+          // ===== KONIEC ZMENY =====
 
           // Prezentácia - nastavíme style selector, ak existuje uložená hodnota
           if (viewId === 'presentation' && currentLesson?.presentation?.styleId) {
