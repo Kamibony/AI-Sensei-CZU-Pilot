@@ -49,6 +49,7 @@ export function initializeCourseMediaUpload(courseId = "main-course") {
 }
 
 // Handle the actual file upload process
+// ===== OPRAVA: mediaListElement je teraz listElementId (string) =====
 function handleFileUpload(files, courseId, listElementId) {
     if (!files || files.length === 0) return;
 
@@ -145,6 +146,7 @@ function handleFileUpload(files, courseId, listElementId) {
 }
 
 // Render the list of files already in Storage
+// ===== OPRAVA: Funkcia teraz prijíma ID elementu zoznamu =====
 export async function renderMediaLibraryFiles(courseId = "main-course", listElementId = "course-media-list") {
     
     const mediaListElement = document.getElementById(listElementId);
@@ -293,6 +295,5 @@ export function clearSelectedFiles() {
         renderSelectedFiles(); 
     }
     
-    // ===== OPRAVA: Odstránené odškrtávanie, to sa deje automaticky =====
     console.log("Cleared selected files for generation."); 
 }
