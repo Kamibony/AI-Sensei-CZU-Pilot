@@ -20,7 +20,8 @@ export function initializeCourseMediaUpload(courseId = "main-course") {
 
     // Handle file selection via button/input click
     fileInput.addEventListener('change', (e) => {
-        handleFileUpload(e.target.files, courseId, mediaList);
+        // Použijeme ID "course-media-list" špecifické pre túto záložku
+        handleFileUpload(e.target.files, courseId, "course-media-list");
     });
 
     // Handle file selection via drag and drop
@@ -37,17 +38,27 @@ export function initializeCourseMediaUpload(courseId = "main-course") {
         e.preventDefault();
         uploadArea.classList.remove('bg-green-50', 'border-green-400');
         if (e.dataTransfer.files) {
-            handleFileUpload(e.dataTransfer.files, courseId, mediaList);
+            // Použijeme ID "course-media-list" špecifické pre túto záložku
+            handleFileUpload(e.dataTransfer.files, courseId, "course-media-list");
         }
     });
 
     // Initial load of existing files
-    renderMediaLibraryFiles(courseId);
+    // Použijeme ID "course-media-list" špecifické pre túto záložku
+    renderMediaLibraryFiles(courseId, "course-media-list");
 }
 
 // Handle the actual file upload process
-function handleFileUpload(files, courseId, mediaListElement) {
+// ===== ZMENA: mediaListElement je teraz listElementId (string) =====
+function handleFileUpload(files, courseId, listElementId) {
     if (!files || files.length === 0) return;
+
+    // Nájdeme element až tu
+    const mediaListElement = document.getElementById(listElementId);
+    if (!mediaListElement) {
+        console.error(`handleFileUpload: Element ID "${listElementId}" not found.`);
+        return;
+    }
 
     const storage = getStorage(firebaseInit.app); // Získame storage z inicializovanej app
 
@@ -62,7 +73,7 @@ function handleFileUpload(files, courseId, mediaListElement) {
             return;
         }
 
-        // ===== ZMENA 1: Opravená cesta pre nahrávanie =====
+        // ===== OPRAVA 1: Cesta opravená na 'courses/...' =====
         // Súbory sa budú nahrávať do 'courses/${courseId}/media'
         const filePath = `courses/${courseId}/media/${file.name}`;
         // ================================================
@@ -116,8 +127,8 @@ function handleFileUpload(files, courseId, mediaListElement) {
                 statusText.classList.add('text-red-500');
                 progressBarContainer.classList.add('hidden');
                 cancelButton.classList.add('hidden');
-                 deleteButton.classList.remove('hidden'); // Show delete if it failed but maybe exists? Unlikely.
-                 deleteButton.onclick = () => handleDeleteFile(storageRef, listItem); // Allow deleting failed placeholder?
+                 deleteButton.classList.remove('hidden'); 
+                 deleteButton.onclick = () => handleDeleteFile(storageRef, listItem, listElementId); // Posielame ID
                 delete currentUploadTasks[fileId];
                 showToast(`Chyba při nahrávání souboru ${file.name}.`, true);
             },
@@ -129,30 +140,33 @@ function handleFileUpload(files, courseId, mediaListElement) {
                 progressBarContainer.classList.add('hidden');
                 cancelButton.classList.add('hidden');
                  deleteButton.classList.remove('hidden'); // Show delete button after successful upload
-                 deleteButton.onclick = () => handleDeleteFile(storageRef, listItem);
+                 deleteButton.onclick = () => handleDeleteFile(storageRef, listItem, listElementId); // Posielame ID
                 delete currentUploadTasks[fileId];
                 showToast(`Soubor ${file.name} úspěšně nahrán.`);
                  // Po úspešnom nahraní obnovíme zoznam súborov
-                 renderMediaLibraryFiles(courseId);
+                 renderMediaLibraryFiles(courseId, listElementId);
             }
         );
     });
 }
 
 // Render the list of files already in Storage
-export async function renderMediaLibraryFiles(courseId = "main-course") {
-    const mediaListElement = document.getElementById('course-media-list');
+// ===== ZMENA: Funkcia teraz prijíma ID elementu zoznamu =====
+export async function renderMediaLibraryFiles(courseId = "main-course", listElementId = "course-media-list") {
+    
+    const mediaListElement = document.getElementById(listElementId);
     if (!mediaListElement) {
-        console.warn("Element '#course-media-list' not found. Cannot render media library files.");
+        console.warn(`Element '#${listElementId}' not found. Cannot render media library files.`);
         return;
     }
+    // =======================================================
 
     mediaListElement.innerHTML = '<li class="text-sm text-gray-500">Načítám soubory...</li>'; // Loading indicator
 
     try {
         const storage = getStorage(firebaseInit.app);
         
-        // ===== ZMENA 2: Opravená cesta pre načítanie =====
+        // ===== OPRAVA 2: Cesta opravená na 'courses/...' =====
         // Načítame súbory z 'courses/${courseId}/media'
         const listRef = ref(storage, `courses/${courseId}/media`);
         // ================================================
@@ -173,7 +187,6 @@ export async function renderMediaLibraryFiles(courseId = "main-course") {
             listItem.className = 'bg-gray-100 p-2 rounded flex justify-between items-center group'; // Add group for hover effect
             
             // ===== OPRAVA 3: Odstránený chybný JSX komentár =====
-            // (Túto opravu si tam už mal, ponechávam)
             listItem.innerHTML = `
                 <span class="text-sm font-medium text-gray-700 truncate mr-2">${itemRef.name}</span>
                  <div class="flex items-center space-x-2 flex-shrink-0">
@@ -187,16 +200,16 @@ export async function renderMediaLibraryFiles(courseId = "main-course") {
 
             // Add delete functionality
             const deleteButton = listItem.querySelector('.delete-file-btn');
-            deleteButton.onclick = () => handleDeleteFile(itemRef, listItem);
+            // ===== ZMENA: Posielame ID zoznamu, ktorý sa má obnoviť =====
+            deleteButton.onclick = () => handleDeleteFile(itemRef, listItem, listElementId);
 
             // Add selection functionality (add to selectedFilesForGeneration array)
              const checkbox = listItem.querySelector('.file-select-checkbox');
              
-             // ===== ZMENA 3: Zaškrtneme checkboxy, ktoré už sú vo výbere =====
+             // Zaškrtneme checkboxy, ktoré už sú vo výbere
              if (selectedFilesForGeneration.some(f => f.fullPath === itemRef.fullPath)) {
                  checkbox.checked = true;
              }
-             // ==========================================================
 
              checkbox.addEventListener('change', (e) => {
                  const filePath = e.target.dataset.filePath;
@@ -209,7 +222,9 @@ export async function renderMediaLibraryFiles(courseId = "main-course") {
                  } else {
                      selectedFilesForGeneration = selectedFilesForGeneration.filter(f => f.fullPath !== filePath);
                  }
-                 renderSelectedFiles(); // Update the list in editor-handler (RAG list)
+                 // Aktualizujeme VŽDY zoznam v editore (RAG list)
+                 // Zoznam v modáli sa neaktualizuje, len sa mení checkbox
+                 renderSelectedFiles(); 
              });
 
         });
@@ -221,7 +236,8 @@ export async function renderMediaLibraryFiles(courseId = "main-course") {
 }
 
 // Handle deleting a file from Storage
-async function handleDeleteFile(fileRef, listItemElement) {
+// ===== ZMENA: Prijíma listElementId na obnovenie =====
+async function handleDeleteFile(fileRef, listItemElement, listElementId) {
     if (!confirm(`Opravdu chcete smazat soubor "${fileRef.name}"? Tato akce je nevratná.`)) {
         return;
     }
@@ -231,7 +247,14 @@ async function handleDeleteFile(fileRef, listItemElement) {
         listItemElement.remove(); // Remove from UI
         // Remove from selection if it was selected
         selectedFilesForGeneration = selectedFilesForGeneration.filter(f => f.fullPath !== fileRef.fullPath);
-        renderSelectedFiles(); // Update RAG list if needed
+        
+        // Obnovíme oba zoznamy pre istotu (ak by bol druhý otvorený)
+        renderSelectedFiles(); // Update RAG list
+        // Ak sme mazali z modálu, prekreslíme modál, inak prekreslíme hlavnú knižnicu
+        if (listElementId) {
+             renderMediaLibraryFiles("main-course", listElementId); 
+        }
+
         showToast(`Soubor "${fileRef.name}" byl smazán.`);
     } catch (error) {
         console.error("Error deleting file:", error);
@@ -248,8 +271,6 @@ export function renderSelectedFiles() {
     
     // Check if the RAG list element exists before trying to manipulate it
     if (!listElement) {
-         // This is expected when not in a view with the RAG selector
-         // console.warn("Element 'selected-files-list-rag' not found. Cannot render selected files."); 
          return; 
     }
 
@@ -276,7 +297,10 @@ export function clearSelectedFiles() {
     }
     
     // Also uncheck checkboxes in the media library UI (if it's currently displayed)
+    // ===== ZMENA: Hľadáme checkboxy v OBOCH možných zoznamoch =====
     document.querySelectorAll('#course-media-list .file-select-checkbox:checked').forEach(cb => cb.checked = false);
+    document.querySelectorAll('#modal-media-list .file-select-checkbox:checked').forEach(cb => cb.checked = false);
+    // ========================================================
     
     console.log("Cleared selected files for generation."); 
 }
