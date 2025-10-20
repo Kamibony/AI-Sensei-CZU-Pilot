@@ -30,7 +30,10 @@ async function sendTelegramMessage(chatId: number, text: string) {
 }
 
 // ZJEDNOTENÁ FUNKCIA PRE VŠETKY AI OPERÁCIE
-export const generateContent = onCall({ region: "europe-west1" }, async (request) => {
+export const generateContent = onCall({ 
+    region: "europe-west1",
+    timeoutSeconds: 300 // <-- ZMENENÉ (5 minút)
+}, async (request) => {
     const { contentType, promptData, filePaths } = request.data;
     if (!contentType || !promptData) {
         throw new HttpsError("invalid-argument", "Missing contentType or promptData.");
@@ -67,11 +70,18 @@ export const generateContent = onCall({ region: "europe-west1" }, async (request
         logger.error(`Error in generateContent for type ${contentType}:`, error);
         let message = "An unknown error occurred.";
         if (error instanceof Error) { message = error.message; }
+        // Chybu HttpsError len prepošleme ďalej
+        if (error instanceof HttpsError) {
+            throw error;
+        }
         throw new HttpsError("internal", `Failed to generate content: ${message}`);
     }
 });
 
-export const getAiAssistantResponse = onCall({ region: "europe-west1" }, async (request) => {
+export const getAiAssistantResponse = onCall({ 
+    region: "europe-west1",
+    timeoutSeconds: 300 // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
+}, async (request) => {
     const { lessonId, userQuestion } = request.data;
     if (!lessonId || !userQuestion) {
         throw new HttpsError("invalid-argument", "Missing lessonId or userQuestion");
@@ -90,6 +100,9 @@ export const getAiAssistantResponse = onCall({ region: "europe-west1" }, async (
         logger.error("Error in getAiAssistantResponse:", error);
         let message = "Failed to get AI response";
         if (error instanceof Error) { message = error.message; }
+        if (error instanceof HttpsError) {
+            throw error;
+        }
         throw new HttpsError("internal", message);
     }
 });
@@ -238,7 +251,10 @@ export const getGlobalAnalytics = onCall({ region: "europe-west1" }, async (requ
 });
 
 // UPRAVENÁ FUNKCIA: AI Analýza študenta
-export const getAiStudentSummary = onCall({ region: "europe-west1" }, async (request) => {
+export const getAiStudentSummary = onCall({ 
+    region: "europe-west1",
+    timeoutSeconds: 300 // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
+}, async (request) => {
     const { studentId } = request.data;
     if (!studentId) {
         logger.error("getAiStudentSummary called without studentId.");
@@ -333,6 +349,9 @@ ${promptContext}
         logger.error("Error in getAiStudentSummary:", error);
         if (error instanceof Error) {
             throw new HttpsError("internal", `Nepodařilo se vygenerovat AI analýzu: ${error.message}`);
+        }
+        if (error instanceof HttpsError) {
+            throw error;
         }
         throw new HttpsError("internal", "Nepodařilo se vygenerovat AI analýzu.");
     }
@@ -467,7 +486,8 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
         } catch (error) {
             logger.error("Error in Telegram webhook:", error);
             await sendTelegramMessage(chatId, "Omlouvám se, nastala neočekávaná chyba při zpracování vaší zprávy.");
-            res.status(500).send("Internal Server Error");
+            // Je dôležité poslať 200 OK, aby Telegram neopakoval požiadavku
+            res.status(200).send("OK"); 
         }
     });
 });
