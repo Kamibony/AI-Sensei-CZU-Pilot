@@ -5,7 +5,7 @@ import { doc, addDoc, updateDoc, collection, serverTimestamp, deleteField } from
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from './firebase-init.js'; // Používame firebaseInit pre db, storage, functions
 import { showToast } from './utils.js';
-// Importujeme všetky 4 funkcie
+// ===== OPRAVA: Importujeme všetky 4 funkcie =====
 import { renderSelectedFiles, clearSelectedFiles, getSelectedFiles, renderMediaLibraryFiles } from './upload-handler.js';
 
 let currentLesson = null; // Aktuálne editovaná lekcia
@@ -83,7 +83,7 @@ export function renderEditorMenu(container, lesson) {
     
     // (Ponechaná oprava)
     clearSelectedFiles(); // Vyčistíme RAG výber
-    
+
     container.innerHTML = `
         <header class="p-4 border-b border-slate-200 flex-shrink-0">
             <button id="back-to-timeline-btn" class="flex items-center text-sm text-green-700 hover:underline mb-3">&larr; Zpět na plán výuky</button>
@@ -342,8 +342,7 @@ export async function showEditorContent(viewId) {
                renderSelectedFiles(); 
           }
           
-
-          // ===== ZMENA: Kompletná prepracovaná logika pre RAG tlačidlo =====
+          // ===== OPRAVA: Kompletná prepracovaná logika pre RAG tlačidlo =====
           const ragSelectBtn = document.getElementById('select-files-btn-rag');
           if (ragSelectBtn) {
                ragSelectBtn.addEventListener('click', () => {
@@ -397,7 +396,8 @@ export async function showEditorContent(viewId) {
                    // --- Koniec logiky pre modal ---
                });
           }
-          // ===== KONIEC ZMENY =====
+          // ===== KONIEC OPRAVY =====
+
 
           // Prezentácia - nastavíme style selector, ak existuje uložená hodnota
           if (viewId === 'presentation' && currentLesson?.presentation?.styleId) {
@@ -855,4 +855,6 @@ async function handleDeleteGeneratedContent(fieldToDelete, viewId) {
             deleteBtn.innerHTML = originalText;
         }
     }
+}
+
 }
