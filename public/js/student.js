@@ -3,18 +3,27 @@ import { showToast } from './utils.js';
 import * as firebaseInit from './firebase-init.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { handleLogout } from './auth.js';
-import { getAiAssistantResponse } from './gemini-api.js';
+// ZMENA: Tento import už nepotrebujeme, AI voláme cez backend
+// import { getAiAssistantResponse } from './gemini-api.js'; 
 // ===== NOVÝ IMPORT pre prezentáciu =====
 import { renderPresentation } from './student/presentation-handler.js';
 // =====================================
 
 let studentDataUnsubscribe = null;
 let lessonsData = [];
-let currentUserData = null;
+let currentUserData = null; // Obsahuje dáta z /students/{studentId}
 let currentLessonData = null;
 let currentLessonId = null;
 
-let _sendMessageFromStudentCallable = null;
+// --- MULTI-TENANCY PREMENNÉ ---
+let currentStudentId = null;
+let currentProfessorId = null;
+let chatHistoryAI = []; // Pre uchovanie histórie pre backend
+let chatHistoryProf = []; // (Aktuálne nevyužité, ale pre konzistenciu)
+// ---------------------------------
+
+// ZMENA: Odstránená 'sendMessageFromStudent', pridaná 'getAiAssistantResponse'
+let _getAiAssistantResponseCallable = null; 
 let _submitQuizResultsCallable = null;
 let _submitTestResultsCallable = null;
 
@@ -23,17 +32,18 @@ let currentSpeechUtterance = null;
 let currentPlayingEpisodeIndex = -1;
 // ======================================
 
-function getSendMessageFromStudentCallable() {
-    if (!_sendMessageFromStudentCallable) {
-        // console.log("Lazy initializing sendMessageFromStudent callable. Current functions object:", firebaseInit.functions); // Odstránené logovanie
+// ZMENA: Nová funkcia pre volanie AI backendu
+function getAiAssistantResponseCallable() {
+    if (!_getAiAssistantResponseCallable) {
         if (!firebaseInit.functions) {
-            console.error("CRITICAL: Firebase Functions object is still not available when trying to create sendMessageFromStudent callable!");
+            console.error("CRITICAL: Firebase Functions object is still not available when trying to create getAiAssistantResponse callable!");
             throw new Error("Firebase Functions not initialized.");
         }
-        _sendMessageFromStudentCallable = httpsCallable(firebaseInit.functions, 'sendMessageFromStudent');
+        _getAiAssistantResponseCallable = httpsCallable(firebaseInit.functions, 'getAiAssistantResponse');
     }
-    return _sendMessageFromStudentCallable;
+    return _getAiAssistantResponseCallable;
 }
+// ZMENA: Odstránená getSendMessageFromStudentCallable()
 
 function getSubmitQuizResultsCallable() {
     if (!_submitQuizResultsCallable) {
@@ -68,6 +78,9 @@ export function initStudentDashboard() {
         return;
     }
 
+    // ZMENA: Nastavenie globálneho ID študenta
+    currentStudentId = user.uid;
+
     if (studentDataUnsubscribe) studentDataUnsubscribe();
 
     const userDocRef = doc(firebaseInit.db, "students", user.uid);
@@ -75,6 +88,15 @@ export function initStudentDashboard() {
     studentDataUnsubscribe = onSnapshot(userDocRef, async (docSnapshot) => {
         if (docSnapshot.exists()) {
             currentUserData = { id: docSnapshot.id, ...docSnapshot.data() };
+            
+            // ZMENA: Načítanie ID profesora
+            currentProfessorId = currentUserData.professorId || null;
+            if (currentProfessorId) {
+                console.log(`Student ${currentStudentId} is assigned to professor ${currentProfessorId}`);
+            } else {
+                console.warn(`Student ${currentStudentId} is not assigned to any professor.`);
+            }
+            
             if (!currentUserData.name || currentUserData.name.trim() === '') {
                 promptForStudentName(user.uid);
             } else {
@@ -85,13 +107,16 @@ export function initStudentDashboard() {
             }
         } else {
             console.warn(`Profil pre študenta s UID ${user.uid} nebol nájdený. Vytváram nový...`);
+            // Toto by sa už nemalo diať vďaka 'processRegistration' funkcii,
+            // ale ponechávame ako záchrannú sieť.
             try {
                 const token = `TGM-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
                 await setDoc(doc(firebaseInit.db, "students", user.uid), {
                     email: user.email,
                     createdAt: serverTimestamp(),
                     name: '',
-                    telegramLinkToken: token
+                    telegramLinkToken: token,
+                    professorId: null // ZMENA: explicitne nastaviť na null
                 });
                 console.log(`Profil pre študenta ${user.uid} bol úspešne vytvorený.`);
                 // Po vytvorení profilu hneď zobrazíme výzvu na zadanie mena
@@ -171,11 +196,29 @@ async function renderStudentPanel() {
 
 async function fetchAndDisplayLessons() {
     const mainContent = document.getElementById('student-main-content');
+    
+    // ZMENA: Overenie, či je študent priradený k profesorovi
+    if (!currentProfessorId) {
+        mainContent.innerHTML = `
+            <h2 class="text-2xl font-bold mb-6 text-slate-800">Moje lekce</h2>
+            <div class="bg-white p-6 rounded-xl shadow-lg text-center">
+                <h3 class="text-lg font-semibold text-slate-800">Čeká se na přiřazení</h3>
+                <p class="text-slate-600 mt-2">Zatím nejste přirazen k žádnému profesorovi.</p>
+                <p class="text-slate-500 text-sm mt-2">Jakmile vás váš profesor přidá do své třídy, zde se zobrazí vaše lekce.</p>
+            </div>`;
+        return;
+    }
+
     mainContent.innerHTML = `<h2 class="text-2xl font-bold mb-6 text-slate-800">Moje lekce</h2>
                              <div id="lessons-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">Načítání lekcí...</div>`;
 
     try {
-        const q = query(collection(firebaseInit.db, "lessons"), orderBy("createdAt", "desc"));
+        // ZMENA: Dopyt smeruje do subkolekcie profesora a triedi sa podľa 'timelinePosition'
+        const q = query(
+            collection(firebaseInit.db, "professors", currentProfessorId, "lessons"), 
+            orderBy("timelinePosition", "asc") // "asc" je zvyčajne pre timeline
+        );
+        
         const querySnapshot = await getDocs(q);
         lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -198,7 +241,7 @@ async function fetchAndDisplayLessons() {
         });
     } catch (error) {
         console.error("Error fetching lessons:", error);
-        mainContent.innerHTML = `<p class="text-red-500">Nepodařilo se načíst lekce.</p>`;
+        mainContent.innerHTML = `<p class="text-red-500">Nepodařilo se načíst lekce. Chyba: ${error.message}</p>`;
     }
 }
 
@@ -385,7 +428,10 @@ function switchTab(tabId) {
     }
 }
 
-// Funkcie pre podcast zostávajú nezmenené (alebo s opravou z predchádzajúcej správy)
+// ===== Funkcie pre podcast (BEZ ZMENY) =====
+// (Celá sekcia funkcií setupPodcastListeners, handlePlayPodcast, 
+// handlePausePodcast, handleStopPodcast, updatePodcastButtons, 
+// resetPodcastButtons zostáva presne tak, ako bola v tvojom súbore)
 function setupPodcastListeners() {
     document.querySelectorAll('.play-podcast-btn').forEach(button => {
         button.addEventListener('click', handlePlayPodcast);
@@ -527,7 +573,10 @@ function resetPodcastButtons() {
          }
      });
 }
+// ===== Koniec sekcie Podcast (BEZ ZMENY) =====
 
+
+// ===== Funkcie pre Chat (S VÝRAZNÝMI ZMENAMI) =====
 
 function renderAIChatView() {
     // ... (kód zostáva nezmenený)
@@ -582,7 +631,7 @@ function switchAIChatSubView(viewType) {
             }
             loadChatHistory('ai');
         } else if (viewType === 'telegram') {
-            contentContainer.innerHTML = renderAITelegramLink();
+            contentArea.innerHTML = renderAITelegramLink();
         }
     }
 }
@@ -684,6 +733,7 @@ function renderQuiz() {
             const score = displayQuizResults(quiz, userAnswers); 
             
             // Odoslanie na backend
+            // (BEZ ZMENY) Backend (index.ts) si sám zistí studentId a professorId
             try {
                 const submitCallable = getSubmitQuizResultsCallable();
                 await submitCallable({ 
@@ -819,6 +869,8 @@ function renderTest() {
 
             const score = displayTestResults(test, userAnswers); 
             
+            // (BEZ ZMENY) Backend (index.ts) si sám zistí studentId a professorId
+            // Za predpokladu, že v index.ts existuje funkcia 'submitTestResults'
             try {
                 const submitCallable = getSubmitTestResultsCallable();
                 await submitCallable({ 
@@ -904,7 +956,6 @@ function displayTestResults(test, userAnswers) {
 
 
 async function loadChatHistory(type) { 
-    // ... (kód zostáva nezmenený)
     const chatHistoryElId = type === 'ai' ? 'ai-chat-history' : 'prof-chat-history';
     const chatHistoryEl = document.getElementById(chatHistoryElId);
     if (!chatHistoryEl) {
@@ -912,25 +963,58 @@ async function loadChatHistory(type) {
         return; 
     }
 
+    // ZMENA: Overenie priradenia k profesorovi
+    if (!currentProfessorId) {
+        chatHistoryEl.innerHTML = '<p class="text-center text-slate-400 p-4">Chat je dostupný až po přiřazení k profesorovi.</p>';
+        return;
+    }
+
     chatHistoryEl.innerHTML = '<p class="text-center text-slate-400 p-4">Načítání konverzace...</p>';
     try {
+        // ZMENA: Cesta k 'messages' v subkolekcii profesora
+        const messagesRef = collection(
+            firebaseInit.db, 
+            "professors", 
+            currentProfessorId, 
+            "studentInteractions", 
+            currentStudentId,
+            "messages"
+        );
+        
+        // ZMENA: Odstránený filter 'where("lessonId", ...)'
         const q = query(
-            collection(firebaseInit.db, `conversations/${currentUserData.id}/messages`),
-            where("lessonId", "==", currentLessonId),
+            messagesRef,
             where("type", "==", type), 
             orderBy("timestamp", "asc")
         );
+        
         // Použijeme onSnapshot pre real-time aktualizácie
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const currentChatHistoryEl = document.getElementById(chatHistoryElId); // Znova nájdeme element
             if (!currentChatHistoryEl) return; // Ak medzitým používateľ prešiel inam
+
+            // ZMENA: Resetovanie a plnenie lokálnej histórie
+            if (type === 'ai') chatHistoryAI = []; else chatHistoryProf = [];
 
             currentChatHistoryEl.innerHTML = ''; // Vyčistiť pred naplnením
             if (snapshot.empty) {
                 currentChatHistoryEl.innerHTML = `<p class="text-center text-slate-400 p-4">Začněte konverzaci...</p>`;
             } else {
                 snapshot.docs.forEach(doc => {
-                    appendChatMessage(doc.data(), type, chatHistoryElId);
+                    const msg = doc.data();
+                    // ZMENA: Plnenie lokálnej histórie pre AI
+                    // Backend ukladá 'role' a 'text', nie 'content'
+                    const historyEntry = { role: msg.role, content: msg.text }; 
+                    if (type === 'ai') {
+                         // AI história potrebuje 'user' a 'ai' role
+                         if (historyEntry.role === 'user' || historyEntry.role === 'ai') {
+                            chatHistoryAI.push(historyEntry);
+                         }
+                    } else {
+                         chatHistoryProf.push(historyEntry);
+                    }
+                    
+                    appendChatMessage(msg, type, chatHistoryElId);
                 });
                  // Scroll to bottom after rendering messages
                  currentChatHistoryEl.scrollTop = currentChatHistoryEl.scrollHeight;
@@ -942,10 +1026,7 @@ async function loadChatHistory(type) {
                 currentChatHistoryEl.innerHTML = '<p class="text-red-500 p-4 text-center">Chyba při načítání konverzace.</p>';
             }
         });
-        // Uloženie unsubscribe funkcie (potrebujeme pre cleanup pri prepnutí tabu/lekcie)
         // TODO: Manažovať tieto unsubscribe funkcie lepšie
-        // if (type === 'ai') aiChatUnsubscribe = unsubscribe;
-        // else professorChatUnsubscribe = unsubscribe;
 
     } catch (error) {
         console.error(`Error loading ${type} chat history:`, error);
@@ -954,103 +1035,83 @@ async function loadChatHistory(type) {
 }
 
 async function sendMessage(type) {
-    // ... (kód zostáva nezmenený)
     const inputEl = document.getElementById(type === 'ai' ? 'ai-chat-input' : 'prof-chat-input');
     if (!inputEl) return;
     const text = inputEl.value.trim();
     if (!text) return;
 
+    // ZMENA: Overenie priradenia k profesorovi
+    if (!currentProfessorId) {
+        showToast("Nelze odeslat zprávu. Nejste přiřazen k profesorovi.", true);
+        return;
+    }
+    
     inputEl.value = ''; // Vyčistíme input hneď
 
+    // ZMENA: Cesta k 'messages' v subkolekcii profesora
+    const messagesRef = collection(
+        firebaseInit.db, 
+        "professors", 
+        currentProfessorId, 
+        "studentInteractions", 
+        currentStudentId,
+        "messages"
+    );
+
+    // ZMENA: Používame 'role: "user"' namiesto 'sender: "student"'
+    // ZMENA: Odstránené 'lessonId'
     const messageData = { 
-        lessonId: currentLessonId, 
         text: text,
-        sender: 'student',
+        role: 'user', // Zjednotené na 'user' (predtým 'student')
         type: type, // 'ai' alebo 'professor'
         timestamp: serverTimestamp() 
     };
 
     try {
-         // 1. Uložíme správu študenta do DB
-         const messageRef = collection(firebaseInit.db, `conversations/${currentUserData.id}/messages`);
-         await addDoc(messageRef, messageData);
-         console.log(`Student message saved to DB for type: ${type}`);
-
-         // Zobrazenie v UI už rieši onSnapshot
-
-         // 2. Ak je pre AI, získame odpoveď
+         // ZMENA: Logika rozdelená
          if (type === 'ai') {
+            // --- NOVÁ LOGIKA PRE AI CHAT (VOLANIE BACKENDU) ---
             const chatHistoryEl = document.getElementById('ai-chat-history');
-            const typingIndicator = appendChatMessage({ text: '...', sender: 'ai-typing' }, 'ai', 'ai-chat-history'); // Zobrazíme indikátor písania
+            const typingIndicator = appendChatMessage({ text: '...', role: 'ai-typing' }, 'ai', 'ai-chat-history'); // Zobrazíme indikátor písania
+
+            // Vytvoríme históriu, ktorú pošleme backendu
+            const currentChatHistory = [...chatHistoryAI, { role: 'user', content: text }];
 
             try {
-                const response = await getAiAssistantResponse({
-                    lessonId: currentLessonId,
-                    userQuestion: text
-                });
+                // Voláme backendovú funkciu
+                const getAiResponse = getAiAssistantResponseCallable();
+                // Backend (index.ts) sa postará o zápis otázky (role: 'user') aj odpovede (role: 'ai') do DB
+                await getAiResponse({ chatHistory: currentChatHistory });
                 
-                typingIndicator?.remove(); // Odstránime indikátor
-
-                let aiResponseText = '';
-                if (response.error) {
-                     aiResponseText = `Chyba AI: ${response.error}`;
-                } else {
-                     aiResponseText = response.answer || "Omlouvám se, nedostal jsem odpověď.";
-                }
-
-                // Uloženie odpovede AI do DB
-                 await addDoc(messageRef, {
-                     lessonId: currentLessonId,
-                     text: aiResponseText,
-                     sender: 'ai',
-                     type: 'ai',
-                     timestamp: serverTimestamp()
-                 });
-                 console.log("AI response saved to DB.");
-                 // Zobrazenie v UI opäť rieši onSnapshot
+                // onSnapshot sa postará o zobrazenie, my len odstránime indikátor
+                typingIndicator?.remove(); 
 
             } catch (aiError) {
-                console.error("Error getting AI response:", aiError);
+                console.error("Error getting AI response from backend:", aiError);
                 typingIndicator?.remove();
-                const errorText = `Omlouvám se, došlo k chybě při komunikaci s AI: ${aiError.message || aiError}`;
-                // Uloženie chybovej odpovede AI do DB
-                 try {
-                     await addDoc(messageRef, {
-                         lessonId: currentLessonId,
-                         text: errorText,
-                         sender: 'ai', // Alebo 'system-error'?
-                         type: 'ai',
-                         timestamp: serverTimestamp()
-                     });
-                 } catch(dbError) {
-                      console.error("Error saving AI error response to DB:", dbError);
-                 }
-                 // Zobrazenie v UI opäť rieši onSnapshot
+                // Zobrazíme chybu (ale nezapíšeme ju do DB, aby sme predišli slučke)
+                appendChatMessage({ text: `CHYBA: Nepodařilo se získat odpověď AI. (${aiError.message})`, role: 'system-error' }, type);
             }
 
-        } else { // Ak je pre profesora
-            // Backend by mal byť volaný len na notifikáciu profesora,
-            // správu už ukladá frontend (a onSnapshot ju zobrazí)
-            try {
-                const notifyProfessorCallable = getSendMessageFromStudentCallable(); // Premenujeme pre jasnosť
-                await notifyProfessorCallable({ text: text }); // Posielame len text pre notifikáciu
-            } catch (callError) {
-                 console.error("Error notifying professor:", callError);
-                 showToast("Nepodařilo se upozornit profesora na zprávu.", true);
-                 // Správa je už v DB, takže sa zobrazí, ale notifikácia zlyhala
-            }
+        } else { // type === 'professor'
+            // --- PÔVODNÁ LOGIKA PRE PROFESORA (LEN S NOVOU CESTOU) ---
+            // 1. Uložíme správu študenta do DB
+             await addDoc(messagesRef, messageData);
+             console.log(`Student message saved to DB for type: ${type}`);
+            // onSnapshot sa postará o zobrazenie
+
+            // 2. Notifikácia profesora je odstránená
+            // (volanie 'sendMessageFromStudent' je preč, profesor má onSnapshot)
         }
     } catch (error) {
         console.error("Error sending message or saving to DB:", error);
         showToast("Nepodařilo se odeslat zprávu.", true);
-        // Ak ukladanie zlyhalo, onSnapshot správu nezobrazí. Môžeme zobraziť chybovú správu v UI?
-        appendChatMessage({ text: `CHYBA: Zprávu "${text}" se nepodařilo odeslat.`, sender: 'system-error' }, type);
+        appendChatMessage({ text: `CHYBA: Zprávu "${text}" se nepodařilo odeslat.`, role: 'system-error' }, type);
     }
 }
 
 
 function appendChatMessage(data, type, elementId = null) {
-    // ... (kód zostáva nezmenený)
     const chatHistoryElId = elementId || (type === 'ai' ? 'ai-chat-history' : 'prof-chat-history');
     const chatHistoryEl = document.getElementById(chatHistoryElId);
     if (!chatHistoryEl) return null; 
@@ -1066,45 +1127,45 @@ function appendChatMessage(data, type, elementId = null) {
     let senderPrefix = '';
     let alignmentClasses = '';
 
-    if (data.sender === 'student') {
+    // ZMENA: Používame 'data.role' namiesto 'data.sender'
+    if (data.role === 'user' || data.role === 'student') { // 'student' pre spätnú kompatibilitu
         alignmentClasses = 'ml-auto float-right';
         msgDiv.className = `${baseClasses} ${isAI ? 'bg-[#DCF8C6]' : 'bg-blue-500 text-white'} ${alignmentClasses} rounded-tr-none`;
-    } else if (data.sender === 'ai-typing') {
+    } else if (data.role === 'ai-typing') {
         alignmentClasses = 'mr-auto float-left';
         msgDiv.className = `${baseClasses} bg-gray-200 text-gray-500 italic ${alignmentClasses} rounded-tl-none ai-typing-indicator`;
         data.text = 'píše...'; 
-    } else if (data.sender === 'system-error') {
+    } else if (data.role === 'system-error') {
          alignmentClasses = 'mx-auto'; // Centrovaná chybová správa
          msgDiv.className = `${baseClasses} bg-red-100 text-red-700 text-center ${alignmentClasses}`;
          senderPrefix = '<strong>Systém:</strong><br>';
     } else { // ai, professor
         alignmentClasses = 'mr-auto float-left';
         msgDiv.className = `${baseClasses} ${isAI ? 'bg-white' : 'bg-gray-200'} text-slate-800 ${alignmentClasses} rounded-tl-none`;
-        if (data.sender === 'ai') senderPrefix = '<strong>AI Asistent:</strong><br>';
-        if (data.sender === 'professor') senderPrefix = '<strong>Profesor:</strong><br>';
+        if (data.role === 'ai') senderPrefix = '<strong>AI Asistent:</strong><br>';
+        if (data.role === 'professor') senderPrefix = '<strong>Profesor:</strong><br>';
     }
     
     // Pridáme timestamp, ak je dostupný
     let timestampText = '';
     if (data.timestamp) {
          try {
-             // ===== OPRAVA: Bezpečnejšia kontrola Timestamp =====
              const date = (data.timestamp && typeof data.timestamp.toDate === 'function') 
                           ? data.timestamp.toDate() 
-                          : new Date(data.timestamp); // Fallback pre prípad, že to nie je Timestamp
-             // ===============================================
-             timestampText = `<span class="block text-xs ${data.sender === 'student' ? (isAI ? 'text-gray-500' : 'text-blue-200') : 'text-gray-400'} mt-1 text-right">${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
+                          : new Date(data.timestamp); 
+             timestampText = `<span class="block text-xs ${data.role === 'user' || data.role === 'student' ? (isAI ? 'text-gray-500' : 'text-blue-200') : 'text-gray-400'} mt-1 text-right">${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
          } catch (e) { 
              console.warn("Error formatting timestamp:", data.timestamp, e);
          }
     }
     
+    // ZMENA: Používame 'data.text'
     msgDiv.innerHTML = senderPrefix + (data.text || '').replace(/\n/g, '<br>') + timestampText;
     chatHistoryEl.appendChild(msgDiv);
     
-    // Scroll to bottom only if the element is currently visible near the bottom
+    // Scroll to bottom
     const isScrolledToBottom = chatHistoryEl.scrollHeight - chatHistoryEl.clientHeight <= chatHistoryEl.scrollTop + 50; // Tolerancia 50px
-    if (isScrolledToBottom || data.sender === 'student' || data.sender === 'ai-typing') { // Scroll vždy pre študenta a typing
+    if (isScrolledToBottom || data.role === 'user' || data.role === 'student' || data.role === 'ai-typing') { // Scroll vždy pre študenta a typing
         chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
     }
 
