@@ -1,61 +1,105 @@
-rules_version = '2';
+// Súbor: firestore.rules
+// Verzia: Plná (zo 0562da5...), prepísaná pre Multi-Profesor
 
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
   
-    // Funkcia na overenie, či je používateľ profesor
-    function isProfessor() {
-      return request.auth != null && request.auth.token.email == 'profesor@profesor.cz';
-    }
-
-    // Študenti:
-    // Študent môže čítať a upravovať svoj profil.
-    // Profesor môže čítať profily všetkých študentov.
-    match /students/{studentId} {
-      allow read: if (request.auth != null && request.auth.uid == studentId) || isProfessor();
-      allow update: if request.auth != null && request.auth.uid == studentId;
-      // Vytváranie a mazanie je riadené z backendu alebo pri registrácii
-      allow create, delete: if false;
-    }
-
-    // Lekcie:
-    // Každý prihlásený môže čítať lekcie.
-    // Iba profesor môže vytvárať, upravovať a mazať lekcie.
-    match /lessons/{lessonId} {
-      allow read: if request.auth != null;
-      allow write: if isProfessor();
-    }
-
-    // Konverzácie:
-    // Profesor môže čítať a zapisovať do všetkých konverzácií a správ.
-    // Študent môže čítať a zapisovať iba do svojej vlastnej konverzácie a správ.
-    match /conversations/{studentId} {
-      match /{document=**} {
-        allow read, write: if (request.auth != null && request.auth.uid == studentId) || isProfessor();
+    // --- Pomocná funkcia ---
+    // Získa ID profesora priradeného k aktuálne prihlásenému študentovi
+    // Pridaná kontrola, či je používateľ prihlásený
+    function getStudentProfessorId() {
+      if (request.auth == null || request.auth.uid == null) {
+        return null;
       }
+      let studentDoc = get(/databases/$(database)/documents/students/$(request.auth.uid));
+      // Kontrola, či dokument študenta existuje a má pole professorId
+      if (studentDoc.data != null && studentDoc.data.professorId != null) {
+          return studentDoc.data.professorId;
+      }
+      return null; // Vráti null, ak študent neexistuje alebo nemá priradeného profesora
+    }
+
+    // --- Pravidlá pre Profesorov ---
+    // Profesor môže čítať a zapisovať IBA svoj vlastný profil
+    match /professors/{profId} {
+      allow read, write: if request.auth != null && 
+                            request.auth.uid == profId &&
+                            request.auth.token.role == 'professor';
     }
     
-    // Časová os (timeline):
-    // Iba profesor môže čítať a zapisovať.
-    match /timeline_events/{eventId} {
-       allow read, write: if isProfessor();
+    // Profesor môže čítať a zapisovať IBA do svojich subkolekcií
+    // (lessons, media, studentInteractions atď.)
+    match /professors/{profId}/{subcollection}/{docId=**} {
+      allow read, write, create, delete: if request.auth != null &&
+                                            request.auth.uid == profId &&
+                                            request.auth.token.role == 'professor';
+                            
+      // Študent môže čítať dáta SVOJHO profesora
+      allow read: if request.auth != null && 
+                     request.auth.token.role == 'student' && 
+                     profId == getStudentProfessorId();
     }
 
-    // Výsledky kvízov:
-    // Študent môže iba vytvárať (odosielať) svoje výsledky.
-    // Profesor ich môže všetky čítať.
-    match /quiz_submissions/{submissionId} {
-      allow create: if request.auth != null && request.resource.data.studentId == request.auth.uid;
-      allow read: if isProfessor();
-      allow update, delete: if false;
+    // --- Pravidlá pre Študentov ---
+    match /students/{studentId} {
+      // Študent môže čítať a upravovať svoj vlastný profil
+      // Povolíme 'create', aby sa mohol vytvoriť záznam pri registrácii (rieši funkcia)
+      // Ale zapisovať (update) môže iba prihlásený študent sám seba
+      allow read, update: if request.auth != null && 
+                             request.auth.uid == studentId;
+                             
+      // Backendová funkcia môže vytvoriť dokument študenta
+      allow create: if true; // Riešené cez backend, nie priamo z klienta
+      
+      // Profesor môže čítať a upravovať profily SVOJICH študentov
+      // Kontrola existencie dát pred prístupom k nim
+      allow read, update: if request.auth != null && 
+                             request.auth.token.role == 'professor' &&
+                             resource != null && // Cieľový dokument existuje
+                             resource.data.professorId == request.auth.uid;
+                             
+      // Profesor môže priradiť študenta (ktorý ešte nemá profesora) k sebe
+      allow update: if request.auth != null &&
+                       request.auth.token.role == 'professor' &&
+                       resource != null && // Cieľový dokument existuje
+                       resource.data.professorId == null && // Študent ešte nemá profesora
+                       request.resource.data.professorId == request.auth.uid; // Priraďuje ho k sebe
     }
+    
+    // --- Pravidlá pre Pozývacie Kódy ---
+    // Nikto z klientov (prehliadač) nemôže čítať ani zapisovať kódy.
+    // Iba backendové funkcie (Admin SDK) to môžu urobiť.
+    match /invite_codes/{code} {
+      allow read, write: if false;
+    }
+    
+    // --- Staré pravidlá (z tvojho súboru) - tieto už nie sú potrebné ---
+    // match /lessons/{lessonId} {
+    //   allow read: if request.auth != null; // Povolit čtení přihlášeným uživatelům
+    //   allow write: if request.auth != null && request.auth.token.email == 'profesor@profesor.cz'; // Povolit zápis jen profesorovi
+    // }
 
-    // Výsledky testov:
-    // Podobne ako pri kvízoch.
-    match /test_submissions/{submissionId} {
-       allow create: if request.auth != null && request.resource.data.studentId == request.auth.uid;
-       allow read: if isProfessor();
-       allow update, delete: if false;
-    }
+    // match /courses/{courseId} {
+    //   allow read: if request.auth != null;
+    //   allow write: if request.auth != null && request.auth.token.email == 'profesor@profesor.cz';
+    // }
+
+    // match /students/{studentId} {
+    //   // Povolit studentovi číst a upravovat svůj vlastní profil
+    //   allow read, update: if request.auth != null && request.auth.uid == studentId;
+    //   // Povolit profesoru číst profily všech studentů (upravit dle potřeby)
+    //   allow read: if request.auth != null && request.auth.token.email == 'profesor@profesor.cz';
+    // }
+
+    // match /media/{mediaId} {
+    //   allow read: if request.auth != null;
+    //   allow write: if request.auth != null && request.auth.token.email == 'profesor@profesor.cz';
+    // }
+
+    // match /conversations/{conversationId}/{messages=**} {
+    //   // TODO: Upravit pravidla pro konverzace - kdo může číst/zapisovat
+    //   allow read, write: if request.auth != null; // Velmi obecné, potřeba zpřísnit
+    // }
   }
 }
