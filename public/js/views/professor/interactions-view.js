@@ -1,8 +1,19 @@
+// Súbor: public/js/views/professor/interactions-view.js
+// Verzia: Plná, rešpektujúca pôvodnú štruktúru + Multi-Profesor
+
 import { collection, doc, updateDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { showToast } from '../../utils.js';
 
-function renderChatWindow(studentId, studentName, db, functions) {
+/**
+ * Vykreslí okno chatu pre konkrétneho študenta.
+ * @param {string} studentId - ID studenta.
+ * @param {string} studentName - Meno studenta.
+ * @param {object} db - Instance Firestore databáze.
+ * @param {object} functions - Instance Firebase Functions.
+ * @param {string} professorId - ID prihláseného profesora.
+ */
+function renderChatWindow(studentId, studentName, db, functions, professorId) { // <-- ZMENA 1: Pridaný 'professorId'
     const sendMessageToStudent = httpsCallable(functions, 'sendMessageToStudent');
     const chatWindow = document.getElementById('chat-window');
     chatWindow.innerHTML = `
@@ -21,10 +32,15 @@ function renderChatWindow(studentId, studentName, db, functions) {
         </footer>
     `;
 
-    updateDoc(doc(db, "conversations", studentId), { professorHasUnread: false });
+    // --- ZMENA 2: Úprava cesty pre updateDoc ---
+    // Používame 'studentInteractions' (zhodne ako v student-profile-view.js)
+    updateDoc(doc(db, "professors", professorId, "studentInteractions", studentId), { professorHasUnread: false });
+    // ------------------------------------------
 
     const messagesContainer = document.getElementById('messages-container');
-    const messagesQuery = query(collection(db, "conversations", studentId, "messages"), orderBy("timestamp"));
+    // --- ZMENA 3: Úprava cesty pre query ---
+    const messagesQuery = query(collection(db, "professors", professorId, "studentInteractions", studentId, "messages"), orderBy("timestamp"));
+    // ---------------------------------------
 
     onSnapshot(messagesQuery, (querySnapshot) => {
         messagesContainer.innerHTML = '';
@@ -50,6 +66,8 @@ function renderChatWindow(studentId, studentName, db, functions) {
         sendBtn.disabled = true;
 
         try {
+            // Backendová funkcia 'sendMessageToStudent' si získa professorId sama
+            // z kontextu, takže tu ho posielať nemusíme (je to bezpečnejšie)
             await sendMessageToStudent({ studentId: studentId, text: text });
             chatInput.value = '';
         } catch (error) {
@@ -71,12 +89,21 @@ function renderChatWindow(studentId, studentName, db, functions) {
     });
 
     document.getElementById('ai-reply-btn').addEventListener('click', () => {
+        // TODO: Toto bude treba napojiť na backendovú funkciu,
+        // ktorá prijme 'professorId' a 'studentId' pre kontext
         chatInput.value = "AI návrh: Děkuji za Váš dotaz, podívám se na to a dám Vám vědět.";
     });
 }
 
-
-export function renderStudentInteractions(container, db, functions, conversationsUnsubscribe) {
+/**
+ * Vykreslí pohled pro interakce se studenty.
+ * @param {HTMLElement} container - Kontejner, kam se má obsah vykreslit.
+ * @param {object} db - Instance Firestore databáze.
+ * @param {object} functions - Instance Firebase Functions.
+ * @param {function} conversationsUnsubscribe - Funkce pro odhlášení předchozího listeneru.
+ * @param {string} professorId - ID přihlášeného profesora.
+ */
+export function renderStudentInteractions(container, db, functions, conversationsUnsubscribe, professorId) { // <-- ZMENA 4: Pridaný 'professorId'
     container.className = 'flex-grow flex h-screen bg-white view-transition';
     container.innerHTML = `
         <aside class="w-full md:w-1/3 border-r border-slate-200 flex flex-col">
@@ -92,7 +119,10 @@ export function renderStudentInteractions(container, db, functions, conversation
 
     if (conversationsUnsubscribe) conversationsUnsubscribe();
 
-    const convQuery = query(collection(db, "conversations"), orderBy("lastMessageTimestamp", "desc"));
+    // --- ZMENA 5: Úprava cesty pre query ---
+    const convQuery = query(collection(db, "professors", professorId, "studentInteractions"), orderBy("lastMessageTimestamp", "desc"));
+    // ---------------------------------------
+    
     conversationsUnsubscribe = onSnapshot(convQuery, (querySnapshot) => {
         if (querySnapshot.empty) {
             conversationsListEl.innerHTML = `<p class="p-4 text-slate-400">Zatím zde nejsou žádné konverzace.</p>`;
@@ -103,8 +133,11 @@ export function renderStudentInteractions(container, db, functions, conversation
         querySnapshot.forEach((doc) => {
             const conv = doc.data();
             const convEl = document.createElement('div');
+            // ID dokumentu je teraz ID študenta, čo je správne
+            const studentId = doc.id; 
+            
             convEl.className = `p-4 flex items-center space-x-3 border-b border-slate-100 cursor-pointer hover:bg-slate-50 ${conv.professorHasUnread ? 'bg-green-50' : ''}`;
-            convEl.dataset.studentId = conv.studentId;
+            convEl.dataset.studentId = studentId;
 
             convEl.innerHTML = `
                 <div>
@@ -112,7 +145,9 @@ export function renderStudentInteractions(container, db, functions, conversation
                     <p class="text-xs ${conv.professorHasUnread ? 'text-green-600 font-bold' : 'text-slate-500'}">${(conv.lastMessage || "").substring(0, 30)}...</p>
                 </div>
             `;
-            convEl.addEventListener('click', () => renderChatWindow(conv.studentId, conv.studentName, db, functions));
+            // --- ZMENA 6: Posielame 'professorId' do chat window ---
+            convEl.addEventListener('click', () => renderChatWindow(studentId, conv.studentName, db, functions, professorId));
+            // ----------------------------------------------------
             conversationsListEl.appendChild(convEl);
         });
     });
