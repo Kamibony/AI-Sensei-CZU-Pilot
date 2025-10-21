@@ -1,338 +1,341 @@
-// ===== OPRAVENÉ IMPORTY =====
-import { getDoc, doc, collection, query, where, getDocs, orderBy, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import * as firebaseInit from '../../firebase-init.js'; // Použijeme importovaný firebaseInit
-import { showToast } from "../../utils.js";
-// ==========================
+// Súbor: public/js/views/professor/student-profile-view.js
+// Verzia: Plná, rešpektujúca pôvodnú štruktúru + Multi-Profesor
 
-let currentStudent = null; // Uchováme si dáta študenta pre prepínanie tabov
+import { doc, getDoc, collection, query, where, orderBy, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; // <-- ZMENA 1: Pridané 'where', 'updateDoc'
+import { db } from '../../firebase-init.js';
+import { showToast } from '../../utils.js';
 
-// === PRIDANÝ LAZY LOADER PRE AI FUNKCIU ===
-let _getAiStudentSummaryCallable = null;
+let interactionsUnsubscribe = null;
+let quizSubmissionsUnsubscribe = null;
+let testSubmissionsUnsubscribe = null;
 
-function getAiStudentSummaryCallable() {
-    if (!_getAiStudentSummaryCallable) {
-        if (!firebaseInit.functions) {
-            console.error("CRITICAL: Firebase Functions object is not available for getAiStudentSummaryCallable!");
-            showToast("Chyba inicializace funkcí.", true);
-            throw new Error("Firebase Functions not initialized.");
-        }
-        _getAiStudentSummaryCallable = httpsCallable(firebaseInit.functions, 'getAiStudentSummary');
-    }
-    return _getAiStudentSummaryCallable;
-}
-// === KONIEC PRIDANÉHO KÓDU ===
-
-// ===== Definícia funkcie berie (container, studentId, backCallback) =====
-export async function renderStudentProfile(container, studentId, backCallback) {
-    container.innerHTML = `<div class="p-8"><div class="text-center">Načítání dat studenta...</div></div>`;
-    currentStudent = null; // Reset pri načítaní nového profilu
-
-    try {
-        // 1. Fetch Data - Používame importovaný firebaseInit.db
-        const studentDocRef = doc(firebaseInit.db, 'students', studentId);
-        const studentDoc = await getDoc(studentDocRef);
-
-        if (!studentDoc.exists()) {
-            container.innerHTML = `<div class="p-8 text-red-500">Student s ID ${studentId} nebyl nalezen.</div>`;
-            return;
-        }
-        currentStudent = { id: studentDoc.id, ...studentDoc.data() }; // Uložíme dáta
-        
-        // ===== LOGOVANIE: Vypíšeme načítané dáta študenta =====
-        console.log("Student data loaded:", currentStudent); 
-        // =======================================================
-
-        // 2. Render the UI Shell
-        renderUIShell(container, currentStudent, backCallback);
-
-        // 3. Initial render - Zobraziť prehľad ako prvý
-        await switchTab('overview'); // Počkáme na vykreslenie tabu
-
-    } catch (error) {
-        console.error("Error rendering student profile shell:", error);
-        container.innerHTML = `<div class="p-8 text-red-500">Došlo k chybě při načítání profilu studenta.</div>`;
-    }
-}
-
-function renderUIShell(container, studentData, backCallback) {
-    container.innerHTML = `
-        <div class="p-6 md:p-8">
-            <button id="back-to-list-btn" class="mb-6 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-                Zpět na seznam studentů
-            </button>
-
-            <div class="mb-8">
-                <h1 class="text-3xl font-bold text-gray-800">${studentData.name}</h1>
-                <p class="text-lg text-gray-500">${studentData.email}</p>
-            </div>
-
-            <div class="border-b border-gray-200">
-                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
-                    <button id="tab-overview" data-tab="overview" class="student-tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                        Přehled
-                    </button>
-                    <button id="tab-results" data-tab="results" class="student-tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                        Výsledky
-                    </button>
-                </nav>
-            </div>
-
-            <div id="tab-content" class="mt-8">
-                </div>
-        </div>
-    `;
-
-    // Pridanie listenerov na taby a späť tlačidlo
-    container.querySelectorAll('.student-tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
-    });
-    container.querySelector('#back-to-list-btn').addEventListener('click', backCallback);
-}
-
-async function switchTab(tabId) {
-    if (!currentStudent) {
-        console.error("switchTab called but currentStudent is null!");
-        return; 
-    }
-
-    const tabContent = document.getElementById('tab-content');
-    if (!tabContent) return;
-    tabContent.innerHTML = '<p class="text-center p-8 text-slate-400">Načítám obsah...</p>'; // Loading state
-
-    // Aktualizovať vzhľad tabov
-    document.querySelectorAll('.student-tab-btn').forEach(btn => {
-        const isActive = btn.dataset.tab === tabId;
-        btn.classList.toggle('border-green-500', isActive);
-        btn.classList.toggle('text-green-600', isActive);
-        btn.classList.toggle('text-gray-500', !isActive);
-        btn.classList.toggle('hover:text-gray-700', !isActive);
-        btn.classList.toggle('hover:border-gray-300', !isActive);
-    });
-
-    // Zobraziť správny obsah
-    if (tabId === 'overview') {
-        renderOverviewContent(tabContent, currentStudent); // Už nie je async
-    } else if (tabId === 'results') {
-        await renderResultsContent(tabContent, currentStudent);
-    }
-}
-
-// Funkcia na vykreslenie obsahu prehľadu (už nie je async)
-function renderOverviewContent(container, student) {
-    // Dátový model pre AI súhrn
-    const aiSummary = student.aiSummary || null;
+/**
+ * Vykreslí pohled pro profil studenta.
+ * @param {HTMLElement} container - Kontejner, kam se má obsah vykreslit.
+ * @param {string} studentId - ID studenta.
+ * @param {function} onBack - Callback pro návrat na seznam studentů.
+ * @param {string} professorId - ID přihlášeného profesora.
+ */
+export async function renderStudentProfile(container, studentId, onBack, professorId) { // <-- ZMENA 2: Pridaný 'professorId'
     
-    // ===== LOGOVANIE: Aký aiSummary vidíme? =====
-    console.log("Rendering overview with aiSummary:", aiSummary);
-    // ============================================
+    // Zrušení předchozích listenerů
+    if (interactionsUnsubscribe) interactionsUnsubscribe();
+    if (quizSubmissionsUnsubscribe) quizSubmissionsUnsubscribe();
+    if (testSubmissionsUnsubscribe) testSubmissionsUnsubscribe();
 
-    let summaryHtml = '';
-
-    if (aiSummary && aiSummary.text) {
-        // Ak máme uložený súhrn, zobrazíme ho
-        // ===== OPRAVA: Bezpečnejšia kontrola Timestamp =====
-        const date = (aiSummary.generatedAt && typeof aiSummary.generatedAt.toDate === 'function') 
-                      ? aiSummary.generatedAt.toDate().toLocaleString('cs-CZ') 
-                      : (aiSummary.generatedAt ? new Date(aiSummary.generatedAt).toLocaleString('cs-CZ') : 'Neznámé datum'); // Fallback pre prípad, že to nie je Timestamp
-        // ===============================================
-        
-        // Formátovanie textu
-        let formattedText = aiSummary.text
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            .replace(/\n\* /g, '<br>• ')
-            .replace(/\n\d+\. /g, (match) => `<br>${match.trim()} `)
-            .replace(/\n/g, '<br>');
-
-        summaryHtml = `
-            <h3 class="text-lg font-semibold text-green-800 mb-3">AI Postřehy</h3>
-            <p class="text-xs text-slate-500 mb-3">Poslední generování: ${date}</p>
-            <div class="prose prose-sm max-w-none text-slate-800">${formattedText}</div>
-        `;
-    } else {
-        // Ak nemáme súhrn
-        summaryHtml = `
-            <h3 class="text-lg font-semibold text-slate-700 mb-3">AI Postřehy</h3>
-            <p class="text-slate-500">Pro tohoto studenta zatím nebyla vygenerována žádná AI analýza.</p>
-        `;
-    }
-
-    // Vykreslenie základného HTML
     container.innerHTML = `
-        <div class="bg-white p-6 rounded-lg shadow">
-            <h2 class="text-xl font-semibold mb-4">Přehled studenta</h2>
-            <p><strong>Jméno:</strong> ${student.name}</p>
-            <p><strong>Email:</strong> ${student.email}</p>
-            
-            <div class="mt-6 border-t pt-6" id="ai-summary-wrapper">
-                <div id="ai-summary-content">
-                    ${summaryHtml}
-                </div>
-                
-                <div id="ai-summary-loader" class="hidden text-center p-4">
-                    <p class="text-slate-500 animate-pulse">Generuji novou analýzu...</p>
-                    <p class="text-xs text-slate-400 mt-1">Analyzuji poslední aktivitu, výsledky testů a konverzace...</p>
-                </div>
-                
-                <button id="refresh-ai-summary-btn" class="mt-4 bg-green-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-800 transition-colors">
-                    Vynutit aktualizaci AI analýzy
-                </button>
+        <header class="p-6 border-b border-slate-200 bg-white flex items-center">
+            <button id="back-to-students-btn" class="p-2 rounded-full hover:bg-slate-100 mr-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            </button>
+            <div id="student-profile-header">
+                <p class="text-slate-500">Načítám profil...</p>
             </div>
+        </header>
+        <div class="flex-grow overflow-y-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="lg:col-span-2 space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-xl font-bold text-slate-700 mb-4">Přehled pokroku</h2>
+                    <div id="progress-overview-container" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <p class="text-slate-500">Načítám pokrok...</p>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-xl font-bold text-slate-700 mb-4">Nedávná aktivita</h2>
+                    <ul id="activity-feed-container" class="space-y-4">
+                        <p class="text-slate-500">Načítám aktivitu...</p>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="lg:col-span-1 space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-xl font-bold text-slate-700 mb-4">Interní poznámky</h2>
+                    <textarea id="student-notes-textarea" class="w-full h-32 p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="Sem si můžete psát poznámky o studentovi..."></textarea>
+                    <button id="save-notes-btn" class="mt-2 px-4 py-2 bg-green-700 text-white text-sm font-semibold rounded-lg hover:bg-green-800">Uložit poznámky</button>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-xl font-bold text-slate-700 mb-4">Poslední interakce</h2>
+                    <ul id="interactions-list-container" class="space-y-3">
+                        <p class="text-slate-500">Načítám interakce...</p>
+                    </ul>
+                </div>
+            </div>
+            
         </div>
     `;
 
-    // Pridanie Event Listenera na nové tlačidlo
-    const refreshButton = document.getElementById('refresh-ai-summary-btn');
-    const loader = document.getElementById('ai-summary-loader');
-    const content = document.getElementById('ai-summary-content');
+    document.getElementById('back-to-students-btn').addEventListener('click', onBack);
 
-    if (refreshButton && loader && content) { // Pridaná kontrola pre loader a content
-        // ===== LOGOVANIE: Pridáva sa listener? =====
-        console.log("Adding refresh listener...");
-        // ==========================================
-        refreshButton.addEventListener('click', async () => {
-            if (!confirm("Opravdu chcete vygenerovat novou AI analýzu? Tím se přepíše ta stávající a může to chvíli trvat.")) {
-                return;
-            }
+    if (!professorId) {
+        container.innerHTML = `<p class="text-red-500 p-8">Chyba: Nebyl poskytnut identifikátor profesora. Nelze načíst data.</p>`;
+        return;
+    }
 
-            // Zobraziť loader a skryť tlačidlo/obsah
-            loader.classList.remove('hidden');
-            content.classList.add('hidden');
-            refreshButton.disabled = true; // Zneaktívnime tlačidlo
-            refreshButton.textContent = "Generuji...";
+    loadStudentData(studentId);
+    loadProgressOverview(studentId, professorId);
+    loadActivityFeed(studentId, professorId);
+    loadInteractionsList(studentId, professorId);
+}
 
-            try {
-                const getSummary = getAiStudentSummaryCallable();
-                
-                // Zavoláme backend. Backend vráti nový text a zároveň ho uloží do DB.
-                const result = await getSummary({ studentId: student.id });
-                const newSummaryText = result.data.summary;
+/**
+ * Načte základní data o studentovi a jeho poznámky.
+ * @param {string} studentId 
+ */
+async function loadStudentData(studentId) {
+    const headerContainer = document.getElementById('student-profile-header');
+    const notesTextarea = document.getElementById('student-notes-textarea');
+    const saveNotesBtn = document.getElementById('save-notes-btn');
 
-                // ===== Aktualizácia lokálneho objektu =====
-                // Potrebujeme Timestamp z Firebase, ale nemáme ho hneď k dispozícii.
-                // Použijeme klientský čas ako dočasný a spoliehame sa, že pri ďalšom načítaní profilu sa to zosynchronizuje.
-                currentStudent.aiSummary = {
-                    text: newSummaryText,
-                    generatedAt: new Date() // Použijeme Date object
-                };
-                // =========================================
-                
-                // Znovu vykreslíme obsah s novými dátami
-                // (currentStudent je už aktualizovaný)
-                renderOverviewContent(container, currentStudent); 
-                
-                showToast("AI analýza byla úspěšně aktualizována.");
+    try {
+        const studentRef = doc(db, 'students', studentId);
+        const studentSnap = await getDoc(studentRef);
 
-            } catch (error) {
-                console.error("Error refreshing AI summary:", error);
-                showToast("Nepodařilo se aktualizovat AI analýzu.", true);
-                
-                // V prípade chyby obnovíme pôvodný stav (znovu vykreslíme s pôvodnými dátami)
-                renderOverviewContent(container, student); // Vykreslíme pôvodný stav
-            }
-        });
-    } else {
-        console.error("Refresh button, loader or content element not found!");
+        if (studentSnap.exists()) {
+            const student = studentSnap.data();
+            headerContainer.innerHTML = `
+                <h1 class="text-3xl font-extrabold text-slate-800">${student.name || 'Student bez jména'}</h1>
+                <p class="text-slate-500 mt-1">${student.email}</p>
+            `;
+            notesTextarea.value = student.notes || '';
+
+            saveNotesBtn.addEventListener('click', async () => {
+                saveNotesBtn.disabled = true;
+                saveNotesBtn.innerHTML = '<div class="spinner-small"></div>';
+                try {
+                    await updateDoc(studentRef, {
+                        notes: notesTextarea.value
+                    });
+                    showToast("Poznámky uloženy.", false);
+                } catch (error) {
+                    console.error("Chyba při ukládání poznámek: ", error);
+                    showToast("Chyba při ukládání poznámek.", true);
+                } finally {
+                    saveNotesBtn.disabled = false;
+                    saveNotesBtn.innerHTML = 'Uložit poznámky';
+                }
+            });
+
+        } else {
+            headerContainer.innerHTML = `<h1 class="text-3xl font-extrabold text-red-500">Student nenalezen</h1>`;
+        }
+    } catch (error) {
+        console.error("Chyba při načítání studenta: ", error);
+        headerContainer.innerHTML = `<h1 class="text-3xl font-extrabold text-red-500">Chyba při načítání</h1>`;
     }
 }
 
-// Funkcia na načítanie a zobrazenie výsledkov
-async function renderResultsContent(container, student) {
+/**
+ * Načte přehled pokroku (počet lekcí, kvízů, testů).
+ * @param {string} studentId
+ * @param {string} professorId
+ */
+async function loadProgressOverview(studentId, professorId) {
+    const container = document.getElementById('progress-overview-container');
     try {
-        // Používame importovaný firebaseInit.db
+        // Získání celkového počtu publikovaných lekcí profesora
+        // --- ZMENA 3: Cesta k 'lessons' ---
+        const lessonsQuery = query(
+            collection(db, 'professors', professorId, 'lessons'), 
+            where("isPublished", "==", true)
+        );
+        const lessonsSnap = await getDocs(lessonsQuery);
+        const totalLessons = lessonsSnap.size;
+
+        // TODO: Načíst reálný počet dokončených lekcí studentem
+        const completedLessons = 0; // Placeholder
+
+        // Získání průměrného skóre z kvízů
+        // --- ZMENA 4: Cesta k 'quizSubmissions' ---
         const quizQuery = query(
-            collection(firebaseInit.db, "quiz_submissions"),
-            where("studentId", "==", student.id),
-            orderBy('submittedAt', 'desc') 
+            collection(db, 'professors', professorId, 'quizSubmissions'), 
+            where("studentId", "==", studentId)
         );
+        const quizSnap = await getDocs(quizQuery);
+        let totalQuizScore = 0;
+        quizSnap.docs.forEach(doc => {
+            totalQuizScore += doc.data().score;
+        });
+        const avgQuizScore = quizSnap.size > 0 ? (totalQuizScore / quizSnap.size).toFixed(0) : 'N/A';
+
+        // Získání průměrného skóre z testů
+        // --- ZMENA 5: Cesta k 'testSubmissions' ---
         const testQuery = query(
-            collection(firebaseInit.db, "test_submissions"),
-            where("studentId", "==", student.id),
-            orderBy('submittedAt', 'desc')
+            collection(db, 'professors', professorId, 'testSubmissions'), 
+            where("studentId", "==", studentId)
         );
-
-        const [quizSnapshot, testSnapshot] = await Promise.all([
-            getDocs(quizQuery),
-            getDocs(testQuery)
-        ]);
-
-        let allSubmissions = [];
-        quizSnapshot.forEach(doc => {
-            const data = doc.data();
-            allSubmissions.push({ type: 'Kvíz', lessonName: data.quizTitle || 'N/A', ...data });
+        const testSnap = await getDocs(testQuery);
+        let totalTestScore = 0;
+        testSnap.docs.forEach(doc => {
+            totalTestScore += doc.data().score;
         });
-        testSnapshot.forEach(doc => {
-            const data = doc.data();
-            allSubmissions.push({ type: 'Test', lessonName: data.testTitle || 'N/A', ...data });
-        });
+        const avgTestScore = testSnap.size > 0 ? (totalTestScore / testSnap.size).toFixed(0) : 'N/A';
 
-        // Sort by date, newest first
-        allSubmissions.sort((a, b) => (b.submittedAt?.toMillis() || 0) - (a.submittedAt?.toMillis() || 0));
-
-         if (!document.getElementById('tab-content')) return; // Check if still on the same tab
 
         container.innerHTML = `
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h2 class="text-xl font-semibold mb-4">Historie výsledků</h2>
-                ${renderSubmissionsTable(allSubmissions)}
+            <div class="bg-slate-50 p-4 rounded-lg">
+                <span class="text-sm font-medium text-slate-500">Dokončené lekce</span>
+                <p class="text-2xl font-bold text-slate-800">${completedLessons} / ${totalLessons}</p>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-lg">
+                <span class="text-sm font-medium text-slate-500">Průměr (Kvízy)</span>
+                <p class="text-2xl font-bold text-slate-800">${avgQuizScore}${avgQuizScore !== 'N/A' ? '%' : ''}</p>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-lg">
+                <span class="text-sm font-medium text-slate-500">Průměr (Testy)</span>
+                <p class="text-2xl font-bold text-slate-800">${avgTestScore}${avgTestScore !== 'N/A' ? '%' : ''}</p>
             </div>
         `;
+
     } catch (error) {
-        console.error("Error fetching submissions:", error);
-        if (document.getElementById('tab-content')) { 
-             container.innerHTML = '<p class="text-center p-8 text-red-500">Nepodařilo se načíst aktivitu studenta.</p>';
+        console.error("Chyba při načítání pokroku: ", error);
+        container.innerHTML = '<p class="text-red-500">Chyba při načítání pokroku.</p>';
+    }
+}
+
+/**
+ * Načte feed nedávné aktivity (kvízy, testy).
+ * @param {string} studentId
+ * @param {string} professorId
+ */
+function loadActivityFeed(studentId, professorId) {
+    const container = document.getElementById('activity-feed-container');
+    
+    // Kombinujeme listenery pro kvízy a testy
+    // TODO: Toto je zjednodušené, pro reálnou "activity feed" by to chtělo robustnější řešení
+    // (např. jednotnou kolekci 'activities' nebo merge na straně klienta)
+
+    // --- ZMENA 6: Cesta k 'quizSubmissions' ---
+    const quizQuery = query(
+        collection(db, 'professors', professorId, 'quizSubmissions'),
+        where("studentId", "==", studentId),
+        orderBy("submittedAt", "desc"),
+        // limit(5) // TODO: Přidat limit
+    );
+    
+    // --- ZMENA 7: Cesta k 'testSubmissions' ---
+    const testQuery = query(
+        collection(db, 'professors', professorId, 'testSubmissions'),
+        where("studentId", "==", studentId),
+        orderBy("submittedAt", "desc"),
+        // limit(5) // TODO: Přidat limit
+    );
+
+    let activities = [];
+    let quizLoaded = false;
+    let testLoaded = false;
+
+    const renderActivities = () => {
+        if (!quizLoaded || !testLoaded) return; // Počkáme na oba listenery
+
+        if (activities.length === 0) {
+            container.innerHTML = '<p class="text-slate-500">Zatím žádná aktivita.</p>';
+            return;
         }
-        showToast("Chyba při načítání výsledků studenta.", true);
-    }
+
+        // Seřadíme všechny aktivity dohromady
+        activities.sort((a, b) => b.timestamp - a.timestamp);
+        // Vezmeme posledních X
+        const recentActivities = activities.slice(0, 10); 
+
+        container.innerHTML = recentActivities.map(activity => {
+            const date = activity.timestamp.toDate().toLocaleString();
+            let icon, text;
+            if (activity.type === 'quiz') {
+                icon = '❓';
+                text = `Odevzdal kvíz <span class="font-semibold">${activity.lessonTitle || 'Neznámý'}</span> se skóre ${activity.score}%.`;
+            } else { // test
+                icon = '✅';
+                text = `Odevzdal test <span class="font-semibold">${activity.lessonTitle || 'Neznámý'}</span> se skóre ${activity.score}%.`;
+            }
+            
+            return `
+                <li class="flex items-start space-x-3">
+                    <div class="flex-shrink-0 w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center">${icon}</div>
+                    <div>
+                        <p class="text-sm text-slate-700">${text}</p>
+                        <span class="text-xs text-slate-500">${date}</span>
+                    </div>
+                </li>
+            `;
+        }).join('');
+    };
+
+    quizSubmissionsUnsubscribe = onSnapshot(quizQuery, (snapshot) => {
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            activities.push({
+                type: 'quiz',
+                score: data.score,
+                lessonTitle: data.lessonTitle, // Ujistěte se, že toto ukládáte
+                timestamp: data.submittedAt,
+                id: doc.id
+            });
+        });
+        // Odstranění duplikátů, pokud by listener běžel vícekrát
+        activities = [...new Map(activities.map(item => [item.id, item])).values()];
+        quizLoaded = true;
+        renderActivities();
+    }, (error) => { console.error("Error quiz feed: ", error); quizLoaded = true; renderActivities(); });
+
+    testSubmissionsUnsubscribe = onSnapshot(testQuery, (snapshot) => {
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            activities.push({
+                type: 'test',
+                score: data.score,
+                lessonTitle: data.lessonTitle, // Ujistěte se, že toto ukládáte
+                timestamp: data.submittedAt,
+                id: doc.id
+            });
+        });
+        activities = [...new Map(activities.map(item => [item.id, item])).values()];
+        testLoaded = true;
+        renderActivities();
+    }, (error) => { console.error("Error test feed: ", error); testLoaded = true; renderActivities(); });
 }
 
-function renderSubmissionsTable(submissions) {
-    if (submissions.length === 0) {
-        return '<p class="text-gray-500">Tento student zatím neodevzdal žádné testy ani kvízy.</p>';
-    }
+/**
+ * Načte seznam posledních interakcí (zpráv) studenta.
+ * @param {string} studentId
+ * @param {string} professorId
+ */
+function loadInteractionsList(studentId, professorId) {
+    const container = document.getElementById('interactions-list-container');
+    
+    // --- ZMENA 8: Cesta k 'studentInteractions' ---
+    const q = query(
+        collection(db, 'professors', professorId, 'studentInteractions'),
+        where("studentId", "==", studentId),
+        orderBy("timestamp", "desc")
+        // limit(5) // TODO: Přidat limit
+    );
 
-    const rows = submissions.map(sub => {
-        const score = typeof sub.score === 'number' ? `${(sub.score * 100).toFixed(0)}%` : 'N/A';
-        // ===== OPRAVA: Bezpečnejšia kontrola Timestamp =====
-         const date = (sub.submittedAt && typeof sub.submittedAt.toDate === 'function') 
-                      ? sub.submittedAt.toDate().toLocaleDateString('cs-CZ') 
-                      : 'Neznámé datum';
-        // ===============================================
-        const scoreClass = typeof sub.score === 'number'
-                          ? (sub.score >= 0.5 ? 'text-green-600' : 'text-red-600')
-                          : 'text-gray-500';
-        return `
-            <tr class="border-b">
-                <td class="py-3 px-4">${sub.lessonName || 'Neznámá lekce'}</td>
-                <td class="py-3 px-4">${sub.type}</td>
-                <td class="py-3 px-4 font-semibold ${scoreClass}">${score}</td>
-                <td class="py-3 px-4 text-sm text-gray-500">${date}</td>
-            </tr>
-        `;
-    }).join('');
+    interactionsUnsubscribe = onSnapshot(q, (snapshot) => {
+        if (snapshot.empty) {
+            container.innerHTML = '<p class="text-slate-500">Zatím žádné interakce.</p>';
+            return;
+        }
 
-    return `
-        <div class="overflow-x-auto">
-            <table class="min-w-full text-left text-sm">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="py-2 px-4 font-semibold text-gray-600">Lekce / Název</th>
-                        <th class="py-2 px-4 font-semibold text-gray-600">Typ</th>
-                        <th class="py-2 px-4 font-semibold text-gray-600">Skóre</th>
-                        <th class="py-2 px-4 font-semibold text-gray-600">Datum odevzdání</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-100">
-                    ${rows}
-                </tbody>
-            </table>
-        </div>
-    `;
-}
+        container.innerHTML = snapshot.docs.map(doc => {
+            const msg = doc.data();
+            const date = msg.timestamp.toDate().toLocaleDateString();
+            const isStudent = msg.role === 'student';
+            
+            return `
+                <li class="border-b border-slate-100 pb-2">
+                    <div class="flex justify-between text-xs text-slate-500 mb-1">
+                        <span class="font-medium ${isStudent ? 'text-green-700' : 'text-slate-600'}">${isStudent ? 'Student' : 'Sensei'}</span>
+                        <span>${date}</span>
+                    </div>
+                    <p class="text-sm text-slate-700">${msg.text.substring(0, 70)}${msg.text.length > 70 ? '...' : ''}</p>
+                </li>
+            `;
+        }).join('');
 
-export function cleanupStudentProfileView() {
-    currentStudent = null; // Resetovať dáta pri odchode z pohľadu
-    console.log("Cleaned up student profile view data.");
+    }, (error) => {
+        console.error("Chyba při načítání interakcí: ", error);
+        container.innerHTML = '<p class="text-red-500">Chyba při načítání interakcí.</p>';
+    });
 }
