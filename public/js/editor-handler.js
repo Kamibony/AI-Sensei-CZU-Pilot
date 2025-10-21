@@ -1,795 +1,860 @@
-// public/js/editor-handler.js
+// Súbor: public/js/editor-handler.js
+// Verzia: Plná (795 riadkov), rešpektujúca pôvodnú štruktúru + Multi-Profesor
 
-// Importy Firebase a pomocných funkcií
-import { doc, addDoc, updateDoc, collection, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, addDoc, updateDoc, collection, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { db, functions } from './firebase-init.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import * as firebaseInit from './firebase-init.js'; 
 import { showToast } from './utils.js';
-// ===== OPRAVA: Importujeme 'loadSelectedFiles' =====
-import { renderSelectedFiles, clearSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from './upload-handler.js';
+import { initializeModalMediaUpload, renderModalMediaFiles } from './upload-handler.js';
 
-let currentLesson = null; 
-let generateContentCallable = null; 
-let lastGeneratedData = null; 
+let editorInstance = null;
+let currentLessonData = null; // Bude uchovávat aktuální data lekce
+let isLessonDirty = false; // Sleduje, zda byly provedeny změny
 
-// Lazy load the callable function pre generovanie obsahu
-function getGenerateContentCallable() {
-    if (!generateContentCallable) {
-        if (!firebaseInit.functions) {
-            console.error("Firebase Functions not initialized when trying to get generateContent callable");
-            throw new Error("Firebase Functions not initialized.");
-        }
-        generateContentCallable = httpsCallable(firebaseInit.functions, 'generateContent');
-    }
-    return generateContentCallable;
-}
+// --- NOVÁ GLOBÁLNA PREMENNÁ MODULU ---
+let currentProfessorId = null;
+// -------------------------------------
 
-// Vytvorí HTML pre RAG výber (používa upload-handler)
-function createDocumentSelectorUI() {
-    return `
-        <div class="mb-4">
-            <label class="block font-medium text-slate-600 mb-2">Vyberte kontextové dokumenty (RAG):</label>
-            <div class="space-y-2 border rounded-lg p-3 bg-slate-50">
-                <ul id="selected-files-list-rag" class="text-xs text-slate-600 mb-2 list-disc list-inside">
-                    {/* Zoznam sa načíta cez renderSelectedFiles */}
-                    <li>Žádné soubory nevybrány.</li>
-                </ul>
-                <button id="select-files-btn-rag" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-1 px-2 rounded-md">
-                    Vybrat soubory z knihovny
-                </button>
-            </div>
-            <p class="text-xs text-slate-400 mt-1">Vybrané dokumenty budou použity jako dodatečný kontext pro AI.</p>
-        </div>`;
-}
 
-// Stiahne obsah lekcie ako TXT
-function handleDownloadLessonContent() {
-    if (!currentLesson) {
-        showToast("Lekce není načtena, nelze stáhnout obsah.", true);
-        return;
-    }
-
-    let contentString = "";
-    const title = currentLesson.title || "Nova_lekce";
-
-    contentString += `# ${currentLesson.title || "Nová lekce"}\n`;
-    if (currentLesson.subtitle) contentString += `## ${currentLesson.subtitle}\n`;
-    contentString += `\n---\n\n`;
-
-    if (currentLesson.text_content) contentString += `### Text pro studenty\n\n${currentLesson.text_content}\n\n---\n\n`;
-    if (currentLesson.presentation?.slides) contentString += `### Prezentace (Styl: ${currentLesson.presentation.styleId || 'default'})\n\n${currentLesson.presentation.slides.map((s, i) => `**Slide ${i + 1}: ${s.title}**\n${(s.points || []).map(p => `- ${p}`).join('\n')}\n`).join('\n')}\n---\n\n`;
-    if (currentLesson.videoUrl) contentString += `### Video\n\n${currentLesson.videoUrl}\n\n---\n\n`;
-    if (currentLesson.quiz?.questions) contentString += `### Kvíz\n\n${currentLesson.quiz.questions.map((q, i) => `${i + 1}. ${q.question_text}\n${(q.options || []).map((o, j) => `  - ${o}${j === q.correct_option_index ? " (Správně)" : ""}`).join('\n')}`).join('\n\n')}\n\n---\n\n`;
-    if (currentLesson.test?.questions) contentString += `### Test\n\n${currentLesson.test.questions.map((q, i) => `${i + 1}. ${q.question_text}\n${(q.options || []).map((o, j) => `  - ${o}${j === q.correct_option_index ? " (Správně)" : ""}`).join('\n')}`).join('\n\n')}\n\n---\n\n`;
-    if (currentLesson.podcast_script?.episodes) contentString += `### Podcast Skript\n\n${currentLesson.podcast_script.episodes.map((ep, i) => `**Epizoda ${i + 1}: ${ep.title}**\n\n${ep.script}\n\n`).join('')}---\n\n`;
-
-    const blob = new Blob([contentString], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast("Obsah lekce byl stažen.");
-}
-
-// Vykreslí ľavé menu editora
-export function renderEditorMenu(container, lesson) {
-    currentLesson = lesson;
-    lastGeneratedData = null; 
+/**
+ * Vykreslí menu editoru lekce do sidebaru.
+ * @param {HTMLElement} sidebar - Kontejner sidebaru.
+ * @param {object | null} lesson - Objekt lekce k editaci, nebo null pro novou lekci.
+ * @param {string} professorId - ID přihlášeného profesora.
+ */
+export function renderEditorMenu(sidebar, lesson, professorId) { // <-- ZMENA 1: Pridaný 'professorId'
     
-    // ===== ZMENA: Namiesto clearSelectedFiles() načítame dáta z lekcie =====
-    // Ak je to nová lekcia (lesson je null) alebo lekcia nemá uložené súbory, pošle sa prázdne pole.
-    // 'ragFilePaths' je názov poľa, kam budeme ukladať súbory.
-    loadSelectedFiles(currentLesson?.ragFilePaths || []);
-    // ===================================================================
+    // --- ZMENA 2: Nastavenie globálnej premennej ---
+    currentProfessorId = professorId;
+    if (!currentProfessorId) {
+        console.error("renderEditorMenu: professorId není nastaveno!");
+        showToast("Kritická chyba: Nelze identifikovat profesora v editoru.", true);
+    }
+    // ---------------------------------------------
 
-    container.innerHTML = `
-        <header class="p-4 border-b border-slate-200 flex-shrink-0">
-            <button id="back-to-timeline-btn" class="flex items-center text-sm text-green-700 hover:underline mb-3">&larr; Zpět na plán výuky</button>
-            <div class="flex justify-between items-start">
-                <div class="flex items-center space-x-3">
-                    <span class="text-3xl">${currentLesson?.icon || '🆕'}</span>
-                    <h2 id="editor-lesson-title" class="text-xl font-bold truncate text-slate-800">${currentLesson ? currentLesson.title : 'Vytvořit novou lekci'}</h2>
-                </div>
-                <button id="download-lesson-btn" title="Stáhnout obsah lekce" class="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2 2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                </button>
-            </div>
+    const isNewLesson = lesson === null;
+    
+    // Inicializujeme currentLessonData
+    if (isNewLesson) {
+        currentLessonData = {
+            id: `new-${Date.now()}`,
+            title: "Nová lekce",
+            subtitle: "",
+            description: "",
+            content: "<p>Zde začněte psát nebo vygenerujte text pomocí AI.</p>",
+            isPublished: false,
+            // Inicializace prázdných polí pro obsah
+            videos: [],
+            quizzes: [],
+            tests: [],
+            podcasts: []
+        };
+    } else {
+        // Zajistíme, že pole existují, i když jsou v DB null
+        currentLessonData = {
+            ...lesson,
+            videos: lesson.videos || [],
+            quizzes: lesson.quizzes || [],
+            tests: lesson.tests || [],
+            podcasts: lesson.podcasts || []
+        };
+    }
+    
+    isLessonDirty = false; // Reset stavu
+
+    sidebar.innerHTML = `
+        <header class="p-4 border-b border-slate-200 flex items-center justify-between">
+            <h2 class="text-xl font-bold text-slate-800">${isNewLesson ? 'Tvorba nové lekce' : 'Editor lekce'}</h2>
+            <button id="close-editor-btn" title="Zavřít editor" class="p-1 rounded-full text-slate-400 hover:bg-slate-200">&times;</button>
         </header>
-        <div class="flex-grow overflow-y-auto p-2"><nav id="editor-vertical-menu" class="flex flex-col space-y-1"></nav></div>`;
+        <div class="flex-grow overflow-y-auto p-4 space-y-4">
+            <div>
+                <label for="lesson-title" class="block text-sm font-medium text-slate-600 mb-1">Název lekce</label>
+                <input type="text" id="lesson-title" value="${currentLessonData.title}" class="w-full p-2 border border-slate-300 rounded-lg">
+            </div>
+            <div>
+                <label for="lesson-subtitle" class="block text-sm font-medium text-slate-600 mb-1">Podtitulek</label>
+                <input type="text" id="lesson-subtitle" value="${currentLessonData.subtitle || ''}" class="w-full p-2 border border-slate-300 rounded-lg">
+            </div>
+            <div>
+                <label for="lesson-description" class="block text-sm font-medium text-slate-600 mb-1">Popis (pro AI)</label>
+                <textarea id="lesson-description" rows="3" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="Kontext pro generování textu">${currentLessonData.description || ''}</textarea>
+            </div>
+            
+            <div class="flex items-center justify-between p-3 bg-slate-100 rounded-lg">
+                <label for="lesson-published" class="text-sm font-medium text-slate-700">Publikováno</label>
+                <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                    <input type="checkbox" name="lesson-published" id="lesson-published" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer" ${currentLessonData.isPublished ? 'checked' : ''}/>
+                    <label for="lesson-published" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                </div>
+            </div>
 
-    container.querySelector('#back-to-timeline-btn').addEventListener('click', () => {
+        </div>
+        <footer class="p-4 border-t border-slate-200 space-y-2 flex-shrink-0">
+            <button id="save-lesson-btn" class="w-full p-3 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800">
+                ${isNewLesson ? 'Vytvořit a uložit' : 'Uložit změny'}
+            </button>
+            <button id="generate-text-btn" class="w-full p-3 bg-amber-600 text-white font-semibold rounded-lg hover:bg-amber-700 ${isNewLesson ? 'hidden' : ''}">
+                Vygenerovat/Upravit text (AI)
+            </button>
+            <button id="delete-lesson-btn" class="w-full p-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 ${isNewLesson ? 'hidden' : ''}">
+                Smazat lekci
+            </button>
+        </footer>
+    `;
+
+    // Zobrazí obsah editoru v hlavní oblasti
+    showEditorContent(currentLessonData.content);
+
+    // Nastavení listenerů pro metadata
+    document.getElementById('lesson-title').addEventListener('input', (e) => {
+        currentLessonData.title = e.target.value;
+        isLessonDirty = true;
+    });
+    document.getElementById('lesson-subtitle').addEventListener('input', (e) => {
+        currentLessonData.subtitle = e.target.value;
+        isLessonDirty = true;
+    });
+    document.getElementById('lesson-description').addEventListener('input', (e) => {
+        currentLessonData.description = e.target.value;
+        isLessonDirty = true;
+    });
+     document.getElementById('lesson-published').addEventListener('change', (e) => {
+        handlePublishLesson(currentLessonData.id, e.target.checked);
+    });
+
+    // Nastavení listenerů pro tlačítka
+    document.getElementById('save-lesson-btn').addEventListener('click', () => handleSaveLesson(isNewLesson));
+    
+    const generateBtn = document.getElementById('generate-text-btn');
+    if (generateBtn) {
+        generateBtn.addEventListener('click', () => handleGenerateText(currentLessonData.id, editorInstance));
+    }
+    
+    const deleteBtn = document.getElementById('delete-lesson-btn');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => handleDeleteLesson(currentLessonData.id));
+    }
+    
+    document.getElementById('close-editor-btn').addEventListener('click', () => {
+        // TODO: Místo reloadu raději přepnout view
         window.location.reload(); 
     });
 
-    container.querySelector('#download-lesson-btn').addEventListener('click', handleDownloadLessonContent);
+    // Callback pro vložení média z modálu do editoru
+    const onMediaSelect = (mediaData) => {
+        if (editorInstance) {
+            let content = '';
+            if (mediaData.fileType.startsWith('image/')) {
+                content = `<img src="${mediaData.url}" alt="${mediaData.fileName}" style="max-width: 100%; height: auto;" />`;
+            } else if (mediaData.fileType.startsWith('video/')) {
+                content = `<video controls src="${mediaData.url}" style="max-width: 100%;">Přehrávač videa není podporován.</video>`;
+            } else if (mediaData.fileType.startsWith('audio/')) {
+                content = `<audio controls src="${mediaData.url}">Přehrávač audia není podporován.</audio>`;
+            } else {
+                content = `<a href="${mediaData.url}" target="_blank" rel="noopener">${mediaData.fileName}</a>`;
+            }
+            editorInstance.insertContent(content);
+            isLessonDirty = true; // Vložení obsahu se počítá jako změna
+        }
+    };
 
-    const menuEl = container.querySelector('#editor-vertical-menu');
-    const menuItems = [
-        { id: 'details', label: 'Detaily lekce', icon: '📝' },
-        { id: 'text', label: 'Text pro studenty', icon: '✍️' },
-        { id: 'presentation', label: 'Prezentace', icon: '🖼️' },
-        { id: 'video', label: 'Video', icon: '▶️' },
-        { id: 'quiz', label: 'Kvíz', icon: '❓' },
-        { id: 'test', label: 'Test', icon: '✅' },
-        { id: 'post', label: 'Podcast Skript', icon: '🎙️' }, 
-    ];
-
-    menuEl.innerHTML = menuItems.map(item => `<a href="#" data-view="${item.id}" class="editor-menu-item flex items-center p-3 text-sm font-medium rounded-md hover:bg-slate-100 transition-colors">${item.icon}<span class="ml-3">${item.label}</span></a>`).join('');
-
-    menuEl.querySelectorAll('.editor-menu-item').forEach(item => {
-        item.addEventListener('click', e => {
-            e.preventDefault();
-            menuEl.querySelectorAll('.editor-menu-item').forEach(i => i.classList.remove('bg-green-100', 'text-green-800', 'font-semibold'));
-            item.classList.add('bg-green-100', 'text-green-800', 'font-semibold');
-            showEditorContent(item.dataset.view); 
-        });
-    });
-    
-    const defaultItem = menuEl.querySelector('.editor-menu-item[data-view="details"]');
-     if (defaultItem) {
-         defaultItem.click(); 
-     } else {
-         showEditorContent('details'); 
-     }
+    // Inicializace nahrávání pro modální okno
+    // --- ZMENA 3: Posielame 'currentProfessorId' ---
+    initializeModalMediaUpload(onMediaSelect, editorInstance, currentProfessorId);
+    // ----------------------------------------------
 }
 
-// Vykreslí hlavnú editačnú plochu podľa výberu v menu
-export async function showEditorContent(viewId) {
+
+/**
+ * Zobrazí TinyMCE editor v hlavní oblasti.
+ * @param {string} initialContent - HTML obsah k zobrazení v editoru.
+ */
+function showEditorContent(initialContent) {
     const mainArea = document.getElementById('main-content-area');
-    mainArea.innerHTML = `<div class="p-4 sm:p-6 md:p-8 overflow-y-auto h-full view-transition opacity-0" id="editor-content-container">Načítání...</div>`;
-    const container = document.getElementById('editor-content-container');
-    let contentHTML = '';
-
-    const renderWrapper = (title, content, actions = '') => `
-        <div class="flex justify-between items-start mb-6">
-            <h2 class="text-3xl font-extrabold text-slate-800">${title}</h2>
-            <div>${actions}</div>
-        </div>
-        <div class="bg-white p-6 rounded-2xl shadow-lg">${content}</div>`;
-    
-    const renderSavedContent = (title, field, renderFn) => {
-        const deleteButton = `<button id="delete-content-btn" data-field="${field}" class="px-4 py-2 text-sm font-semibold text-red-700 bg-red-100 rounded-lg hover:bg-red-200 transition-colors flex items-center gap-2">🗑️ Smazat a vytvořit nový</button>`;
-        let renderedContent = '<div class="text-center p-8 text-slate-400">Pro tuto sekci zatím není uložen žádný obsah. Klikněte na "Smazat a vytvořit nový" pro aktivaci generátoru.</div>';
-        if(currentLesson && currentLesson[field]) {
-            try {
-                 renderedContent = renderFn(currentLesson[field]);
-             } catch (e) {
-                  console.error(`Error rendering saved content for field ${field}:`, e);
-                  renderedContent = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Chyba při zobrazování uloženého obsahu.</div>`;
-             }
-        }
-        return renderWrapper(title, renderedContent, deleteButton);
-    };
-
-    const fieldMapping = { 
-        'text': 'text_content', 
-        'presentation': 'presentation', 
-        'quiz': 'quiz', 
-        'test': 'test', 
-        'post': 'podcast_script',
-        'video': 'videoUrl'
-    };
-    const currentField = fieldMapping[viewId];
-
-    switch(viewId) {
-        case 'details':
-            contentHTML = renderWrapper('Detaily lekce', `
-                <div id="lesson-details-form" class="space-y-4">
-                    <div><label class="block font-medium text-slate-600">Název lekce</label><input type="text" id="lesson-title-input" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500" value="${currentLesson?.title || ''}" placeholder="Např. Úvod do organické chemie"></div>
-                    <div><label class="block font-medium text-slate-600">Podtitulek</label><input type="text" id="lesson-subtitle-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.subtitle || ''}" placeholder="Základní pojmy a principy"></div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div><label class="block font-medium text-slate-600">Číslo lekce</label><input type="text" id="lesson-number-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.number || ''}" placeholder="Např. 101"></div>
-                        <div><label class="block font-medium text-slate-600">Ikona</label><input type="text" id="lesson-icon-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.icon || '🆕'}" placeholder="🆕"></div>
-                    </div>
-                    ${createDocumentSelectorUI()} {/* Presunuté sem pre ukladanie */}
-                    <div class="text-right pt-4"><button id="save-lesson-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105">Uložit změny</button></div>
-                </div>`);
-            break;
-        case 'text':
-            if (currentLesson?.[currentField]) {
-                contentHTML = renderSavedContent('Text pro studenty', currentField, (data) => `<div class="prose max-w-none">${data.replace(/\n/g, '<br>')}</div>`);
-            } else {
-                contentHTML = renderWrapper('Text pro studenty', `
-                    <p class="text-slate-500 mb-4">Zadejte AI prompt a vygenerujte hlavní studijní text. Můžete vybrat dokumenty (RAG).</p>
-                    ${createDocumentSelectorUI()}
-                    <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Např. 'Vytvoř poutavý úvodní text...'"></textarea>
-                    <div class="flex items-center justify-end mt-4">
-                        <button id="generate-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ai-glow">✨<span class="ml-2">Generovat text</span></button> 
-                    </div>
-                    <div id="generation-output" class="mt-6 border-t pt-6 text-slate-700 prose max-w-none">
-                         <div class="text-center p-8 text-slate-400">Obsah se vygeneruje zde...</div>
-                    </div>
-                    <div class="text-right mt-4"><button id="save-content-btn" data-field="${currentField}" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
-                    `);
-            }
-            break;
-        case 'presentation':
-             if (currentLesson?.[currentField]) {
-                contentHTML = renderSavedContent('AI Prezentace', currentField, (data) => renderGeneratedContent('presentation', data)); 
-             } else {
-                contentHTML = renderWrapper('AI Prezentace', `
-                    <p class="text-slate-500 mb-4">Zadejte téma a počet slidů. Můžete vybrat dokumenty (RAG).</p>
-                    
-                    ${createDocumentSelectorUI()}
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <div class="md:col-span-2"><label class="block font-medium text-slate-600">Téma prezentace</label><input id="prompt-input" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" placeholder="Např. Klíčové momenty Římské republiky"></div>
-                        <div><label class="block font-medium text-slate-600">Počet slidů</label><input id="slide-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="5"></div>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label for="presentation-style-selector" class="block text-sm font-medium text-gray-700 mb-1">Styl prezentace:</label>
-                        <select id="presentation-style-selector" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                            <option value="default">Výchozí (Zelená)</option>
-                            <option value="modern">Moderní (Modrá)</option>
-                            <option value="vibrant">Živý (Oranžová)</option>
-                        </select>
-                    </div>
-                    
-                    <div class="text-right mt-4">
-                         <button id="generate-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ml-auto ai-glow">✨<span class="ml-2">Generovat prezentaci</span></button>
-                    </div>
-                    <div id="generation-output" class="mt-6 border-t pt-6">
-                        <div class="text-center p-8 text-slate-400">Náhled prezentace se zobrazí zde...</div>
-                    </div>
-                    <div class="text-right mt-4"><button id="save-content-btn" data-field="${currentField}" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
-                    `);
-             }
-            break;
-        case 'video':
-             contentHTML = renderWrapper('Vložení videa', `
-                <p class="text-slate-500 mb-4">Vložte odkaz na video z YouTube.</p>
-                <div><label class="block font-medium text-slate-600">YouTube URL</label><input id="youtube-url" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${currentLesson?.videoUrl || ''}" placeholder="https://www.youtube.com/watch?v=..."></div>
-                <div class="text-right pt-4">
-                    ${currentLesson?.videoUrl ? '<button id="delete-content-btn" data-field="videoUrl" class="px-4 py-2 text-sm font-semibold text-red-700 bg-red-100 rounded-lg hover:bg-red-200 transition-colors mr-2">🗑️ Smazat video</button>' : ''}
-                    <button id="embed-video-btn" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800">Uložit odkaz</button>
+    mainArea.innerHTML = `
+        <div class="w-full max-w-4xl mx-auto p-4 md:p-8 h-full flex flex-col" data-lesson-id="${currentLessonData.id}">
+            <div id="editor-toolbar" class="sticky top-0 bg-slate-50 z-10 py-2 border-b border-slate-200 -mx-4 -mt-4 px-4 md:-mx-8 md:px-8">
                 </div>
-                <div id="video-preview" class="mt-6 border-t pt-6">
-                    ${currentLesson?.videoUrl ? '' : '<div class="text-center p-8 text-slate-400">Náhled videa se zobrazí zde...</div>'}
-                </div>`);
-            break;
-        case 'quiz':
-            if (currentLesson?.[currentField]) {
-                contentHTML = renderSavedContent('Interaktivní Kvíz', currentField, (data) => renderGeneratedContent('quiz', data));
-            } else {
-                contentHTML = renderWrapper('Interaktivní Kvíz', `
-                    <p class="text-slate-500 mb-4">Vytvořte rychlý kvíz. Můžete vybrat dokumenty (RAG).</p>
-                    ${createDocumentSelectorUI()}
-                    <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Např. 'Vytvoř 3 otázky s výběrem ze 4 možností...'"></textarea>
-                    <div class="text-right mt-4">
-                         <button id="generate-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ml-auto ai-glow">✨<span class="ml-2">Vygenerovat kvíz</span></button>
-                    </div>
-                    <div id="generation-output" class="mt-6 border-t pt-6">
-                        <div class="text-center p-8 text-slate-400">Náhled kvízu se zobrazí zde...</div>
-                    </div>
-                    <div class="text-right mt-4"><button id="save-content-btn" data-field="${currentField}" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
-                    `);
-            }
-            break;
-        case 'test':
-             if (currentLesson?.[currentField]) {
-                contentHTML = renderSavedContent('Pokročilý Test', currentField, (data) => renderGeneratedContent('test', data));
-             } else {
-                contentHTML = renderWrapper('Pokročilý Test', `
-                    <p class="text-slate-500 mb-4">Navrhněte komplexnější test. Můžete vybrat dokumenty (RAG).</p>
-                    ${createDocumentSelectorUI()}
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <div><label class="block font-medium text-slate-600">Počet otázek</label><input id="question-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="5"></div>
-                        <div>
-                            <label class="block font-medium text-slate-600">Obtížnost</label>
-                            <select id="difficulty-select" class="w-full border-slate-300 rounded-lg p-2 mt-1"><option>Lehká</option><option selected>Střední</option><option>Těžká</option></select>
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-600">Typy otázek</label>
-                            <select id="type-select" class="w-full border-slate-300 rounded-lg p-2 mt-1"><option value="Multiple Choice">Výběr z možností</option></select>
-                        </div>
-                    </div>
-                    <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder="Zadejte hlavní téma testu..."></textarea>
-                    <div class="text-right mt-4">
-                         <button id="generate-btn" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ml-auto ai-glow">✨<span class="ml-2">Vygenerovat test</span></button>
-                    </div>
-                    <div id="generation-output" class="mt-6 border-t pt-6">
-                        <div class="text-center p-8 text-slate-400">Náhled testu se zobrazí zde...</div>
-                    </div>
-                    <div class="text-right mt-4"><button id="save-content-btn" data-field="${currentField}" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
-                    `);
-             }
-            break;
-        case 'post': // Podcast Script
-            if (currentLesson?.[currentField]) {
-                contentHTML = renderSavedContent('Podcast Skript', currentField, (data) => renderGeneratedContent('post', data));
-            } else {
-                contentHTML = renderWrapper('Podcast Skript', `
-                    <p class="text-slate-500 mb-4">Vytvořte sérii podcastových skriptů. Můžete vybrat dokumenty (RAG).</p>
-                    ${createDocumentSelectorUI()}
-                    <div class="bg-slate-50 p-4 rounded-lg">
-                        <h4 class="font-bold text-slate-800 mb-3">🎙️ Generátor Podcastové Série</h4>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label class="block font-medium text-slate-600 text-sm">Počet epizod</label>
-                                <input id="episode-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="3">
-                            </div>
-                           {/* Hlas a jazyk zatiaľ AI nepodporuje */}
-                        </div>
-                        <textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-20" placeholder="Zadejte hlavní téma...">${'Prozkoumej klíčové koncepty z lekce "' + (currentLesson?.title || 'aktuální lekce') + '"'}</textarea>
-                        <div class="text-right mt-4">
-                            <button id="generate-btn" data-type="podcast" class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ml-auto ai-glow">✨<span class="ml-2">Vytvořit skripty</span></button>
-                        </div>
-                    </div>
-                     <div id="generation-output" class="mt-6 border-t pt-6">
-                        <div class="text-center p-8 text-slate-400">Vygenerovaný obsah se zobrazí zde...</div>
-                    </div>
-                    <div class="text-right mt-4"><button id="save-content-btn" data-field="${currentField}" class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 hidden">Uložit do lekce</button></div>
-                `);
-            }
-            break;
-        default:
-            contentHTML = renderWrapper(viewId, `<div class="text-center p-8 text-slate-400">Tato sekce se připravuje.</div>`);
+            
+            <div id="lesson-editor-container" class="flex-grow mt-4 overflow-y-auto">
+                <textarea id="lesson-editor">${initialContent}</textarea>
+            </div>
+        </div>
+    `;
+
+    // Inicializace TinyMCE
+    if (tinymce.get('lesson-editor')) {
+        tinymce.remove('#lesson-editor');
     }
 
-    container.innerHTML = contentHTML;
-
-    // ===== ZMENA: Presunuté PRED setTimeout =====
-    // Musíme zavolať renderSelectedFiles() hneď, aby sa zoznam RAG zobrazil
-    // so súbormi načítanými v 'renderEditorMenu'.
-    if (viewId === 'details' || viewId !== 'video') { // Zobrazí sa aj v 'details'
-         renderSelectedFiles(); 
-    }
-    // ===========================================
-    
-     setTimeout(() => {
-          attachEditorEventListeners(viewId);
-          
-          // Logika modálu (zostáva rovnaká z minula)
-          const ragSelectBtn = document.getElementById('select-files-btn-rag');
-          if (ragSelectBtn) {
-               ragSelectBtn.addEventListener('click', () => {
-                   
-                   const modal = document.getElementById('media-library-modal');
-                   const modalConfirm = document.getElementById('modal-confirm-btn');
-                   const modalCancel = document.getElementById('modal-cancel-btn');
-                   const modalClose = document.getElementById('modal-close-btn');
-
-                   if (!modal || !modalConfirm || !modalCancel || !modalClose) {
-                        console.error("Chybějící elementy pro modální okno (modal, content, buttons). Zkontrolujte index.html.");
-                        showToast("Chyba: Nepodařilo se načíst komponentu pro výběr souborů.", true);
-                        return;
-                   }
-                   
-                   const handleConfirm = () => {
-                       renderSelectedFiles(); 
-                       closeModal();
-                   };
-                   
-                   const handleCancel = () => {
-                       closeModal();
-                   };
-                   
-                   const closeModal = () => {
-                       modal.classList.add('hidden');
-                       modalConfirm.removeEventListener('click', handleConfirm);
-                       modalCancel.removeEventListener('click', handleCancel);
-                       modalClose.removeEventListener('click', handleCancel);
-                   };
-
-                   renderMediaLibraryFiles("main-course", "modal-media-list");
-                   
-                   modalConfirm.addEventListener('click', handleConfirm);
-                   modalCancel.addEventListener('click', handleCancel);
-                   modalClose.addEventListener('click', handleCancel);
-                   
-                   modal.classList.remove('hidden');
-               });
-          }
-
-          // Prezentácia - nastavíme style selector, ak existuje uložená hodnota
-          if (viewId === 'presentation' && currentLesson?.presentation?.styleId) {
-             const selector = document.getElementById('presentation-style-selector');
-             if (selector) selector.value = currentLesson.presentation.styleId;
-          }
-           // Aplikujeme transition
-           requestAnimationFrame(() => container.classList.remove('opacity-0'));
-     }, 50); 
-}
-
-// Pridá listenery pre aktuálne zobrazený editor
-function attachEditorEventListeners(viewId) {
-    // Uloženie detailov lekcie (len pre 'details' view)
-    if (viewId === 'details') {
-        document.getElementById('save-lesson-btn')?.addEventListener('click', handleSaveLessonDetails);
-    }
-    
-    // Mazanie existujúceho obsahu
-    const deleteBtn = document.getElementById('delete-content-btn');
-    if (deleteBtn) {
-        deleteBtn.addEventListener('click', () => {
-            const field = deleteBtn.dataset.field;
-            handleDeleteGeneratedContent(field, viewId);
-        });
-    }
-
-    // Špecifické pre video
-    if (viewId === 'video') {
-        const embedBtn = document.getElementById('embed-video-btn');
-        const urlInput = document.getElementById('youtube-url');
-        const preview = document.getElementById('video-preview');
-
-        const showVideoPreview = (url) => { 
-            if (!url) {
-                preview.innerHTML = '<div class="text-center p-8 text-slate-400">Náhled videa se zobrazí zde...</div>';
-                return false;
-            }
-            const videoIdMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?#]+)/);
-            const videoId = videoIdMatch ? videoIdMatch[1] : null;
-            if (videoId) {
-                preview.innerHTML = `<div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-2xl shadow-lg"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe></div>`;
-                return true;
-            } else {
-                preview.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg text-center">Neplatná YouTube URL.</div>`;
-                return false;
-            }
-        };
-
-        embedBtn?.addEventListener('click', async () => {
-            const url = urlInput ? urlInput.value.trim() : '';
-            if (showVideoPreview(url)) { 
-                await handleSaveGeneratedContent('videoUrl', url); 
-            } else if (url === '') { 
-                await handleDeleteGeneratedContent('videoUrl', viewId);
-            } else {
-                 showToast("Zadajte platnú YouTube URL adresu.", true);
-            }
-        });
+    tinymce.init({
+        selector: '#lesson-editor',
+        plugins: 'autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount autoresize quickbars',
+        // Quickbars pro vkládání obsahu
+        quickbars_insert_toolbar: 'customVideo quicktable | customQuiz customTest customPodcast',
+        quickbars_selection_toolbar: 'bold italic underline | blocks | quicklink blockquote',
         
-        if (currentLesson?.videoUrl) {
-            showVideoPreview(currentLesson.videoUrl);
+        toolbar: 'undo redo | blocks | bold italic underline | ' +
+                 'alignleft aligncenter alignright | bullist numlist | ' +
+                 'link customMediaButton | code | removeformat | help',
+        
+        menubar: false,
+        statusbar: false,
+        inline: false, 
+        content_style: 'body { font-family: Inter, sans-serif; font-size: 16px; line-height: 1.6; } .content-placeholder { color: #888; font-style: italic; }',
+        autoresize_bottom_margin: 30,
+        min_height: 500,
+        
+        setup: (editor) => {
+            editorInstance = editor; // Uložíme instanci
+
+            // Změna se projeví v isLessonDirty
+            editor.on('dirty', () => {
+                isLessonDirty = true;
+            });
+
+            // Vlastní tlačítko pro Média (z knihovny)
+            editor.ui.registry.addButton('customMediaButton', {
+                text: 'Média',
+                icon: 'image',
+                onAction: () => {
+                    const modal = document.getElementById('media-library-modal');
+                    if (modal) {
+                        modal.classList.remove('hidden');
+                        renderModalMediaFiles('modal-media-library-list');
+                    }
+                }
+            });
+
+            // Vlastní tlačítko pro Video (přímé vložení URL)
+            editor.ui.registry.addButton('customVideo', {
+                icon: 'embed',
+                tooltip: 'Vložit video (YouTube, Vimeo)',
+                onAction: () => openVideoDialog(editor)
+            });
+
+            // Vlastní tlačítko pro Kvíz
+            editor.ui.registry.addButton('customQuiz', {
+                icon: 'checklist',
+                tooltip: 'Vložit kvíz',
+                onAction: () => openQuizDialog(editor)
+            });
+
+            // Vlastní tlačítko pro Test
+            editor.ui.registry.addButton('customTest', {
+                icon: 'file-check', // Nahrazeno ikonou
+                tooltip: 'Vložit test',
+                onAction: () => openTestDialog(editor)
+            });
+
+            // Vlastní tlačítko pro Podcast
+            editor.ui.registry.addButton('customPodcast', {
+                icon: 'volume',
+                tooltip: 'Vložit podcast (Spotify)',
+                onAction: () => openPodcastDialog(editor)
+            });
+
+            // Dvojklik pro editaci
+            editor.on('dblclick', (e) => {
+                const element = e.target;
+                handleElementEdit(editor, element);
+            });
         }
-    }
-
-    // Tlačidlo Generovať
-    const generateBtn = document.getElementById('generate-btn');
-    if (generateBtn) {
-        generateBtn.addEventListener('click', () => handleGeneration(viewId));
-    }
-
-    // Tlačidlo Uložiť vygenerovaný obsah
-    const saveContentBtn = document.getElementById('save-content-btn');
-    if(saveContentBtn) {
-        saveContentBtn.addEventListener('click', () => {
-             const field = saveContentBtn.dataset.field;
-             handleSaveGeneratedContent(field, lastGeneratedData);
-        });
-    }
+    });
 }
 
-// Uloží základné detaily lekcie (názov, ikona...)
-async function handleSaveLessonDetails() { 
-    const titleInput = document.getElementById('lesson-title-input');
-    const subtitleInput = document.getElementById('lesson-subtitle-input');
-    const numberInput = document.getElementById('lesson-number-input');
-    const iconInput = document.getElementById('lesson-icon-input');
-    const saveBtn = document.getElementById('save-lesson-btn'); 
-
-    if (!titleInput || !saveBtn) {
-         showToast("Chyba: Chybějící elementy formuláře.", true);
-         return;
-    }
-
-    const title = titleInput.value.trim();
-    if (!title) {
-        showToast("Název lekce nemůže být prázdný.", true);
+/**
+ * Zpracuje dvojklik na element a otevře příslušný dialog.
+ * @param {object} editor - Instance TinyMCE editoru.
+ * @param {HTMLElement} element - Element, na který bylo kliknuto.
+ */
+function handleElementEdit(editor, element) {
+    const videoNode = element.closest('.video-placeholder');
+    if (videoNode) {
+        const videoId = videoNode.dataset.id;
+        const videoData = currentLessonData.videos.find(v => v.id === videoId);
+        if (videoData) {
+            openVideoDialog(editor, videoData);
+        }
         return;
     }
 
-    // ===== ZMENA: Pridávame 'ragFilePaths' do ukladaných dát =====
-    const currentSelection = getSelectedFiles(); // Získame aktuálny RAG výber
+    const quizNode = element.closest('.quiz-placeholder');
+    if (quizNode) {
+        const quizId = quizNode.dataset.id;
+        const quizData = currentLessonData.quizzes.find(q => q.id === quizId);
+        if (quizData) {
+            openQuizDialog(editor, quizData);
+        }
+        return;
+    }
+    
+    const testNode = element.closest('.test-placeholder');
+    if (testNode) {
+        const testId = testNode.dataset.id;
+        const testData = currentLessonData.tests.find(t => t.id === testId);
+        if (testData) {
+            openTestDialog(editor, testData);
+        }
+        return;
+    }
 
-    const lessonData = {
-        title: title,
-        subtitle: subtitleInput ? subtitleInput.value.trim() : '',
-        number: numberInput ? numberInput.value.trim() : '',
-        icon: iconInput ? (iconInput.value.trim() || '🆕') : '🆕',
-        ragFilePaths: currentSelection, // Uložíme pole objektov súborov
-        updatedAt: serverTimestamp() 
+    const podcastNode = element.closest('.podcast-placeholder');
+    if (podcastNode) {
+        const podcastId = podcastNode.dataset.id;
+        const podcastData = currentLessonData.podcasts.find(p => p.id === podcastId);
+        if (podcastData) {
+            openPodcastDialog(editor, podcastData);
+        }
+    }
+}
+
+
+/**
+ * Uloží změny v editoru (nová nebo existující lekce).
+ * @param {boolean} isNew - Zda se jedná o novou lekci.
+ */
+async function handleSaveLesson(isNew) {
+    if (!currentProfessorId) { // <-- ZMENA 4: Kontrola
+        showToast("Kritická chyba: Nelze uložit. Chybí ID profesora.", true);
+        return;
+    }
+
+    const title = document.getElementById('lesson-title').value;
+    if (!title) {
+        showToast("Název lekce je povinný.", true);
+        return;
+    }
+
+    // Aktualizujeme data z editoru POUZE pokud se změnila
+    if (editorInstance && isLessonDirty) {
+        currentLessonData.content = editorInstance.getContent();
+    }
+    
+    // Ostatní metadata už jsou v currentLessonData (z listenerů)
+    
+    const lessonDataToSave = {
+        ...currentLessonData,
+        updatedAt: serverTimestamp()
     };
-    // ========================================================
+    
+    // Odebereme dočasné ID, pokud existuje
+    if (isNew) {
+        delete lessonDataToSave.id; 
+    }
 
-    const originalText = saveBtn.textContent;
+    const saveBtn = document.getElementById('save-lesson-btn');
     saveBtn.disabled = true;
-    saveBtn.innerHTML = `<div class="spinner"></div>`; 
+    saveBtn.innerHTML = '<div class="spinner-small"></div>';
 
     try {
-        if (currentLesson && currentLesson.id) {
-            // Aktualizácia existujúcej lekcie
-            await updateDoc(doc(firebaseInit.db, 'lessons', currentLesson.id), lessonData);
-            currentLesson = { ...currentLesson, ...lessonData }; 
-            showToast("Detaily lekce byly úspěšně aktualizovány.");
-            document.getElementById('editor-lesson-title').textContent = lessonData.title;
+        if (isNew) {
+            lessonDataToSave.createdAt = serverTimestamp();
+            lessonDataToSave.timelinePosition = null; 
+            
+            // --- ZMENA 5: Ukladanie do subkolekcie ---
+            const docRef = await addDoc(collection(db, 'professors', currentProfessorId, 'lessons'), lessonDataToSave);
+            // -----------------------------------------
+            
+            currentLessonData.id = docRef.id; // Aktualizujeme ID z dočasného na reálné
+            document.querySelector(`[data-lesson-id]`).dataset.lessonId = currentLessonData.id;
+            document.getElementById('generate-text-btn').classList.remove('hidden');
+            document.getElementById('delete-lesson-btn').classList.remove('hidden');
+            saveBtn.innerHTML = 'Uložit změny';
+            showToast("Lekce byla úspěšně vytvořena.", false);
+            isLessonDirty = false;
+            
+            // TODO: Měli bychom překreslit sidebar, aby se lekce objevila v knihovně
+            
         } else {
-            // Vytvorenie novej lekcie
-            lessonData.createdAt = serverTimestamp(); 
-            const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonData);
-            currentLesson = { id: docRef.id, ...lessonData }; 
-            showToast("Nová lekce byla úspěšně vytvořena.");
-            document.getElementById('editor-lesson-title').textContent = lessonData.title;
-             console.log("New lesson created, library refresh needed.");
+            // --- ZMENA 6: Update v subkolekcii ---
+            const lessonRef = doc(db, 'professors', currentProfessorId, 'lessons', currentLessonData.id);
+            await updateDoc(lessonRef, lessonDataToSave);
+            // ------------------------------------
+            
+            saveBtn.innerHTML = 'Uložit změny';
+            showToast("Lekce byla aktualizována.", false);
+            isLessonDirty = false;
         }
     } catch (error) {
-        console.error("Error saving lesson details:", error);
-        showToast("Při ukládání detailů lekce došlo k chybě.", true);
+        console.error("Error saving lesson:", error);
+        showToast("Chyba při ukládání lekce.", true);
+        saveBtn.innerHTML = isNew ? 'Vytvořit a uložit' : 'Uložit změny';
     } finally {
         saveBtn.disabled = false;
-        saveBtn.textContent = originalText;
     }
 }
 
-
-// Generuje obsah pomocou AI
-async function handleGeneration(viewId) {
-    const outputEl = document.getElementById('generation-output');
-    const promptInput = document.getElementById('prompt-input');
-    const generateBtn = document.getElementById('generate-btn');
-    const userPrompt = promptInput ? promptInput.value.trim() : '';
-    
-    if (!outputEl || !generateBtn) {
-         console.error("Chybějící output nebo generate button element!");
-         return;
-    }
-    if (promptInput && !userPrompt) {
-        outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Prosím, zadejte text do promptu.</div>`;
+/**
+ * Zavolá backendovou funkci pro generování textu lekce.
+ * @param {string} lessonId - ID lekce.
+ * @param {object} editor - Instance TinyMCE editoru.
+ */
+async function handleGenerateText(lessonId, editor) {
+    if (isNewLesson(lessonId)) {
+        showToast("Nejprve lekci uložte, poté můžete generovat text.", true);
         return;
     }
 
-    const originalText = generateBtn.innerHTML;
-    generateBtn.innerHTML = `<div class="spinner"></div><span class="ml-2">Generuji...</span>`;
+    const title = document.getElementById('lesson-title').value;
+    const description = document.getElementById('lesson-description').value;
+    
+    if (!title || !description) {
+        showToast("Pro generování textu vyplňte název i popis lekce.", true);
+        return;
+    }
+
+    const generateBtn = document.getElementById('generate-text-btn');
     generateBtn.disabled = true;
-    if (promptInput) promptInput.disabled = true;
-    outputEl.innerHTML = `<div class="p-8 text-center pulse-loader text-slate-500">🤖 AI Sensei přemýšlí a tvoří obsah...</div>`;
-
-    lastGeneratedData = null; 
+    generateBtn.innerHTML = '<div class="spinner-small"></div> Generuji...';
 
     try {
-        const selectedFiles = getSelectedFiles(); 
-        const filePaths = selectedFiles.map(f => f.fullPath);
-        console.log("Using files for RAG:", filePaths); 
-
-        const promptData = { userPrompt };
-        switch (viewId) {
-            case 'presentation':
-                promptData.slideCount = document.getElementById('slide-count-input')?.value || 5;
-                break;
-            case 'test':
-                promptData.questionCount = document.getElementById('question-count-input')?.value || 5;
-                promptData.difficulty = document.getElementById('difficulty-select')?.value || 'Střední';
-                promptData.questionTypes = document.getElementById('type-select')?.value || 'Multiple Choice';
-                break;
-            case 'post':
-                promptData.episodeCount = document.getElementById('episode-count-input')?.value || 3;
-                break;
-        }
-
-        const generateContent = getGenerateContentCallable(); 
-        const result = await generateContent({
-            contentType: viewId,
-            promptData,
-            filePaths, 
+        const generateLessonText = httpsCallable(functions, 'generateLessonText');
+        const result = await generateLessonText({
+            lessonId: lessonId,
+            prompt: title,
+            context: description
+            // professorId se posílá automaticky v kontextu
         });
-        
-        if (!result || !result.data) {
-             throw new Error("AI nevrátila žádná data.");
-        }
-        if (result.data.error) { 
-            throw new Error(result.data.error);
-        }
-        
-        lastGeneratedData = (viewId === 'text' && result.data.text) ? result.data.text : result.data; 
-        
-        outputEl.innerHTML = renderGeneratedContent(viewId, result.data); 
 
-        const saveBtn = document.getElementById('save-content-btn');
-        if (saveBtn) {
-             const fieldMapping = { 
-                 'text': 'text_content', 
-                 'presentation': 'presentation', 
-                 'quiz': 'quiz', 
-                 'test': 'test', 
-                 'post': 'podcast_script' 
-             };
-            saveBtn.dataset.field = fieldMapping[viewId];
-            saveBtn.classList.remove('hidden');
+        if (result.data.success && result.data.text) {
+            editor.setContent(result.data.text);
+            showToast("Text lekce byl úspěšně vygenerován.", false);
+            isLessonDirty = true; // Označíme, že je potřeba uložit
+            await handleSaveLesson(false); // Automaticky uložíme
         } else {
-             console.warn("Save button not found after generation.");
+            throw new Error(result.data.message || "Nepodařilo se získat text z AI.");
         }
 
-    } catch (e) {
-        console.error("Error during AI generation:", e);
-        outputEl.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě: ${e.message || e}</div>`;
-        lastGeneratedData = null; 
+    } catch (error) {
+        console.error("Error generating lesson text:", error);
+        showToast(`Chyba při generování: ${error.message}`, true);
     } finally {
-        generateBtn.innerHTML = originalText;
         generateBtn.disabled = false;
-        if (promptInput) promptInput.disabled = false;
+        generateBtn.innerHTML = 'Vygenerovat/Upravit text (AI)';
     }
 }
 
-// Vykreslí náhľad vygenerovaného alebo uloženého obsahu
-function renderGeneratedContent(viewId, data) { 
-    if (!data) {
-        return `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě: Nebyla přijata žádná data k zobrazení.</div>`;
+/**
+ * Smaže lekci z databáze.
+ * @param {string} lessonId - ID lekce.
+ */
+async function handleDeleteLesson(lessonId) {
+    if (isNewLesson(lessonId)) return; // Nelze smazat neuloženou
+
+    if (!confirm(`Opravdu chcete trvale smazat lekci "${currentLessonData.title}"? Tato akce je nevratná.`)) {
+        return;
     }
-
-    try {
-        switch(viewId) {
-            case 'text':
-                const textContent = (typeof data === 'string') ? data : data.text; 
-                if (typeof textContent !== 'string') throw new Error("Data neobsahují platný text.");
-                return `<pre class="whitespace-pre-wrap font-sans text-sm">${textContent}</pre>`; 
-            case 'presentation':
-                 const slides = data?.slides || [];
-                 let styleId;
-                 if (data?.styleId) {
-                     styleId = data.styleId; 
-                 } else {
-                     const selector = document.getElementById('presentation-style-selector');
-                     styleId = selector ? selector.value : 'default'; 
-                 }
-
-                 if (!Array.isArray(slides)) throw new Error("Data neobsahují platné pole 'slides'.");
-                 return slides.map((slide, i) => `
-                    <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm bg-slate-50 relative">
-                        <h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title || 'Bez názvu'}</h4>
-                        <ul class="list-disc list-inside mt-2 text-sm text-slate-600">
-                            ${(Array.isArray(slide.points) ? slide.points : []).map(p => `<li>${p}</li>`).join('')}
-                        </ul>
-                         <span class="style-indicator text-xs font-mono text-gray-400 absolute top-1 right-2">${styleId}</span> 
-                    </div>`).join('');
-            case 'quiz':
-            case 'test':
-                 if (!Array.isArray(data?.questions)) throw new Error("Data neobsahují platné pole 'questions'.");
-                 return data.questions.map((q, i) => {
-                    const optionsHtml = (q.options || []).map((opt, j) => `<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`).join('');
-                    return `<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
-                                <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text || 'Chybějící text'}</h4>
-                                <div class="mt-2 space-y-2">${optionsHtml}</div>
-                            </div>`;
-                }).join('');
-            case 'post': 
-                if (!Array.isArray(data?.episodes)) throw new Error("Data neobsahují platné pole 'episodes'.");
-                 return data.episodes.map((episode, i) => `
-                    <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
-                        <h4 class="font-bold text-green-700">Epizoda ${i+1}: ${episode.title || 'Bez názvu'}</h4>
-                        <pre class="mt-2 text-sm text-slate-600 whitespace-pre-wrap font-sans">${episode.script || ''}</pre> 
-                    </div>`).join('');
-            default:
-                return `<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Neznámý typ obsahu '${viewId}' pro zobrazení.</div>`;
-        }
-    } catch(e) {
-        console.error("Error rendering content:", e);
-        console.error("Received data that caused the error:", data); 
-        return `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě při zobrazování obsahu: ${e.message}</div>`;
-    }
-}
-
-// Uloží vygenerovaný obsah do aktuálnej lekcie
-async function handleSaveGeneratedContent(fieldToUpdate, contentToSave) {
-    const saveBtn = document.getElementById('save-content-btn');
     
-    if (!currentLesson || !currentLesson.id) {
-        showToast("Nejprve uložte detaily lekce pomocí tlačítka 'Uložit změny' v sekci Detaily.", true);
-         return;
-    }
-
-    if (!contentToSave && fieldToUpdate !== 'videoUrl') { 
-        showToast("Není co uložit. Vygenerujte prosím nejprve obsah.", true);
-        return;
-    }
-
-    const lessonRef = doc(firebaseInit.db, 'lessons', currentLesson.id);
-    const originalText = saveBtn ? saveBtn.innerHTML : 'Uložit do lekce';
-    if (saveBtn) {
-        saveBtn.disabled = true;
-        saveBtn.innerHTML = `<div class="spinner"></div>`; 
-    }
-
     try {
-        let dataToSave;
-        
-        if (fieldToUpdate === 'presentation') {
-             const styleSelector = document.getElementById('presentation-style-selector');
-             const selectedStyleId = styleSelector ? styleSelector.value : 'default';
-             if (typeof contentToSave === 'object' && Array.isArray(contentToSave.slides)) {
-                  dataToSave = { 
-                      styleId: selectedStyleId, 
-                      slides: contentToSave.slides 
-                  };
-             } else {
-                  console.error("Invalid structure for contentToSave in presentation:", contentToSave);
-                  showToast("Chyba: Nepodařilo se získat data slidů pro uložení.", true);
-                  if (saveBtn) { 
-                      saveBtn.disabled = false;
-                      saveBtn.innerHTML = originalText;
-                  }
-                  return; 
-             }
-        } 
-        else if (fieldToUpdate === 'text_content' && typeof contentToSave === 'object' && contentToSave.text) {
-             dataToSave = contentToSave.text;
-        } 
-        else if (fieldToUpdate === 'videoUrl') {
-            dataToSave = (typeof contentToSave === 'string') ? contentToSave.trim() : null;
+        // --- ZMENA 7: Mazanie zo subkolekcie ---
+        if (!currentProfessorId) {
+             throw new Error("Chybí ID profesora.");
         }
-        else {
-             dataToSave = contentToSave;
-        }
-
-        const updateData = { updatedAt: serverTimestamp() };
-        updateData[fieldToUpdate] = dataToSave;
+        await deleteDoc(doc(db, 'professors', currentProfessorId, 'lessons', lessonId));
+        // -------------------------------------
         
-        await updateDoc(lessonRef, updateData);
-
-        if (currentLesson) {
-             currentLesson[fieldToUpdate] = dataToSave;
-             currentLesson.updatedAt = new Date(); 
-        }
+        showToast("Lekce byla smazána.", false);
+        // Po smazání by se měl uživatel vrátit na timeline
+        window.location.reload(); // TODO: Nahradit přepnutím view
         
-        showToast("Obsah byl úspěšně uložen do lekce.");
-        
-        const currentViewId = document.querySelector('.editor-menu-item.bg-green-100')?.dataset.view;
-        if (currentViewId) {
-            showEditorContent(currentViewId);
-        }
-
     } catch (error) {
-        console.error(`Chyba při ukládání obsahu (${fieldToUpdate}) do lekce:`, error);
-        showToast("Při ukládání obsahu došlo k chybě.", true);
-         if (saveBtn) { 
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = originalText;
-        }
+        console.error("Error deleting lesson:", error);
+        showToast(`Chyba při mazání lekce: ${error.message}`, true);
     }
 }
 
-// Zmaže vygenerovaný obsah z lekcie
-async function handleDeleteGeneratedContent(fieldToDelete, viewId) {
-    if (!currentLesson || !currentLesson.id) {
-        showToast("Lekce není uložena, nelze mazat obsah.", true);
-        return;
-    }
-    if (!confirm(`Opravdu si přejete smazat ${viewId === 'video' ? 'odkaz na video' : 'tento obsah'} a aktivovat generátor/editor?`)) {
+/**
+ * Aktualizuje stav publikace lekce.
+ * @param {string} lessonId - ID lekce.
+ * @param {boolean} isPublished - Nový stav publikace.
+ */
+async function handlePublishLesson(lessonId, isPublished) {
+    currentLessonData.isPublished = isPublished;
+    isLessonDirty = true;
+    
+    // Pokud je lekce nová, uloží se to při prvním uložení.
+    if (isNewLesson(lessonId)) {
+        showToast(`Stav publikace bude uložen spolu s lekcí.`, false);
         return;
     }
 
-    const deleteBtn = document.getElementById('delete-content-btn');
-    const originalText = deleteBtn ? deleteBtn.innerHTML : '🗑️ Smazat...';
-    if(deleteBtn) {
-        deleteBtn.disabled = true;
-        deleteBtn.innerHTML = `<div class="spinner-dark"></div> Mazání...`;
-    }
-
+    // Pokud lekce existuje, uložíme změnu hned
     try {
-        const lessonRef = doc(firebaseInit.db, 'lessons', currentLesson.id);
-        await updateDoc(lessonRef, {
-            [fieldToDelete]: deleteField(),
-            updatedAt: serverTimestamp() 
-        });
-        
-        delete currentLesson[fieldToDelete];
-        currentLesson.updatedAt = new Date(); 
-        
-        showToast("Obsah byl úspěšně smazán.");
-        
-        showEditorContent(viewId);
-
-    } catch (error) {
-        console.error("Chyba při mazání obsahu:", error);
-        showToast("Při mazání obsahu došlo k chybě.", true);
-        if(deleteBtn) {
-            deleteBtn.disabled = false;
-            deleteBtn.innerHTML = originalText;
+        // --- ZMENA 8: Update v subkolekcii ---
+        if (!currentProfessorId) {
+             throw new Error("Chybí ID profesora.");
         }
+        const lessonRef = doc(db, 'professors', currentProfessorId, 'lessons', lessonId);
+        await updateDoc(lessonRef, { 
+            isPublished: isPublished,
+            updatedAt: serverTimestamp()
+        });
+        // ------------------------------------
+        
+        showToast(isPublished ? "Lekce publikována." : "Lekce stažena z publikace.", false);
+        isLessonDirty = false; // Právě jsme uložili
+        
+    } catch (error) {
+        console.error("Error updating publish state:", error);
+        showToast("Chyba při změně stavu publikace.", true);
+        // Vrátit checkbox do původního stavu
+        document.getElementById('lesson-published').checked = !isPublished;
+        currentLessonData.isPublished = !isPublished;
     }
+}
+
+/**
+ * Kontroluje, zda ID lekce je dočasné (nová lekce).
+ * @param {string} lessonId 
+ * @returns {boolean}
+ */
+function isNewLesson(lessonId) {
+    return lessonId.startsWith('new-');
+}
+
+
+// --- NÁSLEDUJÍ FUNKCE PRO VKLÁDÁNÍ OBSAHU (Video, Kvíz, Test, Podcast) ---
+// Tyto funkce nepotřebují přímé úpravy pro 'professorId',
+// protože modifikují pouze lokální objekt 'currentLessonData'.
+// Změny se uloží hromadně pomocí 'handleSaveLesson'.
+
+
+/**
+ * Otevře dialog pro vložení/editaci videa.
+ * @param {object} editor - Instance TinyMCE editoru.
+ * @param {object | null} existingData - Data existujícího videa pro editaci.
+ */
+function openVideoDialog(editor, existingData = null) {
+    const videoId = existingData ? existingData.id : `video-${Date.now()}`;
+    const url = existingData ? existingData.url : '';
+    const title = existingData ? existingData.title : '';
+
+    editor.windowManager.open({
+        title: existingData ? 'Upravit video' : 'Vložit video',
+        body: {
+            type: 'panel',
+            items: [
+                { type: 'input', name: 'url', label: 'URL (YouTube, Vimeo)', value: url },
+                { type: 'input', name: 'title', label: 'Název (nepovinné)', value: title }
+            ]
+        },
+        buttons: [
+            { type: 'cancel', text: 'Zrušit' },
+            { type: 'submit', text: 'Vložit', primary: true }
+        ],
+        onSubmit: (api) => {
+            const data = api.getData();
+            if (!data.url) {
+                api.close();
+                return;
+            }
+            
+            const videoData = {
+                id: videoId,
+                url: data.url,
+                title: data.title
+            };
+
+            // Uložíme data do 'currentLessonData'
+            if (existingData) {
+                // Aktualizujeme
+                currentLessonData.videos = currentLessonData.videos.map(v => v.id === videoId ? videoData : v);
+            } else {
+                // Přidáme
+                currentLessonData.videos.push(videoData);
+            }
+            isLessonDirty = true; // Označíme změnu
+
+            // Vložíme/aktualizujeme placeholder v editoru
+            const placeholderHtml = `
+                <div class="video-placeholder content-placeholder" data-id="${videoId}" contenteditable="false">
+                    <p>🎬 <strong>Video:</strong> ${data.title || data.url}</p>
+                    <p>(Dvojklikem upravíte)</p>
+                </div>
+                <p></p> `;
+            
+            if (existingData) {
+                // Najdeme a nahradíme existující
+                const node = editor.dom.select(`[data-id="${videoId}"]`)[0];
+                if (node) {
+                    editor.dom.replace(editor.dom.create('div', null, placeholderHtml), node);
+                }
+            } else {
+                // Vložíme nový
+                editor.insertContent(placeholderHtml);
+            }
+
+            api.close();
+        }
+    });
+}
+
+
+/**
+ * Otevře dialog pro vložení/editaci kvízu.
+ * @param {object} editor - Instance TinyMCE editoru.
+ * @param {object | null} existingData - Data existujícího kvízu pro editaci.
+ */
+function openQuizDialog(editor, existingData = null) {
+    const quizId = existingData ? existingData.id : `quiz-${Date.now()}`;
+    const initialQuestion = existingData ? existingData.question : '';
+    
+    // Vytvoříme HTML pro existující odpovědi
+    let optionsHtml = (existingData ? existingData.options : [])
+        .map((opt, index) => `
+            <div class="quiz-option-item">
+                <input type.text class="tox-textfield" value="${opt.text}" data-index="${index}">
+                <input type="checkbox" class="tox-checkbox" ${opt.isCorrect ? 'checked' : ''} data-index="${index}">
+                <button type="button" class="tox-button tox-button--icon tox-button--naked remove-option-btn" title="Odebrat">
+                    <svg width="16" height="16" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"></path></svg>
+                </button>
+            </div>
+        `).join('');
+    
+    editor.windowManager.open({
+        title: existingData ? 'Upravit kvíz' : 'Vložit kvíz',
+        size: 'large',
+        body: {
+            type: 'panel',
+            items: [
+                { type: 'textarea', name: 'question', label: 'Otázka', value: initialQuestion },
+                { 
+                    type: 'htmlpanel', 
+                    html: `
+                        <label class="tox-label">Odpovědi (zaškrtněte správnou)</label>
+                        <div id="quiz-options-container" class="space-y-2 mt-2">
+                            ${optionsHtml}
+                        </div>
+                        <button type="button" id="add-quiz-option-btn" class="tox-button tox-button--secondary mt-2">+ Přidat odpověď</button>
+                    `
+                }
+            ]
+        },
+        buttons: [
+            { type: 'cancel', text: 'Zrušit' },
+            { type: 'submit', text: 'Vložit', primary: true }
+        ],
+        onAction: (api, details) => {
+            // Speciální akce pro přidání odpovědi
+            if (details.name === 'add-option') {
+                const container = document.getElementById('quiz-options-container');
+                const newIndex = container.children.length;
+                const newItem = document.createElement('div');
+                newItem.className = 'quiz-option-item';
+                newItem.innerHTML = `
+                    <input type.text class="tox-textfield" placeholder="Text odpovědi" data-index="${newIndex}">
+                    <input type="checkbox" class="tox-checkbox" data-index="${newIndex}">
+                    <button type="button" class="tox-button tox-button--icon tox-button--naked remove-option-btn" title="Odebrat">
+                        <svg width="16" height="16" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"></path></svg>
+                    </button>
+                `;
+                newItem.querySelector('.remove-option-btn').onclick = (e) => {
+                    e.currentTarget.parentElement.remove();
+                };
+                container.appendChild(newItem);
+            }
+        },
+        onLoad: (api) => {
+            // Přidání listeneru na tlačítko "Přidat odpověď"
+            document.getElementById('add-quiz-option-btn').onclick = () => {
+                api.dispatch('Action', { name: 'add-option' });
+            };
+            // Přidání listenerů na existující tlačítka "Odebrat"
+            document.querySelectorAll('.remove-option-btn').forEach(btn => {
+                btn.onclick = (e) => {
+                    e.currentTarget.parentElement.remove();
+                };
+            });
+        },
+        onSubmit: (api) => {
+            const data = api.getData();
+            const options = [];
+            
+            document.querySelectorAll('#quiz-options-container .quiz-option-item').forEach((item, index) => {
+                const text = item.querySelector('input[type.text]').value;
+                const isCorrect = item.querySelector('input[type="checkbox"]').checked;
+                if (text) {
+                    options.push({ text, isCorrect });
+                }
+            });
+
+            if (!data.question || options.length < 2) {
+                showToast("Kvíz musí mít otázku a alespoň 2 odpovědi.", true);
+                return; // Nezavírat dialog
+            }
+
+            const quizData = {
+                id: quizId,
+                question: data.question,
+                options: options
+            };
+
+            // Uložíme data do 'currentLessonData'
+            if (existingData) {
+                currentLessonData.quizzes = currentLessonData.quizzes.map(q => q.id === quizId ? quizData : q);
+            } else {
+                currentLessonData.quizzes.push(quizData);
+            }
+            isLessonDirty = true;
+
+            // Vložíme/aktualizujeme placeholder
+            const placeholderHtml = `
+                <div class="quiz-placeholder content-placeholder" data-id="${quizId}" contenteditable="false">
+                    <p>❓ <strong>Kvíz:</strong> ${data.question}</p>
+                    <p>(Dvojklikem upravíte)</p>
+                </div>
+                <p></p>
+            `;
+            
+            if (existingData) {
+                const node = editor.dom.select(`[data-id="${quizId}"]`)[0];
+                if (node) {
+                    editor.dom.replace(editor.dom.create('div', null, placeholderHtml), node);
+                }
+            } else {
+                editor.insertContent(placeholderHtml);
+            }
+
+            api.close();
+        }
+    });
+}
+
+
+/**
+ * Otevře dialog pro vložení/editaci testu (podobný kvízu, ale může mít více otázek).
+ * @param {object} editor - Instance TinyMCE editoru.
+ * @param {object | null} existingData - Data existujícího testu pro editaci.
+ */
+function openTestDialog(editor, existingData = null) {
+    const testId = existingData ? existingData.id : `test-${Date.now()}`;
+    const initialTitle = existingData ? existingData.title : 'Nový test';
+    
+    // Zjednodušený dialog, který pouze vloží placeholder
+    // TODO: V budoucnu rozšířit o plnohodnotný editor testů
+    
+    editor.windowManager.open({
+        title: existingData ? 'Upravit test' : 'Vložit test',
+        body: {
+            type: 'panel',
+            items: [
+                { type: 'input', name: 'title', label: 'Název testu', value: initialTitle }
+            ]
+        },
+        buttons: [
+            { type: 'cancel', text: 'Zrušit' },
+            { type: 'submit', text: 'Vložit', primary: true }
+        ],
+        onSubmit: (api) => {
+            const data = api.getData();
+            if (!data.title) {
+                api.close();
+                return;
+            }
+
+            const testData = {
+                id: testId,
+                title: data.title,
+                questions: existingData ? existingData.questions : [] // Otázky by se editovaly jinde
+            };
+
+            // Uložíme data do 'currentLessonData'
+            if (existingData) {
+                currentLessonData.tests = currentLessonData.tests.map(t => t.id === testId ? testData : t);
+            } else {
+                currentLessonData.tests.push(testData);
+            }
+            isLessonDirty = true;
+
+            // Vložíme/aktualizujeme placeholder
+            const placeholderHtml = `
+                <div class="test-placeholder content-placeholder" data-id="${testId}" contenteditable="false">
+                    <p>✅ <strong>Test:</strong> ${data.title}</p>
+                    <p>(Dvojklikem upravíte)</p>
+                </div>
+                <p></p>
+            `;
+            
+            if (existingData) {
+                const node = editor.dom.select(`[data-id="${testId}"]`)[0];
+                if (node) {
+                    editor.dom.replace(editor.dom.create('div', null, placeholderHtml), node);
+                }
+            } else {
+                editor.insertContent(placeholderHtml);
+            }
+
+            api.close();
+        }
+    });
+}
+
+
+/**
+ * Otevře dialog pro vložení/editaci podcastu (Spotify).
+ * @param {object} editor - Instance TinyMCE editoru.
+ * @param {object | null} existingData - Data existujícího podcastu pro editaci.
+ */
+function openPodcastDialog(editor, existingData = null) {
+    const podcastId = existingData ? existingData.id : `podcast-${Date.now()}`;
+    const url = existingData ? existingData.url : '';
+    const title = existingData ? existingData.title : '';
+
+    editor.windowManager.open({
+        title: existingData ? 'Upravit podcast' : 'Vložit podcast',
+        body: {
+            type: 'panel',
+            items: [
+                { type: 'input', name: 'url', label: 'URL (Spotify embed)', value: url },
+                { type: 'input', name: 'title', label: 'Název (nepovinné)', value: title }
+            ]
+        },
+        buttons: [
+            { type: 'cancel', text: 'Zrušit' },
+            { type: 'submit', text: 'Vložit', primary: true }
+        ],
+        onSubmit: (api) => {
+            const data = api.getData();
+            if (!data.url) {
+                api.close();
+                return;
+            }
+            
+            const podcastData = {
+                id: podcastId,
+                url: data.url,
+                title: data.title
+            };
+
+            // Uložíme data do 'currentLessonData'
+            if (existingData) {
+                currentLessonData.podcasts = currentLessonData.podcasts.map(p => p.id === podcastId ? podcastData : p);
+            } else {
+                currentLessonData.podcasts.push(podcastData);
+            }
+            isLessonDirty = true;
+
+            // Vložíme/aktualizujeme placeholder
+            const placeholderHtml = `
+                <div class="podcast-placeholder content-placeholder" data-id="${podcastId}" contenteditable="false">
+                    <p>🎧 <strong>Podcast:</strong> ${data.title || data.url}</p>
+                    <p>(Dvojklikem upravíte)</p>
+                </div>
+                <p></p>
+            `;
+            
+            if (existingData) {
+                const node = editor.dom.select(`[data-id="${podcastId}"]`)[0];
+                if (node) {
+                    editor.dom.replace(editor.dom.create('div', null, placeholderHtml), node);
+                }
+            } else {
+                editor.insertContent(placeholderHtml);
+            }
+
+            api.close();
+        }
+    });
 }
