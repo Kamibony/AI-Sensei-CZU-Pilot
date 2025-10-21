@@ -1,9 +1,44 @@
+// Súbor: storage.rules
+// Verzia: Upravená pre Multi-Profesor
+
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
-      // Umožní čítanie a zápis každému prihlásenému používateľovi
-      allow read, write: if request.auth != null;
+
+    // --- Pomocná funkcia (z firestore.rules) ---
+    // Získa ID profesora priradeného k aktuálne prihlásenému študentovi
+    function getStudentProfessorId() {
+      if (request.auth == null || request.auth.uid == null) {
+        return null;
+      }
+      let studentDoc = get(/databases/$(database)/documents/students/$(request.auth.uid));
+      if (studentDoc.data != null && studentDoc.data.professorId != null) {
+          return studentDoc.data.professorId;
+      }
+      return null;
+    }
+
+    // Pravidlá pre priečinok každého profesora: /{profId}/media/{fileName}
+    match /{profId}/media/{fileName=**} {
+    
+      // ZÁPIS (upload, delete):
+      // Povolí iba prihlásenému používateľovi, ktorý je profesor
+      // a zapisuje do SVOJHO VLASTNÉHO priečinka (profId == jeho uid).
+      allow write: if request.auth != null &&
+                      request.auth.token.role == 'professor' &&
+                      profId == request.auth.uid;
+                      
+      // ČÍTANIE (download):
+      // Povolí profesorovi čítať zo SVOJHO priečinka.
+      allow read: if request.auth != null &&
+                     request.auth.token.role == 'professor' &&
+                     profId == request.auth.uid;
+                     
+      // Povolí študentovi čítať súbory, ale IBA z priečinka
+      // SVOJHO priradeného profesora.
+      allow read: if request.auth != null &&
+                     request.auth.token.role == 'student' &&
+                     profId == getStudentProfessorId();
     }
   }
 }
