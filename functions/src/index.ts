@@ -3,10 +3,9 @@ import * as admin from "firebase-admin";
 import { logger } from "firebase-functions";
 import { getStorage } from "firebase-admin/storage";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getGeminiResponse } from "./gemini-api"; // Predpokladáme, že tento import je správny
+import { getGeminiResponse } from "./gemini-api.js"; // <-- OPRAVENÉ
 
 // --- INICIALIZÁCIA ---
-// Chýbajúca inicializácia Admin SDK
 admin.initializeApp();
 
 // Definícia konštánt pre databázu a storage
@@ -270,7 +269,9 @@ export const getAiAssistantResponse = functions.https.onCall(
       // Uloženie správy od používateľa (posledná v histórii)
       const userMessage = chatHistory[chatHistory.length - 1];
       await messagesRef.add({
-        ...userMessage,
+        text: userMessage.content, // Ukladáme ako 'text'
+        role: userMessage.role,    // 'user'
+        type: 'ai', // Keďže je to v AI chate
         timestamp: FieldValue.serverTimestamp(),
       });
 
@@ -284,8 +285,9 @@ export const getAiAssistantResponse = functions.https.onCall(
 
       // Uloženie odpovede od AI
       const botResponse = {
+        text: aiResponseContent, // Ukladáme ako 'text'
         role: "ai",
-        content: aiResponseContent,
+        type: 'ai',
         timestamp: FieldValue.serverTimestamp(),
       };
       await messagesRef.add(botResponse);
@@ -317,18 +319,19 @@ export const sendMessageToStudent = functions.https.onCall(
     }
     const professorId = context.auth.uid; // Profesor je prihlásený používateľ
 
-    const { studentId, messageContent } = data;
-    if (!studentId || !messageContent) {
+    const { studentId, messageContent, type } = data; // Pridaný 'type'
+    if (!studentId || !messageContent || !type) {
       throw new functions.https.HttpsError(
         "invalid-argument",
-        "Missing studentId or messageContent."
+        "Missing studentId, messageContent, or type (ai/professor)."
       );
     }
 
     try {
       const messageData = {
-        role: "professor", // Alebo "human", podľa vašej štruktúry
-        content: messageContent,
+        text: messageContent, // Ukladáme ako 'text'
+        role: "professor",
+        type: type, // 'ai' alebo 'professor'
         timestamp: FieldValue.serverTimestamp(),
       };
 
@@ -424,16 +427,17 @@ export const submitQuizResults = functions.https.onCall(
     }
     const studentId = context.auth.uid;
 
-    const { lessonId, quizId, score, answers } = data;
+    const { lessonId, quizTitle, score, totalQuestions, answers } = data; // Upravené polia
     if (
       !lessonId ||
-      !quizId ||
+      !quizTitle ||
       score === undefined ||
+      totalQuestions === undefined ||
       !answers
     ) {
       throw new functions.https.HttpsError(
         "invalid-argument",
-        "Missing required quiz data."
+        "Missing required quiz data (lessonId, quizTitle, score, totalQuestions, answers)."
       );
     }
 
@@ -450,8 +454,9 @@ export const submitQuizResults = functions.https.onCall(
       const submissionData = {
         studentId: studentId,
         lessonId: lessonId,
-        quizId: quizId,
-        score: score,
+        quizTitle: quizTitle, // Pridané
+        score: score * 100, // Uloženie 0-100 (podľa student-profile-view)
+        totalQuestions: totalQuestions, // Pridané
         answers: answers,
         submittedAt: FieldValue.serverTimestamp(),
       };
@@ -474,6 +479,75 @@ export const submitQuizResults = functions.https.onCall(
     }
   }
 );
+
+/**
+ * Uloží výsledky testu (Refaktorované pre Multi-Tenancy).
+ * Volá študent.
+ */
+export const submitTestResults = functions.https.onCall(
+  async (data, context) => {
+    // 1. Overenie autentifikácie a roly
+    if (!context.auth || context.auth.token.role !== "student") {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Only students can submit test results."
+      );
+    }
+    const studentId = context.auth.uid;
+
+    const { lessonId, testTitle, score, totalQuestions, answers } = data;
+    if (
+      !lessonId ||
+      !testTitle ||
+      score === undefined ||
+      totalQuestions === undefined ||
+      !answers
+    ) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required test data."
+      );
+    }
+
+    // 2. Získanie ID profesora pre študenta
+    const professorId = await getStudentProfessorId(studentId);
+    if (!professorId) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Student is not assigned to any professor."
+      );
+    }
+
+    try {
+      const submissionData = {
+        studentId: studentId,
+        lessonId: lessonId,
+        testTitle: testTitle,
+        score: score * 100, // Uloženie 0-100
+        totalQuestions: totalQuestions,
+        answers: answers,
+        submittedAt: FieldValue.serverTimestamp(),
+      };
+
+      // 3. Úprava cesty: Ukladá do subkolekcie profesora
+      await db
+        .collection("professors")
+        .doc(professorId)
+        .collection("testSubmissions")
+        .add(submissionData);
+
+      logger.info(`Test results submitted for student ${studentId} (professor ${professorId})`);
+      return { status: "success" };
+    } catch (error) {
+      logger.error("Error submitting test results:", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Failed to submit test results."
+      );
+    }
+  }
+);
+
 
 /**
  * Vytvorí podpísanú URL pre nahrávanie súborov (Refaktorované pre Multi-Tenancy).
@@ -550,22 +624,6 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
   // Pôvodná logika (vytvorenie /students dokumentu) je teraz
   // spracovaná vo funkcii `processRegistration`, aby sa mohli
   // spracovať pozývacie kódy a správne priradiť roly.
-  // Ponechanie tejto logiky by viedlo ku konfliktom.
-
-  /* Pôvodná logika:
-  try {
-    const userRef = db.collection("students").doc(user.uid);
-    await userRef.set({
-      email: user.email,
-      displayName: user.displayName || "",
-      photoURL: user.photoURL || "",
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    logger.info(`Student document created for ${user.uid}`);
-  } catch (error) {
-    logger.error("Error creating student document:", error);
-  }
-  */
   return null;
 });
 
@@ -605,11 +663,6 @@ export const onUserDelete = functions.auth.user().onDelete(async (user) => {
       // a jeho súbory v Storage (priečinok `{uid}/media/`).
       // Toto je komplexná operácia (rekurzívne mazanie).
       
-      // Príklad mazania súborov v Storage:
-      // const bucket = storage.bucket();
-      // await bucket.deleteFiles({ prefix: `${uid}/media/` });
-      // logger.info(`Deleted storage files for professor ${uid}`);
-
       return null;
     }
 
@@ -621,16 +674,3 @@ export const onUserDelete = functions.auth.user().onDelete(async (user) => {
     return null;
   }
 });
-
-// Ponechaná pôvodná (zrejme nepoužívaná) funkcia, aby sa "nevynechávala"
-/**
- * Initialize Firebase app
- * @param {object} config
- */
-function initializeFirebaseApp(config: object) {
-  try {
-    admin.initializeApp(config);
-  } catch (error) {
-    logger.error("Error initializing Firebase app:", error);
-  }
-}
