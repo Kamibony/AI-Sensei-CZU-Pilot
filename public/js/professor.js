@@ -1,8 +1,11 @@
+// Súbor: public/js/professor.js
+// Verzia: Plná, rešpektujúca pôvodnú štruktúru + Multi-Profesor logika
+
 import { collection, getDocs, doc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { renderEditorMenu } from './editor-handler.js';
-// === PRIDANÉ IMPORTY ===
+// === PRIDANÉ/UPRAVENÉ IMPORTY ===
 import { showToast } from './utils.js';
-import * as firebaseInit from './firebase-init.js'; // Zmenené na import *
+import * as firebaseInit from './firebase-init.js'; 
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 // === KONIEC PRIDANÝCH IMPORTOV ===
 import { initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-handler.js';
@@ -16,6 +19,11 @@ import { handleLogout } from './auth.js';
 let lessonsData = [];
 let conversationsUnsubscribe = null;
 let studentsUnsubscribe = null;
+
+// --- NOVÉ GLOBÁLNE PREMENNÉ ---
+let currentProfessorId = null;
+let currentProfessorEmail = null;
+// ------------------------------
 
 // === PRIDANÝ LAZY LOADER ===
 let _getGlobalAnalyticsCallable = null;
@@ -33,9 +41,16 @@ function getGlobalAnalyticsCallable() {
 }
 // === KONIEC PRIDANÉHO KÓDU ===
 
+// --- UPRAVENÁ FUNKCIA: fetchLessons ---
 async function fetchLessons() {
+    if (!currentProfessorId) {
+        console.error("Error fetching lessons: currentProfessorId is not set.");
+        showToast("Chyba: Nelze identifikovat profesora.", true);
+        return false;
+    }
     try {
-        const lessonsCollection = collection(firebaseInit.db, 'lessons'); // Používame importovaný db
+        // Cesta teraz smeruje do subkolekcie profesora
+        const lessonsCollection = collection(firebaseInit.db, 'professors', currentProfessorId, 'lessons');
         const querySnapshot = await getDocs(query(lessonsCollection, orderBy("createdAt")));
         lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         return true;
@@ -46,6 +61,7 @@ async function fetchLessons() {
     }
 }
 
+// --- UPRAVENÁ FUNKCIA: renderLessonLibrary ---
 function renderLessonLibrary(container, showProfessorContent) {
     const lessonsHtml = lessonsData.map(lesson => `
         <div class="lesson-bubble-wrapper group p-1" data-lesson-id="${lesson.id}">
@@ -79,13 +95,25 @@ function renderLessonLibrary(container, showProfessorContent) {
     container.querySelectorAll('.delete-lesson-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             e.stopPropagation();
+            if (!currentProfessorId) {
+                showToast("Chyba: Nelze identifikovat profesora.", true);
+                return;
+            }
             const lessonId = e.currentTarget.dataset.lessonId;
             const lessonToDelete = lessonsData.find(l => l.id === lessonId);
             if (confirm(`Opravdu chcete trvale smazat lekci "${lessonToDelete.title}"? Tato akce je nevratná.`)) {
                 try {
-                    await deleteDoc(doc(firebaseInit.db, 'lessons', lessonId)); // Používame importovaný db
+                    // Upravená cesta pre mazanie
+                    await deleteDoc(doc(firebaseInit.db, 'professors', currentProfessorId, 'lessons', lessonId)); 
                     showToast('Lekce byla smazána.');
-                    await initProfessorDashboard();
+                    // Znovu načítame a prekreslíme iba sidebar
+                    await fetchLessons();
+                    renderLessonLibrary(container, showProfessorContent);
+                    // Ak bola lekcia otvorená, prepneme na timeline
+                    const mainArea = document.getElementById('main-content-area');
+                    if (mainArea.querySelector(`[data-lesson-id="${lessonId}"]`)) {
+                        showProfessorContent('timeline');
+                    }
                 } catch (error) {
                     console.error("Error deleting lesson:", error);
                     showToast("Chyba při mazání lekce.", true);
@@ -127,7 +155,8 @@ async function showProfessorContent(view, data = null) {
     };
     
     // Špecifické zobrazenia, ktoré skryjú sidebar
-    const fullWidthViews = ['students', 'student-profile', 'interactions', 'analytics', 'media'];
+    // --- PRIDANÝ 'admin' VIEW DO FULLWIDTH ---
+    const fullWidthViews = ['students', 'student-profile', 'interactions', 'analytics', 'media', 'admin'];
     if (fullWidthViews.includes(view)) {
          sidebar.style.display = 'none';
     } else {
@@ -138,20 +167,16 @@ async function showProfessorContent(view, data = null) {
 
     switch (view) {
         case 'editor':
-            renderEditorMenu(sidebar, data); // data je tu objekt lekcie alebo null
+            // Posielame professorId do editora
+            renderEditorMenu(sidebar, data, currentProfessorId); // data je tu objekt lekcie alebo null
             // showEditorContent sa volá z renderEditorMenu
             break;
         case 'student-profile':
             const backToStudentsList = () => showProfessorContent('students');
-            // ===== OPRAVA PARAMETROV PRE renderStudentProfile =====
-            // 1. parameter: container
-            // 2. parameter: studentId (čo je 'data')
-            // 3. parameter: callback funkcia
-            renderStudentProfile(mainArea, data, backToStudentsList);
-            // =======================================================
+            // Posielame professorId do profilu študenta
+            renderStudentProfile(mainArea, data, backToStudentsList, currentProfessorId);
             break;
         case 'media':
-            // ===== ZMENA: PRIDANÉ ID 'course-media-library-container' =====
             mainArea.innerHTML = `<header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Knihovna médií</h1><p class="text-slate-500 mt-1">Spravujte všechny soubory pro váš kurz na jednom místě.</p></header>
                                   <div class="flex-grow overflow-y-auto p-4 md:p-6">
                                     <div id="course-media-library-container" class="bg-white p-6 rounded-2xl shadow-lg">
@@ -164,20 +189,18 @@ async function showProfessorContent(view, data = null) {
                                         <ul id="course-media-list" class="space-y-2"></ul>
                                     </div>
                                   </div>`;
-            // ===== KONIEC ZMENY =====
             
-            // ===== OPRAVA: Ponechané iba toto jedno volanie =====
-            initializeCourseMediaUpload("main-course");
-            // =================================================
+            // Posielame professorId do upload handleru
+            initializeCourseMediaUpload("main-course", currentProfessorId);
             
             break;
         case 'students':
-            // Zmenený názov funkcie a pridanie db
-            studentsUnsubscribe = renderStudentsView(mainArea, firebaseInit.db, studentsUnsubscribe, navigateToStudentProfile);
+            // Posielame professorId do zoznamu študentov
+            studentsUnsubscribe = renderStudentsView(mainArea, firebaseInit.db, studentsUnsubscribe, navigateToStudentProfile, currentProfessorId);
             break;
         case 'interactions':
-             // Zmenený názov funkcie a pridanie db a functions
-            conversationsUnsubscribe = renderStudentInteractions(mainArea, firebaseInit.db, firebaseInit.functions, conversationsUnsubscribe);
+             // Posielame professorId do interakcií
+            conversationsUnsubscribe = renderStudentInteractions(mainArea, firebaseInit.db, firebaseInit.functions, conversationsUnsubscribe, currentProfessorId);
             break;
         case 'analytics':
              mainArea.innerHTML = `
@@ -192,29 +215,27 @@ async function showProfessorContent(view, data = null) {
 
             try {
                 const getAnalytics = getGlobalAnalyticsCallable();
-                const result = await getAnalytics();
+                // TODO: Analytika bude tiež potrebovať filtrovanie podľa profesora
+                // Bude potrebné upraviť backendovú funkciu 'getGlobalAnalytics'
+                // a poslať jej 'currentProfessorId'
+                // const result = await getAnalytics({ professorId: currentProfessorId });
+                const result = await getAnalytics(); // Zatiaľ ponechané
                 const data = result.data;
 
                 const contentContainer = document.getElementById('analytics-content');
-                if (!contentContainer) break; // Ak sa medzitým zmenil pohľad
+                if (!contentContainer) break; 
 
-                // Karta 1: Počet študentov
                 const studentCard = createStatCard('Celkový počet studentů', data.studentCount, '👥');
-
-                // Karta 2: Priemerné skóre kvízov
                 const quizCard = createStatCard('Průměrné skóre (Kvízy)', `${data.avgQuizScore}%`, '❓', `(z ${data.quizSubmissionCount} odevzdání)`);
-
-                // Karta 3: Priemerné skóre testov
                 const testCard = createStatCard('Průměrné skóre (Testy)', `${data.avgTestScore}%`, '✅', `(z ${data.testSubmissionCount} odevzdání)`);
 
                 contentContainer.appendChild(studentCard);
                 contentContainer.appendChild(quizCard);
                 contentContainer.appendChild(testCard);
 
-                // Karta 4: Najaktívnejší študenti
                 const activityCard = document.createElement('div');
-                activityCard.className = 'bg-white p-6 rounded-xl shadow-lg md:col-span-2 lg:col-span-3'; // Upravené pre lepšie zobrazenie
-                let topStudentsHtml = (data.topStudents || []).map(student => // Kontrola na undefined
+                activityCard.className = 'bg-white p-6 rounded-xl shadow-lg md:col-span-2 lg:col-span-3'; 
+                let topStudentsHtml = (data.topStudents || []).map(student => 
                     `<li class="flex justify-between items-center py-2 border-b last:border-b-0">
                         <span class="text-slate-700">${student.name}</span>
                         <span class="font-semibold text-green-700">${student.submissions} odevzdání</span>
@@ -229,7 +250,6 @@ async function showProfessorContent(view, data = null) {
                 `;
                 contentContainer.appendChild(activityCard);
 
-                // Skryť loading a zobraziť obsah
                 const loadingEl = document.getElementById('analytics-loading');
                 if (loadingEl) loadingEl.classList.add('hidden');
                 contentContainer.classList.remove('hidden');
@@ -243,8 +263,20 @@ async function showProfessorContent(view, data = null) {
                 showToast("Chyba při načítání analýzy.", true);
             }
              break;
+        
+        // --- NOVÝ VIEW PRE ADMINA ---
+        case 'admin':
+            if (currentProfessorEmail !== "profesor@profesor.cz") {
+                mainArea.innerHTML = '<p class="text-red-500 p-8">Přístup odepřen. Tato sekce je pouze pro super-administrátora.</p>';
+            } else {
+                renderAdminPanel(mainArea);
+            }
+            break;
+        // -----------------------------
+            
         default: // 'timeline'
-            await renderTimeline(mainArea, firebaseInit.db, lessonsData);
+            // Posielame professorId do timeline
+            await renderTimeline(mainArea, firebaseInit.db, lessonsData, currentProfessorId);
             break;
     }
 }
@@ -266,9 +298,14 @@ function createStatCard(title, value, emoji, subtitle = '') {
 }
 // === KONIEC PRIDANEJ FUNKCIE ===
 
-export async function initProfessorDashboard() {
+// --- UPRAVENÁ FUNKCIA: initProfessorDashboard ---
+export async function initProfessorDashboard(user) { // Prijíma 'user' objekt z app.js
     const roleContentWrapper = document.getElementById('role-content-wrapper');
     if (!roleContentWrapper) return;
+
+    // Nastavenie globálnych premenných
+    currentProfessorId = user.uid;
+    currentProfessorEmail = user.email;
 
     roleContentWrapper.innerHTML = `
         <div id="dashboard-professor" class="w-full flex main-view active h-screen">
@@ -277,18 +314,83 @@ export async function initProfessorDashboard() {
         </div>
     `;
 
-    setupProfessorNav(showProfessorContent);
+    // Posielame email do setupu navigácie
+    setupProfessorNav(showProfessorContent, currentProfessorEmail);
 
     const logoutBtn = document.getElementById('logout-btn-nav');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', handleLogout);
     }
 
-    // Načítanie dát a zobrazenie defaultného pohľadu
     const lessonsLoaded = await fetchLessons();
     if (!lessonsLoaded) {
         document.getElementById('main-content-area').innerHTML = `<div class="p-8 text-center text-red-500">Chyba při načítání dat lekcí.</div>`;
         return;
     }
     await showProfessorContent('timeline'); // Začíname s timeline
+}
+
+// --- NOVÁ FUNKCIA PRE ADMIN PANEL ---
+/**
+ * Vykreslí Admin panel pre generovanie pozývacích kódov.
+ * @param {HTMLElement} container Element, do ktorého sa má obsah vykresliť
+ */
+async function renderAdminPanel(container) {
+    container.innerHTML = `
+        <header class="text-center p-6 border-b border-slate-200 bg-white">
+            <h1 class="text-3xl font-extrabold text-slate-800">Admin Panel</h1>
+            <p class="text-slate-500 mt-1">Správa pozývacích kódov pre profesorov.</p>
+        </header>
+        <div class="flex-grow overflow-y-auto p-4 md:p-6">
+            <div class="max-w-2xl mx-auto bg-white p-6 rounded-2xl shadow-lg">
+                <h2 class="text-xl font-semibold text-slate-700 mb-4">Generátor kódov</h2>
+                <p class="text-sm text-slate-500 mb-4">
+                    Vytvorte nový kód, ktorý umožní registráciu novým profesorom.
+                </p>
+                <div class="flex space-x-2">
+                    <input type="text" id="new-invite-code" placeholder="Napr: PROFESOR-JARO-2025" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                    <button id="create-code-btn" class="px-5 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition-colors whitespace-nowrap">Vytvoriť kód</button>
+                </div>
+                <div id="admin-code-feedback" class="mt-4"></div>
+            </div>
+        </div>
+    `;
+
+    // Pridanie listenera na tlačidlo
+    document.getElementById('create-code-btn').addEventListener('click', async (e) => {
+        const button = e.currentTarget;
+        const input = document.getElementById('new-invite-code');
+        const feedback = document.getElementById('admin-code-feedback');
+        const codeValue = input.value.trim();
+
+        if (!codeValue) {
+            showToast("Zadejte kód, který chcete vytvořit.", true);
+            return;
+        }
+
+        button.disabled = true;
+        button.innerHTML = `<div class="spinner-small"></div>`;
+        feedback.innerHTML = '';
+
+        try {
+            if (!firebaseInit.functions) {
+                throw new Error("Firebase Functions nejsou inicializovány.");
+            }
+            const createInviteCode = httpsCallable(firebaseInit.functions, 'createInviteCode');
+            
+            const result = await createInviteCode({ newCode: codeValue });
+            
+            showToast(`Kód "${codeValue}" byl úspěšně vytvořen!`, false);
+            feedback.innerHTML = `<p class="text-green-600">Kód <strong>${codeValue}</strong> byl úspěšně vytvořen.</p>`;
+            input.value = ""; 
+
+        } catch (error) {
+            console.error("Chyba při vytváření kódu:", error);
+            showToast(`Chyba: ${error.message}`, true);
+            feedback.innerHTML = `<p class="text-red-600">Chyba: ${error.message}</p>`;
+        } finally {
+            button.disabled = false;
+            button.innerHTML = "Vytvoriť kód";
+        }
+    });
 }
