@@ -1,158 +1,125 @@
-import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from '../../utils.js';
+// Súbor: public/js/views/professor/timeline-view.js
+// Verzia: Plná, rešpektujúca pôvodnú štruktúru + Multi-Profesor
 
-function getLocalizedDate(offsetDays = 0) {
-    const date = new Date();
-    date.setDate(date.getDate() + offsetDays);
-    return date.toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'numeric' });
-}
+import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; // <-- ZMENA 1: Pridaný import
 
-async function updateAllOrderIndexes(db) {
-    const timelineContainer = document.getElementById('timeline-container');
-    if (!timelineContainer) return;
+/**
+ * Vykreslí pohled pro timeline (sekvenci lekcí).
+ * @param {HTMLElement} container - Kontejner, kam se má obsah vykreslit.
+ * @param {object} db - Instance Firestore databáze.
+ * @param {Array} lessonsData - Pole s načtenými lekcemi.
+ * @param {string} professorId - ID přihlášeného profesora.
+ */
+export async function renderTimeline(container, db, lessonsData, professorId) { // <-- ZMENA 2: Pridaný 'professorId'
+    
+    // Seřadíme lekce podle timelinePosition (pokud existuje), jinak podle createdAt
+    const sortedLessons = lessonsData
+        .filter(lesson => lesson.timelinePosition !== undefined && lesson.timelinePosition !== null)
+        .sort((a, b) => a.timelinePosition - b.timelinePosition);
 
-    const allEvents = Array.from(timelineContainer.querySelectorAll('.lesson-bubble'));
-    const batch = writeBatch(db);
+    // TODO: Co s lekcemi, které nemají timelinePosition? Měly by se zobrazit?
+    // Prozatím zobrazíme jen ty, které jsou v timeline.
 
-    allEvents.forEach((item, index) => {
-        const eventId = item.dataset.eventId;
-        if (eventId) {
-            const docRef = doc(db, 'timeline_events', eventId);
-            batch.update(docRef, { orderIndex: index });
-        }
-    });
-
-    try {
-        await batch.commit();
-    } catch (error) {
-        console.error("Error updating order indexes:", error);
-    }
-}
-
-function renderScheduledEvent(event, lessonsData, db) {
-    const lesson = lessonsData.find(l => l.id === event.lessonId);
-    if (!lesson) return document.createElement('div');
-
-    const el = document.createElement('div');
-    el.className = 'lesson-bubble p-3 rounded-lg shadow-sm flex items-center justify-between border bg-green-50 text-green-800 border-green-200 cursor-grab';
-    el.dataset.eventId = event.id;
-    el.dataset.lessonId = event.lessonId;
-    el.innerHTML = `
-        <div class="flex items-center space-x-3 flex-grow">
-            <span class="text-xl">${lesson.icon}</span>
-            <span class="font-semibold text-sm">${lesson.title}</span>
+    const timelineHtml = sortedLessons.map((lesson, index) => `
+        <div class="timeline-item-wrapper p-1" data-lesson-id="${lesson.id}" data-index="${index}">
+            <div class="timeline-item p-4 bg-white border rounded-lg shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md flex justify-between items-center">
+                <div>
+                    <h3 class="font-semibold text-slate-800">${lesson.title}</h3>
+                    <p class="text-sm text-slate-500">${lesson.subtitle || 'Základní lekce'}</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-xs text-slate-400 font-medium">KROK ${index + 1}</span>
+                    <svg class="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" y1="15" x2="10" y2="3"></line><line x1="14" y1="15" x2="14" y2="3"></line><line x1="18" y1="9" x2="6" y2="9"></line><line x1="18" y1="15" x2="6" y2="15"></line><line x1="4" y1="21" x2="20" y2="21"></line></svg>
+                </div>
+            </div>
         </div>
-        <button class="delete-event-btn p-1 rounded-full hover:bg-red-200 text-slate-400 hover:text-red-600 transition-colors" title="Odebrat z plánu">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>`;
+    `).join('');
 
-    el.querySelector('.delete-event-btn').addEventListener('click', async () => {
-        if (confirm('Opravdu chcete odebrat tuto lekci z plánu?')) {
-            try {
-                await deleteDoc(doc(db, 'timeline_events', event.id));
-                el.remove();
-                showToast("Lekce byla odebrána z plánu.");
-                await updateAllOrderIndexes(db);
-            } catch (error) {
-                console.error("Error deleting timeline event:", error);
-                showToast("Chyba při odstraňování události.", true);
-            }
-        }
-    });
-    return el;
-}
-
-async function handleLessonDrop(evt, db, lessonsData) {
-    const lessonId = evt.item.dataset.lessonId;
-    const dayIndex = evt.to.closest('.day-slot').dataset.dayIndex;
-    const tempEl = evt.item;
-
-    tempEl.innerHTML = `Načítám...`;
-
-    try {
-        const newEventData = {
-            lessonId: lessonId,
-            dayIndex: parseInt(dayIndex),
-            createdAt: serverTimestamp(),
-            orderIndex: 0
-        };
-        const docRef = await addDoc(collection(db, 'timeline_events'), newEventData);
-
-        const newElement = renderScheduledEvent({ id: docRef.id, ...newEventData }, lessonsData, db);
-        evt.item.parentNode.replaceChild(newElement, evt.item);
-
-        showToast("Lekce naplánována.");
-        await updateAllOrderIndexes(db);
-
-    } catch (error) {
-        console.error("Error scheduling lesson:", error);
-        showToast("Chyba při plánování lekce.", true);
-        tempEl.remove();
-    }
-}
-
-async function handleLessonMove(evt, db) {
-    const eventId = evt.item.dataset.eventId;
-    const newDayIndex = evt.to.closest('.day-slot').dataset.dayIndex;
-
-    try {
-        const docRef = doc(db, 'timeline_events', eventId);
-        await updateDoc(docRef, { dayIndex: parseInt(newDayIndex) });
-        await updateAllOrderIndexes(db);
-    } catch (error) {
-        console.error("Error moving lesson:", error);
-        showToast("Chyba při přesouvání lekce.", true);
-    }
-}
-
-export async function renderTimeline(container, db, lessonsData) {
     container.innerHTML = `
         <header class="text-center p-6 border-b border-slate-200 bg-white">
-            <h1 class="text-3xl font-extrabold text-slate-800">Plán výuky</h1>
-            <p class="text-slate-500 mt-1">Naplánujte lekce přetažením z knihovny vlevo.</p>
+            <h1 class="text-3xl font-extrabold text-slate-800">Editor Timeline</h1>
+            <p class="text-slate-500 mt-1">Sestavte pořadí lekcí přetažením z knihovny vlevo.</p>
         </header>
-        <div class="flex-grow overflow-y-auto p-4 md:p-6">
-            <div id="timeline-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4"></div>
+        <div id="timeline-drop-area" class="flex-grow overflow-y-auto p-4 md:p-6 space-y-2">
+            ${timelineHtml || '<div id="timeline-placeholder" class="text-center text-slate-500 p-10 border-2 border-dashed border-slate-300 rounded-lg">Přetáhněte lekce z knihovny sem a sestavte tak timeline kurzu.</div>'}
         </div>
     `;
 
-    const timelineContainer = container.querySelector('#timeline-container');
-    const q = query(collection(db, 'timeline_events'), orderBy("orderIndex"));
-    const querySnapshot = await getDocs(q);
-    const timelineEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const dropArea = document.getElementById('timeline-drop-area');
 
-    for (let i = 0; i < 10; i++) {
-        const dayWrapper = document.createElement('div');
-        dayWrapper.className = 'day-slot bg-white rounded-xl p-3 border-2 border-transparent transition-colors min-h-[200px] shadow-sm flex flex-col';
-        dayWrapper.dataset.dayIndex = i;
+    if (dropArea && typeof Sortable !== 'undefined') {
+        new Sortable(dropArea, {
+            group: 'lessons',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            onAdd: async (evt) => {
+                // Přidání nové lekce do timeline
+                const lessonId = evt.item.dataset.lessonId;
+                const newIndex = evt.newIndex;
+                
+                // Aktualizujeme placeholder, pokud je to první položka
+                const placeholder = document.getElementById('timeline-placeholder');
+                if (placeholder) placeholder.style.display = 'none';
 
-        const dateStr = getLocalizedDate(i);
-        dayWrapper.innerHTML = `
-            <div class="text-center pb-2 mb-2 border-b border-slate-200">
-                <p class="font-bold text-slate-700">${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}</p>
-            </div>
-            <div class="lessons-container flex-grow space-y-2"></div>
-        `;
-        timelineContainer.appendChild(dayWrapper);
+                // Uložíme pozici do DB
+                // --- ZMENA 3: Úprava cesty k dokumentu ---
+                if (!professorId) {
+                    console.error("Critical: professorId is missing in timeline view.");
+                    alert("Došlo k chybě, nelze uložit pořadí. Chybí ID profesora.");
+                    return;
+                }
+                const lessonRef = doc(db, 'professors', professorId, 'lessons', lessonId);
+                // ----------------------------------------
+                
+                try {
+                    await updateDoc(lessonRef, { timelinePosition: newIndex });
+                    // Aktualizujeme i ostatní položky
+                    updateLessonOrder(dropArea, professorId, db);
+                } catch (error) {
+                    console.error("Error updating timeline position (onAdd):", error);
+                }
+            },
+            onEnd: (evt) => {
+                // Změna pořadí existujících lekcí v timeline
+                if (evt.from !== evt.to || evt.oldIndex === evt.newIndex) return;
+                
+                // Aktualizujeme pozice v DB
+                updateLessonOrder(dropArea, professorId, db);
+            }
+        });
     }
+}
 
-    timelineEvents.forEach(event => {
-        const dayIndex = event.dayIndex || 0;
-        const daySlot = timelineContainer.querySelector(`.day-slot[data-day-index='${dayIndex}'] .lessons-container`);
-        if (daySlot) {
-            daySlot.appendChild(renderScheduledEvent(event, lessonsData, db));
-        }
+/**
+ * Aktualizuje pořadí (timelinePosition) všech lekcí v timeline.
+ * @param {HTMLElement} dropArea - Kontejner s timeline lekcemi.
+ * @param {string} professorId - ID přihlášeného profesora.
+ * @param {object} db - Instance Firestore databáze.
+ */
+async function updateLessonOrder(dropArea, professorId, db) {
+    const items = dropArea.querySelectorAll('.timeline-item-wrapper');
+    const promises = [];
+
+    items.forEach((item, index) => {
+        item.dataset.index = index; // Aktualizujeme index v DOM
+        // Aktualizujeme text "KROK X"
+        const stepText = item.querySelector('.text-xs');
+        if (stepText) stepText.textContent = `KROK ${index + 1}`;
+
+        const lessonId = item.dataset.lessonId;
+        
+        // --- ZMENA 4: Úprava cesty k dokumentu ---
+        const lessonRef = doc(db, 'professors', professorId, 'lessons', lessonId);
+        // ----------------------------------------
+
+        promises.push(updateDoc(lessonRef, { timelinePosition: index }));
     });
 
-    timelineContainer.querySelectorAll('.day-slot .lessons-container').forEach(lessonsContainer => {
-        if (typeof Sortable !== 'undefined') {
-            new Sortable(lessonsContainer, {
-                group: 'lessons',
-                animation: 150,
-                ghostClass: 'opacity-50',
-                onAdd: (evt) => handleLessonDrop(evt, db, lessonsData),
-                onUpdate: (evt) => handleLessonMove(evt, db)
-            });
-        }
-    });
+    try {
+        await Promise.all(promises);
+        // showToast("Pořadí lekcí aktualizováno.", false); // Možná příliš časté
+    } catch (error) {
+        console.error("Error updating full timeline order:", error);
+        // showToast("Chyba při ukládání pořadí lekcí.", true);
+    }
 }
