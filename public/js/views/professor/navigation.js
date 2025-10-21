@@ -1,30 +1,70 @@
-export function setupProfessorNav(showProfessorContent) {
-    const nav = document.getElementById('main-nav');
-    if (nav) {
-        nav.innerHTML = `
-            <div class="flex flex-col h-full">
-                <div class="flex-grow space-y-4">
-                    <li><button data-view="timeline" class="nav-item p-3 rounded-lg flex items-center justify-center text-white bg-green-700" title="Plán výuky"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button></li>
-                    <li><button data-view="students" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Studenti"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></button></li>
-                    <li><button data-view="interactions" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Interakce"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button></li>
-                    <li><button data-view="analytics" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Analýza kurzu"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6l6.1 2.4-4.2 6L2.5 22"/><path d="M21.5 2v6l-6.1 2.4 4.2 6L21.5 22"/><path d="M12 2v20"/></svg></button></li>
-                    <li><button data-view="media" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white" title="Knihovna médií"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></button></li>
-                </div>
-                <div>
-                    <li><button id="logout-btn-nav" class="nav-item p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white" title="Odhlásit se"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></button></li>
-                </div>
-            </div>
-        `;
-        nav.querySelectorAll('button[data-view]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const view = e.currentTarget.dataset.view;
-                nav.querySelectorAll('button[data-view]').forEach(b => {
-                    b.classList.remove('bg-green-700', 'text-white');
-                    b.classList.add('text-green-200');
-                });
-                e.currentTarget.classList.add('bg-green-700', 'text-white');
-                showProfessorContent(view);
-            });
-        });
+// Súbor: public/js/views/professor/navigation.js
+// Verzia: Plná, rešpektujúca pôvodnú štruktúru + Admin tlačidlo
+
+/**
+ * Nastaví navigační menu pro profesora.
+ * @param {function} switchViewCallback Funkce pro přepnutí pohledu.
+ * @param {string} userEmail Email přihlášeného uživatele (pro admin check).
+ */
+export function setupProfessorNav(switchViewCallback, userEmail) { // <-- ZMENA 1: Pridaný userEmail
+    const navContainer = document.getElementById('professor-navigation');
+    const mobileNavContainer = document.getElementById('mobile-bottom-nav');
+    const logoutBtn = document.getElementById('logout-btn-nav');
+
+    if (!navContainer || !mobileNavContainer || !logoutBtn) {
+        console.warn("Chybí navigační elementy v DOM.");
+        return;
     }
+
+    const navItems = [
+        { id: 'nav-timeline', icon: '📅', text: 'Timeline', view: 'timeline' },
+        { id: 'nav-students', icon: '👥', text: 'Studenti', view: 'students' },
+        { id: 'nav-media', icon: '🖼️', text: 'Média', view: 'media' },
+        { id: 'nav-interactions', icon: '💬', text: 'Interakce', view: 'interactions' },
+        { id: 'nav-analytics', icon: '📊', text: 'Analýza', view: 'analytics' }
+    ];
+
+    // --- ZMENA 2: Podmienené pridanie Admin tlačidla ---
+    if (userEmail === "profesor@profesor.cz") {
+        navItems.push({ id: 'nav-admin', icon: '🔑', text: 'Admin', view: 'admin' });
+    }
+    // ----------------------------------------------
+
+    const navItemsHtml = navItems.map(item => `
+        <button id="${item.id}" data-view="${item.view}" class="nav-button w-full flex flex-col items-center p-3 text-slate-300 hover:bg-green-700 hover:text-white transition-colors rounded-lg">
+            <span class="text-2xl">${item.icon}</span>
+            <span class="text-xs font-medium mt-1">${item.text}</span>
+        </button>
+    `).join('');
+
+    const mobileNavItemsHtml = navItems.map(item => `
+        <button id="mobile-${item.id}" data-view="${item.view}" class="nav-button-mobile flex-1 flex flex-col items-center p-2 text-slate-600">
+            <span class="text-xl">${item.icon}</span>
+            <span class="text-xs">${item.text}</span>
+        </button>
+    `).join('');
+
+    navContainer.innerHTML = navItemsHtml;
+    mobileNavContainer.innerHTML = mobileNavItemsHtml;
+
+    // Pridanie listenerov
+    document.querySelectorAll('.nav-button, .nav-button-mobile').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const view = e.currentTarget.dataset.view;
+            if (view) {
+                switchViewCallback(view);
+                
+                // Zvýraznenie aktívneho tlačidla
+                document.querySelectorAll('.nav-button, .nav-button-mobile').forEach(b => b.classList.remove('bg-green-700', 'text-white', 'text-green-700')); // Pridané text-green-700 pre mobil
+                
+                // Desktop - Pôvodná logika z tvojho súboru
+                const desktopBtnId = btn.id.replace('mobile-', '');
+                document.getElementById(desktopBtnId)?.classList.add('bg-green-700', 'text-white');
+                
+                // Mobile - Pôvodná logika z tvojho súboru
+                const mobileBtnId = btn.id.startsWith('mobile-') ? btn.id : `mobile-${btn.id}`;
+                document.getElementById(mobileBtnId)?.classList.add('text-green-700'); // Tu by si možno chcel inú triedu
+            }
+        });
+    });
 }
