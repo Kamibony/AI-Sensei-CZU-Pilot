@@ -3,7 +3,7 @@ import * as admin from "firebase-admin";
 import { logger } from "firebase-functions";
 import { getStorage } from "firebase-admin/storage";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getGeminiResponse } from "./gemini-api.js"; // <-- OPRAVENÉ
+import { generateTextFromPrompt } from "./gemini-api.js"; // <-- OPRAVENÉ
 
 // --- INICIALIZÁCIA ---
 admin.initializeApp();
@@ -196,7 +196,7 @@ export const generateContent = functions.https.onCall(async (data, context) => {
   }
 
   try {
-    const geminiResponse = await getGeminiResponse(prompt);
+    const geminiResponse = await generateTextFromPrompt(prompt); // <-- OPRAVENÉ
     // Tu by podľa reportu mala byť konverzia na HTML pomocou 'marked',
     // ale chýba v package.json. Nechávam pôvodnú logiku (ukladá text).
     // Ak 'marked' pridáte, odkomentujte import a použite ho tu.
@@ -281,7 +281,7 @@ export const getAiAssistantResponse = functions.https.onCall(
         .map((msg: { role: string; content: string }) => `${msg.role}: ${msg.content}`)
         .join("\n")}\nAI:`;
       
-      const aiResponseContent = await getGeminiResponse(fullPrompt);
+      const aiResponseContent = await generateTextFromPrompt(fullPrompt); // <-- OPRAVENÉ
 
       // Uloženie odpovede od AI
       const botResponse = {
