@@ -1,5 +1,6 @@
 // Súbor: public/js/upload-handler.js
-// Verzia: Plná (400+ riadkov)
+// OPRAVA: Pridané chýbajúce 'export' pre funkcie
+
 import * as firebaseInit from './firebase-init.js'; // <-- OPRAVENÉ
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { showToast } from './utils.js'; // <-- OPRAVENÉ
@@ -49,7 +50,7 @@ export function initializeUploader(professorId, mediaData) {
  * @param {function} onMediaSelected - Callback, který se zavolá po výběru/nahrání média.
  * @param {Array} currentlyAttachedMedia - Pole objektů médií, která jsou již připojena k lekci.
  */
-function openMediaUploaderModal(onMediaSelected, currentlyAttachedMedia = []) {
+export function openMediaUploaderModal(onMediaSelected, currentlyAttachedMedia = []) { // <-- OPRAVA: Pridaný export
     mediaSelectionCallback = onMediaSelected;
     // Nastavíme interní seznam vybraných médií podle toho, co už v lekci je
     selectedMediaForEditor = currentlyAttachedMedia.map(m => m.id); // Ukládáme jen ID
@@ -321,7 +322,7 @@ function uploadFileWithProgress(url, file, onProgress) {
  * Načte a zobrazí knihovnu médií pro daného profesora.
  * @param {string} mode - 'modal' (zobrazí checkboxy) nebo 'view' (jen zobrazí)
  */
-function loadMediaLibrary(mode = 'view') {
+export function loadMediaLibrary(mode = 'view') { // <-- OPRAVA: Pridaný export
     if (!uploaderProfessorId) return;
 
     const gridContainer = document.getElementById('media-library-grid');
@@ -536,7 +537,7 @@ async function handleQuillImageUpload(file, quillInstance) {
 
 // Tato funkce je z původního souboru, ale zdá se, že je nahrazena 'openMediaUploaderModal'
 // Ponechávám ji tu pro případnou zpětnou kompatibilitu, pokud ji volá něco jiného
-function initializeModalMediaUpload(callback) {
+export function initializeModalMediaUpload(callback) { // <-- OPRAVA: Pridaný export
      console.warn("Volána stará funkce 'initializeModalMediaUpload', zvažte použití 'openMediaUploaderModal'");
      // Původní logika:
      // openMediaUploaderModal(callback, []);
