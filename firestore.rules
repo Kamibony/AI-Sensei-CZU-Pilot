@@ -1,25 +1,28 @@
 // Súbor: firestore.rules
 // Verzia: Plná (zo 0562da5...), prepísaná pre Multi-Profesor
+// OPRAVA: Funkcia presunutá na správne miesto
 
 rules_version = '2';
 service cloud.firestore {
+
+  // --- Pomocná funkcia ---
+  // Musí byť definovaná tu (v 'service'), nie vnútri 'match'.
+  // Získa ID profesora priradeného k aktuálne prihlásenému študentovi
+  // Pridaná kontrola, či je používateľ prihlásený
+  function getStudentProfessorId() {
+    if (request.auth == null || request.auth.uid == null) {
+      return null;
+    }
+    let studentDoc = get(/databases/$(database)/documents/students/$(request.auth.uid));
+    // Kontrola, či dokument študenta existuje a má pole professorId
+    if (studentDoc.data != null && studentDoc.data.professorId != null) {
+        return studentDoc.data.professorId;
+    }
+    return null; // Vráti null, ak študent neexistuje alebo nemá priradeného profesora
+  }
+
   match /databases/{database}/documents {
   
-    // --- Pomocná funkcia ---
-    // Získa ID profesora priradeného k aktuálne prihlásenému študentovi
-    // Pridaná kontrola, či je používateľ prihlásený
-    function getStudentProfessorId() {
-      if (request.auth == null || request.auth.uid == null) {
-        return null;
-      }
-      let studentDoc = get(/databases/$(database)/documents/students/$(request.auth.uid));
-      // Kontrola, či dokument študenta existuje a má pole professorId
-      if (studentDoc.data != null && studentDoc.data.professorId != null) {
-          return studentDoc.data.professorId;
-      }
-      return null; // Vráti null, ak študent neexistuje alebo nemá priradeného profesora
-    }
-
     // --- Pravidlá pre Profesorov ---
     // Profesor môže čítať a zapisovať IBA svoj vlastný profil
     match /professors/{profId} {
@@ -34,7 +37,6 @@ service cloud.firestore {
       allow read, write, create, delete: if request.auth != null &&
                                             request.auth.uid == profId &&
                                             request.auth.token.role == 'professor';
-                            
       // Študent môže čítať dáta SVOJHO profesora
       allow read: if request.auth != null && 
                      request.auth.token.role == 'student' && 
@@ -58,7 +60,6 @@ service cloud.firestore {
                              request.auth.token.role == 'professor' &&
                              resource != null && // Cieľový dokument existuje
                              resource.data.professorId == request.auth.uid;
-                             
       // Profesor môže priradiť študenta (ktorý ešte nemá profesora) k sebe
       allow update: if request.auth != null &&
                        request.auth.token.role == 'professor' &&
