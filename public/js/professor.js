@@ -1,5 +1,5 @@
 // Súbor: public/js/professor.js
-// Verzia: Plná, rešpektujúca pôvodnú štruktúru + Multi-Profesor logika
+// OPRAVA: Importy z upload-handler.js
 
 import { collection, getDocs, doc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { renderEditorMenu } from './editor-handler.js';
@@ -8,7 +8,7 @@ import { showToast } from './utils.js';
 import * as firebaseInit from './firebase-init.js'; 
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 // === KONIEC PRIDANÝCH IMPORTOV ===
-import { initializeCourseMediaUpload, renderMediaLibraryFiles } from './upload-handler.js';
+import { initializeUploader, loadMediaLibrary } from './upload-handler.js'; // <-- OPRAVENÉ
 import { setupProfessorNav } from './views/professor/navigation.js';
 import { renderTimeline } from './views/professor/timeline-view.js';
 import { renderStudentsView } from './views/professor/students-view.js';
@@ -191,7 +191,10 @@ async function showProfessorContent(view, data = null) {
                                   </div>`;
             
             // Posielame professorId do upload handleru
-            initializeCourseMediaUpload("main-course", currentProfessorId);
+            initializeUploader(currentProfessorId, []); // <-- OPRAVENÉ VOLANIE
+            
+            // Poznámka: `loadMediaLibrary` tu nie je volaná,
+            // ale to je chyba v logike, nie v importe.
             
             break;
         case 'students':
@@ -378,7 +381,8 @@ async function renderAdminPanel(container) {
             }
             const createInviteCode = httpsCallable(firebaseInit.functions, 'createInviteCode');
             
-            const result = await createInviteCode({ newCode: codeValue });
+            // OPRAVA: Backend očakáva 'code' (podľa index.ts)
+            const result = await createInviteCode({ code: codeValue }); 
             
             showToast(`Kód "${codeValue}" byl úspěšně vytvořen!`, false);
             feedback.innerHTML = `<p class="text-green-600">Kód <strong>${codeValue}</strong> byl úspěšně vytvořen.</p>`;
