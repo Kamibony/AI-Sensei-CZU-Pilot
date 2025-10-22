@@ -1,57 +1,75 @@
 // Súbor: public/js/auth.js
-// OPRAVA: Použitie ES modulov namiesto window.firebase
+// OPRAVA 2: Použitie metódy onAuthStateChanged priamo z inicializovaného auth objektu
 
-import * as firebaseInit from './firebase-init.js'; 
-import { showToast } from './utils.js'; 
+import * as firebaseInit from './firebase-init.js';
+import { showToast } from './utils.js';
 
-// Import funkcií priamo z Firebase Auth SDK modulu
-import { 
-    getAuth, // Toto teraz nepotrebujeme, lebo auth importujeme z firebase-init
-    onAuthStateChanged as fbOnAuthStateChanged, 
-    createUserWithEmailAndPassword, 
-    signInWithEmailAndPassword, 
-    signOut, 
-    getIdTokenResult, 
-    deleteUser 
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"; // Priamy import
+// Import funkcií priamo z Firebase Auth SDK modulu - POTREBUJEME ICH PRE OSTATNÉ OPERÁCIE
+import {
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut,
+    getIdTokenResult,
+    deleteUser
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
-// Import inicializovanej funkcie z firebase-init
-import { functions } from './firebase-init.js'; // Import 'functions' pre httpsCallable
-import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js"; // Priamy import httpsCallable
+// Import inicializovaných služieb z firebase-init.js
+const auth = firebaseInit.auth;         // Initializovaná Auth služba
+const functions = firebaseInit.functions; // Initializovaná Functions služba
 
-// Import inicializovanej auth služby z firebase-init
-const auth = firebaseInit.auth; 
+// Kontrola, či sa auth objekt úspešne importoval
+if (!auth) {
+    console.error("CRITICAL: Firebase Auth service not initialized or imported correctly from firebase-init.js!");
+    // Zobrazíme chybu používateľovi
+    const appContainer = document.getElementById('app-container');
+    if (appContainer) {
+        appContainer.innerHTML = `<p class="p-8 text-center text-red-600">Chyba inicializácie Firebase. Skúste obnoviť stránku.</p>`;
+    }
+    // Zastavíme ďalšie vykonávanie, aby sme predišli ďalším chybám
+    throw new Error("Firebase Auth service not available.");
+}
 
 /**
  * Registruje posluchače pro ověřování stavu přihlášení.
  * @param {function} callback - Funkce, která se zavolá při změně stavu přihlášení.
  */
 export function onAuthStateChanged(callback) {
-    fbOnAuthStateChanged(auth, async (user) => {
-        let idTokenResult = null;
-        if (user) {
-            try {
-                // Vynutíme obnovení tokenu, abychom získali nejnovější custom claims (role)
-                idTokenResult = await getIdTokenResult(user, true);
-            } catch (error) {
-                console.error("Error getting ID token result:", error);
+    // === HLAVNÁ ZMENA: Používame metódu priamo z objektu auth ===
+    try {
+        auth.onAuthStateChanged(async (user) => { // Voláme metódu na inicializovanom objekte
+            let idTokenResult = null;
+            if (user) {
+                try {
+                    idTokenResult = await getIdTokenResult(user, true); // getIdTokenResult stále potrebujeme z SDK importu
+                } catch (error) {
+                    console.error("Error getting ID token result:", error);
+                }
             }
-        }
-        callback(user, idTokenResult);
-    });
+            callback(user, idTokenResult);
+        }, (error) => {
+            // Callback pre chybu pri registrácii listenera (menej časté, ale pre istotu)
+            console.error("Error attaching onAuthStateChanged listener:", error);
+            showToast("Chyba pri sledovaní stavu prihlásenia.", true);
+        });
+    } catch (error) {
+         console.error("Failed to initialize onAuthStateChanged listener:", error);
+         showToast("Kritická chyba pri inicializácii prihlásenia.", true);
+    }
+    // ==========================================================
 }
 
 /**
  * Přihlásí uživatele.
- * @param {string} email 
- * @param {string} password 
+ * @param {string} email
+ * @param {string} password
  */
 async function handleLogin(email, password) {
     const errorEl = document.getElementById('login-error');
+    if (!errorEl) return; // Kontrola
     try {
         errorEl.textContent = ''; // Vyčistit předchozí chyby
-        await signInWithEmailAndPassword(auth, email, password);
-        // Není třeba nic vracet, onAuthStateChanged listener to zpracuje
+        await signInWithEmailAndPassword(auth, email, password); // Používame SDK funkciu
     } catch (error) {
         console.error("Login failed:", error);
         errorEl.textContent = "Přihlášení se nezdařilo. Zkontrolujte e-mail a heslo.";
@@ -60,60 +78,49 @@ async function handleLogin(email, password) {
 
 /**
  * Zaregistruje nového uživatele.
- * @param {string} email 
- * @param {string} password 
+ * @param {string} email
+ * @param {string} password
  * @param {string} inviteCode
  */
 async function handleRegistration(email, password, inviteCode) {
     const errorEl = document.getElementById('register-error');
-    let newUser = null; // Uchováme si nového uživatele pro případné smazání
+    if (!errorEl) return; // Kontrola
+    let newUser = null;
 
     try {
-        errorEl.textContent = ''; // Vyčistit chyby
-
-        // 1. Vytvoření uživatele ve Firebase Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        errorEl.textContent = '';
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password); // SDK funkcia
         newUser = userCredential.user;
         const uid = newUser.uid;
-        
-        // Zobrazit zprávu o čekání
+
         errorEl.textContent = 'Váš účet se vytváří, čekejte prosím...';
         errorEl.classList.remove('text-red-500');
         errorEl.classList.add('text-blue-500');
 
-        // 2. Volání backendové funkce pro zpracování registrace (nastavení rolí, DB záznam)
-        const processRegistration = httpsCallable(functions, 'processRegistration');
-        const result = await processRegistration({ 
-            uid: uid, 
-            email: email, 
-            inviteCode: inviteCode || null // Poslat kód, pokud existuje
+        const processRegistration = httpsCallable(functions, 'processRegistration'); // SDK funkcia + inicializovaný 'functions'
+        const result = await processRegistration({
+            uid: uid,
+            email: email,
+            inviteCode: inviteCode || null
         });
 
-        // 3. Zpracování výsledku
         if (result.data.status === 'success') {
-            // Registrace úspěšná
             showToast(`Účet pro ${result.data.role} úspěšně vytvořen!`);
-            // Není třeba nic dělat, onAuthStateChanged listener přihlásí uživatele
-            errorEl.textContent = ''; // Vyčistit zprávu o čekání
+            errorEl.textContent = '';
         } else {
-            // Pokud by backend vrátil chybu (i když by měl házet HttpsError)
             throw new Error(result.data.message || 'Neznámá chyba při zpracování registrace.');
         }
 
     } catch (error) {
         console.error("Registration failed:", error);
-
-        // Pokud registrace selhala (např. neplatný kód), musíme smazat vytvořený Auth účet
         if (newUser) {
             try {
-                await deleteUser(newUser);
+                await deleteUser(newUser); // SDK funkcia
                 console.log(`Successfully deleted orphaned auth user: ${email}`);
             } catch (deleteError) {
                 console.error(`Failed to delete orphaned auth user ${email}:`, deleteError);
             }
         }
-
-        // Zobrazení chybové hlášky uživateli
         if (error.code === 'functions/not-found' || error.message.includes('Invalid invite code')) {
             errorEl.textContent = 'Registrace se nezdařila: Zadaný pozývací kód je neplatný.';
         } else if (error.code === 'auth/email-already-in-use') {
@@ -134,8 +141,7 @@ async function handleRegistration(email, password, inviteCode) {
  */
 export async function handleLogout() {
     try {
-        await signOut(auth);
-        // Není třeba nic vracet, onAuthStateChanged listener to zpracuje
+        await signOut(auth); // SDK funkcia
     } catch (error) {
         console.error("Logout failed:", error);
         showToast("Odhlášení se nezdařilo.", true);
@@ -152,19 +158,19 @@ function setupAuthTabs() {
     const formRegister = document.getElementById('register-form');
 
     tabLogin?.addEventListener('click', () => {
-        formLogin.classList.remove('hidden');
-        formRegister.classList.add('hidden');
-        tabLogin.classList.add('border-green-700', 'text-green-700');
-        tabRegister.classList.remove('border-green-700', 'text-green-700');
-        tabRegister.classList.add('border-transparent', 'text-slate-500');
+        formLogin?.classList.remove('hidden');
+        formRegister?.classList.add('hidden');
+        tabLogin?.classList.add('border-green-700', 'text-green-700');
+        tabRegister?.classList.remove('border-green-700', 'text-green-700');
+        tabRegister?.classList.add('border-transparent', 'text-slate-500');
     });
 
     tabRegister?.addEventListener('click', () => {
-        formLogin.classList.add('hidden');
-        formRegister.classList.remove('hidden');
-        tabLogin.classList.remove('border-green-700', 'text-green-700');
-        tabLogin.classList.add('border-transparent', 'text-slate-500');
-        tabRegister.classList.add('border-green-700', 'text-green-700');
+        formLogin?.classList.add('hidden');
+        formRegister?.classList.remove('hidden');
+        tabLogin?.classList.remove('border-green-700', 'text-green-700');
+        tabLogin?.classList.add('border-transparent', 'text-slate-500');
+        tabRegister?.classList.add('border-green-700', 'text-green-700');
     });
 }
 
@@ -178,17 +184,21 @@ export function setupAuthFormListeners() {
     const loginForm = document.getElementById('login-form-inputs');
     loginForm?.addEventListener('submit', (e) => {
         e.preventDefault();
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
-        handleLogin(email, password);
+        const emailInput = document.getElementById('login-email'); // Kontrola
+        const passwordInput = document.getElementById('login-password'); // Kontrola
+        if (emailInput && passwordInput) {
+             handleLogin(emailInput.value, passwordInput.value);
+        }
     });
 
     const registerForm = document.getElementById('register-form-inputs');
     registerForm?.addEventListener('submit', (e) => {
         e.preventDefault();
-        const email = document.getElementById('register-email').value;
-        const password = document.getElementById('register-password').value;
-        const inviteCode = document.getElementById('register-invite-code').value;
-        handleRegistration(email, password, inviteCode);
+        const emailInput = document.getElementById('register-email'); // Kontrola
+        const passwordInput = document.getElementById('register-password'); // Kontrola
+        const inviteCodeInput = document.getElementById('register-invite-code'); // Kontrola
+         if (emailInput && passwordInput && inviteCodeInput) {
+            handleRegistration(emailInput.value, passwordInput.value, inviteCodeInput.value);
+        }
     });
 }
