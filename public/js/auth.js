@@ -1,22 +1,26 @@
 // Súbor: public/js/auth.js
-import * as firebaseInit from './firebase-init.js'; // <-- OPRAVENÉ
-import { showToast } from './utils.js'; // <-- OPRAVENÉ
+// OPRAVA: Použitie ES modulov namiesto window.firebase
 
-// Import funkcí z Firebase SDK
-const {
-    getAuth,
-    onAuthStateChanged: fbOnAuthStateChanged,
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    signOut,
-    getIdTokenResult,
-    deleteUser
-} = (window.firebase.auth);
+import * as firebaseInit from './firebase-init.js'; 
+import { showToast } from './utils.js'; 
 
-const { getFunctions, httpsCallable } = (window.firebase.functions);
+// Import funkcií priamo z Firebase Auth SDK modulu
+import { 
+    getAuth, // Toto teraz nepotrebujeme, lebo auth importujeme z firebase-init
+    onAuthStateChanged as fbOnAuthStateChanged, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    signOut, 
+    getIdTokenResult, 
+    deleteUser 
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"; // Priamy import
 
-const auth = getAuth();
-const functions = getFunctions();
+// Import inicializovanej funkcie z firebase-init
+import { functions } from './firebase-init.js'; // Import 'functions' pre httpsCallable
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js"; // Priamy import httpsCallable
+
+// Import inicializovanej auth služby z firebase-init
+const auth = firebaseInit.auth; 
 
 /**
  * Registruje posluchače pro ověřování stavu přihlášení.
