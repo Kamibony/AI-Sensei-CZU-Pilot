@@ -12,10 +12,15 @@ service cloud.firestore {
     // Študent môže čítať a upravovať svoj profil.
     // Profesor môže čítať profily všetkých študentov.
     match /students/{studentId} {
-      allow read: if (request.auth != null && request.auth.uid == studentId) || isProfessor();
+      allow read: if (request.auth != null && request.auth.uid == studentId) ||
+ isProfessor();
       allow update: if request.auth != null && request.auth.uid == studentId;
       // Vytváranie a mazanie je riadené z backendu alebo pri registrácii
-      allow create, delete: if false;
+      // --- OPRAVA ---
+      // Povolí prihlásenému študentovi vytvoriť si vlastný profilový dokument, ak neexistuje.
+      allow create: if request.auth != null && request.auth.uid == studentId;
+      allow delete: if false;
+      // --- KONIEC OPRAVY ---
     }
 
     // Lekcie:
@@ -31,7 +36,8 @@ service cloud.firestore {
     // Študent môže čítať a zapisovať iba do svojej vlastnej konverzácie a správ.
     match /conversations/{studentId} {
       match /{document=**} {
-        allow read, write: if (request.auth != null && request.auth.uid == studentId) || isProfessor();
+        allow read, write: if (request.auth != null && request.auth.uid == studentId) ||
+ isProfessor();
       }
     }
     
