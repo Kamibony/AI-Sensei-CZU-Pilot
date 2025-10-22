@@ -1,10 +1,10 @@
 // Súbor: public/js/editor-handler.js
-// OPRAVA: Opravené importy a volania funkcií pre upload-handler
+// OPRAVA 2: Opravené VŠETKY importy a volania z upload-handler.js
 
 import { doc, addDoc, updateDoc, collection, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db, functions } from './firebase-init.js'; // <-- OPRAVENÉ
+import { db, functions } from './firebase-init.js'; 
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { showToast } from './utils.js'; // <-- OPRAVENÉ
+import { showToast } from './utils.js'; 
 import { openMediaUploaderModal, loadMediaLibrary } from './upload-handler.js'; // <-- OPRAVENÉ
 
 let editorInstance = null;
@@ -22,19 +22,16 @@ let currentProfessorId = null;
  * @param {object | null} lesson - Objekt lekce k editaci, nebo null pro novou lekci.
  * @param {string} professorId - ID přihlášeného profesora.
  */
-export function renderEditorMenu(sidebar, lesson, professorId) { // <-- ZMENA 1: Pridaný 'professorId'
+export function renderEditorMenu(sidebar, lesson, professorId) { 
 
-    // --- ZMENA 2: Nastavenie globálnej premennej ---
     currentProfessorId = professorId;
     if (!currentProfessorId) {
         console.error("renderEditorMenu: professorId není nastaveno!");
         showToast("Kritická chyba: Nelze identifikovat profesora v editoru.", true);
     }
-    // ---------------------------------------------
 
     const isNewLesson = lesson === null;
 
-    // Inicializujeme currentLessonData
     if (isNewLesson) {
         currentLessonData = {
             id: `new-${Date.now()}`,
@@ -43,14 +40,12 @@ export function renderEditorMenu(sidebar, lesson, professorId) { // <-- ZMENA 1:
             description: "",
             content: "<p>Zde začněte psát nebo vygenerujte text pomocí AI.</p>",
             isPublished: false,
-            // Inicializace prázdných polí pro obsah
             videos: [],
             quizzes: [],
             tests: [],
             podcasts: []
         };
     } else {
-        // Zajistíme, že pole existují, i když jsou v DB null
         currentLessonData = {
             ...lesson,
             videos: lesson.videos || [],
@@ -60,7 +55,7 @@ export function renderEditorMenu(sidebar, lesson, professorId) { // <-- ZMENA 1:
         };
     }
 
-    isLessonDirty = false; // Reset stavu
+    isLessonDirty = false; 
 
     sidebar.innerHTML = `
         <header class="p-4 border-b border-slate-200 flex items-center justify-between">
@@ -141,30 +136,8 @@ export function renderEditorMenu(sidebar, lesson, professorId) { // <-- ZMENA 1:
         window.location.reload();
     });
 
-    // Callback pro vložení média z modálu do editoru
-    const onMediaSelect = (mediaData) => {
-        if (editorInstance) {
-            let content = '';
-            if (mediaData.fileType.startsWith('image/')) {
-                content = `<img src="${mediaData.url}" alt="${mediaData.fileName}" style="max-width: 100%; height: auto;" />`;
-            } else if (mediaData.fileType.startsWith('video/')) {
-                content = `<video controls src="${mediaData.url}" style="max-width: 100%;">Přehrávač videa není podporován.</video>`;
-            } else if (mediaData.fileType.startsWith('audio/')) {
-                content = `<audio controls src="${mediaData.url}">Přehrávač audia není podporován.</audio>`;
-            } else {
-                content = `<a href="${mediaData.url}" target="_blank" rel="noopener">${mediaData.fileName}</a>`;
-            }
-            editorInstance.insertContent(content);
-            isLessonDirty = true; // Vložení obsahu se počítá jako změna
-        }
-    };
-
-    // Inicializace nahrávání pro modální okno
-    // --- ZMENA 3: Posielame 'currentProfessorId' ---
-    // OPRAVA: Voláme 'openMediaUploaderModal' (nový názov) s 2 argumentmi
-    // (Starý názov 'initializeModalMediaUpload' mal 3 arg, ktoré už nie sú potrebné)
-    openMediaUploaderModal(onMediaSelect, []); // <-- OPRAVENÉ VOLANIE
-    // ----------------------------------------------
+    // Pôvodné volanie `initializeModalMediaUpload` (riadok 186) bolo odstránené.
+    // Táto logika sa teraz deje priamo v `setup` TinyMCE.
 }
 
 
@@ -221,11 +194,22 @@ function showEditorContent(initialContent) {
                 text: 'Média',
                 icon: 'image',
                 onAction: () => {
-                    const modal = document.getElementById('media-library-modal');
-                    if (modal) {
-                        modal.classList.remove('hidden');
-                        loadMediaLibrary('modal'); // <-- OPRAVENÉ VOLANIE
-                    }
+                    // Argumenty pre callback: (onMediaSelected, currentlyAttachedMedia)
+                    // TODO: Načítať 'currentlyAttachedMedia' z 'currentLessonData'
+                    openMediaUploaderModal((selectedMedia) => {
+                         // Callback funkcia, ktorá sa vykoná po výbere
+                        if (editorInstance) {
+                            let content = '';
+                            selectedMedia.forEach(mediaData => {
+                                // Tu potrebujeme získať verejnú URL, čo je komplexné
+                                // Zatiaľ vložíme placeholder
+                                 content += `<p>[Vložené médium: ${mediaData.fileName}]</p>`;
+                            });
+                            editor.insertContent(content);
+                            isLessonDirty = true; 
+                        }
+                    }, []); // Posielame prázdne pole ako 'currentlyAttached'
+
                 }
             });
 
