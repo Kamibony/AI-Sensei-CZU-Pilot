@@ -1,11 +1,11 @@
 // Súbor: public/js/editor-handler.js
-// Verzia: Plná (795 riadkov), rešpektujúca pôvodnú štruktúru + Multi-Profesor
+// OPRAVA: Opravené importy a volania funkcií pre upload-handler
 
 import { doc, addDoc, updateDoc, collection, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db, functions } from './firebase-init.js'; // <-- OPRAVENÉ
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { showToast } from './utils.js'; // <-- OPRAVENÉ
-import { initializeModalMediaUpload, renderModalMediaFiles } from './upload-handler.js'; // <-- OPRAVENÉ
+import { openMediaUploaderModal, loadMediaLibrary } from './upload-handler.js'; // <-- OPRAVENÉ
 
 let editorInstance = null;
 let currentLessonData = null; // Bude uchovávat aktuální data lekce
@@ -161,7 +161,9 @@ export function renderEditorMenu(sidebar, lesson, professorId) { // <-- ZMENA 1:
 
     // Inicializace nahrávání pro modální okno
     // --- ZMENA 3: Posielame 'currentProfessorId' ---
-    initializeModalMediaUpload(onMediaSelect, editorInstance, currentProfessorId);
+    // OPRAVA: Voláme 'openMediaUploaderModal' (nový názov) s 2 argumentmi
+    // (Starý názov 'initializeModalMediaUpload' mal 3 arg, ktoré už nie sú potrebné)
+    openMediaUploaderModal(onMediaSelect, []); // <-- OPRAVENÉ VOLANIE
     // ----------------------------------------------
 }
 
@@ -222,7 +224,7 @@ function showEditorContent(initialContent) {
                     const modal = document.getElementById('media-library-modal');
                     if (modal) {
                         modal.classList.remove('hidden');
-                        renderModalMediaFiles('modal-media-library-list');
+                        loadMediaLibrary('modal'); // <-- OPRAVENÉ VOLANIE
                     }
                 }
             });
