@@ -31,7 +31,7 @@ const model = vertex_ai.getGenerativeModel({
     ],
 });
 
-async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
+export async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
     const functionName = requestBody.generationConfig?.responseMimeType === "application/json"
         ? "generateJson"
         : "generateText";
