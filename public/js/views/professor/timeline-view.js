@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; // Pridané 'where'
 import { showToast } from '../../utils.js';
 
 function getLocalizedDate(offsetDays = 0) {
@@ -48,11 +48,38 @@ function renderScheduledEvent(event, lessonsData, db) {
 
     el.querySelector('.delete-event-btn').addEventListener('click', async () => {
         if (confirm('Opravdu chcete odebrat tuto lekci z plánu?')) {
+            // ===== ZAČIATOK ÚPRAVY (RIEŠENIE 4) =====
+            const lessonId = el.dataset.lessonId; 
+            // ======================================
+            
             try {
+                // 1. Zmazať udalosť
                 await deleteDoc(doc(db, 'timeline_events', event.id));
                 el.remove();
-                showToast("Lekce byla odebrána z plánu.");
+                
+                // ===== ZAČIATOK ÚPRAVY (RIEŠENIE 4) =====
+                // 2. Skontrolovať, či existujú iné inštancie tejto lekcie v pláne
+                const q = query(collection(db, 'timeline_events'), where("lessonId", "==", lessonId));
+                const snapshot = await getDocs(q);
+
+                // 3. Ak neexistujú (táto bola posledná), odznačiť ju v kolekcii 'lessons'
+                if (snapshot.empty) {
+                    try {
+                        const lessonRef = doc(db, 'lessons', lessonId);
+                        await updateDoc(lessonRef, { isScheduled: false });
+                        showToast("Lekce byla odebrána z plánu a odznačena.");
+                    } catch (lessonError) {
+                        console.error("Error un-scheduling lesson:", lessonError);
+                        showToast("Lekce odebrána, ale nepodařilo se odznačit.", true);
+                    }
+                } else {
+                    showToast("Lekce byla odebrána z plánu."); // Ešte sú iné kópie
+                }
+                // ======================================
+                
                 await updateAllOrderIndexes(db);
+                // Pôvodný showToast bol presunutý vyššie do logiky if/else
+                
             } catch (error) {
                 console.error("Error deleting timeline event:", error);
                 showToast("Chyba při odstraňování události.", true);
@@ -70,6 +97,7 @@ async function handleLessonDrop(evt, db, lessonsData) {
     tempEl.innerHTML = `Načítám...`;
 
     try {
+        // 1. Vytvoriť udalosť v timeline_events
         const newEventData = {
             lessonId: lessonId,
             dayIndex: parseInt(dayIndex),
@@ -77,6 +105,18 @@ async function handleLessonDrop(evt, db, lessonsData) {
             orderIndex: 0
         };
         const docRef = await addDoc(collection(db, 'timeline_events'), newEventData);
+
+        // ===== ZAČIATOK ÚPRAVY (RIEŠENIE 4) =====
+        // 2. Označiť lekciu ako 'isScheduled' v kolekcii 'lessons'
+        try {
+            const lessonRef = doc(db, 'lessons', lessonId);
+            await updateDoc(lessonRef, { isScheduled: true });
+        } catch (lessonError) {
+            console.error("Error flagging lesson as scheduled:", lessonError);
+            // Zobraziť chybu, ale pokračovať v renderovaní, keďže udalosť bola vytvorená
+            showToast("Chyba při označování lekce. Zkuste znovu.", true);
+        }
+        // ======================================
 
         const newElement = renderScheduledEvent({ id: docRef.id, ...newEventData }, lessonsData, db);
         evt.item.parentNode.replaceChild(newElement, evt.item);
