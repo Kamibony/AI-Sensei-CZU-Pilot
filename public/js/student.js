@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, query, where, updateDoc, orderBy, onSnapshot, addDoc, serverTimestamp, setDoc, Timestamp, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; // Pridaný Timestamp a documentId
+import { collection, getDocs, doc, query, where, updateDoc, orderBy, onSnapshot, addDoc, serverTimestamp, setDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; // Pridaný Timestamp
 import { showToast } from './utils.js';
 import * as firebaseInit from './firebase-init.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
@@ -169,64 +169,27 @@ async function renderStudentPanel() {
     await fetchAndDisplayLessons();
 }
 
-// ===== UPRAVENÁ FUNKCIA fetchAndDisplayLessons (RIEŠENIE 2) =====
+// ===== ZAČIATOK ÚPRAVY (RIEŠENIE 4) =====
 async function fetchAndDisplayLessons() {
     const mainContent = document.getElementById('student-main-content');
     mainContent.innerHTML = `<h2 class="text-2xl font-bold mb-6 text-slate-800">Moje lekce</h2>
                              <div id="lessons-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">Načítání lekcí...</div>`;
-    const lessonsGrid = document.getElementById('lessons-grid'); // Získame grid hneď
 
     try {
-        // ===== IMPLEMENTÁCIA RIEŠENIA 2 =====
-
-        // 1. Načítať všetky udalosti z časovej osi
-        const timelineEventsQuery = query(collection(firebaseInit.db, "timeline_events"));
-        const timelineSnapshot = await getDocs(timelineEventsQuery);
-
-        // 2. Získať unikátne lessonId
-        const scheduledLessonIds = timelineSnapshot.docs
-            .map(doc => doc.data().lessonId) // Získať všetky lessonId
-            .filter(id => id); // Odfiltrovať prípadné prázdne (null, undefined, "") hodnoty
-
-        const uniqueLessonIds = [...new Set(scheduledLessonIds)]; // Vytvoriť unikátny zoznam
-
-        // 3. Skontrolovať, či sú nejaké lekcie na zobrazenie
-        if (uniqueLessonIds.length === 0) {
-            lessonsGrid.innerHTML = `<p class="text-slate-500">Zatím vám nebyly přiřazeny žádné lekcie.</p>`;
-            lessonsData = []; // Vyčistiť globálne dáta
-            return;
-        }
-
-        // 4. Ošetriť limit 30 pre 'in' query
-        let lessonIdsToQuery = uniqueLessonIds;
-        if (uniqueLessonIds.length > 30) {
-            console.warn(`Nalezeno více než 30 naplánovaných lekcí (${uniqueLessonIds.length}). Zobrazuji pouze prvních 30. Pro plnou funkčnost je potřeba implementovat Riešenie 3 (Cloud Function).`);
-            lessonIdsToQuery = uniqueLessonIds.slice(0, 30);
-        }
-
-        // 5. Načítať iba lekcie, ktoré sú v časovej osi
-        // Použijeme 'documentId()' na filtrovanie podľa IDčiek
-        const q = query(collection(firebaseInit.db, "lessons"), where(documentId(), 'in', lessonIdsToQuery));
+        // Upravená query: Načíta iba lekcie, ktoré sú označené ako 'isScheduled: true'
+        // a zoradí ich podľa 'createdAt'
+        const q = query(
+            collection(firebaseInit.db, "lessons"), 
+            where("isScheduled", "==", true), 
+            orderBy("createdAt", "desc")
+        );
         
         const querySnapshot = await getDocs(q);
-        let fetchedLessons = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-        // 6. Zoradiť dáta na klientovi (keďže 'orderBy' sa nedá kombinovať s 'in' na documentId())
-        // Triedime podľa 'createdAt' zostupne (najnovšie prvé)
-        fetchedLessons.sort((a, b) => {
-            const timeA = a.createdAt?.seconds || 0;
-            const timeB = b.createdAt?.seconds || 0;
-            return timeB - timeA;
-        });
-
-        lessonsData = fetchedLessons; // Uložíme do globálnej premennej
-
-        // ===== KONIEC RIEŠENIA 2 =====
-
-
+        const lessonsGrid = document.getElementById('lessons-grid');
         if (lessonsData.length === 0) {
-            // Táto podmienka sa technicky splní aj v kroku 3, ale pre istotu
-            lessonsGrid.innerHTML = `<p class="text-slate-500">Nebyly nalezeny žádné lekce odpovídající plánu.</p>`;
+            lessonsGrid.innerHTML = `<p class="text-slate-500">Zatím vám nebyly přiřazeny žádné lekce.</p>`;
             return;
         }
 
@@ -241,13 +204,23 @@ async function fetchAndDisplayLessons() {
             lessonCard.addEventListener('click', () => showLessonDetail(lesson.id));
             lessonsGrid.appendChild(lessonCard);
         });
-
     } catch (error) {
         console.error("Error fetching lessons:", error);
-        mainContent.innerHTML = `<p class="text-red-500">Nepodařilo se načíst lekce.</p>`;
+        
+        // ===== VYLEPŠENÉ CHYBOVÉ HLÁSENIE =====
+        if (error.code === 'failed-precondition') {
+             // Toto je chyba chýbajúceho indexu
+             mainContent.innerHTML = `<p class="text-red-500">Chyba databáze: Chybí potřebný index.</p>
+             <p class="text-slate-600 mt-2">Tato chyba se zobrazí, protože je potřeba vytvořit databázový index pro filtrování lekcí. 
+             Otevřete prosím konzoli vývojáře (F12), najděte chybu a klikněte na odkaz, který vám Firebase nabízí pro automatické vytvoření indexu.</p>`;
+             console.warn("POŽADOVANÁ AKCE: Pro opravu této chyby je nutné vytvořit kompozitní index ve Firestore. Otevřete odkaz z chybové hlášky ve vaší konzoli.");
+        } else {
+             mainContent.innerHTML = `<p class="text-red-500">Nepodařilo se načíst lekce. (${error.message})</p>`;
+        }
+        // ======================================
     }
 }
-// ===== KONIEC UPRAVENEJ FUNKCIE =====
+// ===== KONIEC ÚPRAVY (RIEŠENIE 4) =====
 
 function normalizeLessonData(rawData) {
     const normalized = { ...rawData };
