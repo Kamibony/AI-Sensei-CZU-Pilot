@@ -2,13 +2,20 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from '../../utils.js';
-import * as firebaseInit from '../../firebase-init.js'; // Potrebujeme prístup k db
+import * as firebaseInit from '../../firebase-init.js';
 
 export class ProfessorTimelineView extends LitElement {
     static properties = {
         lessonsData: { type: Array },
         _timelineEvents: { state: true, type: Array },
     };
+
+    // === PRIDANÁ METÓDA (Oprava grafiky) ===
+    // Vypneme Shadow DOM, aby sa aplikovali globálne Tailwind štýly
+    createRenderRoot() {
+        return this;
+    }
+    // === KONIEC PRIDANEJ METÓDY ===
 
     constructor() {
         super();
@@ -39,7 +46,8 @@ export class ProfessorTimelineView extends LitElement {
     }
 
     async _updateAllOrderIndexes() {
-        const timelineContainer = this.shadowRoot.getElementById('timeline-container');
+        // Keďže sme v Light DOM, hľadáme v 'this' (v koreni komponentu), nie v 'this.shadowRoot'
+        const timelineContainer = this.querySelector('#timeline-container');
         if (!timelineContainer) return;
 
         const allEvents = Array.from(timelineContainer.querySelectorAll('.lesson-bubble'));
@@ -163,7 +171,7 @@ export class ProfessorTimelineView extends LitElement {
     }
 
     firstUpdated() {
-        const timelineContainer = this.shadowRoot.getElementById('timeline-container');
+        const timelineContainer = this.querySelector('#timeline-container');
         if (!timelineContainer) return;
 
         // Vykreslíme sloty pre dni
@@ -218,23 +226,7 @@ export class ProfessorTimelineView extends LitElement {
         `;
     }
 
-    static styles = css`
-        :host {
-            display: flex;
-            flex-direction: column;
-            width: 100%;
-            height: 100%;
-        }
-        .flex-grow {
-            flex: 1 1 auto;
-        }
-    `;
+    // Odstránili sme 'static styles', keďže renderujeme do Light DOM
 }
 
 customElements.define('professor-timeline-view', ProfessorTimelineView);
-
-// Ponechávame pôvodný export prázdny, aby sme nerozbili importy, kým nie sú všetky prerobené
-// Alebo môžeme exportovať priamo komponent, ak vieme, že 'professor.js' bude upravený.
-// Pre túto fázu je lepšie nechať pôvodné importy/exporty, ako boli.
-// Tým, že sme súbor prerobili na komponent, pôvodný `export async function renderTimeline` už neexistuje.
-// To je v poriadku, pretože `professor-app.js` ho už nebude volať.
