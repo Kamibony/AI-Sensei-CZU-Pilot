@@ -7,11 +7,11 @@ import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/fir
 import './lesson-library.js';
 import './timeline-view.js';
 import './professor-media-view.js'; 
-// ... ďalšie komponenty prídu sem
+import './lesson-editor-menu.js'; // === PRIDANÝ IMPORT ===
+import './lesson-editor.js'; // === PRIDANÝ IMPORT ===
 
 // Importy pôvodných procedurálnych funkcií
-import { renderEditorMenu } from '../../editor-handler.js';
-// initializeCourseMediaUpload sa už nevolá odtiaľto, ale z professor-media-view.js
+// import { renderEditorMenu } from '../../editor-handler.js'; // === ODSTRÁNENÝ IMPORT ===
 import { setupProfessorNav } from './navigation.js';
 import { renderStudentsView } from './students-view.js';
 import { renderStudentProfile } from './student-profile-view.js';
@@ -23,7 +23,8 @@ import { showToast } from '../../utils.js';
 export class ProfessorApp extends LitElement {
     static properties = {
         _currentView: { state: true, type: String },
-        _currentData: { state: true },
+        _currentData: { state: true }, // Pre lekciu alebo študenta
+        _currentEditorView: { state: true, type: String }, // Pre pod-pohľad editora (napr. 'details')
         _lessonsData: { state: true, type: Array },
         _sidebarComponent: { state: true, type: String },
     };
@@ -32,6 +33,7 @@ export class ProfessorApp extends LitElement {
         super();
         this._currentView = 'timeline';
         this._currentData = null;
+        this._currentEditorView = 'details'; // Predvolený pohľad editora
         this._lessonsData = [];
         this._sidebarComponent = 'library'; 
         
@@ -85,14 +87,20 @@ export class ProfessorApp extends LitElement {
              this._sidebarComponent = (view === 'editor') ? 'editor' : 'library';
         }
 
-        this._currentView = view;
-        this._currentData = data;
-        
-        if (this._sidebarComponent === 'library' || view === 'timeline') {
+        // Ak vstupujeme do editora, resetujeme jeho pohľad na 'details'
+        if (view === 'editor' && this._currentView !== 'editor') {
+            this._currentEditorView = 'details';
+        }
+        // Ak sa vraciame na timeline, znova načítame lekcie
+        if (view === 'timeline') {
              this._fetchLessons();
         }
+
+        this._currentView = view;
+        this._currentData = data;
     }
 
+    // --- Event Handlery ---
     _onLessonSelected(e) {
         this._showProfessorContent('editor', e.detail);
     }
@@ -100,6 +108,27 @@ export class ProfessorApp extends LitElement {
     _onAddNewLesson() {
         this._showProfessorContent('editor', null);
     }
+
+    // Nový handler pre zmenu tabu v editore
+    _onEditorViewChanged(e) {
+        this._currentEditorView = e.detail.view;
+    }
+
+    // Nový handler pre návrat z editora
+    _onBackToTimeline() {
+        this._showProfessorContent('timeline');
+    }
+    
+    // Nový handler pre prípad, že sa v detaile lekcie vytvorí nová lekcia
+    _onLessonCreatedOrUpdated(e) {
+        // Aktualizujeme dáta, ktoré držíme (pre menu)
+        this._currentData = e.detail;
+        // Znovu načítame knižnicu lekcií
+        this._fetchLessons();
+    }
+
+
+    // --- Renderovacie Metódy ---
 
     render() {
         return html`
@@ -124,7 +153,13 @@ export class ProfessorApp extends LitElement {
                                 @add-new-lesson=${this._onAddNewLesson}>
                             </lesson-library>`;
             case 'editor':
-                return html`<div id="editor-sidebar-container" class="w-full h-full flex flex-col"></div>`;
+                // === ZMENA: Renderujeme nový komponent menu ===
+                return html`<lesson-editor-menu
+                                .lesson=${this._currentData}
+                                .activeView=${this._currentEditorView}
+                                @view-changed=${this._onEditorViewChanged}
+                                @back-to-timeline=${this._onBackToTimeline}>
+                            </lesson-editor-menu>`;
             case 'none':
             default:
                 return html``; 
@@ -140,8 +175,12 @@ export class ProfessorApp extends LitElement {
                 return html`<professor-media-view></professor-media-view>`;
                 
             case 'editor':
-                // Toto je kľúčové: Vytvoríme bezpečný kontajner pre editor
-                return html`<div id="editor-main-container" class="w-full h-full flex flex-col"></div>`; 
+                // === ZMENA: Renderujeme nový komponent editora ===
+                return html`<lesson-editor
+                                .lesson=${this._currentData}
+                                .view=${this._currentEditorView}
+                                @lesson-updated=${this._onLessonCreatedOrUpdated}>
+                            </lesson-editor>`;
                 
             case 'student-profile':
                 return html`<div id="student-profile-container" class="w-full h-full"></div>`;
@@ -156,16 +195,12 @@ export class ProfessorApp extends LitElement {
         }
     }
     
+    // === ZMENA: Zjednodušená metóda updated() ===
     updated(changedProperties) {
         if (changedProperties.has('_currentView') || changedProperties.has('_currentData')) {
             
+            // 'case editor' je ODOBRANÝ
             switch (this._currentView) {
-                case 'editor':
-                    const sidebarContainer = this.querySelector('#editor-sidebar-container');
-                    if(sidebarContainer) {
-                        renderEditorMenu(sidebarContainer, this._currentData); 
-                    }
-                    break;
                 case 'student-profile':
                     const profileContainer = this.querySelector('#student-profile-container');
                     if (profileContainer) { 
@@ -173,7 +208,6 @@ export class ProfessorApp extends LitElement {
                         renderStudentProfile(profileContainer, this._currentData, backToStudentsList);
                     }
                     break;
-                
                 case 'students':
                     const studentsContainer = this.querySelector('#students-container');
                     if (studentsContainer) {
