@@ -139,7 +139,20 @@ export function renderEditorMenu(container, lesson) {
 
 // Vykreslí hlavnú editačnú plochu podľa výberu v menu
 export async function showEditorContent(viewId) {
-    const mainArea = document.getElementById('main-content-area');
+    
+    // ==================================================
+    // === HLAVNÁ OPRAVA (riadok 1/2) ===
+    // Namiesto 'main-content-area' hľadáme náš nový bezpečný kontajner
+    const mainArea = document.getElementById('editor-main-container');
+    
+    // === HLAVNÁ OPRAVA (riadok 2/2) ===
+    // Pridáme kontrolu, keby sa niečo pokazilo
+    if (!mainArea) {
+        console.error("Critical error: Editor main container '#editor-main-container' not found.");
+        return;
+    }
+    // ==================================================
+
     mainArea.innerHTML = `<div class="p-4 sm:p-6 md:p-8 overflow-y-auto h-full view-transition opacity-0" id="editor-content-container">Načítání...</div>`;
     const container = document.getElementById('editor-content-container');
     let contentHTML = '';
@@ -744,7 +757,7 @@ async function handleSaveGeneratedContent(fieldToUpdate, contentToSave) {
         }
 
     } catch (error) {
-        console.error(`Chyba při ukládání obsahu (${fieldToUpdate}) do lekce:`, error);
+        console.error(`Chybaři ukládání obsahu (${fieldToUpdate}) do lekce:`, error);
         showToast("Při ukládání obsahu došlo k chybě.", true);
          if (saveBtn) { 
             saveBtn.disabled = false;
