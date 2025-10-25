@@ -5,8 +5,10 @@ import { doc, addDoc, updateDoc, collection, serverTimestamp, deleteField } from
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../firebase-init.js';
 import { showToast } from '../utils.js';
-// Importujeme VŠETKY funkcie z upload-handleru, ktoré budeme potrebovať
-import { renderSelectedFiles, clearSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles, setSelectedFiles } from '../upload-handler.js';
+// ==== OPRAVENÝ IMPORT ====
+// Importujeme funkcie z upload-handleru, ktoré budeme potrebovať
+import { renderSelectedFiles, clearSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from '../upload-handler.js';
+// ========================
 
 // Lazy load pre Cloud Function (zostáva rovnaká logika)
 let generateContentCallable = null;
@@ -74,6 +76,7 @@ export class LessonEditor extends LitElement {
         this._activeView = 'details'; // Vždy začneme na detailoch
         
         // Načítame RAG súbory z lekcie (alebo prázdne pole)
+        // loadSelectedFiles nastaví interný stav v upload-handler.js
         loadSelectedFiles(this._currentLessonData?.ragFilePaths || []);
     }
 
@@ -298,6 +301,14 @@ export class LessonEditor extends LitElement {
         let promptPlaceholder = "Zadejte AI prompt...";
         let defaultPrompt = '';
         
+        const fieldMapping = { 
+            'text': 'text_content', 
+            'presentation': 'presentation', 
+            'quiz': 'quiz', 
+            'test': 'test', 
+            'post': 'podcast_script'
+        };
+
         switch(viewId) {
             case 'text':
                 promptPlaceholder = "Např. 'Vytvoř poutavý úvodní text o historii kvantové mechaniky...'";
@@ -318,7 +329,7 @@ export class LessonEditor extends LitElement {
                     </div>
                     <div class="mb-4">
                         <label for="presentation-style-selector" class="block text-sm font-medium text-gray-700 mb-1">Styl prezentace:</label>
-                        <select id="presentation-style-selector" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <select id="presentation-style-selector" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md" .value=${this._currentLessonData?.presentation?.styleId || 'default'}>
                             <option value="default">Výchozí (Zelená)</option>
                             <option value="modern">Moderní (Modrá)</option>
                             <option value="vibrant">Živý (Oranžová)</option>
@@ -384,7 +395,7 @@ export class LessonEditor extends LitElement {
                         class="px-5 py-2 bg-amber-800 text-white font-semibold rounded-lg hover:bg-amber-900 transition transform hover:scale-105 flex items-center ai-glow ${this._isGenerating ? 'opacity-50 cursor-not-allowed' : ''}"
                         @click=${() => this._handleGeneration(this._activeView)}
                         .disabled=${this._isGenerating}>
-                    ${this._isGenerating ? html`<div class="spinner"></div> Generuji...` : html`✨<span class="ml-2">Generovat ${this._activeView}</span>`}
+                    ${this._isGenerating ? html`<div class="spinner"></div> Generuji...` : html`✨<span class="ml-2">Generovat ${viewId}</span>`}
                 </button> 
             </div>
             <div id="generation-output" class="mt-6 border-t pt-6">
@@ -396,9 +407,9 @@ export class LessonEditor extends LitElement {
             ${this._lastGeneratedData ? html`
                 <div class="text-right mt-4">
                     <button id="save-content-btn" 
-                            data-field=${fieldMapping[this._activeView]} 
+                            data-field=${fieldMapping[viewId]} 
                             class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105 ${this._isSaving ? 'opacity-50 cursor-not-allowed' : ''}"
-                            @click=${() => this._handleSaveGeneratedContent(fieldMapping[this._activeView], this._lastGeneratedData)}
+                            @click=${() => this._handleSaveGeneratedContent(fieldMapping[viewId], this._lastGeneratedData)}
                             .disabled=${this._isSaving}>
                          ${this._isSaving ? html`<div class="spinner"></div> Ukládání...` : 'Uložit do lekce'}
                     </button>
@@ -408,17 +419,33 @@ export class LessonEditor extends LitElement {
 
     // Renderuje zobrazenie pre už uložený obsah
     _renderSavedContent(viewId, data) {
-        return this._renderGeneratedContent(viewId, data); // Použijeme rovnakú logiku na zobrazenie
+        // Použijeme pôvodnú funkciu z editor-handler.js na renderovanie náhľadu
+        const contentHtml = this._renderGeneratedContent(viewId, data);
+        return html`${contentHtml}`; // Lit priamo spracuje TemplateResult
     }
 
     // Renderuje UI pre výber RAG dokumentov
     _renderDocumentSelector() {
-        // Tento kód volá funkcie z upload-handler.js, ktoré priamo manipulujú DOM.
-        // Je to trochu proti princípom Lit, ale pre zachovanie existujúcej funkčnosti to akceptujeme.
-        // Správnejšie by bolo vytvoriť samostatný Lit komponent pre RAG selector.
-        
         // Timeout je potrebný, aby sa najprv vyrenderoval HTML a až potom sa volal renderSelectedFiles()
-        setTimeout(() => renderSelectedFiles('selected-files-list-rag'), 0); 
+        // z upload-handler.js, ktorý manipuluje s DOM elementom #selected-files-list-rag
+        setTimeout(() => {
+             const listElement = this.querySelector('#selected-files-list-rag');
+             // Ak element existuje, zavoláme renderSelectedFiles
+             if (listElement) {
+                 renderSelectedFiles('selected-files-list-rag');
+             } else {
+                 // Ak element ešte neexistuje (napr. pri prvom renderovaní), skúsime znova o chvíľu
+                 // Toto nie je ideálne, lepšie by bolo mať RAG selector ako vlastný komponent
+                 setTimeout(() => {
+                     const listElementRetry = this.querySelector('#selected-files-list-rag');
+                     if (listElementRetry) {
+                         renderSelectedFiles('selected-files-list-rag');
+                     } else {
+                          console.warn("Element #selected-files-list-rag not found after timeout.");
+                     }
+                 }, 100);
+             }
+        }, 0); 
         
         return html`
             <div class="mb-4">
@@ -436,6 +463,63 @@ export class LessonEditor extends LitElement {
                 <p class="text-xs text-slate-400 mt-1">Vybrané dokumenty budou použity jako dodatečný kontext pro AI.</p>
             </div>`;
     }
+    
+    // Vykreslí náhľad vygenerovaného/uloženého obsahu (preberá logiku z pôvodnej renderGeneratedContent)
+    _renderGeneratedContent(viewId, data) {
+        if (!data) return html`<div class="p-4 bg-red-100 text-red-700 rounded-lg">Chyba: Nebyla přijata žádná data.</div>`;
+    
+        try {
+            switch(viewId) {
+                case 'text':
+                    const textContent = (typeof data === 'string') ? data : data.text;
+                    if (typeof textContent !== 'string') throw new Error("Neplatný text.");
+                    // Vytvoríme pre element pre bezpečné vloženie HTML (ak by AI vrátila HTML tagy)
+                    const pre = document.createElement('pre');
+                    pre.className = "whitespace-pre-wrap font-sans text-sm";
+                    pre.textContent = textContent; // Použijeme textContent pre bezpečnosť
+                    return html`${pre}`;
+                case 'presentation':
+                    const slides = data?.slides || [];
+                    const styleId = data?.styleId || this.querySelector('#presentation-style-selector')?.value || 'default';
+                    if (!Array.isArray(slides)) throw new Error("Neplatné pole 'slides'.");
+                    return slides.map((slide, i) => html`
+                        <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm bg-slate-50 relative">
+                            <h4 class="font-bold text-green-700">Slide ${i+1}: ${slide.title || 'Bez názvu'}</h4>
+                            <ul class="list-disc list-inside mt-2 text-sm text-slate-600">
+                                ${(slide.points || []).map(p => html`<li>${p}</li>`)}
+                            </ul>
+                            <span class="style-indicator text-xs font-mono text-gray-400 absolute top-1 right-2">${styleId}</span>
+                        </div>`);
+                case 'quiz':
+                case 'test':
+                    const questions = data?.questions || [];
+                    if (!Array.isArray(questions)) throw new Error("Neplatné pole 'questions'.");
+                    return questions.map((q, i) => html`
+                        <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
+                            <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text || 'Chybějící text'}</h4>
+                            <div class="mt-2 space-y-2">
+                                ${(q.options || []).map((opt, j) => html`
+                                    <div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>
+                                `)}
+                            </div>
+                        </div>`);
+                case 'post': // Podcast
+                    const episodes = data?.episodes || [];
+                    if (!Array.isArray(episodes)) throw new Error("Neplatné pole 'episodes'.");
+                    return episodes.map((episode, i) => html`
+                        <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
+                            <h4 class="font-bold text-green-700">Epizoda ${i+1}: ${episode.title || 'Bez názvu'}</h4>
+                            <pre class="mt-2 text-sm text-slate-600 whitespace-pre-wrap font-sans">${episode.script || ''}</pre>
+                        </div>`);
+                default:
+                    return html`<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Neznámý typ obsahu '${viewId}'.</div>`;
+            }
+        } catch(e) {
+            console.error("Error rendering generated content:", e, "Data:", data);
+            return html`<div class="p-4 bg-red-100 text-red-700 rounded-lg">Chyba při zobrazování obsahu: ${e.message}</div>`;
+        }
+    }
+
 
     // --- Handlery udalostí ---
 
@@ -447,8 +531,12 @@ export class LessonEditor extends LitElement {
     
     _handleMenuClick(event, viewId) {
         event.preventDefault();
-        this._activeView = viewId;
-        this._lastGeneratedData = null; // Resetujeme generované dáta pri prepnutí
+        if (this._activeView !== viewId) {
+            this._activeView = viewId;
+            this._lastGeneratedData = null; // Resetujeme generované dáta pri prepnutí
+            // Pri prepnutí VIEW musíme znova načítať/nastaviť RAG súbory pre upload-handler
+            loadSelectedFiles(this._currentLessonData?.ragFilePaths || []);
+        }
     }
 
     _handleOpenMediaLibrary() {
@@ -463,16 +551,18 @@ export class LessonEditor extends LitElement {
             return;
         }
         
+        // Funkcia, ktorá sa zavolá pri potvrdení výberu
         const handleConfirm = () => {
             renderSelectedFiles('selected-files-list-rag'); // Aktualizujeme zoznam v tomto komponente
             closeModal();
         };
         
+        // Funkcia pre zrušenie/zatvorenie
         const handleCancel = () => closeModal();
         
+        // Funkcia na zatvorenie modálu a odstránenie listenerov
         const closeModal = () => {
             modal.classList.add('hidden');
-            // Odstránime listenery
             modalConfirm.removeEventListener('click', handleConfirm);
             modalCancel.removeEventListener('click', handleCancel);
             modalClose.removeEventListener('click', handleCancel);
@@ -501,14 +591,14 @@ export class LessonEditor extends LitElement {
         const title = titleInput.value.trim();
         if (!title) return showToast("Název lekce nemůže být prázdný.", true);
 
-        const currentSelection = getSelectedFiles(); // Aktuálny RAG výber
+        const currentSelection = getSelectedFiles(); // Aktuálny RAG výber z upload-handler.js
 
         const lessonData = {
             title: title,
             subtitle: subtitleInput ? subtitleInput.value.trim() : '',
             number: numberInput ? numberInput.value.trim() : '',
             icon: iconInput ? (iconInput.value.trim() || '🆕') : '🆕',
-            ragFilePaths: currentSelection, // Uložíme pole objektov
+            ragFilePaths: currentSelection, // Uložíme pole objektov { name, fullPath }
             updatedAt: serverTimestamp() 
         };
 
@@ -528,9 +618,15 @@ export class LessonEditor extends LitElement {
                 showToast("Nová lekce byla úspěšně vytvořena.");
             }
             // Aktualizujeme interný stav komponentu
-            this._currentLessonData = { ...this._currentLessonData, ...lessonData, id: lessonIdToUpdate };
+            // Musíme si ponechať existujúce polia ako text_content atď., ak existujú
+            this._currentLessonData = { ...(this._currentLessonData || {}), ...lessonData, id: lessonIdToUpdate };
+
             // Vypálime udalosť, že lekcia bola uložená (pre Timeline)
-            const event = new CustomEvent('lesson-saved', { detail: { lesson: this._currentLessonData }, bubbles: true, composed: true });
+            const event = new CustomEvent('lesson-saved', { 
+                detail: { lesson: JSON.parse(JSON.stringify(this._currentLessonData)) }, // Pošleme kópiu
+                bubbles: true, 
+                composed: true 
+            });
             this.dispatchEvent(event);
 
         } catch (error) {
@@ -544,31 +640,33 @@ export class LessonEditor extends LitElement {
     async _handleEmbedVideo() {
         const urlInput = this.querySelector('#youtube-url');
         const url = urlInput ? urlInput.value.trim() : '';
-        const previewEl = this.querySelector('#video-preview');
-
-        // Overíme URL a zobrazíme náhľad
-        const videoIdMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?#]+)/);
-        const isValid = videoIdMatch && videoIdMatch[1];
         
-        if (previewEl) {
-             previewEl.innerHTML = this._renderVideoPreview(url).strings.join(''); // Aktualizujeme náhľad
-        }
-
-        if (isValid) {
-            await this._handleSaveGeneratedContent('videoUrl', url);
-        } else if (url === '') { // Ak používateľ vymazal URL, chceme ju zmazať aj z DB
-            await this._handleDeleteGeneratedContent('videoUrl', 'video');
+        // Overíme URL len pre UI, ukladáme aj nevalidné (alebo prázdne na zmazanie)
+        const videoIdMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?#]+)/);
+        const isValidForPreview = videoIdMatch && videoIdMatch[1];
+        
+        // Ak je URL prázdny string, voláme delete, inak save
+        if (url === '') {
+            // Ak už je videoUrl prázdne, nerobíme nič
+            if (this._currentLessonData?.videoUrl) {
+                await this._handleDeleteGeneratedContent('videoUrl', 'video');
+            }
         } else {
-            showToast("Zadajte platnú YouTube URL adresu.", true);
+            await this._handleSaveGeneratedContent('videoUrl', url);
+            if (!isValidForPreview) {
+                 showToast("URL adresa nemusí být platná pro YouTube video.", true); // Upozornenie, ale uložíme
+            }
         }
+        // Komponent sa prekreslí, lebo _handleSave/_handleDelete aktualizuje _currentLessonData
     }
 
     // Volanie AI na generovanie obsahu
     async _handleGeneration(viewId) {
         const promptInput = this.querySelector('#prompt-input');
-        const userPrompt = promptInput ? promptInput.value.trim() : '';
+        // Prezentácia nemusí mať prompt, použijeme fallback
+        const userPrompt = promptInput ? promptInput.value.trim() : (viewId === 'presentation' ? `Klíčové momenty pro lekci ${this._currentLessonData?.title || 'této lekce'}` : ''); 
 
-        if (promptInput && !userPrompt && viewId !== 'presentation') { // Prezentácia nepotrebuje prompt
+        if (!userPrompt && viewId !== 'presentation') {
             showToast("Prosím, zadejte text do promptu.", true);
             return;
         }
@@ -586,7 +684,7 @@ export class LessonEditor extends LitElement {
             switch (viewId) {
                 case 'presentation':
                     promptData.slideCount = this.querySelector('#slide-count-input')?.value || 5;
-                    promptData.userPrompt = promptInput?.value.trim() || `Klíčové momenty pro lekci ${this._currentLessonData?.title || 'této lekce'}`; // Fallback prompt
+                    // userPrompt je už nastavený vyššie
                     break;
                 case 'test':
                     promptData.questionCount = this.querySelector('#question-count-input')?.value || 5;
@@ -609,12 +707,13 @@ export class LessonEditor extends LitElement {
             if (result.data.error) throw new Error(result.data.error);
             
             // Uložíme vygenerované dáta do stavu
+            // Pre text ukladáme priamo string, pre ostatné celý objekt
             this._lastGeneratedData = (viewId === 'text' && result.data.text) ? result.data.text : result.data; 
 
         } catch (e) {
             console.error("Error during AI generation:", e);
             showToast(`Došlo k chybě: ${e.message || e}`, true);
-            this._lastGeneratedData = null; // Reset pri chybe
+            this._lastGeneratedData = { error: `Došlo k chybě: ${e.message || e}` }; // Uložíme chybu pre zobrazenie
         } finally {
             this._isGenerating = false;
         }
@@ -626,7 +725,7 @@ export class LessonEditor extends LitElement {
             showToast("Nejprve uložte detaily lekce.", true);
             return;
         }
-        if (!contentToSave && fieldToUpdate !== 'videoUrl') { // Video URL môže byť prázdny string na zmazanie
+        if (!contentToSave) {
             showToast("Není co uložit.", true);
             return;
         }
@@ -634,7 +733,7 @@ export class LessonEditor extends LitElement {
         this._isSaving = true;
         try {
             let dataToSave;
-            // Špeciálne formátovanie pre prezentáciu
+            // Špeciálne formátovanie pre prezentáciu - pridanie styleId
             if (fieldToUpdate === 'presentation') {
                 const styleSelector = this.querySelector('#presentation-style-selector');
                 const selectedStyleId = styleSelector ? styleSelector.value : 'default';
@@ -644,12 +743,18 @@ export class LessonEditor extends LitElement {
                          slides: contentToSave.slides 
                      };
                 } else {
-                     throw new Error("Neplatná struktura dat prezentace pro uložení.");
+                     // Ak contentToSave už obsahuje styleId (napr. pri ukladaní existujúceho obsahu), použijeme ho
+                     if (typeof contentToSave === 'object' && contentToSave.styleId && Array.isArray(contentToSave.slides)){
+                         dataToSave = contentToSave;
+                     } else {
+                         throw new Error("Neplatná struktura dat prezentace pro uložení.");
+                     }
                 }
             } 
-            // Pre text berieme len pole 'text' z odpovede AI
-            else if (fieldToUpdate === 'text_content' && typeof contentToSave === 'object' && contentToSave.text) {
-                 dataToSave = contentToSave.text;
+            // Pre text berieme len pole 'text' z odpovede AI, alebo priamo string
+            else if (fieldToUpdate === 'text_content') {
+                 dataToSave = (typeof contentToSave === 'object' && contentToSave.text) ? contentToSave.text : contentToSave;
+                 if (typeof dataToSave !== 'string') throw new Error("Neplatná struktura dat textu pro uložení.");
             } 
             // Pre video URL berieme string
             else if (fieldToUpdate === 'videoUrl') {
@@ -668,9 +773,14 @@ export class LessonEditor extends LitElement {
 
             // Aktualizujeme interný stav a vypálime udalosť
             this._currentLessonData[fieldToUpdate] = dataToSave;
-            this._currentLessonData.updatedAt = new Date(); 
+            this._currentLessonData.updatedAt = new Date(); // Približný čas pre UI
             this._lastGeneratedData = null; // Resetujeme generované dáta, lebo sú už uložené
-            const event = new CustomEvent('lesson-saved', { detail: { lesson: this._currentLessonData }, bubbles: true, composed: true });
+            
+            const event = new CustomEvent('lesson-saved', { 
+                 detail: { lesson: JSON.parse(JSON.stringify(this._currentLessonData)) }, // Pošleme kópiu
+                 bubbles: true, 
+                 composed: true 
+            });
             this.dispatchEvent(event);
             
             showToast("Obsah byl úspěšně uložen do lekce.");
@@ -705,7 +815,12 @@ export class LessonEditor extends LitElement {
             // Aktualizujeme interný stav a vypálime udalosť
             delete this._currentLessonData[fieldToDelete];
             this._currentLessonData.updatedAt = new Date(); 
-            const event = new CustomEvent('lesson-saved', { detail: { lesson: this._currentLessonData }, bubbles: true, composed: true });
+            
+            const event = new CustomEvent('lesson-saved', { 
+                 detail: { lesson: JSON.parse(JSON.stringify(this._currentLessonData)) }, // Pošleme kópiu
+                 bubbles: true, 
+                 composed: true 
+            });
             this.dispatchEvent(event);
 
             showToast("Obsah byl úspěšně smazán.");
