@@ -1,12 +1,15 @@
 // Súbor: public/js/student/quiz-component.js
 
-import { LitElement, html, css } from 'https://cdn.jsdelivr.net/npm/lit@3/index.js';
-import { property, state } from 'https://cdn.jsdelivr.net/npm/lit@3/decorators.js';
+// ==== ZMENA 1: Opravené importy na verziu, ktorá funguje priamo v prehliadači (pomocou skypack) ====
+import { LitElement, html } from 'https://cdn.skypack.dev/lit';
+// ==============================================================================================
+
+// Tieto importy sú v poriadku
 import { showToast } from '../utils.js';
 import * as firebaseInit from '../firebase-init.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
-// --- Sem presúvame logiku pre Firebase Function ---
+// --- Logika pre Firebase Function (zostáva rovnaká) ---
 let _submitQuizResultsCallable = null;
 function getSubmitQuizResultsCallable() {
     if (!_submitQuizResultsCallable) {
@@ -18,26 +21,44 @@ function getSubmitQuizResultsCallable() {
     }
     return _submitQuizResultsCallable;
 }
-// --- Koniec presunutej logiky ---
+// --- Koniec logiky ---
 
 
 export class StudentQuiz extends LitElement {
-    // Definujeme "props" - dáta, ktoré komponent prijíma zvonku
-    @property({ type: Object }) quizData = null;
-    @property({ type: String }) lessonId = null;
 
-    // Definujeme "state" - interné dáta, ktoré komponent spravuje
-    @state() userAnswers = {}; // Ukladáme odpovede ako { qIndex: "Odpoveď" }
-    @state() isSubmitted = false;
-    @state() score = 0;
+    // ==== ZMENA 2: Odstránené @decorators a nahradené štandardnou definíciou vlastností ====
+    static get properties() {
+        return {
+            // "props"
+            quizData: { type: Object },
+            lessonId: { type: String },
+            
+            // "state" (state: true znamená, že zmena prekreslí komponent)
+            userAnswers: { type: Object, state: true },
+            isSubmitted: { type: Boolean, state: true },
+            score: { type: Number, state: true }
+        };
+    }
 
-    // LitElement nepoužíva .innerHTML, takže nepotrebujeme ani shadow DOM, 
-    // aby sme mohli dediť Tailwind štýly z hlavnej stránky.
+    // Inicializácia vlastností v konštruktore
+    constructor() {
+        super();
+        this.quizData = null;
+        this.lessonId = null;
+        this.userAnswers = {};
+        this.isSubmitted = false;
+        this.score = 0;
+    }
+    // ====================================================================================
+
+
+    // Hovoríme Lit, aby nerobilo Shadow DOM. Tým pádom náš komponent
+    // automaticky zdedí Tailwind štýly z hlavnej stránky.
     createRenderRoot() {
         return this;
     }
 
-    // Hlavná renderovacia metóda. Rozhoduje, čo zobraziť.
+    // Hlavná renderovacia metóda. Rozhoduje, čo zobraziť. (Zostáva rovnaká)
     render() {
         if (!this.quizData || !this.quizData.questions) {
             return html`<p>Obsah kvízu není k dispozici nebo není ve správném formátu.</p>`;
@@ -50,7 +71,7 @@ export class StudentQuiz extends LitElement {
         }
     }
 
-    // Súkromná metóda na zobrazenie otázok (pôvodný `renderQuiz`)
+    // Súkromná metóda na zobrazenie otázok (Zostáva rovnaká)
     _renderQuestions() {
         const questions = this.quizData.questions || [];
         
@@ -85,7 +106,7 @@ export class StudentQuiz extends LitElement {
         `;
     }
 
-    // Súkromná metóda na zobrazenie výsledkov (pôvodný `displayQuizResults`)
+    // Súkromná metóda na zobrazenie výsledkov (Zostáva rovnaká)
     _renderResults() {
         const questions = this.quizData.questions || [];
 
@@ -141,7 +162,7 @@ export class StudentQuiz extends LitElement {
         `;
     }
 
-    // Handler pre zmenu odpovede
+    // Handler pre zmenu odpovede (Zostáva rovnaká)
     _handleAnswerChange(questionIndex, selectedOption) {
         this.userAnswers = {
             ...this.userAnswers,
@@ -149,7 +170,7 @@ export class StudentQuiz extends LitElement {
         };
     }
 
-    // Handler pre odovzdanie (pôvodná logika z listenera)
+    // Handler pre odovzdanie (Zostáva rovnaká)
     async _handleSubmit() {
         const totalQuestions = this.quizData.questions.length;
         const answeredQuestions = Object.keys(this.userAnswers).length;
@@ -159,7 +180,7 @@ export class StudentQuiz extends LitElement {
             return;
         }
 
-        // 1. Vypočítame skóre (logika z displayQuizResults)
+        // 1. Vypočítame skóre
         let newScore = 0;
         const answersForBackend = [];
 
@@ -197,5 +218,5 @@ export class StudentQuiz extends LitElement {
     }
 }
 
-// Zaregistrujeme komponent, aby sa dal používať ako <student-quiz> tag
+// Zaregistrujeme komponent (Zostáva rovnaká)
 customElements.define('student-quiz', StudentQuiz);
