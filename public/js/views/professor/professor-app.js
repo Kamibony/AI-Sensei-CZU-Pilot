@@ -6,13 +6,12 @@ import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/fir
 // Importy komponentov
 import './lesson-library.js';
 import './timeline-view.js';
-import './professor-media-view.js'; // === PRIDANÝ IMPORT ===
+import './professor-media-view.js'; 
 // ... ďalšie komponenty prídu sem
 
 // Importy pôvodných procedurálnych funkcií
 import { renderEditorMenu } from '../../editor-handler.js';
 // initializeCourseMediaUpload sa už nevolá odtiaľto, ale z professor-media-view.js
-// import { initializeCourseMediaUpload } from '../../upload-handler.js'; // === ODSTRÁNENÝ IMPORT ===
 import { setupProfessorNav } from './navigation.js';
 import { renderStudentsView } from './students-view.js';
 import { renderStudentProfile } from './student-profile-view.js';
@@ -137,13 +136,13 @@ export class ProfessorApp extends LitElement {
             case 'timeline':
                 return html`<professor-timeline-view .lessonsData=${this._lessonsData}></professor-timeline-view>`;
             
-            // === ZMENA: Použijeme nový komponent ===
             case 'media':
                 return html`<professor-media-view></professor-media-view>`;
-            // ======================================
                 
             case 'editor':
-                return html``; 
+                // Toto je kľúčové: Vytvoríme bezpečný kontajner pre editor
+                return html`<div id="editor-main-container" class="w-full h-full flex flex-col"></div>`; 
+                
             case 'student-profile':
                 return html`<div id="student-profile-container" class="w-full h-full"></div>`;
             case 'students':
@@ -174,10 +173,6 @@ export class ProfessorApp extends LitElement {
                         renderStudentProfile(profileContainer, this._currentData, backToStudentsList);
                     }
                     break;
-                
-                // === ZMENA: Prípad 'media' bol odstránený ===
-                // Už ho nepotrebujeme, pretože `professor-media-view` sa stará sám o seba
-                // =========================================
                 
                 case 'students':
                     const studentsContainer = this.querySelector('#students-container');
