@@ -8,6 +8,10 @@ import { getAiAssistantResponse } from './gemini-api.js';
 import { renderPresentation } from './student/presentation-handler.js';
 // =====================================
 
+// ==== PRIDANÁ ZMENA (Načítanie komponentu kvízu) ====
+import './student/quiz-component.js';
+// =================================================
+
 let studentDataUnsubscribe = null;
 let lessonsData = [];
 let currentUserData = null;
@@ -15,7 +19,9 @@ let currentLessonData = null;
 let currentLessonId = null;
 
 let _sendMessageFromStudentCallable = null;
-let _submitQuizResultsCallable = null;
+// ==== ODSTRÁNENÁ ZMENA (Logika presunutá do quiz-component.js) ====
+// let _submitQuizResultsCallable = null;
+// ===============================================================
 let _submitTestResultsCallable = null;
 
 // ===== Premenné pre Speech Synthesis =====
@@ -35,6 +41,8 @@ function getSendMessageFromStudentCallable() {
     return _sendMessageFromStudentCallable;
 }
 
+// ==== ODSTRÁNENÁ ZMENA (Logika presunutá do quiz-component.js) ====
+/*
 function getSubmitQuizResultsCallable() {
     if (!_submitQuizResultsCallable) {
         // console.log("Lazy initializing submitQuizResults callable. Current functions object:", firebaseInit.functions); // Odstránené logovanie
@@ -46,6 +54,8 @@ function getSubmitQuizResultsCallable() {
     }
     return _submitQuizResultsCallable;
 }
+*/
+// ===============================================================
 
 function getSubmitTestResultsCallable() {
     if (!_submitTestResultsCallable) {
@@ -179,8 +189,8 @@ async function fetchAndDisplayLessons() {
         // Upravená query: Načíta iba lekcie, ktoré sú označené ako 'isScheduled: true'
         // a zoradí ich podľa 'createdAt'
         const q = query(
-            collection(firebaseInit.db, "lessons"), 
-            where("isScheduled", "==", true), 
+            collection(firebaseInit.db, "lessons"),
+            where("isScheduled", "==", true),
             orderBy("createdAt", "desc")
         );
         
@@ -281,7 +291,7 @@ function renderLessonTabs() {
     availableTabs.forEach((tab) => {
         const tabEl = document.createElement('button');
         tabEl.id = `${tab.id}-tab`;
-        tabEl.className = 'px-3 py-2 md:px-6 md:py-3 font-semibold border-b-2 transition-colors text-sm md:text-base flex-shrink-0'; 
+        tabEl.className = 'px-3 py-2 md:px-6 md:py-3 font-semibold border-b-2 transition-colors text-sm md:text-base flex-shrink-0';
         tabEl.textContent = tab.name;
         tabEl.addEventListener('click', () => switchTab(tab.id));
         tabsContainer.appendChild(tabEl);
@@ -299,7 +309,7 @@ function switchTab(tabId) {
     if (window.speechSynthesis && window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
         // Resetujeme stav tlačidiel v podcast tabe (ak tam sme boli)
-        resetPodcastButtons(); 
+        resetPodcastButtons();
     }
     currentSpeechUtterance = null;
     currentPlayingEpisodeIndex = -1;
@@ -334,9 +344,25 @@ function switchTab(tabId) {
              renderPresentation(contentArea, currentLessonData.presentation);
              break;
         // ===================================
+        
+        // ==== ZMENENÝ BLOK (Použitie Lit komponentu) ====
         case 'quiz':
-            renderQuiz();
+            if (!currentLessonData.quiz || !currentLessonData.quiz.questions) {
+                 contentArea.innerHTML = `<p>Obsah kvízu není k dispozici nebo není ve správném formátu.</p>`;
+                 break;
+            }
+            // Vyčistíme obsah a vložíme náš nový komponent
+            contentArea.innerHTML = '';
+            const quizEl = document.createElement('student-quiz');
+            
+            // Odovzdáme mu dáta ako JavaScript vlastnosti
+            quizEl.quizData = currentLessonData.quiz;
+            quizEl.lessonId = currentLessonId;
+            
+            contentArea.appendChild(quizEl);
             break;
+        // ===============================================
+        
         case 'test':
             renderTest();
             break;
@@ -386,7 +412,7 @@ function switchTab(tabId) {
             document.getElementById('ai-chat-menu').querySelectorAll('button').forEach(button => {
                 button.addEventListener('click', () => switchAIChatSubView(button.dataset.chatType));
             });
-            switchAIChatSubView('web'); 
+            switchAIChatSubView('web');
             break;
         case 'professor-chat':
             contentArea.innerHTML = renderProfessorChatView();
@@ -395,7 +421,7 @@ function switchTab(tabId) {
             if (profSendBtn) {
                  profSendBtn.addEventListener('click', () => sendMessage('professor'));
             }
-            if(profInput && profSendBtn) { 
+            if(profInput && profSendBtn) {
                 profInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') profSendBtn.click();
                 });
@@ -654,6 +680,8 @@ function renderProfessorChatView() {
 }
 
 
+// ==== ODSTRÁNENÁ ZMENA (Funkcia renderQuiz presunutá do quiz-component.js) ====
+/*
 function renderQuiz() {
     // ... (kód zostáva nezmenený)
     const quiz = currentLessonData?.quiz; // Bezpečnejší prístup
@@ -674,7 +702,7 @@ function renderQuiz() {
                         ${option}
                      </label>`;
         });
-        html += `<div id="feedback-${index}" class="mt-2 font-bold text-sm"></div>`; 
+        html += `<div id="feedback-${index}" class="mt-2 font-bold text-sm"></div>`;
         html += `</div>`;
     });
     html += `<button id="submit-quiz" class="w-full bg-green-700 text-white font-bold py-3 px-4 rounded-lg text-lg hover:bg-green-800 transition-colors">Odevzdat kvíz</button>`;
@@ -701,14 +729,14 @@ function renderQuiz() {
             }
 
             // Vyhodnotenie a zobrazenie výsledkov
-            const score = displayQuizResults(quiz, userAnswers); 
+            const score = displayQuizResults(quiz, userAnswers);
             
             // Odoslanie na backend
             try {
                 const submitCallable = getSubmitQuizResultsCallable();
-                await submitCallable({ 
-                    lessonId: currentLessonId, 
-                    quizTitle: quiz.title || 'Kvíz', 
+                await submitCallable({
+                    lessonId: currentLessonId,
+                    quizTitle: quiz.title || 'Kvíz',
                     score: score / quiz.questions.length, // Skóre ako 0-1
                     totalQuestions: quiz.questions.length,
                     answers: userAnswers // Posielame null pre nezodpovedané, hoci sme to už overili
@@ -721,7 +749,11 @@ function renderQuiz() {
         });
     }
 }
+*/
+// ==============================================================================
 
+// ==== ODSTRÁNENÁ ZMENA (Funkcia displayQuizResults presunutá do quiz-component.js) ====
+/*
 function displayQuizResults(quiz, userAnswers) {
     // ... (kód zostáva nezmenený)
     const contentArea = document.getElementById('lesson-tab-content');
@@ -732,9 +764,9 @@ function displayQuizResults(quiz, userAnswers) {
     quiz.questions.forEach((q, index) => {
         const correctOptionIndex = q.correct_option_index;
         // Kontrola, či index existuje a je v rozsahu
-        const correctOption = (typeof correctOptionIndex === 'number' && q.options && q.options[correctOptionIndex]) 
-                               ? q.options[correctOptionIndex] 
-                               : 'N/A (Chyba v datech)'; 
+        const correctOption = (typeof correctOptionIndex === 'number' && q.options && q.options[correctOptionIndex])
+                               ? q.options[correctOptionIndex]
+                               : 'N/A (Chyba v datech)';
         
         const userAnswerData = userAnswers.find(ua => ua.question === q.question_text);
         const userAnswer = userAnswerData ? userAnswerData.answer : null;
@@ -751,7 +783,7 @@ function displayQuizResults(quiz, userAnswers) {
         questionContainer.classList.remove('border-gray-200');
         questionContainer.classList.add(isCorrect ? 'border-green-500' : 'border-red-500');
         
-        const userFeedbackText = isCorrect 
+        const userFeedbackText = isCorrect
             ? `<span class="text-green-600">✅ Správně!</span>`
             : `<span class="text-red-600">❌ Chyba. Správná odpověď: <strong>${correctOption}</strong></span>`;
         
@@ -788,6 +820,8 @@ function displayQuizResults(quiz, userAnswers) {
     contentArea?.insertAdjacentHTML('afterbegin', scoreHtml); // Pridaná kontrola
     return score; // Vrátime skóre pre odoslanie na backend
 }
+*/
+// ==============================================================================
 
 
 function renderTest() {
@@ -811,7 +845,7 @@ function renderTest() {
                         ${option}
                      </label>`;
         });
-        html += `<div id="test-feedback-${index}" class="mt-2 font-bold text-sm"></div>`; 
+        html += `<div id="test-feedback-${index}" class="mt-2 font-bold text-sm"></div>`;
         html += `</div>`;
     });
     html += `<button id="submit-test" class="w-full bg-green-700 text-white font-bold py-3 px-4 rounded-lg text-lg hover:bg-green-800 transition-colors">Odevzdat test</button>`;
@@ -825,7 +859,7 @@ function renderTest() {
 
             test.questions.forEach((q, index) => {
                 const selected = document.querySelector(`input[name="t${index}"]:checked`);
-                const userAnswerText = selected ? selected.value : null; 
+                const userAnswerText = selected ? selected.value : null;
                 userAnswers.push({ question: q.question_text, answer: userAnswerText });
                 if (userAnswerText === null) {
                     allAnswered = false;
@@ -837,13 +871,13 @@ function renderTest() {
                  return;
             }
 
-            const score = displayTestResults(test, userAnswers); 
+            const score = displayTestResults(test, userAnswers);
             
             try {
                 const submitCallable = getSubmitTestResultsCallable();
-                await submitCallable({ 
-                    lessonId: currentLessonId, 
-                    testTitle: test.title || 'Test', 
+                await submitCallable({
+                    lessonId: currentLessonId,
+                    testTitle: test.title || 'Test',
                     score: score / test.questions.length,
                     totalQuestions: test.questions.length,
                     answers: userAnswers
@@ -867,9 +901,9 @@ function displayTestResults(test, userAnswers) {
 
     test.questions.forEach((q, index) => {
         const correctOptionIndex = q.correct_option_index;
-        const correctOption = (typeof correctOptionIndex === 'number' && q.options && q.options[correctOptionIndex]) 
-                               ? q.options[correctOptionIndex] 
-                               : 'N/A (Chyba v datech)'; 
+        const correctOption = (typeof correctOptionIndex === 'number' && q.options && q.options[correctOptionIndex])
+                               ? q.options[correctOptionIndex]
+                               : 'N/A (Chyba v datech)';
         
         const userAnswerData = userAnswers.find(ua => ua.question === q.question_text);
         const userAnswer = userAnswerData ? userAnswerData.answer : null;
@@ -886,7 +920,7 @@ function displayTestResults(test, userAnswers) {
         questionContainer.classList.remove('border-gray-200');
         questionContainer.classList.add(isCorrect ? 'border-green-500' : 'border-red-500');
         
-        const userFeedbackText = isCorrect 
+        const userFeedbackText = isCorrect
             ? `<span class="text-green-600">✅ Správně!</span>`
             : `<span class="text-red-600">❌ Chyba. Správná odpověď: <strong>${correctOption}</strong></span>`;
         
@@ -923,13 +957,13 @@ function displayTestResults(test, userAnswers) {
 }
 
 
-async function loadChatHistory(type) { 
+async function loadChatHistory(type) {
     // ... (kód zostáva nezmenený)
     const chatHistoryElId = type === 'ai' ? 'ai-chat-history' : 'prof-chat-history';
     const chatHistoryEl = document.getElementById(chatHistoryElId);
     if (!chatHistoryEl) {
         console.warn(`Chat history element not found: ${chatHistoryElId}`);
-        return; 
+        return;
     }
 
     chatHistoryEl.innerHTML = '<p class="text-center text-slate-400 p-4">Načítání konverzace...</p>';
@@ -937,7 +971,7 @@ async function loadChatHistory(type) {
         const q = query(
             collection(firebaseInit.db, `conversations/${currentUserData.id}/messages`),
             where("lessonId", "==", currentLessonId),
-            where("type", "==", type), 
+            where("type", "==", type),
             orderBy("timestamp", "asc")
         );
         // Použijeme onSnapshot pre real-time aktualizácie
@@ -982,12 +1016,12 @@ async function sendMessage(type) {
 
     inputEl.value = ''; // Vyčistíme input hneď
 
-    const messageData = { 
-        lessonId: currentLessonId, 
+    const messageData = {
+        lessonId: currentLessonId,
         text: text,
         sender: 'student',
         type: type, // 'ai' alebo 'professor'
-        timestamp: serverTimestamp() 
+        timestamp: serverTimestamp()
     };
 
     try {
@@ -1073,7 +1107,7 @@ function appendChatMessage(data, type, elementId = null) {
     // ... (kód zostáva nezmenený)
     const chatHistoryElId = elementId || (type === 'ai' ? 'ai-chat-history' : 'prof-chat-history');
     const chatHistoryEl = document.getElementById(chatHistoryElId);
-    if (!chatHistoryEl) return null; 
+    if (!chatHistoryEl) return null;
     
     // Odstrániť placeholder "Začněte konverzaci", ak existuje
     const placeholder = chatHistoryEl.querySelector('p.text-slate-400');
@@ -1092,7 +1126,7 @@ function appendChatMessage(data, type, elementId = null) {
     } else if (data.sender === 'ai-typing') {
         alignmentClasses = 'mr-auto float-left';
         msgDiv.className = `${baseClasses} bg-gray-200 text-gray-500 italic ${alignmentClasses} rounded-tl-none ai-typing-indicator`;
-        data.text = 'píše...'; 
+        data.text = 'píše...';
     } else if (data.sender === 'system-error') {
          alignmentClasses = 'mx-auto'; // Centrovaná chybová správa
          msgDiv.className = `${baseClasses} bg-red-100 text-red-700 text-center ${alignmentClasses}`;
@@ -1109,12 +1143,12 @@ function appendChatMessage(data, type, elementId = null) {
     if (data.timestamp) {
          try {
              // ===== OPRAVA: Bezpečnejšia kontrola Timestamp =====
-             const date = (data.timestamp && typeof data.timestamp.toDate === 'function') 
-                          ? data.timestamp.toDate() 
+             const date = (data.timestamp && typeof data.timestamp.toDate === 'function')
+                          ? data.timestamp.toDate()
                           : new Date(data.timestamp); // Fallback pre prípad, že to nie je Timestamp
              // ===============================================
              timestampText = `<span class="block text-xs ${data.sender === 'student' ? (isAI ? 'text-gray-500' : 'text-blue-200') : 'text-gray-400'} mt-1 text-right">${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
-         } catch (e) { 
+         } catch (e) {
              console.warn("Error formatting timestamp:", data.timestamp, e);
          }
     }
