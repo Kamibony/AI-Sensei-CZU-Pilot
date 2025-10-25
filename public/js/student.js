@@ -8,9 +8,11 @@ import { getAiAssistantResponse } from './gemini-api.js';
 import { renderPresentation } from './student/presentation-handler.js';
 // =====================================
 
-// ==== PRIDANÁ ZMENA (Načítanie komponentu kvízu) ====
+// ==== PRIDANÉ ZMENY (Načítanie nových komponentov) ====
 import './student/quiz-component.js';
-// =================================================
+import './student/test-component.js';
+import './student/podcast-component.js';
+// ====================================================
 
 let studentDataUnsubscribe = null;
 let lessonsData = [];
@@ -19,15 +21,12 @@ let currentLessonData = null;
 let currentLessonId = null;
 
 let _sendMessageFromStudentCallable = null;
-// ==== ODSTRÁNENÁ ZMENA (Logika presunutá do quiz-component.js) ====
+// ==== ODSTRÁNENÉ ZMENY (Logika presunutá do komponentov) ====
 // let _submitQuizResultsCallable = null;
-// ===============================================================
-let _submitTestResultsCallable = null;
-
-// ===== Premenné pre Speech Synthesis =====
-let currentSpeechUtterance = null;
-let currentPlayingEpisodeIndex = -1;
-// ======================================
+// let _submitTestResultsCallable = null;
+// let currentSpeechUtterance = null;
+// let currentPlayingEpisodeIndex = -1;
+// ==========================================================
 
 function getSendMessageFromStudentCallable() {
     if (!_sendMessageFromStudentCallable) {
@@ -41,33 +40,10 @@ function getSendMessageFromStudentCallable() {
     return _sendMessageFromStudentCallable;
 }
 
-// ==== ODSTRÁNENÁ ZMENA (Logika presunutá do quiz-component.js) ====
-/*
-function getSubmitQuizResultsCallable() {
-    if (!_submitQuizResultsCallable) {
-        // console.log("Lazy initializing submitQuizResults callable. Current functions object:", firebaseInit.functions); // Odstránené logovanie
-        if (!firebaseInit.functions) {
-            console.error("CRITICAL: Firebase Functions object is still not available when trying to create submitQuizResults callable!");
-            throw new Error("Firebase Functions not initialized.");
-        }
-        _submitQuizResultsCallable = httpsCallable(firebaseInit.functions, 'submitQuizResults');
-    }
-    return _submitQuizResultsCallable;
-}
-*/
-// ===============================================================
-
-function getSubmitTestResultsCallable() {
-    if (!_submitTestResultsCallable) {
-        // console.log("Lazy initializing submitTestResults callable. Current functions object:", firebaseInit.functions); // Odstránené logovanie
-        if (!firebaseInit.functions) {
-            console.error("CRITICAL: Firebase Functions object is still not available when trying to create submitTestResults callable!");
-            throw new Error("Firebase Functions not initialized.");
-        }
-        _submitTestResultsCallable = httpsCallable(firebaseInit.functions, 'submitTestResults');
-    }
-    return _submitTestResultsCallable;
-}
+// ==== ODSTRÁNENÉ ZMENY (Funkcie getSubmit... presunuté do komponentov) ====
+// function getSubmitQuizResultsCallable() { ... }
+// function getSubmitTestResultsCallable() { ... }
+// =======================================================================
 
 
 export function initStudentDashboard() {
@@ -131,8 +107,10 @@ export function cleanupStudentDashboard() {
         window.speechSynthesis.cancel();
         console.log("Speech synthesis cancelled on cleanup.");
     }
-    currentSpeechUtterance = null;
-    currentPlayingEpisodeIndex = -1;
+    // ==== ODSTRÁNENÉ ZMENY (Globálne premenné sú preč) ====
+    // currentSpeechUtterance = null;
+    // currentPlayingEpisodeIndex = -1;
+    // ====================================================
 }
 
 function promptForStudentName(userId) {
@@ -179,18 +157,15 @@ async function renderStudentPanel() {
     await fetchAndDisplayLessons();
 }
 
-// ===== ZAČIATOK ÚPRAVY (RIEŠENIE 4) =====
 async function fetchAndDisplayLessons() {
     const mainContent = document.getElementById('student-main-content');
     mainContent.innerHTML = `<h2 class="text-2xl font-bold mb-6 text-slate-800">Moje lekce</h2>
                              <div id="lessons-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">Načítání lekcí...</div>`;
 
     try {
-        // Upravená query: Načíta iba lekcie, ktoré sú označené ako 'isScheduled: true'
-        // a zoradí ich podľa 'createdAt'
         const q = query(
-            collection(firebaseInit.db, "lessons"),
-            where("isScheduled", "==", true),
+            collection(firebaseInit.db, "lessons"), 
+            where("isScheduled", "==", true), 
             orderBy("createdAt", "desc")
         );
         
@@ -217,9 +192,7 @@ async function fetchAndDisplayLessons() {
     } catch (error) {
         console.error("Error fetching lessons:", error);
         
-        // ===== VYLEPŠENÉ CHYBOVÉ HLÁSENIE =====
         if (error.code === 'failed-precondition') {
-             // Toto je chyba chýbajúceho indexu
              mainContent.innerHTML = `<p class="text-red-500">Chyba databáze: Chybí potřebný index.</p>
              <p class="text-slate-600 mt-2">Tato chyba se zobrazí, protože je potřeba vytvořit databázový index pro filtrování lekcí. 
              Otevřete prosím konzoli vývojáře (F12), najděte chybu a klikněte na odkaz, který vám Firebase nabízí pro automatické vytvoření indexu.</p>`;
@@ -227,10 +200,8 @@ async function fetchAndDisplayLessons() {
         } else {
              mainContent.innerHTML = `<p class="text-red-500">Nepodařilo se načíst lekce. (${error.message})</p>`;
         }
-        // ======================================
     }
 }
-// ===== KONIEC ÚPRAVY (RIEŠENIE 4) =====
 
 function normalizeLessonData(rawData) {
     const normalized = { ...rawData };
@@ -269,8 +240,10 @@ function showLessonDetail(lessonId) {
     if (window.speechSynthesis && window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
     }
-    currentSpeechUtterance = null;
-    currentPlayingEpisodeIndex = -1;
+    // ==== ODSTRÁNENÉ ZMENY (Globálne premenné sú preč) ====
+    // currentSpeechUtterance = null;
+    // currentPlayingEpisodeIndex = -1;
+    // ====================================================
 }
 
 function renderLessonTabs() {
@@ -291,7 +264,7 @@ function renderLessonTabs() {
     availableTabs.forEach((tab) => {
         const tabEl = document.createElement('button');
         tabEl.id = `${tab.id}-tab`;
-        tabEl.className = 'px-3 py-2 md:px-6 md:py-3 font-semibold border-b-2 transition-colors text-sm md:text-base flex-shrink-0';
+        tabEl.className = 'px-3 py-2 md:px-6 md:py-3 font-semibold border-b-2 transition-colors text-sm md:text-base flex-shrink-0'; 
         tabEl.textContent = tab.name;
         tabEl.addEventListener('click', () => switchTab(tab.id));
         tabsContainer.appendChild(tabEl);
@@ -306,13 +279,14 @@ function renderLessonTabs() {
 
 function switchTab(tabId) {
     // Zastaviť prehrávanie podcastu pri prepnutí tabu
+    // Toto je dôležité a zostáva to tu. Spustí to `onend` listener v komponente.
     if (window.speechSynthesis && window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
-        // Resetujeme stav tlačidiel v podcast tabe (ak tam sme boli)
-        resetPodcastButtons();
     }
-    currentSpeechUtterance = null;
-    currentPlayingEpisodeIndex = -1;
+    // ==== ODSTRÁNENÉ ZMENY (Globálne premenné sú preč) ====
+    // currentSpeechUtterance = null;
+    // currentPlayingEpisodeIndex = -1;
+    // ====================================================
 
     document.querySelectorAll('#lesson-tabs button').forEach(btn => {
         btn.classList.remove('border-green-700', 'text-green-700');
@@ -339,11 +313,9 @@ function switchTab(tabId) {
                  contentArea.innerHTML = `<p class="text-red-500">Neplatný nebo chybějící YouTube odkaz.</p>`;
             }
             break;
-        // ===== ÚPRAVA PRE PREZENTÁCIU =====
         case 'presentation':
              renderPresentation(contentArea, currentLessonData.presentation);
              break;
-        // ===================================
         
         // ==== ZMENENÝ BLOK (Použitie Lit komponentu) ====
         case 'quiz':
@@ -351,68 +323,43 @@ function switchTab(tabId) {
                  contentArea.innerHTML = `<p>Obsah kvízu není k dispozici nebo není ve správném formátu.</p>`;
                  break;
             }
-            // Vyčistíme obsah a vložíme náš nový komponent
-            contentArea.innerHTML = '';
+            contentArea.innerHTML = ''; 
             const quizEl = document.createElement('student-quiz');
-            
-            // Odovzdáme mu dáta ako JavaScript vlastnosti
             quizEl.quizData = currentLessonData.quiz;
             quizEl.lessonId = currentLessonId;
-            
             contentArea.appendChild(quizEl);
             break;
         // ===============================================
-        
+
+        // ==== ZMENENÝ BLOK (Použitie Lit komponentu) ====
         case 'test':
-            renderTest();
-            break;
-        case 'podcast':
-            if (currentLessonData.podcast_script && currentLessonData.podcast_script.episodes && Array.isArray(currentLessonData.podcast_script.episodes)) {
-                if (!('speechSynthesis' in window)) {
-                     contentArea.innerHTML = `<p class="text-red-500">Váš prohlížeč nepodporuje přehrávání podcastů pomocí Speech Synthesis.</p>`;
-                     break;
-                }
-                
-                contentArea.innerHTML = currentLessonData.podcast_script.episodes.map((episode, i) => {
-                    const episodeId = `podcast-episode-${i}`;
-                    const playButtonId = `play-podcast-btn-${i}`;
-                    const pauseButtonId = `pause-podcast-btn-${i}`;
-                    const stopButtonId = `stop-podcast-btn-${i}`;
-                    
-                    return `
-                        <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm bg-white" id="${episodeId}">
-                            <h4 class="font-bold text-green-700">${i + 1}. ${episode.title || 'Epizoda bez názvu'}</h4>
-                            <div class="flex space-x-2 mt-3 mb-2 podcast-controls" data-episode-index="${i}">
-                                <button id="${playButtonId}" data-index="${i}" class="play-podcast-btn text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-3 rounded-md flex items-center">
-                                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
-                                    Přehrát
-                                </button>
-                                <button id="${pauseButtonId}" data-index="${i}" class="pause-podcast-btn text-sm bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-md flex items-center hidden">
-                                     <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd"></path></svg>
-                                     Pozastavit
-                                </button>
-                                <button id="${stopButtonId}" data-index="${i}" class="stop-podcast-btn text-sm bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-md flex items-center">
-                                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 9a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1zm4 0a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-                                    Zastavit
-                                </button>
-                            </div>
-                            <details class="mt-3">
-                                <summary class="cursor-pointer text-sm text-slate-500 hover:text-slate-700">Zobrazit skript</summary>
-                                <p class="mt-2 text-sm text-slate-600">${(episode.script || '').replace(/\n/g, '<br>')}</p>
-                            </details>
-                        </div>`;
-                }).join('');
-                setupPodcastListeners();
-            } else {
-                contentArea.innerHTML = `<p>Obsah podcastu není k dispozici nebo není ve správném formátu.</p>`;
+            if (!currentLessonData.test || !currentLessonData.test.questions) {
+                 contentArea.innerHTML = `<p>Obsah testu není k dispozici nebo není ve správném formátu.</p>`;
+                 break;
             }
+            contentArea.innerHTML = ''; 
+            const testEl = document.createElement('student-test');
+            testEl.testData = currentLessonData.test;
+            testEl.lessonId = currentLessonId;
+            contentArea.appendChild(testEl);
             break;
+        // ===============================================
+
+        // ==== ZMENENÝ BLOK (Použitie Lit komponentu) ====
+        case 'podcast':
+            contentArea.innerHTML = '';
+            const podcastEl = document.createElement('student-podcast');
+            podcastEl.podcastData = currentLessonData.podcast_script;
+            contentArea.appendChild(podcastEl);
+            break;
+        // ===============================================
+
         case 'ai-assistant':
             contentArea.innerHTML = renderAIChatView();
             document.getElementById('ai-chat-menu').querySelectorAll('button').forEach(button => {
                 button.addEventListener('click', () => switchAIChatSubView(button.dataset.chatType));
             });
-            switchAIChatSubView('web');
+            switchAIChatSubView('web'); 
             break;
         case 'professor-chat':
             contentArea.innerHTML = renderProfessorChatView();
@@ -421,7 +368,7 @@ function switchTab(tabId) {
             if (profSendBtn) {
                  profSendBtn.addEventListener('click', () => sendMessage('professor'));
             }
-            if(profInput && profSendBtn) {
+            if(profInput && profSendBtn) { 
                 profInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') profSendBtn.click();
                 });
@@ -431,148 +378,14 @@ function switchTab(tabId) {
     }
 }
 
-// Funkcie pre podcast zostávajú nezmenené (alebo s opravou z predchádzajúcej správy)
-function setupPodcastListeners() {
-    document.querySelectorAll('.play-podcast-btn').forEach(button => {
-        button.addEventListener('click', handlePlayPodcast);
-    });
-    document.querySelectorAll('.pause-podcast-btn').forEach(button => {
-        button.addEventListener('click', handlePausePodcast);
-    });
-    document.querySelectorAll('.stop-podcast-btn').forEach(button => {
-        button.addEventListener('click', handleStopPodcast);
-    });
-}
-
-function handlePlayPodcast(event) {
-    const index = parseInt(event.currentTarget.dataset.index, 10);
-    const episodeData = currentLessonData.podcast_script.episodes[index];
-    const script = episodeData.script;
-    if (!script) {
-        showToast("Skript pro tuto epizodu chybí.", true);
-        return;
-    }
-
-    const synth = window.speechSynthesis;
-    if (synth.speaking && currentPlayingEpisodeIndex === index && synth.paused) {
-        // Ak je tá istá epizóda pozastavená, pokračujeme
-        synth.resume();
-        updatePodcastButtons(index, true); // Zobraziť ako hrajúcu
-    } else {
-        // Ak hovorí niečo iné, alebo je to nová epizóda
-        if (synth.speaking) {
-            synth.cancel(); // Zastaviť predchádzajúce
-        }
-        
-        // Vytvorenie nového utterance
-        currentSpeechUtterance = new SpeechSynthesisUtterance(script);
-        currentSpeechUtterance.lang = 'cs-CZ'; // Nastavenie jazyka
-        currentPlayingEpisodeIndex = index;
-
-        // Event listener pre koniec (prirodzený alebo cancel())
-        currentSpeechUtterance.onend = () => {
-             console.log('Speech finished or cancelled.');
-             resetPodcastButtons(); // Resetovať všetky tlačidlá
-             currentPlayingEpisodeIndex = -1;
-             currentSpeechUtterance = null;
-        };
-
-        // ===== UPRAVENÝ Event listener pre chybu (ignoruje 'cancel') =====
-        currentSpeechUtterance.onerror = (event) => {
-            // Ignorujeme chyby spôsobené úmyselným zastavením
-            if (event.error === 'canceled' || event.error === 'interrupted' || event.error === 'cancel') {
-                console.log(`Speech synthesis intentionally stopped: ${event.error}`);
-                // Nerobíme nič - onend sa postará o reset
-            } else {
-                // Skutočná chyba pri prehrávaní
-                console.error('SpeechSynthesisUtterance.onerror', event);
-                showToast(`Chyba při přehrávání: ${event.error}`, true);
-                resetPodcastButtons(); // Resetujeme aj tu pre istotu
-                currentPlayingEpisodeIndex = -1;
-                currentSpeechUtterance = null;
-            }
-        };
-        // ===== KONIEC ÚPRAVY =====
-        
-        // Hľadanie českého hlasu (voliteľné)
-        try { // getVoices() môže niekedy zlyhať pri prvom načítaní
-             const voices = synth.getVoices();
-             const czechVoice = voices.find(voice => voice.lang === 'cs-CZ');
-             if (czechVoice) {
-                 currentSpeechUtterance.voice = czechVoice;
-             } else {
-                 console.warn("Český hlas nenalezen, použije se výchozí.");
-             }
-         } catch (e) {
-             console.warn("Nepodařilo se získat seznam hlasů:", e);
-         }
-
-        // Spustenie syntézy
-        // Niekedy je potrebné počkať na načítanie hlasov, pridáme malý timeout pre istotu
-        setTimeout(() => {
-            if (currentSpeechUtterance && window.speechSynthesis) { // Overíme, či medzitým nebol zrušený a API existuje
-                 try {
-                     synth.speak(currentSpeechUtterance);
-                     updatePodcastButtons(index, true); // Zobraziť ako hrajúcu
-                 } catch (e) {
-                      console.error("Error calling synth.speak:", e);
-                      showToast("Chyba při spuštění přehrávání.", true);
-                      resetPodcastButtons();
-                      currentPlayingEpisodeIndex = -1;
-                      currentSpeechUtterance = null;
-                 }
-            }
-        }, 100); // 100ms by malo stačiť
-    }
-}
-
-
-function handlePausePodcast() {
-    const synth = window.speechSynthesis;
-    if (synth && synth.speaking && !synth.paused) {
-        synth.pause();
-        updatePodcastButtons(currentPlayingEpisodeIndex, false); // Zobraziť ako pauznutú
-    }
-}
-
-function handleStopPodcast() {
-    const synth = window.speechSynthesis;
-    if (synth && synth.speaking) {
-        synth.cancel(); // Toto spustí 'onend' listener
-    }
-    // Reset sa udeje v 'onend'
-}
-
-function updatePodcastButtons(index, isPlaying) {
-    resetPodcastButtons(); // Najprv resetujeme všetky
-
-    const playBtn = document.getElementById(`play-podcast-btn-${index}`);
-    const pauseBtn = document.getElementById(`pause-podcast-btn-${index}`);
-    
-    if (playBtn && pauseBtn) {
-        if (isPlaying) {
-            playBtn.classList.add('hidden');
-            pauseBtn.classList.remove('hidden');
-        } else { // Je pauznutá
-            playBtn.classList.remove('hidden');
-            playBtn.innerHTML = `<svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg> Pokračovat`;
-            pauseBtn.classList.add('hidden');
-        }
-    }
-}
-
-function resetPodcastButtons() {
-     document.querySelectorAll('.podcast-controls').forEach(controls => {
-         const index = controls.dataset.episodeIndex;
-         const playBtn = document.getElementById(`play-podcast-btn-${index}`);
-         const pauseBtn = document.getElementById(`pause-podcast-btn-${index}`);
-         if (playBtn && pauseBtn) {
-             playBtn.classList.remove('hidden');
-             playBtn.innerHTML = `<svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg> Přehrát`;
-             pauseBtn.classList.add('hidden');
-         }
-     });
-}
+// ==== ODSTRÁNENÉ ZMENY (Všetky funkcie pre podcast presunuté do komponentu) ====
+// function setupPodcastListeners() { ... }
+// function handlePlayPodcast(event) { ... }
+// function handlePausePodcast() { ... }
+// function handleStopPodcast() { ... }
+// function updatePodcastButtons(index, isPlaying) { ... }
+// function resetPodcastButtons() { ... }
+// ===========================================================================
 
 
 function renderAIChatView() {
@@ -670,8 +483,8 @@ function renderProfessorChatView() {
      return `
         <div class="bg-white p-4 md:p-6 rounded-2xl shadow-lg flex flex-col h-[60vh] lg:h-[70vh]">
             <h3 class="text-2xl font-bold mb-4">Konzultace s profesorem</h3>
-            <div id="prof-chat-history" class="overflow-y-auto border p-3 rounded-lg bg-slate-50 mb-4 flex-grow"></div> {/* Odstránená fixná výška */}
-            <div class="flex gap-2 flex-shrink-0"> {/* Pridané flex-shrink-0 */}
+            <div id="prof-chat-history" class="overflow-y-auto border p-3 rounded-lg bg-slate-50 mb-4 flex-grow"></div>
+            <div class="flex gap-2 flex-shrink-0">
                 <input type="text" id="prof-chat-input" placeholder="Zadejte dotaz pro profesora..." class="flex-grow p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">
                 <button id="send-prof-btn" class="bg-slate-700 text-white font-bold py-3 px-5 rounded-lg hover:bg-slate-800 transition-colors">Odeslat</button>
             </div>
@@ -680,290 +493,23 @@ function renderProfessorChatView() {
 }
 
 
-// ==== ODSTRÁNENÁ ZMENA (Funkcia renderQuiz presunutá do quiz-component.js) ====
-/*
-function renderQuiz() {
-    // ... (kód zostáva nezmenený)
-    const quiz = currentLessonData?.quiz; // Bezpečnejší prístup
-    if (!quiz || !quiz.questions || !Array.isArray(quiz.questions)) { // Pridaná kontrola Array.isArray
-        document.getElementById('lesson-tab-content').innerHTML = `<p>Obsah kvízu není k dispozici nebo není ve správném formátu.</p>`;
-        return;
-    }
-
-    const contentArea = document.getElementById('lesson-tab-content');
-    let html = `<h3 class="text-xl md:text-2xl font-bold mb-4">${quiz.title || 'Kvíz'}</h3>`;
-
-    quiz.questions.forEach((q, index) => {
-        html += `<div class="mb-6 p-4 border border-gray-200 rounded-lg bg-white shadow-sm" id="question-container-${index}">
-                    <p class="font-semibold mb-3 text-lg">${index + 1}. ${q.question_text || 'Chybějící text otázky'}</p>`; // Fallback
-        (q.options || []).forEach((option, optionIndex) => {
-            html += `<label class="block p-3 border border-gray-300 rounded-md mb-2 cursor-pointer hover:bg-slate-50 transition-colors" id="option-label-${index}-${optionIndex}">
-                        <input type="radio" name="q${index}" value="${option}" class="mr-3 transform scale-110 text-green-600">
-                        ${option}
-                     </label>`;
-        });
-        html += `<div id="feedback-${index}" class="mt-2 font-bold text-sm"></div>`;
-        html += `</div>`;
-    });
-    html += `<button id="submit-quiz" class="w-full bg-green-700 text-white font-bold py-3 px-4 rounded-lg text-lg hover:bg-green-800 transition-colors">Odevzdat kvíz</button>`;
-    contentArea.innerHTML = html;
-
-    const submitButton = document.getElementById('submit-quiz');
-    if (submitButton) { // Pridaná kontrola
-        submitButton.addEventListener('click', async () => {
-            const userAnswers = [];
-            let allAnswered = true;
-
-            quiz.questions.forEach((q, index) => {
-                const selected = document.querySelector(`input[name="q${index}"]:checked`);
-                const userAnswerText = selected ? selected.value : null; // null ak nie je zodpovedané
-                userAnswers.push({ question: q.question_text, answer: userAnswerText });
-                if (userAnswerText === null) {
-                    allAnswered = false;
-                }
-            });
-            
-            if (!allAnswered) {
-                 showToast("Prosím, odpovězte na všechny otázky!", true);
-                 return;
-            }
-
-            // Vyhodnotenie a zobrazenie výsledkov
-            const score = displayQuizResults(quiz, userAnswers);
-            
-            // Odoslanie na backend
-            try {
-                const submitCallable = getSubmitQuizResultsCallable();
-                await submitCallable({
-                    lessonId: currentLessonId,
-                    quizTitle: quiz.title || 'Kvíz',
-                    score: score / quiz.questions.length, // Skóre ako 0-1
-                    totalQuestions: quiz.questions.length,
-                    answers: userAnswers // Posielame null pre nezodpovedané, hoci sme to už overili
-                });
-                showToast("Kvíz úspěšně odevzdán a vyhodnocen!");
-            } catch (error) {
-                showToast("Nepodařilo se odevzdat kvíz do databáze.", true);
-                console.error("Error submitting quiz:", error);
-            }
-        });
-    }
-}
-*/
-// ==============================================================================
-
-// ==== ODSTRÁNENÁ ZMENA (Funkcia displayQuizResults presunutá do quiz-component.js) ====
-/*
-function displayQuizResults(quiz, userAnswers) {
-    // ... (kód zostáva nezmenený)
-    const contentArea = document.getElementById('lesson-tab-content');
-    let score = 0;
-    
-    document.getElementById('submit-quiz')?.remove();
-
-    quiz.questions.forEach((q, index) => {
-        const correctOptionIndex = q.correct_option_index;
-        // Kontrola, či index existuje a je v rozsahu
-        const correctOption = (typeof correctOptionIndex === 'number' && q.options && q.options[correctOptionIndex])
-                               ? q.options[correctOptionIndex]
-                               : 'N/A (Chyba v datech)';
-        
-        const userAnswerData = userAnswers.find(ua => ua.question === q.question_text);
-        const userAnswer = userAnswerData ? userAnswerData.answer : null;
-        
-        const isCorrect = userAnswer === correctOption;
-        if (isCorrect) {
-            score++;
-        }
-        
-        const questionContainer = document.getElementById(`question-container-${index}`);
-        const feedbackEl = document.getElementById(`feedback-${index}`);
-        if (!questionContainer || !feedbackEl) return;
-
-        questionContainer.classList.remove('border-gray-200');
-        questionContainer.classList.add(isCorrect ? 'border-green-500' : 'border-red-500');
-        
-        const userFeedbackText = isCorrect
-            ? `<span class="text-green-600">✅ Správně!</span>`
-            : `<span class="text-red-600">❌ Chyba. Správná odpověď: <strong>${correctOption}</strong></span>`;
-        
-        feedbackEl.innerHTML = userFeedbackText;
-
-        (q.options || []).forEach((option, optionIndex) => {
-            const labelEl = document.getElementById(`option-label-${index}-${optionIndex}`);
-            const inputEl = labelEl ? labelEl.querySelector('input') : null;
-            if (!labelEl || !inputEl) return;
-            
-            inputEl.disabled = true; // Zneaktívnime všetky možnosti
-
-            // Zvýraznenie správnej a používateľovej odpovede
-            if (optionIndex === correctOptionIndex) {
-                labelEl.classList.remove('border-gray-300', 'hover:bg-slate-50');
-                labelEl.classList.add('bg-green-100', 'border-green-500', 'font-semibold');
-            } else if (option === userAnswer && !isCorrect) { // Zvýrazniť nesprávnu voľbu používateľa
-                labelEl.classList.remove('border-gray-300', 'hover:bg-slate-50');
-                labelEl.classList.add('bg-red-100', 'border-red-500', 'line-through');
-            } else {
-                // Ostatné možnosti necháme bez špeciálneho štýlu, len disabled
-                 labelEl.classList.remove('hover:bg-slate-50');
-                 labelEl.classList.add('cursor-default', 'opacity-70');
-            }
-        });
-    });
-
-    const scoreHtml = `
-        <div class="text-center p-6 mb-6 rounded-xl bg-green-700 text-white shadow-lg">
-            <h3 class="text-xl md:text-2xl font-bold">Váš konečný výsledek kvízu</h3>
-            <p class="text-3xl md:text-4xl font-extrabold mt-2">${score} / ${quiz.questions.length}</p>
-        </div>
-    `;
-    contentArea?.insertAdjacentHTML('afterbegin', scoreHtml); // Pridaná kontrola
-    return score; // Vrátime skóre pre odoslanie na backend
-}
-*/
-// ==============================================================================
+// ==== ODSTRÁNENÉ ZMENY (Funkcie renderQuiz a displayQuizResults) ====
+// ...
+// =================================================================
 
 
-function renderTest() {
-    // ... (kód zostáva nezmenený)
-    const test = currentLessonData?.test;
-    if (!test || !test.questions || !Array.isArray(test.questions) || test.questions.length === 0) {
-        document.getElementById('lesson-tab-content').innerHTML = `<p>Obsah testu není k dispozici nebo není ve správném formátu.</p>`;
-        return;
-    }
-
-    const contentArea = document.getElementById('lesson-tab-content');
-    let html = `<h3 class="text-xl md:text-2xl font-bold mb-4">${test.title || 'Test'}</h3>
-                <p class="text-slate-600 mb-6">Odpovězte na všechny otázky. Výsledky testu se započítají do vašeho hodnocení.</p>`;
-
-    test.questions.forEach((q, index) => {
-        html += `<div class="mb-6 p-4 border border-gray-200 rounded-lg bg-white shadow-sm" id="test-question-container-${index}">
-                    <p class="font-semibold mb-3 text-lg">${index + 1}. ${q.question_text || 'Chybějící text otázky'}</p>`;
-        (q.options || []).forEach((option, optionIndex) => {
-            html += `<label class="block p-3 border border-gray-300 rounded-md mb-2 cursor-pointer hover:bg-slate-50 transition-colors" id="test-option-label-${index}-${optionIndex}">
-                        <input type="radio" name="t${index}" value="${option}" class="mr-3 transform scale-110 text-green-600">
-                        ${option}
-                     </label>`;
-        });
-        html += `<div id="test-feedback-${index}" class="mt-2 font-bold text-sm"></div>`;
-        html += `</div>`;
-    });
-    html += `<button id="submit-test" class="w-full bg-green-700 text-white font-bold py-3 px-4 rounded-lg text-lg hover:bg-green-800 transition-colors">Odevzdat test</button>`;
-    contentArea.innerHTML = html;
-
-    const submitButton = document.getElementById('submit-test');
-    if (submitButton) {
-        submitButton.addEventListener('click', async () => {
-            const userAnswers = [];
-            let allAnswered = true;
-
-            test.questions.forEach((q, index) => {
-                const selected = document.querySelector(`input[name="t${index}"]:checked`);
-                const userAnswerText = selected ? selected.value : null;
-                userAnswers.push({ question: q.question_text, answer: userAnswerText });
-                if (userAnswerText === null) {
-                    allAnswered = false;
-                }
-            });
-            
-            if (!allAnswered) {
-                 showToast("Prosím, odpovězte na všechny otázky!", true);
-                 return;
-            }
-
-            const score = displayTestResults(test, userAnswers);
-            
-            try {
-                const submitCallable = getSubmitTestResultsCallable();
-                await submitCallable({
-                    lessonId: currentLessonId,
-                    testTitle: test.title || 'Test',
-                    score: score / test.questions.length,
-                    totalQuestions: test.questions.length,
-                    answers: userAnswers
-                });
-                showToast("Test úspěšně odevzdán a vyhodnocen!");
-            } catch (error) {
-                showToast("Nepodařilo se odevzdat test do databáze.", true);
-                console.error("Error submitting test:", error);
-            }
-        });
-    }
-}
+// ==== ODSTRÁNENÉ ZMENY (Funkcie renderTest a displayTestResults) ====
+// ...
+// =================================================================
 
 
-function displayTestResults(test, userAnswers) {
-    // ... (kód zostáva nezmenený)
-    const contentArea = document.getElementById('lesson-tab-content');
-    let score = 0;
-    
-    document.getElementById('submit-test')?.remove();
-
-    test.questions.forEach((q, index) => {
-        const correctOptionIndex = q.correct_option_index;
-        const correctOption = (typeof correctOptionIndex === 'number' && q.options && q.options[correctOptionIndex])
-                               ? q.options[correctOptionIndex]
-                               : 'N/A (Chyba v datech)';
-        
-        const userAnswerData = userAnswers.find(ua => ua.question === q.question_text);
-        const userAnswer = userAnswerData ? userAnswerData.answer : null;
-        
-        const isCorrect = userAnswer === correctOption;
-        if (isCorrect) {
-            score++;
-        }
-        
-        const questionContainer = document.getElementById(`test-question-container-${index}`);
-        const feedbackEl = document.getElementById(`test-feedback-${index}`);
-        if (!questionContainer || !feedbackEl) return;
-
-        questionContainer.classList.remove('border-gray-200');
-        questionContainer.classList.add(isCorrect ? 'border-green-500' : 'border-red-500');
-        
-        const userFeedbackText = isCorrect
-            ? `<span class="text-green-600">✅ Správně!</span>`
-            : `<span class="text-red-600">❌ Chyba. Správná odpověď: <strong>${correctOption}</strong></span>`;
-        
-        feedbackEl.innerHTML = userFeedbackText;
-
-        (q.options || []).forEach((option, optionIndex) => {
-            const labelEl = document.getElementById(`test-option-label-${index}-${optionIndex}`);
-            const inputEl = labelEl ? labelEl.querySelector('input') : null;
-            if (!labelEl || !inputEl) return;
-            
-            inputEl.disabled = true;
-
-            if (optionIndex === correctOptionIndex) {
-                labelEl.classList.remove('border-gray-300', 'hover:bg-slate-50');
-                labelEl.classList.add('bg-green-100', 'border-green-500', 'font-semibold');
-            } else if (option === userAnswer && !isCorrect) {
-                labelEl.classList.remove('border-gray-300', 'hover:bg-slate-50');
-                labelEl.classList.add('bg-red-100', 'border-red-500', 'line-through');
-            } else {
-                 labelEl.classList.remove('hover:bg-slate-50');
-                 labelEl.classList.add('cursor-default', 'opacity-70');
-            }
-        });
-    });
-
-    const scoreHtml = `
-        <div class="text-center p-6 mb-6 rounded-xl bg-green-700 text-white shadow-lg">
-            <h3 class="text-xl md:text-2xl font-bold">Váš konečný výsledek testu</h3>
-            <p class="text-3xl md:text-4xl font-extrabold mt-2">${score} / ${test.questions.length}</p>
-        </div>
-    `;
-    contentArea?.insertAdjacentHTML('afterbegin', scoreHtml); // Pridaná kontrola
-    return score;
-}
-
-
-async function loadChatHistory(type) {
+async function loadChatHistory(type) { 
     // ... (kód zostáva nezmenený)
     const chatHistoryElId = type === 'ai' ? 'ai-chat-history' : 'prof-chat-history';
     const chatHistoryEl = document.getElementById(chatHistoryElId);
     if (!chatHistoryEl) {
         console.warn(`Chat history element not found: ${chatHistoryElId}`);
-        return;
+        return; 
     }
 
     chatHistoryEl.innerHTML = '<p class="text-center text-slate-400 p-4">Načítání konverzace...</p>';
@@ -971,22 +517,20 @@ async function loadChatHistory(type) {
         const q = query(
             collection(firebaseInit.db, `conversations/${currentUserData.id}/messages`),
             where("lessonId", "==", currentLessonId),
-            where("type", "==", type),
+            where("type", "==", type), 
             orderBy("timestamp", "asc")
         );
-        // Použijeme onSnapshot pre real-time aktualizácie
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const currentChatHistoryEl = document.getElementById(chatHistoryElId); // Znova nájdeme element
-            if (!currentChatHistoryEl) return; // Ak medzitým používateľ prešiel inam
+            const currentChatHistoryEl = document.getElementById(chatHistoryElId);
+            if (!currentChatHistoryEl) return; 
 
-            currentChatHistoryEl.innerHTML = ''; // Vyčistiť pred naplnením
+            currentChatHistoryEl.innerHTML = ''; 
             if (snapshot.empty) {
                 currentChatHistoryEl.innerHTML = `<p class="text-center text-slate-400 p-4">Začněte konverzaci...</p>`;
             } else {
                 snapshot.docs.forEach(doc => {
                     appendChatMessage(doc.data(), type, chatHistoryElId);
                 });
-                 // Scroll to bottom after rendering messages
                  currentChatHistoryEl.scrollTop = currentChatHistoryEl.scrollHeight;
             }
         }, (error) => {
@@ -996,10 +540,7 @@ async function loadChatHistory(type) {
                 currentChatHistoryEl.innerHTML = '<p class="text-red-500 p-4 text-center">Chyba při načítání konverzace.</p>';
             }
         });
-        // Uloženie unsubscribe funkcie (potrebujeme pre cleanup pri prepnutí tabu/lekcie)
         // TODO: Manažovať tieto unsubscribe funkcie lepšie
-        // if (type === 'ai') aiChatUnsubscribe = unsubscribe;
-        // else professorChatUnsubscribe = unsubscribe;
 
     } catch (error) {
         console.error(`Error loading ${type} chat history:`, error);
@@ -1014,28 +555,24 @@ async function sendMessage(type) {
     const text = inputEl.value.trim();
     if (!text) return;
 
-    inputEl.value = ''; // Vyčistíme input hneď
+    inputEl.value = ''; 
 
-    const messageData = {
-        lessonId: currentLessonId,
+    const messageData = { 
+        lessonId: currentLessonId, 
         text: text,
         sender: 'student',
         type: type, // 'ai' alebo 'professor'
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp() 
     };
 
     try {
-         // 1. Uložíme správu študenta do DB
          const messageRef = collection(firebaseInit.db, `conversations/${currentUserData.id}/messages`);
          await addDoc(messageRef, messageData);
          console.log(`Student message saved to DB for type: ${type}`);
 
-         // Zobrazenie v UI už rieši onSnapshot
-
-         // 2. Ak je pre AI, získame odpoveď
          if (type === 'ai') {
             const chatHistoryEl = document.getElementById('ai-chat-history');
-            const typingIndicator = appendChatMessage({ text: '...', sender: 'ai-typing' }, 'ai', 'ai-chat-history'); // Zobrazíme indikátor písania
+            const typingIndicator = appendChatMessage({ text: '...', sender: 'ai-typing' }, 'ai', 'ai-chat-history'); 
 
             try {
                 const response = await getAiAssistantResponse({
@@ -1043,7 +580,7 @@ async function sendMessage(type) {
                     userQuestion: text
                 });
                 
-                typingIndicator?.remove(); // Odstránime indikátor
+                typingIndicator?.remove(); 
 
                 let aiResponseText = '';
                 if (response.error) {
@@ -1052,7 +589,6 @@ async function sendMessage(type) {
                      aiResponseText = response.answer || "Omlouvám se, nedostal jsem odpověď.";
                 }
 
-                // Uloženie odpovede AI do DB
                  await addDoc(messageRef, {
                      lessonId: currentLessonId,
                      text: aiResponseText,
@@ -1061,43 +597,36 @@ async function sendMessage(type) {
                      timestamp: serverTimestamp()
                  });
                  console.log("AI response saved to DB.");
-                 // Zobrazenie v UI opäť rieši onSnapshot
 
             } catch (aiError) {
                 console.error("Error getting AI response:", aiError);
                 typingIndicator?.remove();
                 const errorText = `Omlouvám se, došlo k chybě při komunikaci s AI: ${aiError.message || aiError}`;
-                // Uloženie chybovej odpovede AI do DB
                  try {
                      await addDoc(messageRef, {
                          lessonId: currentLessonId,
                          text: errorText,
-                         sender: 'ai', // Alebo 'system-error'?
+                         sender: 'ai', 
                          type: 'ai',
                          timestamp: serverTimestamp()
                      });
                  } catch(dbError) {
                       console.error("Error saving AI error response to DB:", dbError);
                  }
-                 // Zobrazenie v UI opäť rieši onSnapshot
             }
 
         } else { // Ak je pre profesora
-            // Backend by mal byť volaný len na notifikáciu profesora,
-            // správu už ukladá frontend (a onSnapshot ju zobrazí)
             try {
-                const notifyProfessorCallable = getSendMessageFromStudentCallable(); // Premenujeme pre jasnosť
-                await notifyProfessorCallable({ text: text }); // Posielame len text pre notifikáciu
+                const notifyProfessorCallable = getSendMessageFromStudentCallable(); 
+                await notifyProfessorCallable({ text: text }); 
             } catch (callError) {
                  console.error("Error notifying professor:", callError);
                  showToast("Nepodařilo se upozornit profesora na zprávu.", true);
-                 // Správa je už v DB, takže sa zobrazí, ale notifikácia zlyhala
             }
         }
     } catch (error) {
         console.error("Error sending message or saving to DB:", error);
         showToast("Nepodařilo se odeslat zprávu.", true);
-        // Ak ukladanie zlyhalo, onSnapshot správu nezobrazí. Môžeme zobraziť chybovú správu v UI?
         appendChatMessage({ text: `CHYBA: Zprávu "${text}" se nepodařilo odeslat.`, sender: 'system-error' }, type);
     }
 }
@@ -1107,16 +636,15 @@ function appendChatMessage(data, type, elementId = null) {
     // ... (kód zostáva nezmenený)
     const chatHistoryElId = elementId || (type === 'ai' ? 'ai-chat-history' : 'prof-chat-history');
     const chatHistoryEl = document.getElementById(chatHistoryElId);
-    if (!chatHistoryEl) return null;
+    if (!chatHistoryEl) return null; 
     
-    // Odstrániť placeholder "Začněte konverzaci", ak existuje
     const placeholder = chatHistoryEl.querySelector('p.text-slate-400');
     placeholder?.remove();
 
     const isAI = type === 'ai';
 
     const msgDiv = document.createElement('div');
-    let baseClasses = 'p-2 px-3 my-1 rounded-lg text-sm clear-both max-w-[80%]'; // Pridané clear-both a max-w
+    let baseClasses = 'p-2 px-3 my-1 rounded-lg text-sm clear-both max-w-[80%]'; 
     let senderPrefix = '';
     let alignmentClasses = '';
 
@@ -1126,9 +654,9 @@ function appendChatMessage(data, type, elementId = null) {
     } else if (data.sender === 'ai-typing') {
         alignmentClasses = 'mr-auto float-left';
         msgDiv.className = `${baseClasses} bg-gray-200 text-gray-500 italic ${alignmentClasses} rounded-tl-none ai-typing-indicator`;
-        data.text = 'píše...';
+        data.text = 'píše...'; 
     } else if (data.sender === 'system-error') {
-         alignmentClasses = 'mx-auto'; // Centrovaná chybová správa
+         alignmentClasses = 'mx-auto'; 
          msgDiv.className = `${baseClasses} bg-red-100 text-red-700 text-center ${alignmentClasses}`;
          senderPrefix = '<strong>Systém:</strong><br>';
     } else { // ai, professor
@@ -1138,17 +666,14 @@ function appendChatMessage(data, type, elementId = null) {
         if (data.sender === 'professor') senderPrefix = '<strong>Profesor:</strong><br>';
     }
     
-    // Pridáme timestamp, ak je dostupný
     let timestampText = '';
     if (data.timestamp) {
          try {
-             // ===== OPRAVA: Bezpečnejšia kontrola Timestamp =====
-             const date = (data.timestamp && typeof data.timestamp.toDate === 'function')
-                          ? data.timestamp.toDate()
-                          : new Date(data.timestamp); // Fallback pre prípad, že to nie je Timestamp
-             // ===============================================
+             const date = (data.timestamp && typeof data.timestamp.toDate === 'function') 
+                          ? data.timestamp.toDate() 
+                          : new Date(data.timestamp); 
              timestampText = `<span class="block text-xs ${data.sender === 'student' ? (isAI ? 'text-gray-500' : 'text-blue-200') : 'text-gray-400'} mt-1 text-right">${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
-         } catch (e) {
+         } catch (e) { 
              console.warn("Error formatting timestamp:", data.timestamp, e);
          }
     }
@@ -1156,11 +681,10 @@ function appendChatMessage(data, type, elementId = null) {
     msgDiv.innerHTML = senderPrefix + (data.text || '').replace(/\n/g, '<br>') + timestampText;
     chatHistoryEl.appendChild(msgDiv);
     
-    // Scroll to bottom only if the element is currently visible near the bottom
-    const isScrolledToBottom = chatHistoryEl.scrollHeight - chatHistoryEl.clientHeight <= chatHistoryEl.scrollTop + 50; // Tolerancia 50px
-    if (isScrolledToBottom || data.sender === 'student' || data.sender === 'ai-typing') { // Scroll vždy pre študenta a typing
+    const isScrolledToBottom = chatHistoryEl.scrollHeight - chatHistoryEl.clientHeight <= chatHistoryEl.scrollTop + 50; 
+    if (isScrolledToBottom || data.sender === 'student' || data.sender === 'ai-typing') { 
         chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
     }
 
-    return msgDiv; // Vrátime element pre prípadné odstránenie (napr. typing indicator)
+    return msgDiv; 
 }
