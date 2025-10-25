@@ -6,11 +6,13 @@ import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/fir
 // Importy komponentov
 import './lesson-library.js';
 import './timeline-view.js';
-// ... ďalšie komponenty prídu sem, keď budú prerobené
+import './professor-media-view.js'; // === PRIDANÝ IMPORT ===
+// ... ďalšie komponenty prídu sem
 
 // Importy pôvodných procedurálnych funkcií
 import { renderEditorMenu } from '../../editor-handler.js';
-import { initializeCourseMediaUpload } from '../../upload-handler.js';
+// initializeCourseMediaUpload sa už nevolá odtiaľto, ale z professor-media-view.js
+// import { initializeCourseMediaUpload } from '../../upload-handler.js'; // === ODSTRÁNENÝ IMPORT ===
 import { setupProfessorNav } from './navigation.js';
 import { renderStudentsView } from './students-view.js';
 import { renderStudentProfile } from './student-profile-view.js';
@@ -32,25 +34,22 @@ export class ProfessorApp extends LitElement {
         this._currentView = 'timeline';
         this._currentData = null;
         this._lessonsData = [];
-        this._sidebarComponent = 'library'; // 'library', 'editor', 'none'
+        this._sidebarComponent = 'library'; 
         
         this.conversationsUnsubscribe = null;
         this.studentsUnsubscribe = null;
     }
 
-    // Kľúčové: Povieme Lit, aby renderoval do Light DOM
     createRenderRoot() {
         return this;
     }
 
     connectedCallback() {
         super.connectedCallback();
-        // Načítame dáta lekcií, ktoré potrebuje <professor-timeline-view> a <lesson-library>
         this._fetchLessons(); 
     }
     
     firstUpdated() {
-        // Presunuté z connectedCallback, aby sa zaistilo, že <nav> existuje
         setupProfessorNav(this._showProfessorContent.bind(this));
         const logoutBtn = document.getElementById('logout-btn-nav');
         if (logoutBtn) {
@@ -91,12 +90,10 @@ export class ProfessorApp extends LitElement {
         this._currentData = data;
         
         if (this._sidebarComponent === 'library' || view === 'timeline') {
-             // Znovu načítame lekcie pre knižnicu A timeline
              this._fetchLessons();
         }
     }
 
-    // --- Event Handlery ---
     _onLessonSelected(e) {
         this._showProfessorContent('editor', e.detail);
     }
@@ -105,11 +102,7 @@ export class ProfessorApp extends LitElement {
         this._showProfessorContent('editor', null);
     }
 
-    // --- Renderovacie Metódy ---
-
     render() {
-        // Renderuje hlavný layout, ktorý bol predtým v `initProfessorDashboard`
-        // Toto je JEDINÉ miesto, kde sa deklaruje štruktúra.
         return html`
             <div id="dashboard-professor" class="w-full flex main-view active h-screen">
                 <aside id="professor-sidebar" 
@@ -135,22 +128,24 @@ export class ProfessorApp extends LitElement {
                 return html`<div id="editor-sidebar-container" class="w-full h-full flex flex-col"></div>`;
             case 'none':
             default:
-                return html``; // Prázdne
+                return html``; 
         }
     }
 
     _renderMainContent() {
-        // Renderujeme buď nový komponent, alebo PRÁZDNY kontajner pre staré funkcie
         switch (this._currentView) {
             case 'timeline':
                 return html`<professor-timeline-view .lessonsData=${this._lessonsData}></professor-timeline-view>`;
+            
+            // === ZMENA: Použijeme nový komponent ===
+            case 'media':
+                return html`<professor-media-view></professor-media-view>`;
+            // ======================================
+                
             case 'editor':
-                // `showEditorContent` sa volá v `updated`
                 return html``; 
             case 'student-profile':
                 return html`<div id="student-profile-container" class="w-full h-full"></div>`;
-            case 'media':
-                return html`<div id="media-container" class="w-full h-full"></div>`;
             case 'students':
                 return html`<div id="students-container" class="w-full h-full"></div>`;
             case 'interactions':
@@ -161,51 +156,29 @@ export class ProfessorApp extends LitElement {
                 return html`<professor-timeline-view .lessonsData=${this._lessonsData}></professor-timeline-view>`;
         }
     }
-
-    // --- updated() - Most medzi Lit a starým kódom ---
     
-    // Táto funkcia sa spustí po každom `render()`
-    // **OPRAVENÁ LOGIKA:** Už nemanipulujeme `mainArea.innerHTML`.
-    // Iba nájdeme kontajnery, ktoré `render()` vytvoril, a odovzdáme ich starým funkciám.
     updated(changedProperties) {
         if (changedProperties.has('_currentView') || changedProperties.has('_currentData')) {
             
-            // Volanie starých procedurálnych funkcií
             switch (this._currentView) {
                 case 'editor':
                     const sidebarContainer = this.querySelector('#editor-sidebar-container');
                     if(sidebarContainer) {
                         renderEditorMenu(sidebarContainer, this._currentData); 
-                        // `renderEditorMenu` potom zavolá `showEditorContent`, ktorý vyplní `main-content-area`
                     }
                     break;
                 case 'student-profile':
                     const profileContainer = this.querySelector('#student-profile-container');
-                    if (profileContainer) { // Vždy kontrolujeme, či kontajner existuje
+                    if (profileContainer) { 
                         const backToStudentsList = () => this._showProfessorContent('students');
                         renderStudentProfile(profileContainer, this._currentData, backToStudentsList);
                     }
                     break;
-                case 'media':
-                    const mediaContainer = this.querySelector('#media-container');
-                    if (mediaContainer) {
-                        // Stará funkcia neexistovala, takže jej obsah bol v `showProfessorContent`
-                        // Tento obsah musíme vložiť do kontajnera
-                        mediaContainer.innerHTML = `<header class="text-center p-6 border-b border-slate-200 bg-white"><h1 class="text-3xl font-extrabold text-slate-800">Knihovna médií</h1><p class="text-slate-500 mt-1">Spravujte všechny soubory pro váš kurz na jednom místě.</p></header>
-                                              <div class="flex-grow overflow-y-auto p-4 md:p-6">
-                                                <div id="course-media-library-container" class="bg-white p-6 rounded-2xl shadow-lg">
-                                                    <p class="text-slate-500 mb-4">Nahrajte soubory (PDF), které chcete použít pro generování obsahu.</p>
-                                                    <div id="course-media-upload-area" class="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center text-slate-500 cursor-pointer hover:bg-green-50 hover:border-green-400">
-                                                        <p class="font-semibold">Přetáhněte soubory sem nebo klikněte pro výběr</p>
-                                                    </div>
-                                                    <input type="file" id="course-media-file-input" multiple class="hidden" accept=".pdf">
-                                                    <h3 class="font-bold text-slate-700 mt-6 mb-2">Nahrané soubory:</h3>
-                                                    <ul id="course-media-list" class="space-y-2"></ul>
-                                                </div>
-                                              </div>`;
-                        initializeCourseMediaUpload("main-course");
-                    }
-                    break;
+                
+                // === ZMENA: Prípad 'media' bol odstránený ===
+                // Už ho nepotrebujeme, pretože `professor-media-view` sa stará sám o seba
+                // =========================================
+                
                 case 'students':
                     const studentsContainer = this.querySelector('#students-container');
                     if (studentsContainer) {
@@ -224,17 +197,15 @@ export class ProfessorApp extends LitElement {
                 case 'analytics':
                     const analyticsContainer = this.querySelector('#analytics-container');
                     if (analyticsContainer) {
-                        this._renderAnalytics(analyticsContainer); // Vytvoríme pomocnú funkciu
+                        this._renderAnalytics(analyticsContainer); 
                     }
                     break;
             }
         }
     }
 
-    // Pomocná funkcia pre analytiku (presunutá z `showProfessorContent`)
+    // Pomocná funkcia pre analytiku (zostáva rovnaká)
     async _renderAnalytics(container) {
-        // Tento kód je v poriadku, pretože `_renderAnalytics` sa volá iba raz
-        // a modifikuje iba `container`, ktorý mu bol odovzdaný.
         container.innerHTML = `
             <div class="p-6 md:p-8">
                 <h2 class="text-3xl font-extrabold text-slate-800 mb-6">Analýza platformy</h2>
@@ -259,7 +230,6 @@ export class ProfessorApp extends LitElement {
             const result = await getAnalytics();
             const data = result.data;
 
-            // Používame `this.querySelector`, pretože sme v Light DOM
             const contentContainer = this.querySelector('#analytics-content'); 
             if (!contentContainer) return;
 
@@ -302,7 +272,7 @@ export class ProfessorApp extends LitElement {
         }
     }
     
-    // Pomocná funkcia (presunutá z `professor.js`)
+    // Pomocná funkcia (zostáva rovnaká)
     _createStatCard(title, value, emoji, subtitle = '') {
         const card = document.createElement('div');
         card.className = 'bg-white p-6 rounded-xl shadow-lg flex items-center space-x-4';
