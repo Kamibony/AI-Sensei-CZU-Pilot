@@ -9,6 +9,13 @@ export class LessonLibrary extends LitElement {
         lessonsData: { state: true, type: Array },
     };
 
+    // === PRIDANÁ METÓDA (Oprava grafiky) ===
+    // Vypneme Shadow DOM, aby sa aplikovali globálne Tailwind štýly
+    createRenderRoot() {
+        return this;
+    }
+    // === KONIEC PRIDANEJ METÓDY ===
+
     constructor() {
         super();
         this.lessonsData = [];
@@ -64,7 +71,8 @@ export class LessonLibrary extends LitElement {
     }
 
     firstUpdated() {
-        const listEl = this.shadowRoot.querySelector('#lesson-list-container');
+        // Keďže sme v Light DOM, hľadáme v 'this' (v koreni komponentu), nie v 'this.shadowRoot'
+        const listEl = this.querySelector('#lesson-list-container');
         if (listEl && typeof Sortable !== 'undefined') {
             new Sortable(listEl, {
                 group: { name: 'lessons', pull: 'clone', put: false },
@@ -107,19 +115,9 @@ export class LessonLibrary extends LitElement {
         `;
     }
 
-    static styles = css`
-        :host {
-            display: flex;
-            flex-direction: column;
-            width: 100%;
-            height: 100%;
-            background-color: #f1f5f9; /* bg-slate-100 */
-        }
-        /* Štýly pre scrollbar, ak je potrebný */
-        .flex-grow {
-            flex: 1 1 auto;
-        }
-    `;
+    // Keďže nepoužívame Shadow DOM, statické `styles` by nefungovali.
+    // Namiesto toho sa spoľahneme na globálne CSS (Tailwind).
+    // Pôvodné štýly `:host` môžeme odstrániť.
 }
 
 customElements.define('lesson-library', LessonLibrary);
