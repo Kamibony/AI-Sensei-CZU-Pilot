@@ -1,18 +1,15 @@
 // public/js/professor.js
 
 import { handleLogout } from './auth.js';
-import { initProfessorNavigation } from './views/professor/navigation.js';
+// ==== OPRAVENÝ IMPORT ====
+import { initializeProfessorNavigation } from './views/professor/navigation.js';
+// =========================
 import { renderTimelineView } from './views/professor/timeline-view.js';
 import { renderStudentsView } from './views/professor/students-view.js';
 import { renderInteractionsView } from './views/professor/interactions-view.js';
 
-// ==== ZMENA: Odstránili sme import editor-handler funkcií ====
-// import { renderEditorMenu, showEditorContent } from './editor-handler.js';
-// ==========================================================
-
-// ==== ZMENA: Importujeme nový komponent LessonEditor ====
+// Importujeme nový komponent LessonEditor
 import './professor/lesson-editor.js';
-// ====================================================
 
 let currentProfessorView = 'timeline'; // Predvolený pohľad
 let currentLessonForEditing = null; // Lekcia, ktorá sa práve edituje
@@ -33,38 +30,40 @@ export function initProfessorDashboard() {
     `;
 
     document.getElementById('professor-logout-btn').addEventListener('click', handleLogout);
-    initProfessorNavigation(switchProfessorView);
+    
+    // ==== OPRAVENÉ VOLANIE ====
+    initializeProfessorNavigation(switchProfessorView); 
+    // ========================
 
     // Nastavíme počiatočný pohľad
     switchProfessorView(currentProfessorView);
 
-    // ==== ZMENA: Pridáme listener na udalosť 'edit-lesson' z timeline-view ====
-    // a na 'editor-closed' z lesson-editor
+    // Pridáme listenery na udalosti z komponentov
     const mainContentArea = document.getElementById('professor-main-content');
     if (mainContentArea) {
+        // Keď timeline-view chce editovať lekciu
         mainContentArea.addEventListener('edit-lesson', (e) => {
             currentLessonForEditing = e.detail.lesson;
             switchProfessorView('editor'); // Prepne na editor
         });
         
+        // Keď lesson-editor chce zavrieť
         mainContentArea.addEventListener('editor-closed', () => {
              currentLessonForEditing = null; // Zabudneme lekciu
              switchProfessorView('timeline'); // Vrátime sa na timeline
         });
         
-        // Listener na 'lesson-saved' pre prípadné obnovenie Timeline (ak by bolo treba)
+        // Keď lesson-editor uloží lekciu
          mainContentArea.addEventListener('lesson-saved', (e) => {
               // Momentálne len logujeme, ale tu by sa mohla obnoviť časť Timeline
               console.log('Lesson saved in editor:', e.detail.lesson);
               // Ak sme vytvorili novú lekciu a vrátili sa, Timeline ju už načíta sama pri ďalšom renderovaní
          });
     }
-    // =========================================================================
 }
 
 export function cleanupProfessorDashboard() {
     // Tu by sme mali odstrániť listenery, ak sme nejaké pridali globálne
-    // Napr. z navigation.js, ak by boli pridané na document
     currentLessonForEditing = null; // Reset
     console.log("Professor dashboard cleaned up.");
 }
@@ -82,7 +81,6 @@ function switchProfessorView(viewId) {
             renderTimelineView(mainContentArea);
             break;
         
-        // ==== ZMENA: Namiesto volania funkcií renderujeme komponent ====
         case 'editor':
              mainContentArea.innerHTML = ''; // Vyčistíme "Načítání..."
              const editorElement = document.createElement('lesson-editor');
@@ -90,7 +88,6 @@ function switchProfessorView(viewId) {
              editorElement.lesson = currentLessonForEditing; 
              mainContentArea.appendChild(editorElement);
              break;
-        // ============================================================
 
         case 'students':
             renderStudentsView(mainContentArea);
