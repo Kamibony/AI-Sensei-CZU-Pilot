@@ -50,7 +50,6 @@ export class StudentLessonDetail extends LitElement {
         return this;
     }
 
-    // Keď sa zmení `lessonId` (čo je prop), musíme načítať dáta
     willUpdate(changedProperties) {
         if (changedProperties.has('lessonId') && this.lessonId) {
             this._fetchLessonDetail();
@@ -165,11 +164,20 @@ export class StudentLessonDetail extends LitElement {
         // Ostatné prípady
         switch (this.activeTabId) {
             case 'text':
-                // Použijeme .innerHTML na spracovanie <br> tagov, musíme použiť špeciálny Lit direktívu
-                const textContent = document.createElement('div');
-                textContent.className = "prose max-w-none";
-                textContent.innerHTML = this.lessonData.text_content.replace(/\n/g, '<br>');
-                return html`${textContent}`;
+                // ==== ZMENA: Použijeme marked.parse() na prevod Markdown na HTML ====
+                // Skontrolujeme, či `marked` existuje (načítal sa zo scriptu v index.html)
+                if (typeof marked === 'undefined') {
+                    console.error("Knižnica marked.js nie je načítaná!");
+                    return html`<p class="text-red-500">Chyba: Nepodarilo sa spracovať formátovanie textu.</p>`;
+                }
+                const textContentDiv = document.createElement('div');
+                textContentDiv.className = "prose max-w-none"; // 'prose' je dôležité pre Tailwind
+                // Prevedieme Markdown na HTML a vložíme ho
+                // marked.parse() automaticky spracuje aj \n (väčšinou)
+                textContentDiv.innerHTML = marked.parse(this.lessonData.text_content || ''); 
+                return html`${textContentDiv}`;
+                // ====================================================================
+                
             case 'video':
                 const videoIdMatch = this.lessonData.youtube_link ? this.lessonData.youtube_link.match(/(?:v=|\/embed\/|\.be\/)([\w-]{11})/) : null;
                 if (videoIdMatch && videoIdMatch[1]) {
