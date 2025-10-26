@@ -1,20 +1,21 @@
 // public/js/views/professor/lesson-library.js
-import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { collection, getDocs, doc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
+
+// === Definícia Štýlov Tlačidiel ===
+const btnBase = "font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
+const btnPrimary = `${btnBase} bg-green-700 text-white hover:bg-green-800 p-3 w-full`; // Pridať novú lekciu
+const btnIconDestructive = `p-1 rounded-full text-slate-400 hover:bg-red-200 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity`; // Smazat ikona
+// ===================================
 
 export class LessonLibrary extends LitElement {
     static properties = {
         lessonsData: { state: true, type: Array },
     };
 
-    // === PRIDANÁ METÓDA (Oprava grafiky) ===
-    // Vypneme Shadow DOM, aby sa aplikovali globálne Tailwind štýly
-    createRenderRoot() {
-        return this;
-    }
-    // === KONIEC PRIDANEJ METÓDY ===
+    createRenderRoot() { return this; }
 
     constructor() {
         super();
@@ -31,21 +32,15 @@ export class LessonLibrary extends LitElement {
             const lessonsCollection = collection(firebaseInit.db, 'lessons');
             const querySnapshot = await getDocs(query(lessonsCollection, orderBy("createdAt")));
             this.lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            return true;
         } catch (error) {
             console.error("Error fetching lessons for library: ", error);
             showToast("Nepodařilo se načíst data lekcí.", true);
-            return false;
         }
     }
 
     _handleLessonClick(lessonId) {
         const selectedLesson = this.lessonsData.find(l => l.id === lessonId);
-        this.dispatchEvent(new CustomEvent('lesson-selected', { 
-            detail: selectedLesson, 
-            bubbles: true, 
-            composed: true 
-        }));
+        this.dispatchEvent(new CustomEvent('lesson-selected', { detail: selectedLesson, bubbles: true, composed: true }));
     }
 
     async _handleDeleteClick(e, lessonId) {
@@ -55,7 +50,7 @@ export class LessonLibrary extends LitElement {
             try {
                 await deleteDoc(doc(firebaseInit.db, 'lessons', lessonId));
                 showToast('Lekce byla smazána.');
-                this.fetchLessons(); // Znovu načítame lekcie
+                this.fetchLessons();
             } catch (error) {
                 console.error("Error deleting lesson:", error);
                 showToast("Chyba při mazání lekce.", true);
@@ -64,20 +59,14 @@ export class LessonLibrary extends LitElement {
     }
 
     _handleAddNewClick() {
-        this.dispatchEvent(new CustomEvent('add-new-lesson', { 
-            bubbles: true, 
-            composed: true 
-        }));
+        this.dispatchEvent(new CustomEvent('add-new-lesson', { bubbles: true, composed: true }));
     }
 
     firstUpdated() {
-        // Keďže sme v Light DOM, hľadáme v 'this' (v koreni komponentu), nie v 'this.shadowRoot'
         const listEl = this.querySelector('#lesson-list-container');
         if (listEl && typeof Sortable !== 'undefined') {
             new Sortable(listEl, {
-                group: { name: 'lessons', pull: 'clone', put: false },
-                animation: 150,
-                sort: false,
+                group: { name: 'lessons', pull: 'clone', put: false }, animation: 150, sort: false,
             });
         }
     }
@@ -92,12 +81,10 @@ export class LessonLibrary extends LitElement {
                     <div class="lesson-bubble-wrapper group p-1" data-lesson-id="${lesson.id}">
                         <div class="lesson-bubble-in-library p-4 bg-white border rounded-lg cursor-pointer hover:shadow-md flex justify-between items-center"
                              @click=${() => this._handleLessonClick(lesson.id)}>
-                            <div>
-                                <h3 class="font-semibold text-slate-800">${lesson.title}</h3>
-                                <p class="text-sm text-slate-500">${lesson.subtitle || ' '}</p>
+                            <div class="min-w-0 flex-grow mr-2"> <h3 class="font-semibold text-slate-800 truncate" title="${lesson.title}">${lesson.title}</h3>
+                                <p class="text-sm text-slate-500 truncate" title="${lesson.subtitle || ''}">${lesson.subtitle || ' '}</p>
                             </div>
-                            <button class="delete-lesson-btn p-1 rounded-full text-slate-400 hover:bg-red-200 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" 
-                                    data-lesson-id="${lesson.id}" 
+                            <button class="delete-lesson-btn ${btnIconDestructive} flex-shrink-0" data-lesson-id="${lesson.id}"
                                     title="Smazat lekci"
                                     @click=${(e) => this._handleDeleteClick(e, lesson.id)}>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2 2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -105,19 +92,13 @@ export class LessonLibrary extends LitElement {
                         </div>
                     </div>
                 `)}
+                 ${this.lessonsData.length === 0 ? html`<p class="text-center text-slate-500 p-4">Zatím žádné lekce.</p>`: ''}
             </div>
             <footer class="p-4 border-t border-slate-200 flex-shrink-0">
-                <button id="add-new-lesson-btn" class="w-full p-3 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800"
-                        @click=${this._handleAddNewClick}>
-                    Přidat novou lekci
+                <button id="add-new-lesson-btn" class="${btnPrimary}" @click=${this._handleAddNewClick}> Přidat novou lekci
                 </button>
             </footer>
         `;
     }
-
-    // Keďže nepoužívame Shadow DOM, statické `styles` by nefungovali.
-    // Namiesto toho sa spoľahneme na globálne CSS (Tailwind).
-    // Pôvodné štýly `:host` môžeme odstrániť.
 }
-
 customElements.define('lesson-library', LessonLibrary);
