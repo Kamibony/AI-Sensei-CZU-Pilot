@@ -1,5 +1,5 @@
 // public/js/views/professor/lesson-editor.js
-import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast } from '../../utils.js';
 
 // Importujeme všetky view komponenty editora
@@ -14,6 +14,7 @@ import './editor/editor-view-post.js';
 export class LessonEditor extends LitElement {
     static properties = {
         lesson: { type: Object },
+        // Zmena významu: 'overview' = zoznam sekcií, inak ID aktívnej sekcie
         _activeView: { state: true, type: String },
         _currentLessonData: { state: true, type: Object },
     };
@@ -21,9 +22,8 @@ export class LessonEditor extends LitElement {
     constructor() {
         super();
         this.lesson = null;
-        this._activeView = 'details';
+        this._activeView = 'overview'; // Začíname prehľadom sekcií
         this._currentLessonData = null;
-        // Pridané popisy ku každej položke
         this.menuItems = [
             { id: 'details', label: 'Detaily lekce', icon: '📝', field: null, description: 'Základní informace o lekci (název, ikona, RAG soubory).' },
             { id: 'text', label: 'Text pro studenty', icon: '✍️', field: 'text_content', description: 'Vytvořte nebo vložte hlavní studijní text pro tuto lekci.' },
@@ -42,14 +42,20 @@ export class LessonEditor extends LitElement {
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {
             this._currentLessonData = this.lesson ? { ...this.lesson } : null;
-             if (!this.lesson || (changedProperties.get('lesson') && changedProperties.get('lesson')?.id !== this.lesson.id)) {
-                 this._activeView = 'details';
+             if (!this.lesson || (changedProperties.get('lesson') && changedProperties.get('lesson')?.id !== this.lesson?.id)) {
+                 this._activeView = 'overview'; // Vždy reset na overview pri zmene lekcie
             }
         }
     }
 
-    _toggleView(viewId) {
-        this._activeView = this._activeView === viewId ? null : viewId;
+    // Nastaví, ktorú sekciu detailne zobraziť
+    _setActiveView(viewId) {
+        this._activeView = viewId;
+    }
+
+    // Vráti sa na prehľad sekcií
+    _showOverview() {
+        this._activeView = 'overview';
     }
 
     _handleLessonUpdate(e) {
@@ -64,6 +70,7 @@ export class LessonEditor extends LitElement {
     }
 
      _handleDownloadLessonContent() {
+        // ... (kód zostáva rovnaký) ...
         const currentLesson = this._currentLessonData;
         if (!currentLesson) { showToast("Lekce není načtena.", true); return; }
         let contentString = ""; const title = currentLesson.title || "Nova_lekce";
@@ -81,12 +88,7 @@ export class LessonEditor extends LitElement {
     }
 
     renderEditorSection(viewId) {
-        if (this._activeView !== viewId) return '';
-        return html`<div class="p-4 sm:p-6 border-t border-slate-200 bg-white"> ${this._renderSpecificEditorView(viewId)}
-                   </div>`;
-    }
-
-    _renderSpecificEditorView(viewId) {
+        // Renderuje príslušný editor
          switch(viewId) {
             case 'details': return html`<editor-view-details .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-details>`;
             case 'text': return html`<editor-view-text .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-text>`;
@@ -95,8 +97,39 @@ export class LessonEditor extends LitElement {
             case 'quiz': return html`<editor-view-quiz .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-quiz>`;
             case 'test': return html`<editor-view-test .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-test>`;
             case 'post': return html`<editor-view-post .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-post>`;
-            default: return html``;
+            default: return html`<p class="text-red-500">Neznámý pohled editoru: ${viewId}</p>`;
         }
+    }
+
+    // Nová metóda na renderovanie prehľadu sekcií (veľké tlačidlá)
+    renderOverview() {
+        return html`
+             <div class="space-y-4 max-w-4xl"> ${this.menuItems.map(item => {
+                        const hasContent = item.field ? !!this._currentLessonData?.[item.field] : true;
+                        const statusColor = hasContent ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500';
+                        const statusText = item.id === 'details' ? '' : (hasContent ? 'Vytvořeno' : 'Nevytvořeno');
+
+                        return html`
+                            <button @click=${() => this._setActiveView(item.id)}
+                                    class="w-full flex items-center justify-between p-6 rounded-xl text-left bg-white hover:bg-slate-50 border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                                <div class="flex items-center min-w-0 mr-4">
+                                    <span class="mr-4 text-3xl flex-shrink-0">${item.icon}</span>
+                                    <div class="flex-grow">
+                                        <span class="font-semibold text-lg text-slate-800">${item.label}</span>
+                                        <p class="text-sm text-slate-500 mt-1">${item.description}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-3 flex-shrink-0">
+                                     ${statusText ? html`<span class="text-xs font-medium px-2 py-0.5 rounded-full ${statusColor}">${statusText}</span>` : ''}
+                                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400">
+                                         <polyline points="9 18 15 12 9 6"></polyline>
+                                     </svg>
+                                </div>
+                            </button>
+                        `;
+                    })}
+                </div>
+        `;
     }
 
     render() {
@@ -105,7 +138,8 @@ export class LessonEditor extends LitElement {
 
         return html`
             <div class="p-4 sm:p-6 md:p-8 overflow-y-auto h-full">
-                 <header class="mb-8 flex justify-between items-center"> <div>
+                 <header class="mb-8 flex justify-between items-center">
+                    <div>
                         <button @click=${this._handleBackClick} class="flex items-center text-sm text-green-700 hover:underline mb-2">
                              &larr; Zpět na plán výuky
                         </button>
@@ -121,38 +155,18 @@ export class LessonEditor extends LitElement {
                      </button>
                  </header>
 
-                <div class="space-y-4 max-w-4xl mx-auto"> ${this.menuItems.map(item => {
-                        const isActive = this._activeView === item.id;
-                        const hasContent = item.field ? !!this._currentLessonData?.[item.field] : true;
-                        const statusColor = hasContent ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500';
-                        const statusText = item.id === 'details' ? '' : (hasContent ? 'Vytvořeno' : 'Nevytvořeno');
-
-                        // Väčší padding, výraznejšie tiene, upravené farby
-                        const buttonClasses = isActive
-                            ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-600 shadow-lg' // Aktívne
-                            : 'bg-white hover:bg-slate-50 border-l-4 border-transparent hover:shadow-md'; // Neaktívne
-
-                        return html`
-                            <div class="rounded-xl overflow-hidden shadow-sm border border-slate-200 transition-shadow duration-300 ${isActive ? 'shadow-lg' : ''}">
-                                <button @click=${() => this._toggleView(item.id)}
-                                        class="w-full flex items-center justify-between p-6 focus:outline-none transition-colors duration-200 ${buttonClasses}"> <div class="flex items-center text-left min-w-0 mr-4"> <span class="mr-4 text-3xl flex-shrink-0">${item.icon}</span> <div class="flex-grow">
-                                            <span class="font-semibold text-lg text-slate-800">${item.label}</span> <p class="text-sm text-slate-500 mt-1">${item.description}</p> </div>
-                                    </div>
-                                    <div class="flex items-center space-x-3 flex-shrink-0">
-                                         ${statusText ? html`<span class="text-xs font-medium px-2 py-0.5 rounded-full ${statusColor}">${statusText}</span>` : ''}
-                                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform transition-transform duration-300 text-slate-500 ${isActive ? 'rotate-180' : 'rotate-0'}">
-                                            <polyline points="6 9 12 15 18 9"></polyline>
-                                        </svg>
-                                    </div>
-                                </button>
-
-                                <div class="transition-all duration-300 ease-in-out overflow-hidden ${isActive ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'}">
-                                     ${isActive ? this.renderEditorSection(item.id) : ''}
-                                </div>
-                            </div>
-                        `;
-                    })}
-                </div>
+                ${this._activeView === 'overview'
+                    ? this.renderOverview() // Zobrazíme zoznam sekcií
+                    : html`
+                        <div>
+                             <button @click=${this._showOverview} class="mb-6 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 flex items-center text-sm">
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1.5"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                                 Zpět na přehled sekcí
+                             </button>
+                             ${this.renderEditorSection(this._activeView)}
+                        </div>
+                    `
+                }
             </div>
         `;
     }
