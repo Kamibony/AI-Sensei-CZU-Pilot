@@ -1,6 +1,7 @@
 // public/js/views/professor/lesson-editor.js
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast } from '../../utils.js';
+import { loadSelectedFiles } from '../../upload-handler.js'; // <-- PRIDANÝ IMPORT
 
 // Importujeme všetky view komponenty editora
 import './editor/editor-view-details.js';
@@ -14,15 +15,16 @@ import './editor/editor-view-post.js';
 export class LessonEditor extends LitElement {
     static properties = {
         lesson: { type: Object },
-        _activeView: { state: true, type: String }, // 'overview' alebo ID sekcie
-        _currentLessonData: { state: true, type: Object },
+        _activeView: { state: true, type: String },
+        // Odstránime _currentLessonData, budeme používať priamo this.lesson
+        // _currentLessonData: { state: true, type: Object },
     };
 
     constructor() {
         super();
         this.lesson = null;
-        this._activeView = 'overview'; // Začíname prehľadom sekcií
-        this._currentLessonData = null;
+        this._activeView = 'overview';
+        // this._currentLessonData = null; // Odstránené
         this.menuItems = [
             { id: 'details', label: 'Detaily lekce', icon: '📝', field: null, description: 'Základní informace o lekci (název, ikona, RAG soubory).' },
             { id: 'text', label: 'Text pro studenty', icon: '✍️', field: 'text_content', description: 'Vytvořte nebo vložte hlavní studijní text pro tuto lekci.' },
@@ -35,48 +37,52 @@ export class LessonEditor extends LitElement {
     }
 
     createRenderRoot() {
-        return this; // Renderujeme do Light DOM
+        return this;
     }
 
+    // Zjednodušené willUpdate
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {
-            // Vytvoríme kópiu dát lekcie pre interný stav
-            this._currentLessonData = this.lesson ? { ...this.lesson } : null;
-             // Vždy resetujeme na prehľad pri načítaní novej lekcie
-             // Kontrola je dôležitá, aby sa neprepínal pohľad pri každej malej zmene lesson objektu (napr. pri update)
+             // === ZMENA: Voláme loadSelectedFiles pri zmene lekcie ===
+             loadSelectedFiles(this.lesson?.ragFilePaths || []);
+             // =======================================================
              if (!this.lesson || (changedProperties.get('lesson') && changedProperties.get('lesson')?.id !== this.lesson?.id)) {
                  this._activeView = 'overview';
             }
         }
     }
 
-    // Nastaví, ktorú sekciu detailne zobraziť
+    // Pridaná metóda connectedCallback na úvodné načítanie RAG
+    connectedCallback() {
+        super.connectedCallback();
+        // Načítame RAG súbory pri prvom pripojení komponentu
+        loadSelectedFiles(this.lesson?.ragFilePaths || []);
+    }
+
+
     _setActiveView(viewId) {
         this._activeView = viewId;
     }
 
-    // Vráti sa na prehľad sekcií
     _showOverview() {
         this._activeView = 'overview';
     }
 
-
     _handleLessonUpdate(e) {
-        // Aktualizujeme interné dáta lekcie, keď príde udalosť z pod-komponentu
-        this._currentLessonData = e.detail;
-        // Pošleme udalosť ďalej hore (do professor-app)
+        // Len prepošleme udalosť hore, už nedržíme internú kópiu
         this.dispatchEvent(new CustomEvent('lesson-updated', {
             detail: e.detail, bubbles: true, composed: true
         }));
     }
 
     _handleBackClick() {
-        // Oznámime professor-app, že chceme opustiť editor
         this.dispatchEvent(new CustomEvent('editor-exit', { bubbles: true, composed: true }));
     }
 
      _handleDownloadLessonContent() {
-        const currentLesson = this._currentLessonData;
+        // Použijeme priamo this.lesson
+        const currentLesson = this.lesson;
+        // ... (zvyšok funkcie zostáva rovnaký) ...
         if (!currentLesson) { showToast("Lekce není načtena.", true); return; }
         let contentString = ""; const title = currentLesson.title || "Nova_lekce";
         contentString += `# ${currentLesson.title || "Nová lekce"}\n`;
@@ -92,26 +98,26 @@ export class LessonEditor extends LitElement {
         document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast("Obsah lekce byl stažen.");
     }
 
-    // Renderuje príslušný editor sekcie
     renderEditorSection(viewId) {
-        // Odovzdávame _currentLessonData, aby mali komponenty vždy aktuálne dáta
+        // Odovzdávame priamo this.lesson
          switch(viewId) {
-            case 'details': return html`<editor-view-details .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-details>`;
-            case 'text': return html`<editor-view-text .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-text>`;
-            case 'presentation': return html`<editor-view-presentation .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-presentation>`;
-            case 'video': return html`<editor-view-video .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-video>`;
-            case 'quiz': return html`<editor-view-quiz .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-quiz>`;
-            case 'test': return html`<editor-view-test .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-test>`;
-            case 'post': return html`<editor-view-post .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-post>`;
+            case 'details': return html`<editor-view-details .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-details>`;
+            case 'text': return html`<editor-view-text .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-text>`;
+            case 'presentation': return html`<editor-view-presentation .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-presentation>`;
+            case 'video': return html`<editor-view-video .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-video>`;
+            case 'quiz': return html`<editor-view-quiz .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-quiz>`;
+            case 'test': return html`<editor-view-test .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-test>`;
+            case 'post': return html`<editor-view-post .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-post>`;
             default: return html`<p class="text-red-500">Neznámý pohled editoru: ${viewId}</p>`;
         }
     }
 
-    // Renderuje zoznam veľkých tlačidiel/kariet
     renderOverview() {
         return html`
-             <div class="space-y-4 max-w-4xl"> ${this.menuItems.map(item => {
-                        const hasContent = item.field ? !!this._currentLessonData?.[item.field] : true;
+             <div class="space-y-4 max-w-4xl">
+                    ${this.menuItems.map(item => {
+                        // Používame priamo this.lesson na kontrolu obsahu
+                        const hasContent = item.field ? !!this.lesson?.[item.field] : true;
                         const statusColor = hasContent ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500';
                         const statusText = item.id === 'details' ? '' : (hasContent ? 'Vytvořeno' : 'Nevytvořeno');
 
@@ -139,12 +145,16 @@ export class LessonEditor extends LitElement {
     }
 
     render() {
-        const lessonTitle = this._currentLessonData ? this._currentLessonData.title : 'Vytvořit novou lekci';
-        const lessonIcon = this._currentLessonData ? this._currentLessonData.icon : '🆕';
+        // Používame priamo this.lesson
+        const lessonTitle = this.lesson ? this.lesson.title : 'Vytvořit novou lekci';
+        const lessonIcon = this.lesson ? this.lesson.icon : '🆕';
         const activeItemLabel = this.menuItems.find(item => item.id === this._activeView)?.label || '';
 
         return html`
-            <div class="p-4 sm:p-6 md:p-8 overflow-y-auto h-full bg-slate-50"> <header class="mb-8 flex justify-between items-start"> <div class="min-w-0"> <button @click=${this._handleBackClick} class="flex items-center text-sm text-green-700 hover:underline mb-2">
+            <div class="p-4 sm:p-6 md:p-8 overflow-y-auto h-full bg-slate-50">
+                 <header class="mb-8 flex justify-between items-start">
+                    <div class="min-w-0">
+                        <button @click=${this._handleBackClick} class="flex items-center text-sm text-green-700 hover:underline mb-2">
                              &larr; Zpět na plán výuky
                         </button>
                         <div class="flex items-center space-x-3">
@@ -159,12 +169,13 @@ export class LessonEditor extends LitElement {
                              <p class="text-sm text-slate-500 mt-1">Vyberte sekci pro úpravu:</p>
                          `}
                     </div>
-                     <button @click=${this._handleDownloadLessonContent} title="Stáhnout obsah lekce" class="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors flex-shrink-0 ml-4 mt-8"> <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2 2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                     <button @click=${this._handleDownloadLessonContent} title="Stáhnout obsah lekce" class="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors flex-shrink-0 ml-4 mt-8">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2 2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                      </button>
                  </header>
 
                 ${this._activeView === 'overview'
-                    ? this.renderOverview() // Zobrazíme zoznam sekcií
+                    ? this.renderOverview()
                     : html`
                         <div>
                              <button @click=${this._showOverview} class="mb-6 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 flex items-center text-sm transition-colors">
