@@ -1,9 +1,15 @@
 // public/js/views/professor/editor/editor-view-details.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { doc, addDoc, updateDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as firebaseInit from '../../../firebase-init.js'; 
+import * as firebaseInit from '../../../firebase-init.js';
 import { showToast } from '../../../utils.js';
 import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles } from '../../../upload-handler.js';
+
+// === Definícia Štýlov Tlačidiel ===
+const btnBase = "px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
+const btnPrimary = `${btnBase} bg-green-700 text-white hover:bg-green-800`; // Uložiť
+const btnSecondary = `${btnBase} bg-slate-200 text-slate-700 hover:bg-slate-300`; // Vybrať súbory
+// ===================================
 
 export class EditorViewDetails extends LitElement {
     static properties = {
@@ -28,10 +34,9 @@ export class EditorViewDetails extends LitElement {
     }
 
     firstUpdated() {
-        // Zobrazíme RAG súbory, ktoré boli načítané v lesson-editor-menu
         renderSelectedFiles();
     }
-    
+
     _openRagModal(e) {
         e.preventDefault();
         const modal = document.getElementById('media-library-modal');
@@ -40,15 +45,9 @@ export class EditorViewDetails extends LitElement {
         const modalClose = document.getElementById('modal-close-btn');
 
         if (!modal || !modalConfirm || !modalCancel || !modalClose) {
-            console.error("Chybějící elementy pro modální okno.");
-            showToast("Chyba: Nepodařilo se načíst komponentu pro výběr souborů.", true);
-            return;
+             console.error("Chybějící elementy pro modální okno."); showToast("Chyba: Nepodařilo se načíst komponentu pro výběr souborů.", true); return;
         }
-        
-        const handleConfirm = () => {
-           renderSelectedFiles(); 
-           closeModal();
-        };
+        const handleConfirm = () => { renderSelectedFiles(); closeModal(); };
         const handleCancel = () => closeModal();
         const closeModal = () => {
            modal.classList.add('hidden');
@@ -56,7 +55,6 @@ export class EditorViewDetails extends LitElement {
            modalCancel.removeEventListener('click', handleCancel);
            modalClose.removeEventListener('click', handleCancel);
         };
-
         renderMediaLibraryFiles("main-course", "modal-media-list");
         modalConfirm.addEventListener('click', handleConfirm);
         modalCancel.addEventListener('click', handleCancel);
@@ -68,51 +66,36 @@ export class EditorViewDetails extends LitElement {
         e.preventDefault();
         const form = this.querySelector('#lesson-details-form');
         const title = form.querySelector('#lesson-title-input').value.trim();
-        if (!title) {
-            showToast("Název lekce nemůže být prázdný.", true);
-            return;
-        }
+        if (!title) { showToast("Název lekce nemůže být prázdný.", true); return; }
 
-        const currentSelection = getSelectedFiles(); 
+        const currentSelection = getSelectedFiles();
         const lessonData = {
             title: title,
             subtitle: form.querySelector('#lesson-subtitle-input').value.trim(),
             number: form.querySelector('#lesson-number-input').value.trim(),
             icon: form.querySelector('#lesson-icon-input').value.trim() || '🆕',
             ragFilePaths: currentSelection,
-            updatedAt: serverTimestamp() 
+            updatedAt: serverTimestamp()
         };
 
-        this._isLoading = true;
-        let updatedLessonData;
+        this._isLoading = true; let updatedLessonData;
         try {
-            if (this._currentLesson && this._currentLesson.id) {
-                // Aktualizácia
+            if (this._currentLesson?.id) {
                 await updateDoc(doc(firebaseInit.db, 'lessons', this._currentLesson.id), lessonData);
                 updatedLessonData = { ...this._currentLesson, ...lessonData };
                 showToast("Detaily lekce byly úspěšně aktualizovány.");
             } else {
-                // Vytvorenie
-                lessonData.createdAt = serverTimestamp(); 
+                lessonData.createdAt = serverTimestamp();
                 const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonData);
                 updatedLessonData = { id: docRef.id, ...lessonData };
                 showToast("Nová lekce byla úspěšně vytvořena.");
             }
-            
             this._currentLesson = updatedLessonData;
-            // Oznámime rodičovi (lesson-editor -> professor-app), že sa lekcia zmenila
-            this.dispatchEvent(new CustomEvent('lesson-updated', { 
-                detail: updatedLessonData, 
-                bubbles: true, 
-                composed: true 
-            }));
-
+            this.dispatchEvent(new CustomEvent('lesson-updated', { detail: updatedLessonData, bubbles: true, composed: true }));
         } catch (error) {
             console.error("Error saving lesson details:", error);
             showToast("Při ukládání detailů lekce došlo k chybě.", true);
-        } finally {
-            this._isLoading = false;
-        }
+        } finally { this._isLoading = false; }
     }
 
     render() {
@@ -140,23 +123,19 @@ export class EditorViewDetails extends LitElement {
                             <input type="text" id="lesson-icon-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${this._currentLesson?.icon || '🆕'}" placeholder="🆕">
                         </div>
                     </div>
-
                     <div class="mb-4">
                         <label class="block font-medium text-slate-600 mb-2">Vyberte kontextové dokumenty (RAG):</label>
                         <div class="space-y-2 border rounded-lg p-3 bg-slate-50">
                             <ul id="selected-files-list-rag" class="text-xs text-slate-600 mb-2 list-disc list-inside">
                                 <li>Žádné soubory nevybrány.</li>
                             </ul>
-                            <button @click=${this._openRagModal} class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-1 px-2 rounded-md">
-                                Vybrat soubory z knihovny
+                            <button @click=${this._openRagModal} class="text-sm ${btnSecondary} px-2 py-1"> Vybrat soubory z knihovny
                             </button>
                         </div>
                         <p class="text-xs text-slate-400 mt-1">Vybrané dokumenty budou uloženy spolu s lekcí.</p>
                     </div>
-                    
                     <div class="text-right pt-4">
-                        <button type="submit" id="save-lesson-btn" ?disabled=${this._isLoading} class="px-6 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition transform hover:scale-105">
-                            ${this._isLoading ? html`<div class="spinner"></div>` : 'Uložit změny'}
+                        <button type="submit" id="save-lesson-btn" ?disabled=${this._isLoading} class="${btnPrimary} px-6"> ${this._isLoading ? html`<div class="spinner"></div><span class="ml-2">Ukládám...</span>` : 'Uložit změny'}
                         </button>
                     </div>
                 </form>
@@ -164,5 +143,4 @@ export class EditorViewDetails extends LitElement {
         `;
     }
 }
-
 customElements.define('editor-view-details', EditorViewDetails);
