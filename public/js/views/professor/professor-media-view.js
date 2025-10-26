@@ -1,5 +1,6 @@
 // public/js/views/professor/professor-media-view.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+// Odstránime import renderMediaLibraryFiles, už sa nevolá odtiaľto
 import { initializeCourseMediaUpload } from '../../upload-handler.js';
 import * as firebaseInit from '../../firebase-init.js';
 import { getStorage, ref, listAll, getMetadata, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
@@ -27,7 +28,10 @@ export class ProfessorMediaView extends LitElement {
     }
 
     firstUpdated() {
-        initializeCourseMediaUpload("main-course", () => this._loadFiles());
+        // === ZMENA: Odovzdáme 'this' ako tretí argument ===
+        // Callback funkcia this._loadFiles.bind(this) zabezpečí správny kontext
+        initializeCourseMediaUpload("main-course", this._loadFiles.bind(this), this);
+        // ===============================================
     }
 
     async _loadFiles() {
@@ -40,8 +44,8 @@ export class ProfessorMediaView extends LitElement {
                 const metadata = await getMetadata(itemRef);
                 return { name: metadata.name, fullPath: metadata.fullPath, size: metadata.size, };
             });
-            // Zoradíme súbory podľa názvu
             const files = await Promise.all(filePromises);
+            // Zoradíme súbory podľa názvu
             this._files = files.sort((a, b) => a.name.localeCompare(b.name));
         } catch (error) {
             console.error("Error loading media files:", error);
@@ -65,6 +69,7 @@ export class ProfessorMediaView extends LitElement {
             const fileRef = ref(storage, filePath);
             await deleteObject(fileRef);
             showToast(`Soubor "${fileName}" byl smazán.`);
+            // Odstránime súbor z lokálneho stavu a obnovíme zobrazenie
             this._files = this._files.filter(file => file.fullPath !== filePath);
         } catch (error) {
             console.error("Error deleting file:", error);
@@ -103,14 +108,17 @@ export class ProfessorMediaView extends LitElement {
                 <p class="text-slate-500 mt-1">Spravujte všechny soubory (PDF) pro váš kurz.</p>
             </header>
             <div class="flex-grow overflow-y-auto p-4 md:p-6 lg:p-8">
-                <div class="max-w-4xl mx-auto space-y-8"> <div class="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
+                <div class="max-w-4xl mx-auto space-y-8">
+                    <div class="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
                         <h2 class="text-xl font-semibold text-slate-800 mb-4">Nahrát nový soubor</h2>
                         <p class="text-slate-500 mb-5 text-sm">Přetáhněte PDF soubor do oblasti níže nebo klikněte pro výběr.</p>
                         <div id="course-media-upload-area" class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center text-slate-500 cursor-pointer transition-all duration-200 hover:border-green-500 hover:bg-green-50 hover:shadow-inner group">
-                             <div class="flex flex-col items-center justify-center space-y-3 pointer-events-none"> <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400 group-hover:text-green-600 transition-colors duration-200"> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path> <polyline points="17 8 12 3 7 8"></polyline> <line x1="12" y1="3" x2="12" y2="15"></line> </svg>
+                             <div class="flex flex-col items-center justify-center space-y-3 pointer-events-none">
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400 group-hover:text-green-600 transition-colors duration-200"> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path> <polyline points="17 8 12 3 7 8"></polyline> <line x1="12" y1="3" x2="12" y2="15"></line> </svg>
                                  <p class="font-semibold text-slate-600 group-hover:text-green-700">Přetáhněte soubor sem</p>
                                  <p class="text-xs">nebo</p>
-                                 <span class="text-sm font-medium text-green-700">Klikněte pro výběr souboru</span> <p class="text-xs text-slate-400 mt-1">Podporovaný formát: PDF</p>
+                                 <span class="text-sm font-medium text-green-700">Klikněte pro výběr souboru</span>
+                                 <p class="text-xs text-slate-400 mt-1">Podporovaný formát: PDF</p>
                              </div>
                         </div>
                         <input type="file" id="course-media-file-input" multiple class="hidden" accept=".pdf">
@@ -119,8 +127,7 @@ export class ProfessorMediaView extends LitElement {
                     </div>
                     <div class="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
                          <h2 class="text-xl font-semibold text-slate-800 mb-4">Nahrané soubory</h2>
-                        <div id="course-media-list-container">
-                             ${fileListContent}
+                        <div id="course-media-list-container"> ${fileListContent}
                         </div>
                     </div>
                 </div>
@@ -128,4 +135,5 @@ export class ProfessorMediaView extends LitElement {
         `;
     }
 }
+
 customElements.define('professor-media-view', ProfessorMediaView);
