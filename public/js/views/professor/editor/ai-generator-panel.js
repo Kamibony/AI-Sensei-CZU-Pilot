@@ -4,11 +4,12 @@ import { doc, updateDoc, deleteField, serverTimestamp } from "https://www.gstati
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../../../firebase-init.js';
 import { showToast } from '../../../utils.js';
+// Zmenili sme import, nepotrebujeme loadSelectedFiles
 import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles } from '../../../upload-handler.js';
 
 let generateContentCallable = null;
 
-// Štýly tlačidiel (zostávajú rovnaké)
+// Štýly tlačidiel
 const btnBase = "px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
 const btnPrimary = `${btnBase} bg-green-700 text-white hover:bg-green-800`;
 const btnGenerate = `${btnBase} bg-amber-600 text-white hover:bg-amber-700 ai-glow`;
@@ -17,14 +18,15 @@ const btnDestructive = `${btnBase} bg-red-100 text-red-700 hover:bg-red-200`;
 
 export class AiGeneratorPanel extends LitElement {
     static properties = {
-        lesson: { type: Object },
+        lesson: { type: Object }, // Prijímame priamo z lesson-editor
         viewTitle: { type: String },
         contentType: { type: String },
         fieldToUpdate: { type: String },
         promptPlaceholder: { type: String },
         description: { type: String },
-        _currentLesson: { state: true, type: Object },
-        _generationOutput: { state: true }, // Výstup z AI (pred uložením)
+        // Odstránili sme _currentLesson, použijeme this.lesson
+        // _currentLesson: { state: true, type: Object },
+        _generationOutput: { state: true },
         _isLoading: { state: true, type: Boolean },
         _isSaving: { state: true, type: Boolean },
     };
@@ -42,22 +44,16 @@ export class AiGeneratorPanel extends LitElement {
 
     createRenderRoot() { return this; }
 
-    willUpdate(changedProperties) {
-        if (changedProperties.has('lesson')) {
-            this._currentLesson = this.lesson ? { ...this.lesson } : null;
-            // Resetujeme _generationOutput, aby sa pri prepnutí lekcie nezobrazoval starý generovaný obsah
-            this._generationOutput = null;
-        }
-    }
+    // === ZMENA: Odstránené willUpdate - už netreba internú kópiu ===
+    // willUpdate(changedProperties) { ... }
 
-    // --- RAG Funkcie (zostávajú rovnaké) ---
-    _createDocumentSelectorUI() { /* ... kód zostáva rovnaký ... */
+    // --- RAG Funkcie ---
+    _createDocumentSelectorUI() {
         return html`
             <div class="mb-4">
                 <label class="block font-medium text-slate-600 mb-2">Vyberte kontextové dokumenty (RAG):</label>
                 <div class="space-y-2 border rounded-lg p-3 bg-slate-50">
-                    <ul id="selected-files-list-rag" class="text-xs text-slate-600 mb-2 list-disc list-inside">
-                        <li>Žádné soubory nevybrány.</li>
+                    <ul id="selected-files-list-rag-${this.contentType}" class="text-xs text-slate-600 mb-2 list-disc list-inside"> <li>Žádné soubory nevybrány.</li>
                     </ul>
                     <button @click=${this._openRagModal} class="text-sm ${btnSecondary} px-2 py-1">
                         Vybrat soubory z knihovny
@@ -66,7 +62,18 @@ export class AiGeneratorPanel extends LitElement {
                 <p class="text-xs text-slate-400 mt-1">Vybrané dokumenty budou použity jako dodatečný kontext pro AI.</p>
             </div>`;
      }
-    firstUpdated() { renderSelectedFiles(); }
+
+    // === ZMENA: renderSelectedFiles sa volá v updated() ===
+    updated(changedProperties) {
+        // Vždy keď sa komponent prekreslí (aj pri zmene lekcie), vykreslíme RAG zoznam
+        // Použijeme unikátne ID pre RAG list v tomto paneli
+        if (changedProperties.has('lesson')) {
+            renderSelectedFiles(`selected-files-list-rag-${this.contentType}`);
+        }
+    }
+     // firstUpdated() už nie je potrebný pre RAG
+
+
     _openRagModal(e) { /* ... kód zostáva rovnaký ... */
         e.preventDefault();
         const modal = document.getElementById('media-library-modal');
@@ -74,15 +81,20 @@ export class AiGeneratorPanel extends LitElement {
         const modalCancel = document.getElementById('modal-cancel-btn');
         const modalClose = document.getElementById('modal-close-btn');
         if (!modal || !modalConfirm || !modalCancel || !modalClose) { console.error("Chybějící elementy pro modální okno."); showToast("Chyba: Nepodařilo se načíst komponentu pro výběr souborů.", true); return; }
-        const handleConfirm = () => { renderSelectedFiles(); closeModal(); }; const handleCancel = () => closeModal();
+        const handleConfirm = () => {
+             // Vykreslíme RAG zoznam pre TENTO panel po potvrdení
+             renderSelectedFiles(`selected-files-list-rag-${this.contentType}`);
+             closeModal();
+        };
+        const handleCancel = () => closeModal();
         const closeModal = () => { modal.classList.add('hidden'); modalConfirm.removeEventListener('click', handleConfirm); modalCancel.removeEventListener('click', handleCancel); modalClose.removeEventListener('click', handleCancel); };
         renderMediaLibraryFiles("main-course", "modal-media-list");
         modalConfirm.addEventListener('click', handleConfirm); modalCancel.addEventListener('click', handleCancel); modalClose.addEventListener('click', handleCancel);
         modal.classList.remove('hidden');
      }
 
-    // --- Generovanie AI (zostáva rovnaké) ---
-    async _handleGeneration(e) { /* ... kód zostáva rovnaký ... */
+    // --- Generovanie AI (používa this.lesson) ---
+    async _handleGeneration(e) { /* ... kód zostáva v podstate rovnaký ... */
         e.preventDefault();
         const promptInput = this.querySelector('#prompt-input');
         const userPrompt = promptInput ? promptInput.value.trim() : '';
@@ -100,39 +112,33 @@ export class AiGeneratorPanel extends LitElement {
             this._generationOutput = (this.contentType === 'text' && result.data.text) ? result.data.text : result.data;
         } catch (err) { console.error("Error during AI generation:", err); showToast(`Došlo k chybě: ${err.message || err}`, true); this._generationOutput = { error: `Došlo k chybě: ${err.message || err}` }; }
         finally { this._isLoading = false; }
-    }
+     }
 
-    // === NOVÁ METÓDA: Renderovanie Editovateľného Obsahu ===
+    // --- Renderovanie Editovateľného Obsahu ---
     _renderEditableContent(contentType, contentData) {
         switch (contentType) {
             case 'text':
-                // Zobrazíme textarea pre úpravu textu
                 return html`
-                    <textarea id="editable-content-textarea"
-                              class="w-full border-slate-300 rounded-lg p-3 h-64 focus:ring-green-500 focus:border-green-500 font-sans text-sm"
+                    <textarea id="editable-content-textarea-${this.contentType}" class="w-full border-slate-300 rounded-lg p-3 h-64 focus:ring-green-500 focus:border-green-500 font-sans text-sm"
                               .value=${contentData || ''}
                     ></textarea>
                 `;
-            case 'quiz':
-            case 'test':
-                 // TODO: Implementovať formulár pre úpravu kvízu/testu
-                 return html`<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Úprava kvízů/testů zatím není implementována. Můžete obsah smazat a vygenerovat nový.</div>
-                             ${this._renderStaticContent(contentType, contentData)} `;
+            // Zvyšok zostáva rovnaký (upozornenia)
+            case 'quiz': case 'test':
+                 return html`<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Úprava kvízů/testů zatím není implementována...</div>
+                             ${this._renderStaticContent(contentType, contentData)}`;
             case 'presentation':
-                // TODO: Implementovať formulár pre úpravu prezentácie
-                return html`<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Úprava prezentací zatím není implementována. Můžete obsah smazat a vygenerovat nový.</div>
+                return html`<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Úprava prezentací zatím není implementována...</div>
                             ${this._renderStaticContent(contentType, contentData)}`;
             case 'post':
-                 // TODO: Implementovať formulár pre úpravu podcastu
-                return html`<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Úprava podcastů zatím není implementována. Můžete obsah smazat a vygenerovat nový.</div>
+                return html`<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Úprava podcastů zatím není implementována...</div>
                             ${this._renderStaticContent(contentType, contentData)}`;
-            default:
-                return html`<p>Neznámý typ obsahu pro úpravu.</p>`;
+            default: return html`<p>Neznámý typ obsahu pro úpravu.</p>`;
         }
     }
 
-    // === PÔVODNÁ METÓDA PREMENOVANÁ: Renderovanie Statického (Náhľadového) Obsahu ===
-    _renderStaticContent(viewId, data) {
+    // --- Renderovanie Statického Obsahu (Náhľadu) ---
+    _renderStaticContent(viewId, data) { /* ... kód zostáva rovnaký, len formátovanie ... */
         if (!data) return html`<p>Žádná data k zobrazení.</p>`;
         if (data.error) return html`<div class="p-4 bg-red-100 text-red-700 rounded-lg">${data.error}</div>`;
         try {
@@ -140,91 +146,94 @@ export class AiGeneratorPanel extends LitElement {
                 case 'text':
                     const textContent = (typeof data === 'string') ? data : data.text;
                     if (typeof textContent !== 'string') throw new Error("Data neobsahují platný text.");
-                    // Zmeníme <pre> na <div> pre lepšie zalamovanie
                     return html`<div class="whitespace-pre-wrap font-sans text-sm">${textContent}</div>`;
                 case 'presentation':
                      const slides = data?.slides || []; const styleId = data?.styleId || this.querySelector('#presentation-style-selector')?.value || 'default';
                      if (!Array.isArray(slides)) throw new Error("Data neobsahují platné pole 'slides'.");
-                     return slides.map((slide, i) => html`/* ... kód pre slide zostáva ... */`);
+                     return slides.map((slide, i) => html`
+                        <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm bg-slate-50 relative">
+                            <h4 class="font-bold text-green-700">Slide ${i + 1}: ${slide.title || 'Bez názvu'}</h4>
+                            <ul class="list-disc list-inside mt-2 text-sm text-slate-600">
+                                ${(Array.isArray(slide.points) ? slide.points : []).map(p => html`<li>${p}</li>`)}
+                            </ul>
+                             <span class="style-indicator text-xs font-mono text-gray-400 absolute top-1 right-2">${styleId}</span>
+                        </div>`);
                 case 'quiz': case 'test':
                      if (!Array.isArray(data?.questions)) throw new Error("Data neobsahují platné pole 'questions'.");
-                     return data.questions.map((q, i) => { const optionsHtml = (q.options || []).map((opt, j) => html`<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`); return html`/* ... kód pre otázku zostáva ... */`; });
+                     return data.questions.map((q, i) => {
+                        const optionsHtml = (q.options || []).map((opt, j) => html`<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`);
+                        return html`<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
+                                    <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text || 'Chybějící text'}</h4>
+                                    <div class="mt-2 space-y-2">${optionsHtml}</div>
+                                </div>`; });
                 case 'post':
                     if (!Array.isArray(data?.episodes)) throw new Error("Data neobsahují platné pole 'episodes'.");
-                     return data.episodes.map((episode, i) => html`/* ... kód pre epizódu zostáva ... */`);
+                     return data.episodes.map((episode, i) => html`
+                        <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
+                            <h4 class="font-bold text-green-700">Epizoda ${i+1}: ${episode.title || 'Bez názvu'}</h4>
+                            <pre class="mt-2 text-sm text-slate-600 whitespace-pre-wrap font-sans">${episode.script || ''}</pre>
+                        </div>`);
                 default: return html`<div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">Neznámý typ obsahu '${viewId}' pro zobrazení.</div>`;
             }
         } catch(e) { console.error("Error rendering content:", e, data); return html`<div class="p-4 bg-red-100 text-red-700 rounded-lg">Došlo k chybě při zobrazování obsahu: ${e.message}</div>`; }
-    }
+     }
 
 
-    // === UPRAVENÁ METÓDA: Ukladanie (Generovaného aj Editovaného obsahu) ===
+    // --- Ukladanie (používa this.lesson) ---
     async _handleSaveGeneratedContent() {
-        if (!this._currentLesson?.id) { showToast("Nejprve uložte detaily lekce.", true); return; }
+        if (!this.lesson?.id) { showToast("Nejprve uložte detaily lekce.", true); return; }
 
-        const hasExistingContent = this._currentLesson[this.fieldToUpdate];
+        const hasExistingContent = this.lesson[this.fieldToUpdate];
         let dataToSave;
 
         if (hasExistingContent && this.contentType === 'text') {
-            // Ak editujeme text, prečítame hodnotu z textarea
-            const textarea = this.querySelector('#editable-content-textarea');
+            const textarea = this.querySelector(`#editable-content-textarea-${this.contentType}`); // Unikátne ID
             if (!textarea) { showToast("Chyba: Editační pole nebylo nalezeno.", true); return; }
-            dataToSave = textarea.value; // Uložíme upravený text
+            dataToSave = textarea.value;
         }
         else if (hasExistingContent) {
-             // Ak editujeme iný typ obsahu (zatiaľ neimplementované)
-             showToast("Ukládání úprav pro tento typ obsahu zatím není podporováno.", true);
-             // TODO: Prečítať dáta z editačného formulára pre kvíz, test, atď.
-             // dataToSave = this._readEditedFormData(); // Hypotetická funkcia
-             return; // Zatiaľ neukladáme
+             showToast("Ukládání úprav pro tento typ obsahu zatím není podporováno.", true); return;
         }
         else if (this._generationOutput && !this._generationOutput.error) {
-            // Ak ukladáme novo vygenerovaný obsah
-             if (this.contentType === 'presentation') {
-                 dataToSave = { styleId: this.querySelector('#presentation-style-selector')?.value || 'default', slides: this._generationOutput.slides };
-             } else {
-                 dataToSave = this._generationOutput;
-             }
-        } else {
-            showToast("Není co uložit.", true); return;
-        }
+             if (this.contentType === 'presentation') { dataToSave = { styleId: this.querySelector('#presentation-style-selector')?.value || 'default', slides: this._generationOutput.slides }; }
+             else { dataToSave = this._generationOutput; }
+        } else { showToast("Není co uložit.", true); return; }
 
-        const lessonRef = doc(firebaseInit.db, 'lessons', this._currentLesson.id);
+        const lessonRef = doc(firebaseInit.db, 'lessons', this.lesson.id);
         this._isSaving = true;
 
         try {
             await updateDoc(lessonRef, { [this.fieldToUpdate]: dataToSave, updatedAt: serverTimestamp() });
-            this._currentLesson = { ...this._currentLesson, [this.fieldToUpdate]: dataToSave };
-            this._generationOutput = null; // Vyčistíme generovaný výstup po uložení
+            const updatedLesson = { ...this.lesson, [this.fieldToUpdate]: dataToSave }; // Vytvoríme nový objekt pre notifikáciu
+            this._generationOutput = null; // Vyčistíme po uložení
             showToast(hasExistingContent ? "Změny byly úspěšně uloženy." : "Obsah byl úspěšně uložen do lekce.");
-            this.dispatchEvent(new CustomEvent('lesson-updated', { detail: this._currentLesson, bubbles: true, composed: true }));
-        } catch (error) {
-            console.error(`Chyba při ukládání obsahu (${this.fieldToUpdate}):`, error);
-            showToast("Při ukládání obsahu došlo k chybě.", true);
-        } finally { this._isSaving = false; }
+            // Pošleme udalosť s aktualizovanou lekciou
+            this.dispatchEvent(new CustomEvent('lesson-updated', { detail: updatedLesson, bubbles: true, composed: true }));
+        } catch (error) { console.error(`Chyba při ukládání obsahu (${this.fieldToUpdate}):`, error); showToast("Při ukládání obsahu došlo k chybě.", true); }
+        finally { this._isSaving = false; }
     }
 
-    // --- Mazanie (zostáva rovnaké) ---
-    async _handleDeleteGeneratedContent() { /* ... kód zostáva rovnaký ... */
-        if (!this._currentLesson?.id) { showToast("Lekce není uložena.", true); return; }
+    // --- Mazanie (používa this.lesson) ---
+    async _handleDeleteGeneratedContent() {
+        if (!this.lesson?.id) { showToast("Lekce není uložena.", true); return; }
         if (!confirm(`Opravdu si přejete smazat tento obsah a aktivovat generátor?`)) return;
         this._isLoading = true;
         try {
-            const lessonRef = doc(firebaseInit.db, 'lessons', this._currentLesson.id);
+            const lessonRef = doc(firebaseInit.db, 'lessons', this.lesson.id);
             await updateDoc(lessonRef, { [this.fieldToUpdate]: deleteField(), updatedAt: serverTimestamp() });
-            const updatedLesson = { ...this._currentLesson }; delete updatedLesson[this.fieldToUpdate];
-            this._currentLesson = updatedLesson;
+            const updatedLesson = { ...this.lesson }; delete updatedLesson[this.fieldToUpdate];
             showToast("Obsah byl úspěšně smazán.");
-            this.dispatchEvent(new CustomEvent('lesson-updated', { detail: this._currentLesson, bubbles: true, composed: true }));
+            // Pošleme udalosť s aktualizovanou lekciou
+            this.dispatchEvent(new CustomEvent('lesson-updated', { detail: updatedLesson, bubbles: true, composed: true }));
         } catch (error) { console.error("Chyba při mazání obsahu:", error); showToast("Při mazání obsahu došlo k chybě.", true); }
         finally { this._isLoading = false; }
-    }
+     }
 
     // --- Hlavná Render Metóda ---
     render() {
-        const hasSavedContent = this._currentLesson && this._currentLesson[this.fieldToUpdate];
-        // Určíme, či pre daný typ obsahu už existuje editačné UI
-        const isEditable = this.contentType === 'text'; // Zatiaľ len text
+        // Používame priamo this.lesson
+        const hasSavedContent = this.lesson && this.lesson[this.fieldToUpdate];
+        const isEditable = this.contentType === 'text';
 
         const title = html`
             <div class="flex justify-between items-start mb-6">
@@ -232,33 +241,34 @@ export class AiGeneratorPanel extends LitElement {
                 ${hasSavedContent ? html`
                     <button @click=${this._handleDeleteGeneratedContent} ?disabled=${this._isLoading || this._isSaving}
                             class="${btnDestructive} px-4 py-2 text-sm">
-                        ${this._isLoading ? 'Mazání...' : '🗑️ Smazat'} ${!isEditable ? 'a vytvořit nový' : ''} </button>
+                        ${this._isLoading ? 'Mazání...' : '🗑️ Smazat'} ${!isEditable ? 'a vytvořit nový' : ''}
+                    </button>
                 ` : nothing}
             </div>`;
 
-        // === ZMENA: Rozhodovanie medzi Editáciou a Generovaním ===
-        if (hasSavedContent && isEditable) {
-            // --- Režim Editácie ---
+        if (hasSavedContent) {
+            // --- Režim Zobrazenia/Editácie Existujúceho Obsahu ---
             return html`
                 ${title}
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    ${this._renderEditableContent(this.contentType, this._currentLesson[this.fieldToUpdate])}
-
-                    <div class="text-right mt-4">
-                        <button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading || this._isSaving} class="${btnPrimary}">
-                            ${this._isSaving ? html`<div class="spinner"></div><span class="ml-2">Ukládám...</span>` : 'Uložit změny'}
-                        </button>
-                    </div>
+                    ${isEditable
+                        ? this._renderEditableContent(this.contentType, this.lesson[this.fieldToUpdate])
+                        : this._renderStaticContent(this.contentType, this.lesson[this.fieldToUpdate]) // Zobrazíme statický náhľad pre needitovateľné
+                    }
+                    ${isEditable ? html`
+                        <div class="text-right mt-4">
+                            <button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading || this._isSaving} class="${btnPrimary}">
+                                ${this._isSaving ? html`<div class="spinner"></div><span class="ml-2">Ukládám...</span>` : 'Uložit změny'}
+                            </button>
+                        </div>
+                    ` : html `
+                        <div class="mt-4 p-4 bg-yellow-100 text-yellow-700 rounded-lg text-sm">
+                            Úprava tohoto typu obsahu zatím není implementována. Pro změnu obsah smažte a vygenerujte nový.
+                        </div>
+                    `}
                 </div>`;
-        } else if (hasSavedContent && !isEditable) {
-            // --- Režim Náhľadu (pre neimplementované editory) ---
-             return html`
-                ${title}
-                <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    ${this._renderEditableContent(this.contentType, this._currentLesson[this.fieldToUpdate])}
-                 </div>`;
         } else {
-            // --- Režim Generovania (ako predtým) ---
+            // --- Režim Generovania ---
             return html`
                 ${title}
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
@@ -288,7 +298,6 @@ export class AiGeneratorPanel extends LitElement {
                 </div>
             `;
         }
-        // === KONIEC ZMENY ===
     }
 }
 customElements.define('ai-generator-panel', AiGeneratorPanel);
