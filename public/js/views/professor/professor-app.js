@@ -1,30 +1,33 @@
 // public/js/views/professor/professor-app.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+// Odstránili sme import httpsCallable a query
 import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Importy komponentov
 import './lesson-library.js';
 import './timeline-view.js';
 import './professor-media-view.js'; 
-import './lesson-editor-menu.js'; // === PRIDANÝ IMPORT ===
-import './lesson-editor.js'; // === PRIDANÝ IMPORT ===
+import './lesson-editor-menu.js'; 
+import './lesson-editor.js'; 
+import './professor-students-view.js'; // === PRIDANÝ IMPORT ===
+import './professor-student-profile-view.js'; // === PRIDANÝ IMPORT ===
+import './professor-interactions-view.js'; // === PRIDANÝ IMPORT ===
+import './professor-analytics-view.js'; // === PRIDANÝ IMPORT ===
 
-// Importy pôvodných procedurálnych funkcií
-// import { renderEditorMenu } from '../../editor-handler.js'; // === ODSTRÁNENÝ IMPORT ===
-import { setupProfessorNav } from './navigation.js';
-import { renderStudentsView } from './students-view.js';
-import { renderStudentProfile } from './student-profile-view.js';
-import { renderStudentInteractions } from './interactions-view.js';
-import { handleLogout } from '../../auth.js';
-import * as firebaseInit from '../../firebase-init.js';
-import { showToast } from '../../utils.js';
+// Importy pôvodných procedurálnych funkcií sú PREČ
+// import { renderStudentsView } from './students-view.js';
+// import { renderStudentProfile } from './student-profile-view.js';
+// import { renderStudentInteractions } from './interactions-view.js';
+import { setupProfessorNav } from './navigation.js'; // Tento zostáva
+import { handleLogout } from '../../auth.js'; // Tento zostáva
+import * as firebaseInit from '../../firebase-init.js'; // Tento zostáva pre fetchLessons
+import { showToast } from '../../utils.js'; // Tento zostáva
 
 export class ProfessorApp extends LitElement {
     static properties = {
         _currentView: { state: true, type: String },
-        _currentData: { state: true }, // Pre lekciu alebo študenta
-        _currentEditorView: { state: true, type: String }, // Pre pod-pohľad editora (napr. 'details')
+        _currentData: { state: true }, // Pre lekciu alebo ID študenta
+        _currentEditorView: { state: true, type: String }, 
         _lessonsData: { state: true, type: Array },
         _sidebarComponent: { state: true, type: String },
     };
@@ -33,12 +36,13 @@ export class ProfessorApp extends LitElement {
         super();
         this._currentView = 'timeline';
         this._currentData = null;
-        this._currentEditorView = 'details'; // Predvolený pohľad editora
+        this._currentEditorView = 'details'; 
         this._lessonsData = [];
         this._sidebarComponent = 'library'; 
         
-        this.conversationsUnsubscribe = null;
-        this.studentsUnsubscribe = null;
+        // Unsubscribe handlery už nie sú potrebné
+        // this.conversationsUnsubscribe = null;
+        // this.studentsUnsubscribe = null;
     }
 
     createRenderRoot() {
@@ -58,11 +62,7 @@ export class ProfessorApp extends LitElement {
         }
     }
 
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        if (this.conversationsUnsubscribe) { this.conversationsUnsubscribe(); }
-        if (this.studentsUnsubscribe) { this.studentsUnsubscribe(); }
-    }
+    // disconnectedCallback už nie je potrebný
 
     async _fetchLessons() {
         try {
@@ -75,10 +75,8 @@ export class ProfessorApp extends LitElement {
         }
     }
     
+    // Zjednodušená metóda - už nemusí manažovať unsubscribe
     _showProfessorContent(view, data = null) {
-        if (this.conversationsUnsubscribe) { this.conversationsUnsubscribe(); this.conversationsUnsubscribe = null; }
-        if (this.studentsUnsubscribe) { this.studentsUnsubscribe(); this.studentsUnsubscribe = null; }
-
         const fullWidthViews = ['students', 'student-profile', 'interactions', 'analytics', 'media'];
         
         if (fullWidthViews.includes(view)) {
@@ -87,17 +85,15 @@ export class ProfessorApp extends LitElement {
              this._sidebarComponent = (view === 'editor') ? 'editor' : 'library';
         }
 
-        // Ak vstupujeme do editora, resetujeme jeho pohľad na 'details'
         if (view === 'editor' && this._currentView !== 'editor') {
             this._currentEditorView = 'details';
         }
-        // Ak sa vraciame na timeline, znova načítame lekcie
         if (view === 'timeline') {
              this._fetchLessons();
         }
 
         this._currentView = view;
-        this._currentData = data;
+        this._currentData = data; // Uložíme ID študenta alebo objekt lekcie
     }
 
     // --- Event Handlery ---
@@ -109,24 +105,28 @@ export class ProfessorApp extends LitElement {
         this._showProfessorContent('editor', null);
     }
 
-    // Nový handler pre zmenu tabu v editore
     _onEditorViewChanged(e) {
         this._currentEditorView = e.detail.view;
     }
 
-    // Nový handler pre návrat z editora
     _onBackToTimeline() {
         this._showProfessorContent('timeline');
     }
     
-    // Nový handler pre prípad, že sa v detaile lekcie vytvorí nová lekcia
     _onLessonCreatedOrUpdated(e) {
-        // Aktualizujeme dáta, ktoré držíme (pre menu)
-        this._currentData = e.detail;
-        // Znovu načítame knižnicu lekcií
-        this._fetchLessons();
+        this._currentData = e.detail; // Aktualizujeme lekciu
+        this._fetchLessons(); // Znovu načítame knižnicu
     }
-
+    
+    // Nový handler pre navigáciu zo zoznamu študentov na profil
+    _onNavigateToProfile(e) {
+        this._showProfessorContent('student-profile', e.detail.studentId);
+    }
+    
+    // Nový handler pre návrat z profilu na zoznam
+    _onBackToList() {
+         this._showProfessorContent('students');
+    }
 
     // --- Renderovacie Metódy ---
 
@@ -153,7 +153,6 @@ export class ProfessorApp extends LitElement {
                                 @add-new-lesson=${this._onAddNewLesson}>
                             </lesson-library>`;
             case 'editor':
-                // === ZMENA: Renderujeme nový komponent menu ===
                 return html`<lesson-editor-menu
                                 .lesson=${this._currentData}
                                 .activeView=${this._currentEditorView}
@@ -166,155 +165,41 @@ export class ProfessorApp extends LitElement {
         }
     }
 
+    // === ZMENA: Všetky pohľady sú teraz komponenty ===
     _renderMainContent() {
         switch (this._currentView) {
             case 'timeline':
                 return html`<professor-timeline-view .lessonsData=${this._lessonsData}></professor-timeline-view>`;
-            
             case 'media':
                 return html`<professor-media-view></professor-media-view>`;
-                
             case 'editor':
-                // === ZMENA: Renderujeme nový komponent editora ===
                 return html`<lesson-editor
                                 .lesson=${this._currentData}
                                 .view=${this._currentEditorView}
                                 @lesson-updated=${this._onLessonCreatedOrUpdated}>
                             </lesson-editor>`;
-                
-            case 'student-profile':
-                return html`<div id="student-profile-container" class="w-full h-full"></div>`;
             case 'students':
-                return html`<div id="students-container" class="w-full h-full"></div>`;
+                return html`<professor-students-view @navigate-to-profile=${this._onNavigateToProfile}></professor-students-view>`;
+            case 'student-profile':
+                // Odovzdáme ID študenta ako property
+                return html`<professor-student-profile-view .studentId=${this._currentData} @back-to-list=${this._onBackToList}></professor-student-profile-view>`;
             case 'interactions':
-                return html`<div id="interactions-container" class="w-full h-full"></div>`;
+                // Tento komponent si spravuje vnútorný stav sám
+                return html`<professor-interactions-view class="flex flex-grow h-full"></professor-interactions-view>`;
             case 'analytics':
-                return html`<div id="analytics-container" class="w-full h-full"></div>`;
+                 // Tento komponent si spravuje vnútorný stav sám
+                return html`<professor-analytics-view></professor-analytics-view>`;
             default:
+                // Fallback
                 return html`<professor-timeline-view .lessonsData=${this._lessonsData}></professor-timeline-view>`;
         }
     }
     
-    // === ZMENA: Zjednodušená metóda updated() ===
-    updated(changedProperties) {
-        if (changedProperties.has('_currentView') || changedProperties.has('_currentData')) {
-            
-            // 'case editor' je ODOBRANÝ
-            switch (this._currentView) {
-                case 'student-profile':
-                    const profileContainer = this.querySelector('#student-profile-container');
-                    if (profileContainer) { 
-                        const backToStudentsList = () => this._showProfessorContent('students');
-                        renderStudentProfile(profileContainer, this._currentData, backToStudentsList);
-                    }
-                    break;
-                case 'students':
-                    const studentsContainer = this.querySelector('#students-container');
-                    if (studentsContainer) {
-                        const navigateToStudentProfile = (studentId) => {
-                            this._showProfessorContent('student-profile', studentId);
-                        };
-                        this.studentsUnsubscribe = renderStudentsView(studentsContainer, firebaseInit.db, this.studentsUnsubscribe, navigateToStudentProfile);
-                    }
-                    break;
-                case 'interactions':
-                    const interactionsContainer = this.querySelector('#interactions-container');
-                    if (interactionsContainer) {
-                        this.conversationsUnsubscribe = renderStudentInteractions(interactionsContainer, firebaseInit.db, firebaseInit.functions, this.conversationsUnsubscribe);
-                    }
-                    break;
-                case 'analytics':
-                    const analyticsContainer = this.querySelector('#analytics-container');
-                    if (analyticsContainer) {
-                        this._renderAnalytics(analyticsContainer); 
-                    }
-                    break;
-            }
-        }
-    }
+    // === ZMENA: Metóda updated() je ODOBRANÁ ===
+    // Už nie je potrebná, pretože všetky pohľady sú komponenty a spravujú sa samé.
 
-    // Pomocná funkcia pre analytiku (zostáva rovnaká)
-    async _renderAnalytics(container) {
-        container.innerHTML = `
-            <div class="p-6 md:p-8">
-                <h2 class="text-3xl font-extrabold text-slate-800 mb-6">Analýza platformy</h2>
-                <div id="analytics-loading" class="text-center text-slate-500">
-                    <p>Načítám analytická data...</p>
-                </div>
-                <div id="analytics-content" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    </div>
-            </div>`;
-
-        try {
-            if (!this._getGlobalAnalyticsCallable) {
-                 if (!firebaseInit.functions) {
-                     console.error("CRITICAL: Firebase Functions object is not available for getGlobalAnalyticsCallable!");
-                     showToast("Chyba inicializace funkcí.", true);
-                     throw new Error("Firebase Functions not initialized.");
-                 }
-                 this._getGlobalAnalyticsCallable = httpsCallable(firebaseInit.functions, 'getGlobalAnalytics');
-            }
-            
-            const getAnalytics = this._getGlobalAnalyticsCallable;
-            const result = await getAnalytics();
-            const data = result.data;
-
-            const contentContainer = this.querySelector('#analytics-content'); 
-            if (!contentContainer) return;
-
-            const studentCard = this._createStatCard('Celkový počet studentů', data.studentCount, '👥');
-            const quizCard = this._createStatCard('Průměrné skóre (Kvízy)', `${data.avgQuizScore}%`, '❓', `(z ${data.quizSubmissionCount} odevzdání)`);
-            const testCard = this._createStatCard('Průměrné skóre (Testy)', `${data.avgTestScore}%`, '✅', `(z ${data.testSubmissionCount} odevzdání)`);
-
-            contentContainer.appendChild(studentCard);
-            contentContainer.appendChild(quizCard);
-            contentContainer.appendChild(testCard);
-
-            const activityCard = document.createElement('div');
-            activityCard.className = 'bg-white p-6 rounded-xl shadow-lg md:col-span-2 lg:col-span-3';
-            let topStudentsHtml = (data.topStudents || []).map(student => 
-                `<li class="flex justify-between items-center py-2 border-b last:border-b-0">
-                    <span class="text-slate-700">${student.name}</span>
-                    <span class="font-semibold text-green-700">${student.submissions} odevzdání</span>
-                </li>`
-            ).join('');
-
-            activityCard.innerHTML = `
-                <h4 class="text-lg font-semibold text-slate-800 mb-4">Top 5 nejaktivnějších studentů</h4>
-                <ul class="divide-y divide-slate-100">
-                    ${topStudentsHtml || '<p class="text-slate-500 py-4">Žádná aktivita k zobrazení.</p>'}
-                </ul>
-            `;
-            contentContainer.appendChild(activityCard);
-
-            const loadingEl = this.querySelector('#analytics-loading');
-            if (loadingEl) loadingEl.classList.add('hidden');
-            contentContainer.classList.remove('hidden');
-
-        } catch (error) {
-            console.error("Error fetching analytics:", error);
-            const loadingEl = this.querySelector('#analytics-loading');
-            if (loadingEl) {
-                loadingEl.innerHTML = `<p class="text-red-500">Nepodařilo se načíst analytická data: ${error.message}</p>`;
-            }
-            showToast("Chyba při načítání analýzy.", true);
-        }
-    }
-    
-    // Pomocná funkcia (zostáva rovnaká)
-    _createStatCard(title, value, emoji, subtitle = '') {
-        const card = document.createElement('div');
-        card.className = 'bg-white p-6 rounded-xl shadow-lg flex items-center space-x-4';
-        card.innerHTML = `
-            <div class="text-4xl">${emoji}</div>
-            <div>
-                <h4 class="text-sm font-medium text-slate-500 uppercase tracking-wider">${title}</h4>
-                <p class="text-3xl font-bold text-slate-900">${value}</p>
-                ${subtitle ? `<p class="text-xs text-slate-400 mt-1">${subtitle}</p>` : ''}
-            </div>
-        `;
-        return card;
-    }
+    // === ZMENA: Metódy pre analýzu sú ODOBRANÉ ===
+    // _renderAnalytics, _createStatCard a _getGlobalAnalyticsCallable sú preč.
 }
 
 customElements.define('professor-app', ProfessorApp);
