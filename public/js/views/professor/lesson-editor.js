@@ -1,6 +1,6 @@
 // public/js/views/professor/lesson-editor.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { showToast } from '../../utils.js'; // Potrebujeme pre download funkciu
+import { showToast } from '../../utils.js';
 
 // Importujeme všetky view komponenty editora
 import './editor/editor-view-details.js';
@@ -15,13 +15,13 @@ export class LessonEditor extends LitElement {
     static properties = {
         lesson: { type: Object },
         _activeView: { state: true, type: String },
-        _currentLessonData: { state: true, type: Object }, // Interná kópia pre úpravy
+        _currentLessonData: { state: true, type: Object },
     };
 
     constructor() {
         super();
         this.lesson = null;
-        this._activeView = 'details'; // Predvolený otvorený view
+        this._activeView = 'details';
         this._currentLessonData = null;
         this.menuItems = [
             { id: 'details', label: 'Detaily lekce', icon: '📝' },
@@ -35,42 +35,34 @@ export class LessonEditor extends LitElement {
     }
 
     createRenderRoot() {
-        return this; // Renderujeme do Light DOM
+        return this;
     }
 
-    // Keď sa zmení vstupná `lesson` property, aktualizujeme interný stav
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {
             this._currentLessonData = this.lesson ? { ...this.lesson } : null;
-            // Vždy resetujeme na 'details' pri načítaní novej lekcie
-            this._activeView = 'details';
+            // Pri novej lekcii vždy začneme detailmi
+            if (!this.lesson || (changedProperties.get('lesson') && changedProperties.get('lesson').id !== this.lesson.id)) {
+                 this._activeView = 'details';
+            }
         }
     }
 
-    // Handler pre kliknutie na kartu/tlačidlo sekcie
-    _toggleView(viewId) {
-        // Ak klikneme na už otvorenú sekciu, zatvoríme ju (žiadna nie je aktívna)
-        // Ak klikneme na inú, otvoríme ju
-        this._activeView = this._activeView === viewId ? null : viewId;
+    _setActiveView(viewId) {
+        this._activeView = viewId;
     }
 
-    // Handler pre udalosť `lesson-updated` z pod-komponentov
     _handleLessonUpdate(e) {
-        this._currentLessonData = e.detail; // Aktualizujeme interné dáta
-        // Pošleme udalosť vyššie do professor-app
+        this._currentLessonData = e.detail;
         this.dispatchEvent(new CustomEvent('lesson-updated', {
-            detail: e.detail,
-            bubbles: true,
-            composed: true
+            detail: e.detail, bubbles: true, composed: true
         }));
     }
 
-    // Handler pre tlačidlo späť
     _handleBackClick() {
         this.dispatchEvent(new CustomEvent('editor-exit', { bubbles: true, composed: true }));
     }
 
-    // Funkcia na stiahnutie (presunutá sem)
      _handleDownloadLessonContent() {
         const currentLesson = this._currentLessonData;
         if (!currentLesson) {
@@ -96,9 +88,10 @@ export class LessonEditor extends LitElement {
         URL.revokeObjectURL(url); showToast("Obsah lekce byl stažen.");
     }
 
-
-    // Funkcia na renderovanie jednotlivých sekcií editora
     renderEditorSection(viewId) {
+        // Renderuje iba aktívnu sekciu
+        if (this._activeView !== viewId) return '';
+
         switch(viewId) {
             case 'details':
                 return html`<editor-view-details .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-details>`;
@@ -115,7 +108,7 @@ export class LessonEditor extends LitElement {
             case 'post':
                 return html`<editor-view-post .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-post>`;
             default:
-                return html``; // Nič nezobrazíme, ak nie je aktívny view
+                return html``;
         }
     }
 
@@ -125,7 +118,7 @@ export class LessonEditor extends LitElement {
 
         return html`
             <div class="p-4 sm:p-6 md:p-8 overflow-y-auto h-full">
-                <header class="mb-6 flex justify-between items-center">
+                 <header class="mb-6 flex justify-between items-center">
                     <div>
                         <button @click=${this._handleBackClick} class="flex items-center text-sm text-green-700 hover:underline mb-2">
                              &larr; Zpět na plán výuky
@@ -142,38 +135,26 @@ export class LessonEditor extends LitElement {
                      </button>
                  </header>
 
-                <div class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-8">
                     ${this.menuItems.map(item => {
                         const isActive = this._activeView === item.id;
-                        // Pridáme triedy pre aktívny stav a animáciu
-                        const cardClasses = isActive
-                            ? 'bg-white border-green-300 shadow-md'
-                            : 'bg-white hover:bg-slate-50 border-slate-200 hover:shadow-sm';
-                        const headerClasses = isActive
-                            ? 'text-green-800 font-semibold'
-                            : 'text-slate-700';
+                        // Štýly pre tlačidlá, podobné ako v student-lesson-list
+                        const buttonClasses = isActive
+                            ? 'bg-green-700 text-white shadow-lg scale-105' // Aktívne
+                            : 'bg-white text-slate-700 hover:bg-green-50 hover:text-green-800 hover:shadow-md border border-slate-200'; // Neaktívne
 
                         return html`
-                            <div class="border rounded-lg overflow-hidden transition-all duration-300 ${cardClasses}">
-                                <button @click=${() => this._toggleView(item.id)}
-                                        class="w-full flex items-center justify-between p-4 focus:outline-none">
-                                    <span class="flex items-center text-lg ${headerClasses}">
-                                        <span class="mr-3 text-xl">${item.icon}</span>
-                                        ${item.label}
-                                    </span>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform transition-transform duration-300 ${isActive ? 'rotate-180' : 'rotate-0'}">
-                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                    </svg>
-                                </button>
-
-                                <div class="transition-all duration-300 ease-in-out overflow-hidden ${isActive ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'}">
-                                     <div class="p-4 border-t border-slate-200">
-                                          ${isActive ? this.renderEditorSection(item.id) : ''}
-                                     </div>
-                                </div>
-                            </div>
+                            <button @click=${() => this._setActiveView(item.id)}
+                                    class="flex flex-col items-center justify-center p-4 rounded-xl text-center transition-all duration-200 ease-in-out transform ${buttonClasses}">
+                                <span class="text-3xl mb-2">${item.icon}</span>
+                                <span class="text-sm font-semibold">${item.label}</span>
+                            </button>
                         `;
                     })}
+                </div>
+
+                <div class="mt-6 editor-section-content">
+                    ${this.renderEditorSection(this._activeView)}
                 </div>
             </div>
         `;
