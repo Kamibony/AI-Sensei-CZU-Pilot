@@ -1,6 +1,6 @@
 // public/js/views/professor/lesson-editor.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { showToast } from '../../utils.js'; // Potrebujeme pre download funkciu
+import { showToast } from '../../utils.js';
 
 // Importujeme všetky view komponenty editora
 import './editor/editor-view-details.js';
@@ -15,33 +15,33 @@ export class LessonEditor extends LitElement {
     static properties = {
         lesson: { type: Object },
         _activeView: { state: true, type: String },
-        _currentLessonData: { state: true, type: Object }, // Interná kópia pre úpravy
+        _currentLessonData: { state: true, type: Object },
     };
 
     constructor() {
         super();
         this.lesson = null;
-        this._activeView = 'details'; // Predvolený otvorený view
+        this._activeView = 'details';
         this._currentLessonData = null;
+        // Pridané popisy ku každej položke
         this.menuItems = [
-            { id: 'details', label: 'Detaily lekce', icon: '📝', field: null }, // Detaily nemajú špecifický field
-            { id: 'text', label: 'Text pro studenty', icon: '✍️', field: 'text_content' },
-            { id: 'presentation', label: 'Prezentace', icon: '🖼️', field: 'presentation' },
-            { id: 'video', label: 'Video', icon: '▶️', field: 'videoUrl' },
-            { id: 'quiz', label: 'Kvíz', icon: '❓', field: 'quiz' },
-            { id: 'test', label: 'Test', icon: '✅', field: 'test' },
-            { id: 'post', label: 'Podcast Skript', icon: '🎙️', field: 'podcast_script' },
+            { id: 'details', label: 'Detaily lekce', icon: '📝', field: null, description: 'Základní informace o lekci (název, ikona, RAG soubory).' },
+            { id: 'text', label: 'Text pro studenty', icon: '✍️', field: 'text_content', description: 'Vytvořte nebo vložte hlavní studijní text pro tuto lekci.' },
+            { id: 'presentation', label: 'Prezentace', icon: '🖼️', field: 'presentation', description: 'Vygenerujte AI prezentaci shrnující klíčové body lekce.' },
+            { id: 'video', label: 'Video', icon: '▶️', field: 'videoUrl', description: 'Vložte odkaz na doplňkové video z YouTube.' },
+            { id: 'quiz', label: 'Kvíz', icon: '❓', field: 'quiz', description: 'Vytvořte rychlý interaktivní kvíz pro ověření znalostí.' },
+            { id: 'test', label: 'Test', icon: '✅', field: 'test', description: 'Navrhněte komplexnější test pro hodnocení studentů.' },
+            { id: 'post', label: 'Podcast Skript', icon: '🎙️', field: 'podcast_script', description: 'Vygenerujte skripty pro audio verzi lekce.' },
         ];
     }
 
     createRenderRoot() {
-        return this; // Renderujeme do Light DOM
+        return this;
     }
 
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {
             this._currentLessonData = this.lesson ? { ...this.lesson } : null;
-            // Resetujeme na 'details' pri načítaní novej lekcie
              if (!this.lesson || (changedProperties.get('lesson') && changedProperties.get('lesson')?.id !== this.lesson.id)) {
                  this._activeView = 'details';
             }
@@ -49,7 +49,6 @@ export class LessonEditor extends LitElement {
     }
 
     _toggleView(viewId) {
-        // Otvorí/zatvorí sekciu
         this._activeView = this._activeView === viewId ? null : viewId;
     }
 
@@ -82,33 +81,21 @@ export class LessonEditor extends LitElement {
     }
 
     renderEditorSection(viewId) {
-        // Renderuje iba aktívnu sekciu
         if (this._activeView !== viewId) return '';
-        // Pridáme triedu pre padding a border-top
-        return html`<div class="p-4 sm:p-6 border-t border-slate-200">
-                      ${this._renderSpecificEditorView(viewId)}
+        return html`<div class="p-4 sm:p-6 border-t border-slate-200 bg-white"> ${this._renderSpecificEditorView(viewId)}
                    </div>`;
     }
 
-    // Pomocná funkcia na renderovanie konkrétneho view komponentu
     _renderSpecificEditorView(viewId) {
          switch(viewId) {
-            case 'details':
-                return html`<editor-view-details .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-details>`;
-            case 'text':
-                return html`<editor-view-text .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-text>`;
-            case 'presentation':
-                return html`<editor-view-presentation .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-presentation>`;
-            case 'video':
-                return html`<editor-view-video .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-video>`;
-            case 'quiz':
-                return html`<editor-view-quiz .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-quiz>`;
-            case 'test':
-                return html`<editor-view-test .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-test>`;
-            case 'post':
-                return html`<editor-view-post .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-post>`;
-            default:
-                return html``;
+            case 'details': return html`<editor-view-details .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-details>`;
+            case 'text': return html`<editor-view-text .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-text>`;
+            case 'presentation': return html`<editor-view-presentation .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-presentation>`;
+            case 'video': return html`<editor-view-video .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-video>`;
+            case 'quiz': return html`<editor-view-quiz .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-quiz>`;
+            case 'test': return html`<editor-view-test .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-test>`;
+            case 'post': return html`<editor-view-post .lesson=${this._currentLessonData} @lesson-updated=${this._handleLessonUpdate}></editor-view-post>`;
+            default: return html``;
         }
     }
 
@@ -118,8 +105,7 @@ export class LessonEditor extends LitElement {
 
         return html`
             <div class="p-4 sm:p-6 md:p-8 overflow-y-auto h-full">
-                 <header class="mb-6 flex justify-between items-center">
-                    <div>
+                 <header class="mb-8 flex justify-between items-center"> <div>
                         <button @click=${this._handleBackClick} class="flex items-center text-sm text-green-700 hover:underline mb-2">
                              &larr; Zpět na plán výuky
                         </button>
@@ -135,30 +121,26 @@ export class LessonEditor extends LitElement {
                      </button>
                  </header>
 
-                <div class="space-y-3">
-                    ${this.menuItems.map(item => {
+                <div class="space-y-4 max-w-4xl mx-auto"> ${this.menuItems.map(item => {
                         const isActive = this._activeView === item.id;
-                        // Zistíme, či má sekcia obsah
-                        const hasContent = item.field ? !!this._currentLessonData?.[item.field] : true; // Detaily majú vždy "obsah"
+                        const hasContent = item.field ? !!this._currentLessonData?.[item.field] : true;
                         const statusColor = hasContent ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500';
                         const statusText = item.id === 'details' ? '' : (hasContent ? 'Vytvořeno' : 'Nevytvořeno');
 
-                        // Štýly pre accordion tlačidlo
+                        // Väčší padding, výraznejšie tiene, upravené farby
                         const buttonClasses = isActive
-                            ? 'bg-slate-100 border-l-4 border-green-600' // Aktívne
-                            : 'bg-white hover:bg-slate-50 border-l-4 border-transparent'; // Neaktívne
+                            ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-600 shadow-lg' // Aktívne
+                            : 'bg-white hover:bg-slate-50 border-l-4 border-transparent hover:shadow-md'; // Neaktívne
 
                         return html`
-                            <div class="border border-slate-200 rounded-lg overflow-hidden shadow-sm transition-shadow duration-200 ${isActive ? 'shadow-md' : ''}">
+                            <div class="rounded-xl overflow-hidden shadow-sm border border-slate-200 transition-shadow duration-300 ${isActive ? 'shadow-lg' : ''}">
                                 <button @click=${() => this._toggleView(item.id)}
-                                        class="w-full flex items-center justify-between p-4 focus:outline-none transition-colors ${buttonClasses}">
-                                    <span class="flex items-center text-left">
-                                        <span class="mr-3 text-2xl">${item.icon}</span>
-                                        <span class="font-semibold text-slate-800">${item.label}</span>
-                                    </span>
-                                    <div class="flex items-center space-x-3">
+                                        class="w-full flex items-center justify-between p-6 focus:outline-none transition-colors duration-200 ${buttonClasses}"> <div class="flex items-center text-left min-w-0 mr-4"> <span class="mr-4 text-3xl flex-shrink-0">${item.icon}</span> <div class="flex-grow">
+                                            <span class="font-semibold text-lg text-slate-800">${item.label}</span> <p class="text-sm text-slate-500 mt-1">${item.description}</p> </div>
+                                    </div>
+                                    <div class="flex items-center space-x-3 flex-shrink-0">
                                          ${statusText ? html`<span class="text-xs font-medium px-2 py-0.5 rounded-full ${statusColor}">${statusText}</span>` : ''}
-                                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform transition-transform duration-300 text-slate-400 ${isActive ? 'rotate-180' : 'rotate-0'}">
+                                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform transition-transform duration-300 text-slate-500 ${isActive ? 'rotate-180' : 'rotate-0'}">
                                             <polyline points="6 9 12 15 18 9"></polyline>
                                         </svg>
                                     </div>
