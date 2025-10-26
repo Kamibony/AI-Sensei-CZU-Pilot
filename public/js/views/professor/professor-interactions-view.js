@@ -1,6 +1,6 @@
 // public/js/views/professor/professor-interactions-view.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { collection, doc, updateDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, doc, updateDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; // Pridaný Timestamp
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
@@ -30,7 +30,7 @@ export class ProfessorInteractionsView extends LitElement {
 
         this.conversationsUnsubscribe = null;
         this.messagesUnsubscribe = null;
-        
+
         if (!sendMessageToStudentCallable) {
             if (!firebaseInit.functions) throw new Error("Firebase Functions not initialized.");
             sendMessageToStudentCallable = httpsCallable(firebaseInit.functions, 'sendMessageToStudent');
@@ -53,7 +53,7 @@ export class ProfessorInteractionsView extends LitElement {
     _listenForConversations() {
         this._isLoadingConversations = true;
         const convQuery = query(collection(firebaseInit.db, "conversations"), orderBy("lastMessageTimestamp", "desc"));
-        
+
         if (this.conversationsUnsubscribe) this.conversationsUnsubscribe();
 
         this.conversationsUnsubscribe = onSnapshot(convQuery, (querySnapshot) => {
@@ -67,24 +67,21 @@ export class ProfessorInteractionsView extends LitElement {
     }
 
     _selectConversation(studentId, studentName) {
-        if (this._selectedStudentId === studentId) return; // Už je vybraný
+        if (this._selectedStudentId === studentId) return;
 
         this._selectedStudentId = studentId;
         this._selectedStudentName = studentName;
         this._messages = [];
         this._isLoadingMessages = true;
 
-        // Označíme ako prečítané
         updateDoc(doc(firebaseInit.db, "conversations", studentId), { professorHasUnread: false });
 
-        // Nastavíme listener pre správy
         if (this.messagesUnsubscribe) this.messagesUnsubscribe();
-        
+
         const messagesQuery = query(collection(firebaseInit.db, "conversations", studentId, "messages"), orderBy("timestamp"));
         this.messagesUnsubscribe = onSnapshot(messagesQuery, (querySnapshot) => {
-            this._messages = querySnapshot.docs.map(doc => doc.data());
+            this._messages = querySnapshot.docs.map(doc => ({id: doc.id, ...doc.data()})); // Pridali sme ID pre key
             this._isLoadingMessages = false;
-            // Scroll down after messages load
              this.updateComplete.then(() => {
                  const container = this.querySelector('#messages-container');
                  if (container) container.scrollTop = container.scrollHeight;
@@ -110,7 +107,8 @@ export class ProfessorInteractionsView extends LitElement {
             showToast(`Odeslání selhalo: ${error.message}`, true);
         } finally {
             this._isSending = false;
-            chatInput.focus();
+             // Timeout pre plynulejší focus po odoslaní
+             setTimeout(() => chatInput?.focus(), 50);
         }
     }
 
@@ -120,19 +118,26 @@ export class ProfessorInteractionsView extends LitElement {
             this._handleSend();
         }
     }
-    
+
     _handleAiReply() {
         const chatInput = this.querySelector('#chat-input');
         chatInput.value = "AI návrh: Děkuji za Váš dotaz, podívám se na to a dám Vám vědět.";
         chatInput.focus();
     }
-    
+
+    // Pomocná funkcia na formátovanie času
+    _formatTimestamp(timestamp) {
+        if (!timestamp) return '';
+        const date = (timestamp instanceof Timestamp) ? timestamp.toDate() : new Date(timestamp);
+        return date.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+    }
+
     // --- Renderovacie Metódy ---
-    
+
     renderConversationItem(conv) {
         const isSelected = this._selectedStudentId === conv.studentId;
         const bgClass = isSelected ? 'bg-slate-200' : (conv.professorHasUnread ? 'bg-green-50' : 'hover:bg-slate-50');
-        
+
         return html`
             <div class="p-4 flex items-center space-x-3 border-b border-slate-100 cursor-pointer ${bgClass}"
                  @click=${() => this._selectConversation(conv.studentId, conv.studentName)}>
@@ -145,18 +150,32 @@ export class ProfessorInteractionsView extends LitElement {
             </div>
         `;
     }
-    
+
+    // === ZMENENÁ METÓDA - Vylepšené bubliny ===
     renderMessage(msg) {
         const sender = msg.senderId === 'professor' ? 'prof' : 'student';
         const justifyClass = sender === 'prof' ? 'justify-end' : 'justify-start';
-        const bubbleClass = sender === 'prof' ? 'bg-green-700 text-white' : 'bg-white shadow-sm';
-        
+        // Krajšie farby a tiene
+        const bubbleClass = sender === 'prof'
+            ? 'bg-gradient-to-br from-green-600 to-green-800 text-white shadow-md'
+            : 'bg-white shadow-md border border-slate-100';
+        const time = this._formatTimestamp(msg.timestamp);
+
         return html`
-            <div class="flex ${justifyClass}">
-                <div class="max-w-md p-3 rounded-xl ${bubbleClass}">${msg.text}</div>
+            <div class="flex ${justifyClass} group">
+                 <div class="max-w-xl">
+                    <div class="px-4 py-2 rounded-xl ${bubbleClass}">
+                        ${msg.text}
+                    </div>
+                     <p class="text-xs text-slate-400 mt-1 px-1 ${sender === 'prof' ? 'text-right' : 'text-left'} opacity-0 group-hover:opacity-100 transition-opacity">
+                         ${time}
+                     </p>
+                 </div>
             </div>
         `;
     }
+    // === KONIEC ZMENENEJ METÓDY ===
+
 
     renderChatWindow() {
         if (!this._selectedStudentId) {
@@ -165,27 +184,26 @@ export class ProfessorInteractionsView extends LitElement {
                     Vyberte konverzaci ze seznamu vlevo
                 </div>`;
         }
-        
+
         return html`
             <header class="p-4 border-b border-slate-200 flex items-center space-x-3 bg-white flex-shrink-0">
                 <h3 class="font-bold text-slate-800">${this._selectedStudentName}</h3>
             </header>
-            <div id="messages-container" class="flex-grow p-4 overflow-y-auto space-y-4">
-                ${this._isLoadingMessages 
-                    ? html`<p class="text-slate-400">Načítám zprávy...</p>` 
+            <div id="messages-container" class="flex-grow p-4 overflow-y-auto space-y-2"> ${this._isLoadingMessages
+                    ? html`<p class="text-slate-400">Načítám zprávy...</p>`
                     : this._messages.map(msg => this.renderMessage(msg))}
             </div>
             <footer class="p-4 bg-white border-t border-slate-200 flex-shrink-0">
                 <div class="relative">
-                    <textarea id="chat-input" placeholder="Napište odpověď..." 
-                              class="w-full bg-slate-100 border-transparent rounded-lg p-3 pr-28 focus:ring-2 focus:ring-green-500 resize-none" 
-                              rows="1" 
+                    <textarea id="chat-input" placeholder="Napište odpověď..."
+                              class="w-full bg-slate-100 border-transparent rounded-lg p-3 pr-28 focus:ring-2 focus:ring-green-500 resize-none"
+                              rows="1"
                               @keypress=${this._handleKeyPress}
                               ?disabled=${this._isSending}></textarea>
-                    <button @click=${this._handleAiReply} ?disabled=${this._isSending} class="absolute right-14 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-amber-700" title="Navrhnout odpověď (AI)">✨</button>
-                    <button @click=${this._handleSend} ?disabled=${this._isSending} class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-green-700" title="Odeslat">
-                         ${this._isSending ? 
-                            html`<div class="spinner-small"></div>` : 
+                    <button @click=${this._handleAiReply} ?disabled=${this._isSending} class="absolute right-14 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-amber-700 disabled:opacity-50" title="Navrhnout odpověď (AI)">✨</button>
+                    <button @click=${this._handleSend} ?disabled=${this._isSending} class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-green-700 disabled:opacity-50" title="Odeslat">
+                         ${this._isSending ?
+                            html`<div class="spinner-small border-slate-500"></div>` :
                             html`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`}
                     </button>
                 </div>
@@ -203,10 +221,11 @@ export class ProfessorInteractionsView extends LitElement {
             conversationContent = this._conversations.map(conv => this.renderConversationItem(conv));
         }
 
+        // Pridáme class="h-full" k <aside> a <main> pre správne roztiahnutie
         return html`
             <aside class="w-full md:w-1/3 border-r border-slate-200 flex flex-col h-full">
                 <header class="p-4 border-b border-slate-200 flex-shrink-0"><h2 class="font-bold text-slate-800">Konverzace se studenty</h2></header>
-                <div id="conversations-list" class="overflow-y-auto">
+                <div id="conversations-list" class="overflow-y-auto flex-grow">
                     ${conversationContent}
                 </div>
             </aside>
