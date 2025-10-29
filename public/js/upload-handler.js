@@ -283,7 +283,9 @@ export function initializeCourseMediaUpload(courseId, onUploadCompleteCallback =
     });
 
     fileInput.addEventListener('change', (e) => {
-        handleFileUpload(e.target.files, courseId, progressContainer, mediaList, onCompleteCallback);
+        // === OPRAVA ===
+        // Použijeme správny názov premennej: onUploadCompleteCallback
+        handleFileUpload(e.target.files, courseId, progressContainer, mediaList, onUploadCompleteCallback);
         fileInput.value = ''; // Reset inputu
     });
 
@@ -302,7 +304,9 @@ export function initializeCourseMediaUpload(courseId, onUploadCompleteCallback =
         e.preventDefault();
         uploadArea.classList.remove('border-green-500', 'bg-green-50', 'shadow-inner');
         if (e.dataTransfer.files) {
-            handleFileUpload(e.dataTransfer.files, courseId, progressContainer, mediaList, onCompleteCallback);
+            // === OPRAVA ===
+            // Použijeme správny názov premennej: onUploadCompleteCallback
+            handleFileUpload(e.dataTransfer.files, courseId, progressContainer, mediaList, onUploadCompleteCallback);
         }
     });
 }
