@@ -4,8 +4,8 @@ import { doc, updateDoc, deleteField, serverTimestamp } from "https://www.gstati
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../../../firebase-init.js';
 import { showToast } from '../../../utils.js';
-// Zmenili sme import, nepotrebujeme loadSelectedFiles
-import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles } from '../../../upload-handler.js';
+// === UPRAVENÝ IMPORT: Pridali sme loadSelectedFiles ===
+import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from '../../../upload-handler.js';
 
 let generateContentCallable = null;
 
@@ -75,13 +75,20 @@ export class AiGeneratorPanel extends LitElement {
         }
     }
 
-    _openRagModal(e) { /* ... kód zostáva rovnaký, len renderuje do správneho ID ... */
+    // === UPRAVENÁ FUNKCIA: Pridané volanie loadSelectedFiles ===
+    _openRagModal(e) {
         e.preventDefault();
         const modal = document.getElementById('media-library-modal');
         const modalConfirm = document.getElementById('modal-confirm-btn');
         const modalCancel = document.getElementById('modal-cancel-btn');
         const modalClose = document.getElementById('modal-close-btn');
         if (!modal || !modalConfirm || !modalCancel || !modalClose) { console.error("Chybějící elementy pro modální okno."); showToast("Chyba: Nepodařilo se načíst komponentu pro výběr souborů.", true); return; }
+        
+        // *** OPRAVA: Načítame aktuálne súbory z lekcie do globálneho stavu ***
+        // Tento panel používa rovnaké RAG súbory ako celá lekcia
+        loadSelectedFiles(this.lesson?.ragFilePaths || []);
+        // *** KONIEC OPRAVY ***
+
         const handleConfirm = () => {
              // Vykreslíme RAG zoznam pre TENTO panel po potvrdení
              renderSelectedFiles(`selected-files-list-rag-${this.contentType}`);
@@ -89,7 +96,10 @@ export class AiGeneratorPanel extends LitElement {
         };
         const handleCancel = () => closeModal();
         const closeModal = () => { modal.classList.add('hidden'); modalConfirm.removeEventListener('click', handleConfirm); modalCancel.removeEventListener('click', handleCancel); modalClose.removeEventListener('click', handleCancel); };
+        
+        // Musí byť volané až PO loadSelectedFiles, aby sa správne označili checkboxy
         renderMediaLibraryFiles("main-course", "modal-media-list");
+        
         modalConfirm.addEventListener('click', handleConfirm); modalCancel.addEventListener('click', handleCancel); modalClose.addEventListener('click', handleCancel);
         modal.classList.remove('hidden');
      }
@@ -102,13 +112,14 @@ export class AiGeneratorPanel extends LitElement {
         if (promptInput && !userPrompt && this.contentType !== 'presentation') { const topicInput = this.querySelector('#prompt-input-topic'); if (!topicInput || !topicInput.value.trim()) { showToast("Prosím, zadejte text do promptu nebo téma.", true); return; } }
         this._isLoading = true; this._generationOutput = null;
         try {
+            // Získame aktuálny výber z globálnej premennej
             const selectedFiles = getSelectedFiles(); const filePaths = selectedFiles.map(f => f.fullPath);
             const promptData = { userPrompt: userPrompt || '' };
             const slotContent = this.querySelector('slot[name="ai-inputs"]');
             if (slotContent) { const nodes = slotContent.assignedNodes({flatten: true}).filter(n => n.nodeType === Node.ELEMENT_NODE); nodes.forEach(node => { const inputs = node.querySelectorAll('input, select'); inputs.forEach(input => { if (input.id) { const key = input.id.replace(/-/g, '_').replace('_input', ''); promptData[key] = input.value; } }); if (nodes.length === 1 && node.id) { const key = node.id.replace(/-/g, '_').replace('_input', ''); promptData[key] = node.value; } }); }
             if (this.contentType === 'presentation') { const topicInput = this.querySelector('#prompt-input-topic'); if (topicInput) promptData.userPrompt = topicInput.value.trim(); }
             if (this.contentType === 'post' && !userPrompt) promptData.userPrompt = this.promptPlaceholder;
-            const result = await generateContentCallable({ contentType: this.contentType, promptData, filePaths });
+            const result = await generateContentCallable({ contentType: this.contentType, promptData, filePaths }); // Posielame filePaths
             if (!result || !result.data) throw new Error("AI nevrátila žádná data."); if (result.data.error) throw new Error(result.data.error);
             this._generationOutput = (this.contentType === 'text' && result.data.text) ? result.data.text : result.data;
         } catch (err) { console.error("Error during AI generation:", err); showToast(`Došlo k chybě: ${err.message || err}`, true); this._generationOutput = { error: `Došlo k chybě: ${err.message || err}` }; }
@@ -201,6 +212,7 @@ export class AiGeneratorPanel extends LitElement {
         this._isSaving = true;
 
         try {
+            // POZNÁMKA: Tento panel neukladá RAG súbory, to robí len editor-view-details
             await updateDoc(lessonRef, { [this.fieldToUpdate]: dataToSave, updatedAt: serverTimestamp() });
             const updatedLesson = { ...this.lesson, [this.fieldToUpdate]: dataToSave };
             this._generationOutput = null;
