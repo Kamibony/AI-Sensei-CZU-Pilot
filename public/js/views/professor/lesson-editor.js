@@ -16,15 +16,12 @@ export class LessonEditor extends LitElement {
     static properties = {
         lesson: { type: Object },
         _activeView: { state: true, type: String }, // 'overview' alebo ID sekcie
-        // Odstránime _currentLessonData, budeme používať priamo this.lesson
-        // _currentLessonData: { state: true, type: Object }, // Odstránené
     };
 
     constructor() {
         super();
         this.lesson = null;
         this._activeView = 'overview';
-        // this._currentLessonData = null; // Odstránené
         this.menuItems = [
             { id: 'details', label: 'Detaily lekce', icon: '📝', field: null, description: 'Základní informace o lekci (název, ikona, RAG soubory).' },
             { id: 'text', label: 'Text pro studenty', icon: '✍️', field: 'text_content', description: 'Vytvořte nebo vložte hlavní studijní text pro tuto lekci.' },
@@ -69,17 +66,20 @@ export class LessonEditor extends LitElement {
     }
 
     _handleLessonUpdate(e) {
-        // Len prepošleme udalosť hore, už nedržíme internú kópiu
+        // Len prepošleme udalosť hore
         this.dispatchEvent(new CustomEvent('lesson-updated', {
             detail: e.detail, bubbles: true, composed: true
         }));
+    }
+
+    _handleBackClick() {
+        this.dispatchEvent(new CustomEvent('editor-exit', { bubbles: true, composed: true }));
     }
 
      _handleDownloadLessonContent() {
         // Použijeme priamo this.lesson
         const currentLesson = this.lesson;
         if (!currentLesson) { showToast("Lekce není načtena.", true); return; }
-        // ... (zvyšok funkcie zostáva rovnaký ako predtým) ...
         let contentString = ""; const title = currentLesson.title || "Nova_lekce";
         contentString += `# ${currentLesson.title || "Nová lekce"}\n`;
         if (currentLesson.subtitle) contentString += `## ${currentLesson.subtitle}\n`; contentString += `\n---\n\n`;
@@ -118,10 +118,15 @@ export class LessonEditor extends LitElement {
                         const statusText = item.id === 'details' ? '' : (hasContent ? 'Vytvořeno' : 'Nevytvořeno');
 
                         return html`
+                            <!-- === ZAČIATOK ÚPRAVY DIZAJNU === -->
                             <button @click=${() => this._setActiveView(item.id)}
-                                    class="w-full flex items-center justify-between p-6 rounded-xl text-left bg-white hover:bg-slate-50 border border-slate-200 shadow-sm hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 group">
+                                    class="w-full flex items-center justify-between p-6 rounded-xl text-left bg-white hover:bg-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 group">
                                 <div class="flex items-center min-w-0 mr-4">
-                                    <span class="mr-4 text-3xl flex-shrink-0 text-slate-500 group-hover:text-green-600 transition-colors">${item.icon}</span>
+                                    <!-- Nastylované pozadie pre ikonu -->
+                                    <div class="h-12 w-12 rounded-lg flex items-center justify-center bg-slate-100 group-hover:bg-green-100 mr-4 flex-shrink-0 transition-colors duration-200">
+                                        <span class="text-3xl">${item.icon}</span>
+                                    </div>
+                                    <!-- Koniec úpravy ikony -->
                                     <div class="flex-grow">
                                         <span class="font-semibold text-lg text-slate-800 group-hover:text-green-700 transition-colors">${item.label}</span>
                                         <p class="text-sm text-slate-500 mt-1">${item.description}</p>
@@ -134,6 +139,7 @@ export class LessonEditor extends LitElement {
                                      </svg>
                                 </div>
                             </button>
+                            <!-- === KONIEC ÚPRAVY DIZAJNU === -->
                         `;
                     })}
                 </div>
