@@ -14,15 +14,12 @@ const btnSecondary = `${btnBase} bg-slate-200 text-slate-700 hover:bg-slate-300`
 export class EditorViewDetails extends LitElement {
     static properties = {
         lesson: { type: Object }, // Prijímame priamo
-        // Odstránili sme _currentLesson
-        // _currentLesson: { state: true, type: Object },
         _isLoading: { state: true, type: Boolean },
     };
 
     constructor() {
         super();
         this.lesson = null;
-        // this._currentLesson = null; // Odstránené
         this._isLoading = false;
     }
 
@@ -30,15 +27,17 @@ export class EditorViewDetails extends LitElement {
 
     // === ZMENA: updated() namiesto firstUpdated() pre RAG ===
     updated(changedProperties) {
-        // Vždy keď sa komponent prekreslí (aj pri zmene lekcie), vykreslíme RAG zoznam
-        if (changedProperties.has('lesson')) {
-             renderSelectedFiles(`selected-files-list-rag-details`); // Použijeme unikátne ID
+        // Vždy keď sa komponent prekreslí A existuje this.lesson, vykreslíme RAG zoznam
+        if (this.lesson && (changedProperties.has('lesson') || !changedProperties.has('lesson')) ) {
+             // Timeout zabezpečí, že sa to spustí až po renderovaní DOMu
+            setTimeout(() => {
+                 renderSelectedFiles(`selected-files-list-rag-details`); // Použijeme unikátne ID
+            }, 0);
         }
     }
-    // willUpdate a firstUpdated pre RAG boli odstránené
 
 
-    _openRagModal(e) { /* ... kód zostáva rovnaký ... */
+    _openRagModal(e) { /* ... kód zostáva rovnaký, len renderuje do správneho ID ... */
         e.preventDefault();
         const modal = document.getElementById('media-library-modal');
         const modalConfirm = document.getElementById('modal-confirm-btn');
@@ -100,7 +99,8 @@ export class EditorViewDetails extends LitElement {
                 <form id="lesson-details-form" class="space-y-4" @submit=${this._handleSaveLessonDetails}>
                     <div>
                         <label class="block font-medium text-slate-600">Název lekce</label>
-                        <input type="text" id="lesson-title-input" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500" .value="${this.lesson?.title || ''}" placeholder="Např. Úvod do organické chemie"> </div>
+                        <input type="text" id="lesson-title-input" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500" .value="${this.lesson?.title || ''}" placeholder="Např. Úvod do organické chemie">
+                    </div>
                     <div>
                         <label class="block font-medium text-slate-600">Podtitulek</label>
                         <input type="text" id="lesson-subtitle-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" .value="${this.lesson?.subtitle || ''}" placeholder="Základní pojmy a principy">
@@ -121,8 +121,7 @@ export class EditorViewDetails extends LitElement {
                              <ul id="selected-files-list-rag-details" class="text-xs text-slate-600 mb-2 list-disc list-inside">
                                 <li>Žádné soubory nevybrány.</li>
                             </ul>
-                            <button @click=${this._openRagModal} class="text-sm ${btnSecondary} px-2 py-1">
-                                Vybrat soubory z knihovny
+                            <button @click=${this._openRagModal} type="button" class="text-sm ${btnSecondary} px-2 py-1"> Vybrat soubory z knihovny
                             </button>
                         </div>
                         <p class="text-xs text-slate-400 mt-1">Vybrané dokumenty budou uloženy spolu s lekcí.</p>
