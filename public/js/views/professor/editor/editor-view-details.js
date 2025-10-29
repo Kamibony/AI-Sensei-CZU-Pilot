@@ -3,8 +3,8 @@ import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/li
 import { doc, addDoc, updateDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../../firebase-init.js';
 import { showToast } from '../../../utils.js';
-// Zmenili sme import, nepotrebujeme loadSelectedFiles
-import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles } from '../../../upload-handler.js';
+// === UPRAVENÝ IMPORT: Pridali sme loadSelectedFiles ===
+import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from '../../../upload-handler.js';
 
 // Štýly tlačidiel
 const btnBase = "px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
@@ -37,20 +37,29 @@ export class EditorViewDetails extends LitElement {
     }
 
 
-    _openRagModal(e) { /* ... kód zostáva rovnaký, len renderuje do správneho ID ... */
+    // === UPRAVENÁ FUNKCIA: Pridané volanie loadSelectedFiles ===
+    _openRagModal(e) {
         e.preventDefault();
         const modal = document.getElementById('media-library-modal');
         const modalConfirm = document.getElementById('modal-confirm-btn');
         const modalCancel = document.getElementById('modal-cancel-btn');
         const modalClose = document.getElementById('modal-close-btn');
         if (!modal || !modalConfirm || !modalCancel || !modalClose) { console.error("Chybějící elementy pro modální okno."); showToast("Chyba: Nepodařilo se načíst komponentu pro výběr souborů.", true); return; }
+        
+        // *** OPRAVA: Načítame aktuálne súbory pre TÚTO LEKCIU do globálneho stavu ***
+        loadSelectedFiles(this.lesson?.ragFilePaths || []);
+        // *** KONIEC OPRAVY ***
+
         const handleConfirm = () => {
              renderSelectedFiles(`selected-files-list-rag-details`); // Vykreslíme RAG pre tento panel
              closeModal();
         };
         const handleCancel = () => closeModal();
         const closeModal = () => { modal.classList.add('hidden'); modalConfirm.removeEventListener('click', handleConfirm); modalCancel.removeEventListener('click', handleCancel); modalClose.removeEventListener('click', handleCancel); };
+        
+        // Musí byť volané až PO loadSelectedFiles, aby sa správne označili checkboxy
         renderMediaLibraryFiles("main-course", "modal-media-list");
+        
         modalConfirm.addEventListener('click', handleConfirm); modalCancel.addEventListener('click', handleCancel); modalClose.addEventListener('click', handleCancel);
         modal.classList.remove('hidden');
     }
@@ -62,13 +71,14 @@ export class EditorViewDetails extends LitElement {
         const title = form.querySelector('#lesson-title-input').value.trim();
         if (!title) { showToast("Název lekce nemůže být prázdný.", true); return; }
 
+        // Získame aktuálny výber z globálnej premennej
         const currentSelection = getSelectedFiles();
         const lessonData = {
             title: title,
             subtitle: form.querySelector('#lesson-subtitle-input').value.trim(),
             number: form.querySelector('#lesson-number-input').value.trim(),
             icon: form.querySelector('#lesson-icon-input').value.trim() || '🆕',
-            ragFilePaths: currentSelection,
+            ragFilePaths: currentSelection, // Uložíme aktuálny výber
             updatedAt: serverTimestamp()
         };
 
