@@ -1,7 +1,7 @@
 // public/js/views/professor/lesson-editor.js
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast } from '../../utils.js';
-import { loadSelectedFiles } from '../../upload-handler.js'; // <-- PRIDANÝ IMPORT
+import { loadSelectedFiles } from '../../upload-handler.js'; // <-- IMPORT JE SPRÁVNE TU
 
 // Importujeme všetky view komponenty editora
 import './editor/editor-view-details.js';
@@ -40,15 +40,13 @@ export class LessonEditor extends LitElement {
         return this; // Renderujeme do Light DOM
     }
 
-    // Zjednodušené willUpdate
+    // === OPRAVENÁ FUNKCIA willUpdate ===
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {
-             // === ZMENA: Voláme loadSelectedFiles pri zmene lekcie ===
-             // Načíta RAG súbory z `this.lesson.ragFilePaths` do globálnej premennej
-             loadSelectedFiles(this.lesson?.ragFilePaths || []);
-             // =======================================================
-             // Reset pohľadu len ak sa naozaj zmenila lekcia (ID)
+             // === ZMENA: Voláme loadSelectedFiles LEN AK sa mení ID lekcie ===
+             // Týmto zabránime resetovaniu stavu pri každej malej zmene
              if (!this.lesson || (changedProperties.get('lesson') && changedProperties.get('lesson')?.id !== this.lesson?.id)) {
+                 loadSelectedFiles(this.lesson?.ragFilePaths || []);
                  this._activeView = 'overview';
             }
         }
@@ -75,10 +73,6 @@ export class LessonEditor extends LitElement {
         this.dispatchEvent(new CustomEvent('lesson-updated', {
             detail: e.detail, bubbles: true, composed: true
         }));
-    }
-
-    _handleBackClick() {
-        this.dispatchEvent(new CustomEvent('editor-exit', { bubbles: true, composed: true }));
     }
 
      _handleDownloadLessonContent() {
