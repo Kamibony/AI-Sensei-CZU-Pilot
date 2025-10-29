@@ -15,9 +15,9 @@ import './editor/editor-view-post.js';
 export class LessonEditor extends LitElement {
     static properties = {
         lesson: { type: Object },
-        _activeView: { state: true, type: String },
+        _activeView: { state: true, type: String }, // 'overview' alebo ID sekcie
         // Odstránime _currentLessonData, budeme používať priamo this.lesson
-        // _currentLessonData: { state: true, type: Object },
+        // _currentLessonData: { state: true, type: Object }, // Odstránené
     };
 
     constructor() {
@@ -37,15 +37,17 @@ export class LessonEditor extends LitElement {
     }
 
     createRenderRoot() {
-        return this;
+        return this; // Renderujeme do Light DOM
     }
 
     // Zjednodušené willUpdate
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {
              // === ZMENA: Voláme loadSelectedFiles pri zmene lekcie ===
+             // Načíta RAG súbory z `this.lesson.ragFilePaths` do globálnej premennej
              loadSelectedFiles(this.lesson?.ragFilePaths || []);
              // =======================================================
+             // Reset pohľadu len ak sa naozaj zmenila lekcia (ID)
              if (!this.lesson || (changedProperties.get('lesson') && changedProperties.get('lesson')?.id !== this.lesson?.id)) {
                  this._activeView = 'overview';
             }
@@ -82,8 +84,8 @@ export class LessonEditor extends LitElement {
      _handleDownloadLessonContent() {
         // Použijeme priamo this.lesson
         const currentLesson = this.lesson;
-        // ... (zvyšok funkcie zostáva rovnaký) ...
         if (!currentLesson) { showToast("Lekce není načtena.", true); return; }
+        // ... (zvyšok funkcie zostáva rovnaký ako predtým) ...
         let contentString = ""; const title = currentLesson.title || "Nova_lekce";
         contentString += `# ${currentLesson.title || "Nová lekce"}\n`;
         if (currentLesson.subtitle) contentString += `## ${currentLesson.subtitle}\n`; contentString += `\n---\n\n`;
