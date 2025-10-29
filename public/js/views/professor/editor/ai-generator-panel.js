@@ -4,7 +4,7 @@ import { doc, updateDoc, deleteField, serverTimestamp } from "https://www.gstati
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../../../firebase-init.js';
 import { showToast } from '../../../utils.js';
-// === UPRAVENÝ IMPORT: Pridali sme loadSelectedFiles ===
+// === OPRAVENÝ IMPORT: Pridali sme loadSelectedFiles ===
 import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from '../../../upload-handler.js';
 
 let generateContentCallable = null;
@@ -70,12 +70,15 @@ export class AiGeneratorPanel extends LitElement {
             // Použijeme unikátne ID pre RAG list v tomto paneli
              // Timeout zabezpečí, že sa to spustí až po renderovaní DOMu
             setTimeout(() => {
+                 // Načítame a hneď aj renderujeme
+                 // Tento panel zdieľa RAG súbory s 'details' panelom
+                 loadSelectedFiles(this.lesson?.ragFilePaths || []);
                  renderSelectedFiles(`selected-files-list-rag-${this.contentType}`);
             }, 0);
         }
     }
 
-    // === UPRAVENÁ FUNKCIA: Pridané volanie loadSelectedFiles ===
+    // === OPRAVENÁ FUNKCIA: Pridané volanie loadSelectedFiles ===
     _openRagModal(e) {
         e.preventDefault();
         const modal = document.getElementById('media-library-modal');
@@ -85,10 +88,10 @@ export class AiGeneratorPanel extends LitElement {
         if (!modal || !modalConfirm || !modalCancel || !modalClose) { console.error("Chybějící elementy pro modální okno."); showToast("Chyba: Nepodařilo se načíst komponentu pro výběr souborů.", true); return; }
         
         // *** OPRAVA: Načítame aktuálne súbory z lekcie do globálneho stavu ***
-        // Tento panel používa rovnaké RAG súbory ako celá lekcia
+        // Tento panel používa rovnaké RAG súbory ako celá lekcia (details)
         loadSelectedFiles(this.lesson?.ragFilePaths || []);
         // *** KONIEC OPRAVY ***
-
+        
         const handleConfirm = () => {
              // Vykreslíme RAG zoznam pre TENTO panel po potvrdení
              renderSelectedFiles(`selected-files-list-rag-${this.contentType}`);
@@ -112,7 +115,7 @@ export class AiGeneratorPanel extends LitElement {
         if (promptInput && !userPrompt && this.contentType !== 'presentation') { const topicInput = this.querySelector('#prompt-input-topic'); if (!topicInput || !topicInput.value.trim()) { showToast("Prosím, zadejte text do promptu nebo téma.", true); return; } }
         this._isLoading = true; this._generationOutput = null;
         try {
-            // Získame aktuálny výber z globálnej premennej
+            // Získame aktuálny výber z globálnej premennej (načítaný pred otvorením modalu)
             const selectedFiles = getSelectedFiles(); const filePaths = selectedFiles.map(f => f.fullPath);
             const promptData = { userPrompt: userPrompt || '' };
             const slotContent = this.querySelector('slot[name="ai-inputs"]');
