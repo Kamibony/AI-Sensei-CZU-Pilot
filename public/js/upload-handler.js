@@ -116,8 +116,7 @@ export function clearSelectedFiles() { selectedFiles = []; }
 export function getSelectedFiles() { return [...selectedFiles]; } // Vráti kópiu
 
 // Načíta predvybrané súbory (napr. pri otvorení editora)
-// === UPRAVENÁ FUNKCIA ===
-// Normalizuje dáta, aby vždy pracovala s objektmi { name, fullPath }
+// === OPRAVENÁ FUNKCIA: Normalizácia dát ===
 export function loadSelectedFiles(initialFiles = []) {
      clearSelectedFiles(); // Najprv vyčistíme
      if (!Array.isArray(initialFiles)) {
@@ -142,7 +141,6 @@ export function loadSelectedFiles(initialFiles = []) {
 }
 
 // Renderuje zoznam vybraných RAG súborov
-// (Funkcia zostáva rovnaká, oprava sa vykonala v loadSelectedFiles)
 export function renderSelectedFiles(listElementId = "selected-files-list-rag") {
     const listEl = document.getElementById(listElementId);
     if (!listEl) return;
@@ -150,6 +148,7 @@ export function renderSelectedFiles(listElementId = "selected-files-list-rag") {
     if (selectedFiles.length === 0) {
         listEl.innerHTML = '<li>Žádné soubory nevybrány.</li>';
     } else {
+        // === OPRAVA: renderujeme file.name (po normalizácii v loadSelectedFiles) ===
         listEl.innerHTML = selectedFiles.map((file, index) => `
             <li class="flex items-center justify-between text-xs text-slate-700 group">
                 <span class="truncate pr-2" title="${file.fullPath}">${file.name}</span>
@@ -170,6 +169,7 @@ export function renderSelectedFiles(listElementId = "selected-files-list-rag") {
 
 
 // Renderuje zoznam dostupných súborov v modálnom okne
+// === OPRAVENÁ FUNKCIA: Použitie createElement na opravu chyby zobrazenia ===
 export async function renderMediaLibraryFiles(courseId, listElementId) {
     const listEl = document.getElementById(listElementId);
     if (!listEl) {
@@ -195,22 +195,37 @@ export async function renderMediaLibraryFiles(courseId, listElementId) {
         const allFiles = await Promise.all(filePromises);
         allFiles.sort((a,b) => a.name.localeCompare(b.name)); // Zoradíme podľa názvu
 
-        listEl.innerHTML = allFiles.map(file => {
+        // === ZAČIATOK ÚPRAVY: Použitie createElement ===
+        listEl.innerHTML = ''; // Vyčistíme "Načítám..."
+        allFiles.forEach(file => {
             // Kontrola oproti globálnej premennej (ktorú sme načítali pred otvorením modalu)
             const isSelected = selectedFiles.some(sf => sf.fullPath === file.fullPath);
-            return `
-                <li class="flex items-center justify-between p-2 rounded hover:bg-slate-100 text-sm">
-                    <label class="flex items-center cursor-pointer flex-grow mr-2 min-w-0">
-                        <input type="checkbox"
-                               class="mr-2 h-4 w-4 text-green-600 border-slate-300 rounded focus:ring-green-500"
-                               data-fullpath="${file.fullPath}"
-                               data-filename="${file.name}"
-                               .checked=${isSelected}
-                               @change=${handleCheckboxChange}>
-                        <span class="text-slate-700 truncate" title="${file.name}">${file.name}</span>
-                    </label>
-                </li>`;
-        }).join('');
+
+            const li = document.createElement('li');
+            li.className = "flex items-center justify-between p-2 rounded hover:bg-slate-100 text-sm";
+
+            const label = document.createElement('label');
+            label.className = "flex items-center cursor-pointer flex-grow mr-2 min-w-0";
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = "mr-2 h-4 w-4 text-green-600 border-slate-300 rounded focus:ring-green-500";
+            checkbox.dataset.fullpath = file.fullPath;
+            checkbox.dataset.filename = file.name;
+            checkbox.checked = isSelected;
+            checkbox.addEventListener('change', handleCheckboxChange); // Pridáme listener
+
+            const span = document.createElement('span');
+            span.className = "text-slate-700 truncate";
+            span.title = file.name;
+            span.textContent = file.name; // *** Explicitné nastavenie textu ***
+
+            label.appendChild(checkbox);
+            label.appendChild(span);
+            li.appendChild(label);
+            listEl.appendChild(li);
+        });
+        // === KONIEC ÚPRAVY ===
 
     } catch (error) {
         console.error("Error listing files for modal:", error);
@@ -268,7 +283,7 @@ export function initializeCourseMediaUpload(courseId, onUploadCompleteCallback =
     });
 
     fileInput.addEventListener('change', (e) => {
-        handleFileUpload(e.target.files, courseId, progressContainer, mediaList, onUploadCompleteCallback);
+        handleFileUpload(e.target.files, courseId, progressContainer, mediaList, onCompleteCallback);
         fileInput.value = ''; // Reset inputu
     });
 
@@ -287,7 +302,7 @@ export function initializeCourseMediaUpload(courseId, onUploadCompleteCallback =
         e.preventDefault();
         uploadArea.classList.remove('border-green-500', 'bg-green-50', 'shadow-inner');
         if (e.dataTransfer.files) {
-            handleFileUpload(e.dataTransfer.files, courseId, progressContainer, mediaList, onUploadCompleteCallback);
+            handleFileUpload(e.dataTransfer.files, courseId, progressContainer, mediaList, onCompleteCallback);
         }
     });
 }
