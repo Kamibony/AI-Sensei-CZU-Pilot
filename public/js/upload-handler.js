@@ -116,13 +116,33 @@ export function clearSelectedFiles() { selectedFiles = []; }
 export function getSelectedFiles() { return [...selectedFiles]; } // Vráti kópiu
 
 // Načíta predvybrané súbory (napr. pri otvorení editora)
+// === UPRAVENÁ FUNKCIA ===
+// Normalizuje dáta, aby vždy pracovala s objektmi { name, fullPath }
 export function loadSelectedFiles(initialFiles = []) {
      clearSelectedFiles(); // Najprv vyčistíme
-     selectedFiles = Array.isArray(initialFiles) ? [...initialFiles] : [];
-     console.log("Loaded RAG files:", selectedFiles);
+     if (!Array.isArray(initialFiles)) {
+         initialFiles = [];
+     }
+     
+     selectedFiles = initialFiles.map(file => {
+        if (typeof file === 'string') {
+            // Konvertujeme string (fullPath) na objekt
+            return {
+                name: file.split('/').pop(), // Extrahujeme meno súboru z cesty
+                fullPath: file
+            };
+        } else if (file && file.name && file.fullPath) {
+            // Je to už správny objekt
+            return file;
+        }
+        return null; // Ignorujeme neplatné položky
+     }).filter(file => file !== null); // Odstránime null hodnoty
+
+     console.log("Loaded RAG files (normalized):", selectedFiles);
 }
 
 // Renderuje zoznam vybraných RAG súborov
+// (Funkcia zostáva rovnaká, oprava sa vykonala v loadSelectedFiles)
 export function renderSelectedFiles(listElementId = "selected-files-list-rag") {
     const listEl = document.getElementById(listElementId);
     if (!listEl) return;
@@ -132,7 +152,7 @@ export function renderSelectedFiles(listElementId = "selected-files-list-rag") {
     } else {
         listEl.innerHTML = selectedFiles.map((file, index) => `
             <li class="flex items-center justify-between text-xs text-slate-700 group">
-                <span class="truncate pr-2">${file.name}</span>
+                <span class="truncate pr-2" title="${file.fullPath}">${file.name}</span>
                 <button data-index="${index}" class="remove-rag-file-btn p-0.5 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>
             </li>
         `).join('');
@@ -176,6 +196,7 @@ export async function renderMediaLibraryFiles(courseId, listElementId) {
         allFiles.sort((a,b) => a.name.localeCompare(b.name)); // Zoradíme podľa názvu
 
         listEl.innerHTML = allFiles.map(file => {
+            // Kontrola oproti globálnej premennej (ktorú sme načítali pred otvorením modalu)
             const isSelected = selectedFiles.some(sf => sf.fullPath === file.fullPath);
             return `
                 <li class="flex items-center justify-between p-2 rounded hover:bg-slate-100 text-sm">
