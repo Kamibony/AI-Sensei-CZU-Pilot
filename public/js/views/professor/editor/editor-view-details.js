@@ -3,7 +3,7 @@ import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/li
 import { doc, addDoc, updateDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../../firebase-init.js';
 import { showToast } from '../../../utils.js';
-// === UPRAVENÝ IMPORT: Pridali sme loadSelectedFiles ===
+// === OPRAVENÝ IMPORT: Pridali sme loadSelectedFiles ===
 import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from '../../../upload-handler.js';
 
 // Štýly tlačidiel
@@ -31,13 +31,16 @@ export class EditorViewDetails extends LitElement {
         if (this.lesson && (changedProperties.has('lesson') || !changedProperties.has('lesson')) ) {
              // Timeout zabezpečí, že sa to spustí až po renderovaní DOMu
             setTimeout(() => {
+                 // Načítame a hneď aj renderujeme pre prípad, že dáta prišli neskoro
+                 // Toto je bezpečné, lebo sa volá v updated()
+                 loadSelectedFiles(this.lesson?.ragFilePaths || []);
                  renderSelectedFiles(`selected-files-list-rag-details`); // Použijeme unikátne ID
             }, 0);
         }
     }
 
 
-    // === UPRAVENÁ FUNKCIA: Pridané volanie loadSelectedFiles ===
+    // === OPRAVENÁ FUNKCIA: Pridané volanie loadSelectedFiles ===
     _openRagModal(e) {
         e.preventDefault();
         const modal = document.getElementById('media-library-modal');
@@ -49,7 +52,7 @@ export class EditorViewDetails extends LitElement {
         // *** OPRAVA: Načítame aktuálne súbory pre TÚTO LEKCIU do globálneho stavu ***
         loadSelectedFiles(this.lesson?.ragFilePaths || []);
         // *** KONIEC OPRAVY ***
-
+        
         const handleConfirm = () => {
              renderSelectedFiles(`selected-files-list-rag-details`); // Vykreslíme RAG pre tento panel
              closeModal();
