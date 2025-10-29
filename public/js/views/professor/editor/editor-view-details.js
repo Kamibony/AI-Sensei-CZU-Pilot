@@ -3,8 +3,8 @@ import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/li
 import { doc, addDoc, updateDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../../firebase-init.js';
 import { showToast } from '../../../utils.js';
-// Zmenili sme import, nepotrebujeme loadSelectedFiles
-import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles } from '../../../upload-handler.js';
+// === OPRAVENÝ IMPORT: Pridali sme loadSelectedFiles ===
+import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from '../../../upload-handler.js';
 
 // Štýly tlačidiel
 const btnBase = "px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
@@ -14,15 +14,12 @@ const btnSecondary = `${btnBase} bg-slate-200 text-slate-700 hover:bg-slate-300`
 export class EditorViewDetails extends LitElement {
     static properties = {
         lesson: { type: Object }, // Prijímame priamo
-        // Odstránili sme _currentLesson
-        // _currentLesson: { state: true, type: Object },
         _isLoading: { state: true, type: Boolean },
     };
 
     constructor() {
         super();
         this.lesson = null;
-        // this._currentLesson = null; // Odstránené
         this._isLoading = false;
     }
 
@@ -30,28 +27,42 @@ export class EditorViewDetails extends LitElement {
 
     // === ZMENA: updated() namiesto firstUpdated() pre RAG ===
     updated(changedProperties) {
-        // Vždy keď sa komponent prekreslí (aj pri zmene lekcie), vykreslíme RAG zoznam
-        if (changedProperties.has('lesson')) {
-             renderSelectedFiles(`selected-files-list-rag-details`); // Použijeme unikátne ID
+        // Vždy keď sa komponent prekreslí A existuje this.lesson, vykreslíme RAG zoznam
+        if (this.lesson && (changedProperties.has('lesson') || !changedProperties.has('lesson')) ) {
+             // Timeout zabezpečí, že sa to spustí až po renderovaní DOMu
+            setTimeout(() => {
+                 // Načítame a hneď aj renderujeme pre prípad, že dáta prišli neskoro
+                 // Toto je bezpečné, lebo sa volá v updated()
+                 loadSelectedFiles(this.lesson?.ragFilePaths || []);
+                 renderSelectedFiles(`selected-files-list-rag-details`); // Použijeme unikátne ID
+            }, 0);
         }
     }
-    // willUpdate a firstUpdated pre RAG boli odstránené
 
 
-    _openRagModal(e) { /* ... kód zostáva rovnaký ... */
+    // === OPRAVENÁ FUNKCIA: Pridané volanie loadSelectedFiles ===
+    _openRagModal(e) {
         e.preventDefault();
         const modal = document.getElementById('media-library-modal');
         const modalConfirm = document.getElementById('modal-confirm-btn');
         const modalCancel = document.getElementById('modal-cancel-btn');
         const modalClose = document.getElementById('modal-close-btn');
         if (!modal || !modalConfirm || !modalCancel || !modalClose) { console.error("Chybějící elementy pro modální okno."); showToast("Chyba: Nepodařilo se načíst komponentu pro výběr souborů.", true); return; }
+        
+        // *** OPRAVA: Načítame aktuálne súbory pre TÚTO LEKCIU do globálneho stavu ***
+        loadSelectedFiles(this.lesson?.ragFilePaths || []);
+        // *** KONIEC OPRAVY ***
+        
         const handleConfirm = () => {
              renderSelectedFiles(`selected-files-list-rag-details`); // Vykreslíme RAG pre tento panel
              closeModal();
         };
         const handleCancel = () => closeModal();
         const closeModal = () => { modal.classList.add('hidden'); modalConfirm.removeEventListener('click', handleConfirm); modalCancel.removeEventListener('click', handleCancel); modalClose.removeEventListener('click', handleCancel); };
+        
+        // Musí byť volané až PO loadSelectedFiles, aby sa správne označili checkboxy
         renderMediaLibraryFiles("main-course", "modal-media-list");
+        
         modalConfirm.addEventListener('click', handleConfirm); modalCancel.addEventListener('click', handleCancel); modalClose.addEventListener('click', handleCancel);
         modal.classList.remove('hidden');
     }
@@ -63,13 +74,14 @@ export class EditorViewDetails extends LitElement {
         const title = form.querySelector('#lesson-title-input').value.trim();
         if (!title) { showToast("Název lekce nemůže být prázdný.", true); return; }
 
+        // Získame aktuálny výber z globálnej premennej
         const currentSelection = getSelectedFiles();
         const lessonData = {
             title: title,
             subtitle: form.querySelector('#lesson-subtitle-input').value.trim(),
             number: form.querySelector('#lesson-number-input').value.trim(),
             icon: form.querySelector('#lesson-icon-input').value.trim() || '🆕',
-            ragFilePaths: currentSelection,
+            ragFilePaths: currentSelection, // Uložíme aktuálny výber
             updatedAt: serverTimestamp()
         };
 
@@ -100,7 +112,8 @@ export class EditorViewDetails extends LitElement {
                 <form id="lesson-details-form" class="space-y-4" @submit=${this._handleSaveLessonDetails}>
                     <div>
                         <label class="block font-medium text-slate-600">Název lekce</label>
-                        <input type="text" id="lesson-title-input" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500" .value="${this.lesson?.title || ''}" placeholder="Např. Úvod do organické chemie"> </div>
+                        <input type="text" id="lesson-title-input" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500" .value="${this.lesson?.title || ''}" placeholder="Např. Úvod do organické chemie">
+                    </div>
                     <div>
                         <label class="block font-medium text-slate-600">Podtitulek</label>
                         <input type="text" id="lesson-subtitle-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" .value="${this.lesson?.subtitle || ''}" placeholder="Základní pojmy a principy">
@@ -121,8 +134,7 @@ export class EditorViewDetails extends LitElement {
                              <ul id="selected-files-list-rag-details" class="text-xs text-slate-600 mb-2 list-disc list-inside">
                                 <li>Žádné soubory nevybrány.</li>
                             </ul>
-                            <button @click=${this._openRagModal} class="text-sm ${btnSecondary} px-2 py-1">
-                                Vybrat soubory z knihovny
+                            <button @click=${this._openRagModal} type="button" class="text-sm ${btnSecondary} px-2 py-1"> Vybrat soubory z knihovny
                             </button>
                         </div>
                         <p class="text-xs text-slate-400 mt-1">Vybrané dokumenty budou uloženy spolu s lekcí.</p>
