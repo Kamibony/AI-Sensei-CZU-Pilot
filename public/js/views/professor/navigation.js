@@ -48,7 +48,8 @@ export function setupProfessorNav(showProfessorContent) {
 
                 </div>
                 
-                <div class="mt-auto"> {/* Posunie logout na spodok */}
+                <!-- === OPRAVA KOMENTÁRA === -->
+                <div class="mt-auto"> <!-- Posunie logout na spodok -->
                     <li>
                         <button id="logout-btn-nav" class="nav-item w-full p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white group" title="Odhlásit se">
                             <div class="h-10 w-10 rounded-md flex items-center justify-center bg-green-900 group-hover:bg-red-600 transition-colors duration-200">
@@ -57,6 +58,7 @@ export function setupProfessorNav(showProfessorContent) {
                         </button>
                     </li>
                 </div>
+                <!-- === KONIEC OPRAVY === -->
             </div>
         `;
         // === KONIEC ÚPRAVY HTML ===
@@ -89,3 +91,4 @@ export function setupProfessorNav(showProfessorContent) {
 
     }
 }
+
