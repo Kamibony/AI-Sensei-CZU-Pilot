@@ -27,321 +27,232 @@ export class ProfessorTimelineView extends LitElement {
         try {
             const q = query(collection(firebaseInit.db, 'timeline_events'), orderBy("orderIndex"));
             const querySnapshot = await getDocs(q);
-            // Po načítaní nových udalostí resetujeme a znovu renderujeme dni a udalosti
             this._timelineEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            this._renderDaysAndEvents(); // Zavoláme novú metódu na vykreslenie
+            this._renderDaysAndEvents();
         } catch (error) {
             console.error("Error fetching timeline events:", error);
             showToast("Chyba při načítání plánu.", true);
         }
     }
 
-    _getLocalizedDate(offsetDays = 0) {
+    _getLocalizedDateDetails(offsetDays = 0) {
         const date = new Date();
         date.setDate(date.getDate() + offsetDays);
-        return date.toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'numeric' });
+        return {
+            weekday: date.toLocaleDateString('cs-CZ', { weekday: 'long' }),
+            dayMonth: date.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' }),
+            fullDate: date,
+            isToday: offsetDays === 0
+        };
     }
 
     async _updateAllOrderIndexes() {
         const timelineContainer = this.querySelector('#timeline-container');
         if (!timelineContainer) return;
-
-        // Získame VŠETKY lesson-bubble elementy AKTUÁLNE v DOMe
         const allEventElements = Array.from(timelineContainer.querySelectorAll('.lesson-bubble'));
         const batch = writeBatch(firebaseInit.db);
         let updatesMade = 0;
-
         allEventElements.forEach((item, index) => {
             const eventId = item.dataset.eventId;
-            // Dôležitá kontrola: Uistíme sa, že eventId existuje a nie je prázdny
-            if (eventId) {
-                // Skontrolujeme, či tento event stále existuje v našom lokálnom stave _timelineEvents
-                // Toto pridáva ďalšiu vrstvu ochrany proti "duchom"
-                const existsLocally = this._timelineEvents.some(event => event.id === eventId);
-                if (existsLocally) {
-                    const docRef = doc(firebaseInit.db, 'timeline_events', eventId);
-                    batch.update(docRef, { orderIndex: index });
-                    updatesMade++;
-                } else {
-                    console.warn(`Skipping update for potentially deleted event element: ${eventId}`);
-                }
-            } else {
-                console.warn("Found lesson-bubble element without eventId during order update.");
+            if (eventId && this._timelineEvents.some(event => event.id === eventId)) {
+                batch.update(doc(firebaseInit.db, 'timeline_events', eventId), { orderIndex: index });
+                updatesMade++;
             }
         });
-
-        // Commitneme batch iba ak sme mali nejaké validné updaty
-        if (updatesMade > 0) {
-            try {
-                await batch.commit();
-                console.log(`Successfully updated orderIndex for ${updatesMade} events.`);
-            } catch (error) {
-                // Vypíšeme chybu, ale nespadneme - mohlo ísť o race condition
-                console.error("Error committing order index updates:", error);
-                // Môžeme skúsiť znova načítať dáta pre konzistenciu
-                // this._fetchTimelineEvents();
-            }
-        } else {
-            console.log("No valid order index updates to commit.");
-        }
+        if (updatesMade > 0) await batch.commit().catch(e => console.error(e));
     }
-
 
     _renderScheduledEvent(event) {
         const lesson = this.lessonsData.find(l => l.id === event.lessonId);
-        if (!lesson) return null; // Vrátime null, ak lekcia neexistuje
+        if (!lesson) return null;
 
         const el = document.createElement('div');
-        el.className = 'lesson-bubble p-3 rounded-lg shadow-sm flex items-center justify-between border bg-green-50 text-green-800 border-green-200 cursor-grab';
+        el.className = 'lesson-bubble p-3 rounded-lg shadow-sm flex items-center justify-between border bg-white hover:bg-slate-50 border-slate-200 cursor-grab mb-2 transition-all group';
         el.dataset.eventId = event.id;
         el.dataset.lessonId = event.lessonId;
         el.innerHTML = `
-            <div class="flex items-center space-x-3 flex-grow min-w-0"> <span class="text-xl flex-shrink-0">${lesson.icon}</span>
-                <span class="font-semibold text-sm truncate" title="${lesson.title}">${lesson.title}</span> </div>
-            <button class="delete-event-btn p-1 rounded-full hover:bg-red-200 text-slate-400 hover:text-red-600 transition-colors flex-shrink-0 ml-2" title="Odebrat z plánu">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            <div class="flex items-center space-x-3 flex-grow min-w-0">
+                <span class="text-xl flex-shrink-0">${lesson.icon || '📝'}</span>
+                <div class="min-w-0">
+                    <p class="font-semibold text-sm text-slate-800 truncate" title="${lesson.title}">${lesson.title}</p>
+                     ${lesson.subtitle ? `<p class="text-xs text-slate-500 truncate">${lesson.subtitle}</p>` : ''}
+                </div>
+            </div>
+            <button class="delete-event-btn p-1.5 rounded-md hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors flex-shrink-0 ml-2 opacity-0 group-hover:opacity-100" title="Odebrat z plánu">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>`;
-
-        el.querySelector('.delete-event-btn').addEventListener('click', async () => {
-            if (confirm('Opravdu chcete odebrat tuto lekci z plánu?')) {
-                const lessonId = el.dataset.lessonId;
-                const eventIdToDelete = event.id; // Uložíme si ID pred zmazaním elementu
-
+        
+        el.querySelector('.delete-event-btn').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (confirm('Odebrat tuto lekci z plánu?')) {
                 try {
-                    // 1. Zmažeme dokument z DB
-                    await deleteDoc(doc(firebaseInit.db, 'timeline_events', eventIdToDelete));
-
-                    // === HLAVNÁ OPRAVA: Odstránime element z DOM *pred* volaním _updateAllOrderIndexes ===
+                    await deleteDoc(doc(firebaseInit.db, 'timeline_events', event.id));
                     el.remove();
-                    // =================================================================================
-
-                    // 2. Odstránime udalosť z lokálneho stavu, aby sme nemuseli volať _fetchTimelineEvents
-                    this._timelineEvents = this._timelineEvents.filter(ev => ev.id !== eventIdToDelete);
-
-                    // 3. Skontrolujeme, či existujú iné inštancie tejto lekcie v lokálnom stave
-                    const otherInstancesExist = this._timelineEvents.some(ev => ev.lessonId === lessonId);
-
-                    if (!otherInstancesExist) {
-                        try {
-                            const lessonRef = doc(firebaseInit.db, 'lessons', lessonId);
-                            await updateDoc(lessonRef, { isScheduled: false });
-                            showToast("Lekce byla odebrána z plánu a odznačena.");
-                        } catch (lessonError) {
-                            console.error("Error un-scheduling lesson:", lessonError);
-                            showToast("Lekce odebrána, ale nepodařilo se odznačit.", true);
-                        }
-                    } else {
-                        showToast("Lekce byla odebrána z plánu.");
+                    this._timelineEvents = this._timelineEvents.filter(ev => ev.id !== event.id);
+                    if (!this._timelineEvents.some(ev => ev.lessonId === event.lessonId)) {
+                        await updateDoc(doc(firebaseInit.db, 'lessons', event.lessonId), { isScheduled: false }).catch(console.error);
                     }
-
-                    // 4. AŽ TERAZ aktualizujeme poradia ostatných elementov
+                    showToast("Lekce odebrána.");
                     await this._updateAllOrderIndexes();
-                    // Po úspešnom zmazaní a update poradí už nemusíme volať _fetchTimelineEvents()
-
                 } catch (error) {
-                    console.error("Error deleting timeline event:", error);
-                    showToast("Chyba při odstraňování události.", true);
-                    // Ak nastala chyba, radšej znovu načítajme stav z DB
-                    this._fetchTimelineEvents();
+                    console.error(error); showToast("Chyba při odebírání.", true); this._fetchTimelineEvents();
                 }
             }
         });
         return el;
     }
 
-
     async _handleLessonDrop(evt) {
         const lessonId = evt.item.dataset.lessonId;
-        const targetContainer = evt.to; // lessons-container, kam sa to hodilo
-        const dayIndex = targetContainer.closest('.day-slot').dataset.dayIndex;
-        const tempEl = evt.item; // Klonovaný element z knižnice
+        const targetDayIndex = parseInt(evt.to.closest('.day-slot').dataset.dayIndex);
+        const tempEl = evt.item;
+        const newIndexInDay = Array.from(evt.to.children).indexOf(tempEl);
 
-        // Zistíme nové poradie v rámci dňa
-        const itemsInDay = Array.from(targetContainer.children);
-        const newIndexInDay = itemsInDay.indexOf(tempEl);
-
-        // Vytvoríme placeholder, kým sa ukladá
-        tempEl.innerHTML = `<div class="p-3 text-slate-400">Plánuji...</div>`;
-        tempEl.classList.add('opacity-50');
+        tempEl.innerHTML = `<div class="p-3 text-slate-400 text-sm flex items-center"><div class="spinner mr-2 w-4 h-4 border-2"></div> Plánuji...</div>`;
+        tempEl.className = "bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg p-2 mb-2 opacity-70";
 
         try {
-            // Vypočítame globálny orderIndex
-            // Najprv získame všetky eventy pred týmto dňom a v tomto dni pred týmto prvkom
-            const timelineContainer = this.querySelector('#timeline-container');
-            const allEventElementsBefore = [];
-            const daySlots = timelineContainer.querySelectorAll('.day-slot');
+            let globalOrderIndex = 0;
+            const daySlots = this.querySelectorAll('.day-slot');
             for (let i = 0; i < daySlots.length; i++) {
                  const currentDayIndex = parseInt(daySlots[i].dataset.dayIndex);
-                 const lessonsInSlot = daySlots[i].querySelectorAll('.lessons-container .lesson-bubble');
-                 if (currentDayIndex < parseInt(dayIndex)) {
-                     allEventElementsBefore.push(...lessonsInSlot);
-                 } else if (currentDayIndex === parseInt(dayIndex)) {
-                     // Pridáme len tie elementy, ktoré sú PRED naším novým (tempEl)
-                     lessonsInSlot.forEach((el, idx) => {
-                         if (idx < newIndexInDay) {
-                             allEventElementsBefore.push(el);
-                         }
-                     });
-                     break; // Skončili sme s týmto dňom
+                 if (currentDayIndex < targetDayIndex) {
+                     globalOrderIndex += daySlots[i].querySelectorAll('.lessons-container .lesson-bubble').length;
+                 } else if (currentDayIndex === targetDayIndex) {
+                     globalOrderIndex += newIndexInDay;
+                     break;
                  }
             }
-            const globalOrderIndex = allEventElementsBefore.length; // Toto bude náš nový index
 
-            const newEventData = {
-                lessonId: lessonId,
-                dayIndex: parseInt(dayIndex),
-                createdAt: serverTimestamp(),
-                orderIndex: globalOrderIndex // Použijeme vypočítaný index
-            };
+            const newEventData = { lessonId, dayIndex: targetDayIndex, createdAt: serverTimestamp(), orderIndex: globalOrderIndex };
             const docRef = await addDoc(collection(firebaseInit.db, 'timeline_events'), newEventData);
+            await updateDoc(doc(firebaseInit.db, 'lessons', lessonId), { isScheduled: true }).catch(console.error);
 
-            // Označíme lekciu ako naplánovanú
-            try {
-                const lessonRef = doc(firebaseInit.db, 'lessons', lessonId);
-                await updateDoc(lessonRef, { isScheduled: true });
-            } catch (lessonError) {
-                console.error("Error flagging lesson as scheduled:", lessonError);
-                showToast("Chyba při označování lekce.", true);
-            }
-
-            // Vytvoríme nový element a nahradíme placeholder
-            const newDbEvent = { id: docRef.id, ...newEventData, orderIndex: globalOrderIndex }; // Pridáme ID
-            const newElement = this._renderScheduledEvent(newDbEvent); // Použijeme dáta z DB
-
+            const newDbEvent = { id: docRef.id, ...newEventData };
+            const newElement = this._renderScheduledEvent(newDbEvent);
             if(newElement) {
                  tempEl.parentNode.replaceChild(newElement, tempEl);
-                 // Pridáme nový event do lokálneho stavu na správne miesto
-                 this._timelineEvents.splice(globalOrderIndex, 0, newDbEvent);
+                 this._timelineEvents.push(newDbEvent);
                  showToast("Lekce naplánována.");
-            } else {
-                 tempEl.remove(); // Ak sa nepodarilo renderovať, odstránime placeholder
-                 throw new Error("Failed to render new event element.");
-            }
-
-            // Aktualizujeme orderIndex VŠETKÝCH eventov PO tomto novom evente
-            await this._updateAllOrderIndexes(); // Táto funkcia by mala byť teraz robustnejšia
-
+            } else { tempEl.remove(); }
+            await this._updateAllOrderIndexes();
         } catch (error) {
-            console.error("Error scheduling lesson:", error);
-            showToast("Chyba při plánování lekce.", true);
-            tempEl.remove(); // Odstránime placeholder aj v prípade chyby
-             // Znovu načítame dáta, aby sme mali istotu
-            this._fetchTimelineEvents();
+            console.error(error); showToast("Chyba při plánování.", true);
+            tempEl.remove(); this._fetchTimelineEvents();
         }
     }
-
 
     async _handleLessonMove(evt) {
         const eventId = evt.item.dataset.eventId;
-        const originalDayIndex = evt.from.closest('.day-slot').dataset.dayIndex;
-        const newDayIndex = evt.to.closest('.day-slot').dataset.dayIndex;
-        const movedElement = evt.item;
-
-        // Okamžite aktualizujeme dayIndex v DB
+        const newDayIndex = parseInt(evt.to.closest('.day-slot').dataset.dayIndex);
         try {
-            const docRef = doc(firebaseInit.db, 'timeline_events', eventId);
-            await updateDoc(docRef, { dayIndex: parseInt(newDayIndex) });
-             // Aktualizujeme aj lokálny stav
-            const eventIndex = this._timelineEvents.findIndex(ev => ev.id === eventId);
-            if (eventIndex > -1) {
-                this._timelineEvents[eventIndex].dayIndex = parseInt(newDayIndex);
-            }
-        } catch (error) {
-            console.error("Error moving lesson dayIndex:", error);
-            showToast("Chyba při přesouvání lekce (změna dne).", true);
-            // Vrátime element späť vizuálne, ak DB update zlyhal? Alebo radšej refresh?
-            this._fetchTimelineEvents(); // Refresh pre istotu
-            return; // Nepokračujeme s update order
-        }
-
-        // Teraz aktualizujeme orderIndex všetkých elementov
-        await this._updateAllOrderIndexes();
-
-        // Optional: Môžeme aktualizovať lokálny stav _timelineEvents podľa nového poradia v DOM
-        // aby sme nemuseli volať _fetchTimelineEvents() pre zmeny poradia
-        const timelineContainer = this.querySelector('#timeline-container');
-        if (timelineContainer) {
-            const allEventElements = Array.from(timelineContainer.querySelectorAll('.lesson-bubble'));
-            const newOrderMap = new Map(allEventElements.map((el, index) => [el.dataset.eventId, index]));
-            this._timelineEvents.sort((a, b) => (newOrderMap.get(a.id) ?? Infinity) - (newOrderMap.get(b.id) ?? Infinity));
-        }
-
+            await updateDoc(doc(firebaseInit.db, 'timeline_events', eventId), { dayIndex: newDayIndex });
+            const ev = this._timelineEvents.find(e => e.id === eventId);
+            if (ev) ev.dayIndex = newDayIndex;
+            await this._updateAllOrderIndexes();
+        } catch (e) { console.error(e); this._fetchTimelineEvents(); }
     }
 
-    // Nová metóda na vykreslenie dní a udalostí (volá sa po fetch a firstUpdated)
-    _renderDaysAndEvents() {
-         const timelineContainer = this.querySelector('#timeline-container');
-         if (!timelineContainer) return;
-
-         // Vyčistíme starý obsah kontajnera
-         timelineContainer.innerHTML = '';
-
-        // Vykreslíme sloty pre dni
-        for (let i = 0; i < 10; i++) {
-            const dayWrapper = document.createElement('div');
-            dayWrapper.className = 'day-slot bg-white rounded-xl p-3 border-2 border-transparent transition-colors min-h-[200px] shadow-sm flex flex-col';
-            dayWrapper.dataset.dayIndex = i;
-
-            const dateStr = this._getLocalizedDate(i);
-            dayWrapper.innerHTML = `
-                <div class="text-center pb-2 mb-2 border-b border-slate-200">
-                    <p class="font-bold text-slate-700">${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}</p>
-                </div>
-                <div class="lessons-container flex-grow space-y-2"></div>
-            `;
-            timelineContainer.appendChild(dayWrapper);
+    async addLessonToFirstAvailableSlot(lesson) {
+        if (!lesson?.id) return;
+        let targetDayIndex = 0;
+        for (let i = 0; i < 14; i++) {
+            if (this._timelineEvents.filter(ev => ev.dayIndex === i).length < 5) {
+                targetDayIndex = i;
+                break;
+            }
         }
 
-        // Vložíme načítané udalosti do správnych dní
-        this._timelineEvents.forEach(event => {
-            const dayIndex = event.dayIndex ?? 0; // Fallback na 0
-            const daySlot = timelineContainer.querySelector(`.day-slot[data-day-index='${dayIndex}'] .lessons-container`);
+        const maxOrderIndex = this._timelineEvents.reduce((max, ev) => Math.max(max, ev.orderIndex || 0), -1);
+        const newEventData = { lessonId: lesson.id, dayIndex: targetDayIndex, createdAt: serverTimestamp(), orderIndex: maxOrderIndex + 1 };
+
+        try {
+            const daySlot = this.querySelector(`.day-slot[data-day-index='${targetDayIndex}'] .lessons-container`);
             if (daySlot) {
-                const eventElement = this._renderScheduledEvent(event);
-                if (eventElement) { // Iba ak sa podarilo renderovať
-                    daySlot.appendChild(eventElement);
-                }
-            } else {
-                 console.warn(`Day slot not found for event ${event.id} with dayIndex ${dayIndex}`);
+                const ph = document.createElement('div');
+                ph.className = 'p-3 mb-2 text-slate-400 opacity-50 border-2 border-dashed rounded-lg text-sm';
+                ph.textContent = `Plánuji ${lesson.title}...`;
+                daySlot.appendChild(ph);
+                ph.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+                const docRef = await addDoc(collection(firebaseInit.db, 'timeline_events'), newEventData);
+                await updateDoc(doc(firebaseInit.db, 'lessons', lesson.id), { isScheduled: true });
+                
+                const newDbEvent = { id: docRef.id, ...newEventData };
+                this._timelineEvents.push(newDbEvent);
+                const newEl = this._renderScheduledEvent(newDbEvent);
+                if (newEl) daySlot.replaceChild(newEl, ph); else ph.remove();
+                showToast(`Lekce přidána na ${this._getLocalizedDateDetails(targetDayIndex).weekday}.`);
+            }
+        } catch (e) { console.error(e); showToast("Chyba přidání.", true); this._fetchTimelineEvents(); }
+    }
+
+    _renderDaysAndEvents() {
+         const container = this.querySelector('#timeline-container');
+         if (!container) return;
+         container.innerHTML = '';
+
+        // Renderujeme 2 týždne
+        for (let week = 0; week < 2; week++) {
+            const weekWrapper = document.createElement('div');
+            weekWrapper.className = "mb-8";
+            weekWrapper.innerHTML = `<h3 class="text-lg font-bold text-slate-700 mb-3 ml-1 sticky top-0 bg-slate-100 py-2 z-10">${week + 1}. Týden</h3>`;
+            
+            const weekGrid = document.createElement('div');
+            // Mriežka: 1 stĺpec na mobile, 2 na tablete, 3 na desktope, 4 na veľkých, 7 na ultra širokých
+            weekGrid.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-4";
+
+            for (let d = 0; d < 7; d++) {
+                const dayIndex = (week * 7) + d;
+                const { weekday, dayMonth, fullDate, isToday } = this._getLocalizedDateDetails(dayIndex);
+                const isWeekend = fullDate.getDay() === 0 || fullDate.getDay() === 6;
+
+                const dayWrapper = document.createElement('div');
+                // Zvýraznenie dnešného dňa (isToday)
+                dayWrapper.className = `day-slot rounded-xl border-2 ${isToday ? 'border-blue-300 bg-blue-50/30' : (isWeekend ? 'bg-slate-50 border-slate-100' : 'bg-white border-slate-200')} flex flex-col overflow-hidden transition-all hover:border-blue-200 min-h-[180px]`;
+                dayWrapper.dataset.dayIndex = dayIndex;
+
+                dayWrapper.innerHTML = `
+                    <div class="px-4 py-2 border-b ${isToday ? 'bg-blue-100/50' : (isWeekend ? 'bg-slate-100' : 'bg-slate-50')} flex justify-between items-center">
+                        <span class="font-bold ${isToday ? 'text-blue-800' : 'text-slate-700'} capitalize">${weekday}</span>
+                        <span class="text-xs ${isToday ? 'text-blue-600 font-semibold' : 'text-slate-400'}">${dayMonth}</span>
+                    </div>
+                    <div class="lessons-container flex-grow p-2 space-y-2 min-h-[50px]"></div>
+                `;
+                weekGrid.appendChild(dayWrapper);
+            }
+            weekWrapper.appendChild(weekGrid);
+            container.appendChild(weekWrapper);
+        }
+
+        this._timelineEvents.sort((a,b) => a.orderIndex - b.orderIndex).forEach(event => {
+            const daySlot = container.querySelector(`.day-slot[data-day-index='${event.dayIndex ?? 0}'] .lessons-container`);
+            if (daySlot) {
+                const el = this._renderScheduledEvent(event);
+                if (el) daySlot.appendChild(el);
             }
         });
 
-        // Inicializujeme Sortable pre všetky kontajnery lekcií
-        timelineContainer.querySelectorAll('.day-slot .lessons-container').forEach(lessonsContainer => {
+        container.querySelectorAll('.lessons-container').forEach(c => {
             if (typeof Sortable !== 'undefined') {
-                // Ak už Sortable existuje, zničíme ho pred vytvorením nového
-                const existingSortable = Sortable.get(lessonsContainer);
-                if (existingSortable) {
-                    existingSortable.destroy();
-                }
-                // Vytvoríme novú inštanciu
-                new Sortable(lessonsContainer, {
-                    group: 'lessons',
-                    animation: 150,
-                    ghostClass: 'opacity-50',
-                    onAdd: (evt) => this._handleLessonDrop(evt),
-                    onUpdate: (evt) => this._handleLessonMove(evt)
-                });
+                Sortable.get(c)?.destroy();
+                new Sortable(c, { group: 'lessons', animation: 150, ghostClass: 'opacity-50', onAdd: (e) => this._handleLessonDrop(e), onUpdate: (e) => this._handleLessonMove(e) });
             }
         });
     }
 
-    // `firstUpdated` už len volá metódu na vykreslenie
-    firstUpdated() {
-        this._renderDaysAndEvents();
-    }
-
+    firstUpdated() { this._renderDaysAndEvents(); }
 
     render() {
-        // Renderujeme iba základnú štruktúru, obsah sa naplní vo _renderDaysAndEvents
         return html`
-            <header class="text-center p-6 border-b border-slate-200 bg-white">
-                <h1 class="text-3xl font-extrabold text-slate-800">Plán výuky</h1>
-                <p class="text-slate-500 mt-1">Naplánujte lekce přetažením z knihovny vlevo.</p>
+            <header class="px-6 py-4 border-b border-slate-200 bg-white sticky top-0 z-20 shadow-sm flex justify-between items-center">
+                <div>
+                    <h1 class="text-2xl font-extrabold text-slate-800">Plán výuky</h1>
+                    <p class="text-sm text-slate-500">Přetáhněte lekce z levého panelu do požadovaného dne.</p>
+                </div>
             </header>
-            <div class="flex-grow overflow-y-auto p-4 md:p-6">
-                <div id="timeline-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                    </div>
+            <div class="flex-grow overflow-y-auto bg-slate-100 custom-scrollbar">
+                <div id="timeline-container" class="p-6 pb-20"></div>
             </div>
         `;
     }

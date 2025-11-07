@@ -4,11 +4,12 @@ import { collection, getDocs, doc, deleteDoc, query, orderBy } from "https://www
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
 
-// === Definícia Štýlov Tlačidiel ===
+// === Štýly ===
 const btnBase = "font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
-const btnPrimary = `${btnBase} bg-green-700 text-white hover:bg-green-800 p-3 w-full`; // Pridať novú lekciu
-const btnIconDestructive = `p-1 rounded-full text-slate-400 hover:bg-red-200 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity`; // Smazat ikona
-// ===================================
+const btnPrimary = `${btnBase} bg-green-700 text-white hover:bg-green-800 p-3 w-full`;
+const btnIconDestructive = `p-1 rounded-full text-slate-400 hover:bg-red-200 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity`;
+// Nový štýl pre tlačidlo "+"
+const btnAddTimeline = `absolute top-2 right-2 p-1.5 bg-green-100 text-green-700 rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-green-200 hover:scale-110 shadow-sm z-10`;
 
 export class LessonLibrary extends LitElement {
     static properties = {
@@ -62,6 +63,21 @@ export class LessonLibrary extends LitElement {
         this.dispatchEvent(new CustomEvent('add-new-lesson', { bubbles: true, composed: true }));
     }
 
+    // Handler pre kliknutie na "+"
+    _handleAddToTimelineClick(e, lesson) {
+        e.stopPropagation(); // Zabráni otvoreniu editora
+        // Vyvoláme globálny event, ktorý zachytí ProfessorApp
+        document.dispatchEvent(new CustomEvent('add-lesson-to-timeline', { detail: lesson }));
+        
+        // Vizuálna spätná väzba
+        const btn = e.currentTarget;
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>`;
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+        }, 1500);
+    }
+
     firstUpdated() {
         const listEl = this.querySelector('#lesson-list-container');
         if (listEl && typeof Sortable !== 'undefined') {
@@ -73,18 +89,27 @@ export class LessonLibrary extends LitElement {
 
     render() {
         return html`
-            <header class="p-4 border-b border-slate-200 flex-shrink-0">
+            <header class="p-4 border-b border-slate-200 flex-shrink-0 bg-slate-50 sticky top-0 z-10">
                 <h2 class="text-xl font-bold text-slate-800">Knihovna lekcí</h2>
             </header>
             <div class="flex-grow overflow-y-auto p-4" id="lesson-list-container">
                 ${this.lessonsData.map(lesson => html`
-                    <div class="lesson-bubble-wrapper group p-1" data-lesson-id="${lesson.id}">
+                    <div class="lesson-bubble-wrapper group relative p-1" data-lesson-id="${lesson.id}">
+                        <button class="${btnAddTimeline}" 
+                                title="Pridať na koniec timeline"
+                                @click=${(e) => this._handleAddToTimelineClick(e, lesson)}>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+
                         <div class="lesson-bubble-in-library p-4 bg-white border rounded-lg cursor-pointer hover:shadow-md flex justify-between items-center"
                              @click=${() => this._handleLessonClick(lesson.id)}>
-                            <div class="min-w-0 flex-grow mr-2"> <h3 class="font-semibold text-slate-800 truncate" title="${lesson.title}">${lesson.title}</h3>
+                            <div class="min-w-0 flex-grow mr-6"> 
+                                <h3 class="font-semibold text-slate-800 truncate" title="${lesson.title}">${lesson.title}</h3>
                                 <p class="text-sm text-slate-500 truncate" title="${lesson.subtitle || ''}">${lesson.subtitle || ' '}</p>
                             </div>
-                            <button class="delete-lesson-btn ${btnIconDestructive} flex-shrink-0" data-lesson-id="${lesson.id}"
+                             <button class="delete-lesson-btn ${btnIconDestructive} flex-shrink-0" data-lesson-id="${lesson.id}"
                                     title="Smazat lekci"
                                     @click=${(e) => this._handleDeleteClick(e, lesson.id)}>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2 2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -94,7 +119,7 @@ export class LessonLibrary extends LitElement {
                 `)}
                  ${this.lessonsData.length === 0 ? html`<p class="text-center text-slate-500 p-4">Zatím žádné lekce.</p>`: ''}
             </div>
-            <footer class="p-4 border-t border-slate-200 flex-shrink-0">
+            <footer class="p-4 border-t border-slate-200 flex-shrink-0 bg-slate-50 sticky bottom-0 z-10">
                 <button id="add-new-lesson-btn" class="${btnPrimary}" @click=${this._handleAddNewClick}> Přidat novou lekci
                 </button>
             </footer>
