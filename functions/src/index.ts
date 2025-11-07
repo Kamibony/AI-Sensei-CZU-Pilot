@@ -46,8 +46,8 @@ export const generateContent = onCall({
         if (isJson) {
             switch(contentType) {
                 case 'presentation':
-                    // ===== APLIKOVANÁ OPRAVA: Akceptuje slide_count aj slideCount =====
-                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${ (promptData.slide_count || promptData.slideCount) || 5} slidy. Odpověď musí být JSON objekt s klíčem 'slides', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů).`;
+                    // ===== APLIKOVANÁ OPRAVA (POISTKA): Kontroluje prázdny string =====
+                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${promptData.slide_count ? promptData.slide_count : 5} slidy. Odpověď musí být JSON objekt s klíčem 'slides', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů).`;
                     break;
                 case 'quiz':
                     finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
