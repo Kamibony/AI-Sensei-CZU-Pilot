@@ -11,23 +11,20 @@ export class EditorViewPresentation extends LitElement {
 
     constructor() {
         super();
-        // === PRIDANÉ: Predvolená hodnota ===
-        this._slideCount = 5;
+        // === ZMENENÉ: Začíname s prázdnou hodnotou, nie "5" ===
+        this._slideCount = '';
     }
 
     createRenderRoot() { return this; }
 
     // === PRIDANÉ: Funkcia, ktorá sa spustí pri zmene inputu ===
     _onSlideCountChange(e) {
+        // Uložíme si, čo používateľ napísal (napr. "8")
         this._slideCount = e.target.value;
     }
 
     render() {
         const styleId = this.lesson?.presentation?.styleId || 'default';
-        
-        // Poznámka: Keď sa komponent prekreslí, .value=${this._slideCount}
-        // zabezpečí, že sa tam vloží "8" (alebo akákoľvek posledná hodnota)
-        // a nie natvrdo "5".
         
         return html`
             <ai-generator-panel
@@ -46,6 +43,7 @@ export class EditorViewPresentation extends LitElement {
                         <input id="slide-count-input" 
                                type="number" 
                                class="w-full border-slate-300 rounded-lg p-2 mt-1" 
+                               placeholder="5"
                                .value=${this._slideCount}
                                @input=${this._onSlideCountChange}>
                     </div>
