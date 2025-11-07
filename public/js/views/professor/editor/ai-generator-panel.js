@@ -1,13 +1,18 @@
 // public/js/views/professor/editor/ai-generator-panel.js
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { doc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+// === ODSTRÁNENÝ PRIAMY IMPORT httpsCallable ===
+// import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../../../firebase-init.js';
 import { showToast } from '../../../utils.js';
 // === OPRAVENÝ IMPORT: Pridali sme loadSelectedFiles ===
 import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from '../../../upload-handler.js';
 
-let generateContentCallable = null;
+// === NOVÝ IMPORT: Importujeme opravenú funkciu z gemini-api.js ===
+import { callGenerateContent } from '../../../gemini-api.js';
+
+// === ODSTRÁNENÉ: Túto premennú už nebudeme spravovať lokálne ===
+// let generateContentCallable = null;
 
 // Štýly tlačidiel
 const btnBase = "px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
@@ -35,10 +40,12 @@ export class AiGeneratorPanel extends LitElement {
         this.lesson = null; this.viewTitle = "AI Generátor"; this.promptPlaceholder = "Zadejte prompt...";
         this.description = "Popis chybí."; this._generationOutput = null;
         this._isLoading = false; this._isSaving = false;
-        if (!generateContentCallable) {
-            if (!firebaseInit.functions) { console.error("Firebase Functions not initialized..."); throw new Error("Firebase Functions not initialized."); }
-            generateContentCallable = httpsCallable(firebaseInit.functions, 'generateContent');
-        }
+        
+        // === ODSTRÁNENÁ CHYBNÁ INICIALIZÁCIA Z KONŠTRUKTORA ===
+        // if (!generateContentCallable) {
+        //     if (!firebaseInit.functions) { console.error("Firebase Functions not initialized..."); throw new Error("Firebase Functions not initialized."); }
+        //     generateContentCallable = httpsCallable(firebaseInit.functions, 'generateContent');
+        // }
     }
 
     createRenderRoot() { return this; }
@@ -122,9 +129,14 @@ export class AiGeneratorPanel extends LitElement {
             if (slotContent) { const nodes = slotContent.assignedNodes({flatten: true}).filter(n => n.nodeType === Node.ELEMENT_NODE); nodes.forEach(node => { const inputs = node.querySelectorAll('input, select'); inputs.forEach(input => { if (input.id) { const key = input.id.replace(/-/g, '_').replace('_input', ''); promptData[key] = input.value; } }); if (nodes.length === 1 && node.id) { const key = node.id.replace(/-/g, '_').replace('_input', ''); promptData[key] = node.value; } }); }
             if (this.contentType === 'presentation') { const topicInput = this.querySelector('#prompt-input-topic'); if (topicInput) promptData.userPrompt = topicInput.value.trim(); }
             if (this.contentType === 'post' && !userPrompt) promptData.userPrompt = this.promptPlaceholder;
-            const result = await generateContentCallable({ contentType: this.contentType, promptData, filePaths }); // Posielame filePaths
-            if (!result || !result.data) throw new Error("AI nevrátila žádná data."); if (result.data.error) throw new Error(result.data.error);
-            this._generationOutput = (this.contentType === 'text' && result.data.text) ? result.data.text : result.data;
+
+            // === OPRAVENÉ VOLANIE: Používame importovanú 'lazy' funkciu ===
+            const result = await callGenerateContent({ contentType: this.contentType, promptData, filePaths }); // Posielame filePaths
+            
+            if (!result) throw new Error("AI nevrátila žádná data."); 
+            if (result.error) throw new Error(result.error);
+            
+            this._generationOutput = (this.contentType === 'text' && result.text) ? result.text : result;
         } catch (err) { console.error("Error during AI generation:", err); showToast(`Došlo k chybě: ${err.message || err}`, true); this._generationOutput = { error: `Došlo k chybě: ${err.message || err}` }; }
         finally { this._isLoading = false; }
      }
