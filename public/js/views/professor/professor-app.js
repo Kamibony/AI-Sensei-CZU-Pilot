@@ -33,14 +33,11 @@ export class ProfessorApp extends LitElement {
         this._sidebarVisible = true;
     }
 
-    createRenderRoot() {
-        return this;
-    }
+    createRenderRoot() { return this; }
 
     connectedCallback() {
         super.connectedCallback();
         this._fetchLessons();
-        // Globálny listener pre pridanie lekcie na timeline cez tlačidlo "+"
         document.addEventListener('add-lesson-to-timeline', this._handleAddToTimeline.bind(this));
     }
 
@@ -52,9 +49,7 @@ export class ProfessorApp extends LitElement {
     firstUpdated() {
         setupProfessorNav(this._showProfessorContent.bind(this));
         const logoutBtn = document.getElementById('logout-btn-nav');
-        if (logoutBtn) {
-            logoutBtn.addEventListener('click', handleLogout);
-        }
+        if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
     }
 
     async _fetchLessons() {
@@ -71,72 +66,43 @@ export class ProfessorApp extends LitElement {
     _showProfessorContent(view, data = null) {
         const fullWidthViews = ['students', 'student-profile', 'interactions', 'analytics', 'media', 'editor'];
         this._sidebarVisible = !fullWidthViews.includes(view);
-
-        if (view === 'timeline') {
-             this._fetchLessons();
-        }
+        if (view === 'timeline') this._fetchLessons();
         this._currentView = view;
         this._currentData = data;
     }
 
-    // --- Event Handlery ---
-    _onLessonSelected(e) {
-        this._showProfessorContent('editor', e.detail);
-    }
-
-    _onAddNewLesson() {
-        this._showProfessorContent('editor', null);
-    }
-
+    _onLessonSelected(e) { this._showProfessorContent('editor', e.detail); }
+    _onAddNewLesson() { this._showProfessorContent('editor', null); }
     _onLessonCreatedOrUpdated(e) {
         this._currentData = e.detail;
-        if (this._currentView !== 'editor') {
-             this._fetchLessons();
-        }
+        if (this._currentView !== 'editor') this._fetchLessons();
     }
+    _onNavigateToProfile(e) { this._showProfessorContent('student-profile', e.detail.studentId); }
+    _onBackToList() { this._showProfessorContent('students'); }
+    _onEditorExit() { this._showProfessorContent('timeline'); }
 
-    _onNavigateToProfile(e) {
-        this._showProfessorContent('student-profile', e.detail.studentId);
-    }
-
-    _onBackToList() {
-         this._showProfessorContent('students');
-    }
-
-    _onEditorExit() {
-        this._showProfessorContent('timeline');
-    }
-
-    // Nový handler pre tlačidlo "+"
     _handleAddToTimeline(e) {
         const lesson = e.detail;
-        // Ak nie sme na timeline view, prepneme sa tam
         if (this._currentView !== 'timeline') {
             this._showProfessorContent('timeline');
-            // Počkáme chvíľu, kým sa timeline načíta, a potom pridáme lekciu
             setTimeout(() => {
                  const timelineView = this.querySelector('professor-timeline-view');
-                 if (timelineView) {
-                     timelineView.addLessonToFirstAvailableSlot(lesson);
-                 }
+                 if (timelineView) timelineView.addLessonToFirstAvailableSlot(lesson);
             }, 500);
         } else {
-            // Ak už sme na timeline, len zavoláme metódu
             const timelineView = this.querySelector('professor-timeline-view');
-            if (timelineView) {
-                timelineView.addLessonToFirstAvailableSlot(lesson);
-            }
+            if (timelineView) timelineView.addLessonToFirstAvailableSlot(lesson);
         }
     }
 
-    // --- Renderovacie Metódy ---
     render() {
         return html`
-            <div id="dashboard-professor" class="w-full flex main-view active h-screen overflow-hidden">
+            <div id="dashboard-professor" class="w-full flex flex-row main-view active h-screen overflow-hidden">
                 <aside id="professor-sidebar"
-                       class="w-full md:w-80 lg:w-96 bg-slate-100 border-r border-slate-200 flex-col flex-shrink-0 h-full ${this._sidebarVisible ? 'flex' : 'hidden'} overflow-hidden">
+                       class="w-full md:w-80 lg:w-96 bg-slate-100 border-r border-slate-200 flex-col flex-shrink-0 h-full ${this._sidebarVisible ? 'flex' : 'hidden'} overflow-hidden z-10">
                     ${this._renderSidebar()}
                 </aside>
+
                 <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-full overflow-hidden">
                     ${this._renderMainContent()}
                 </main>
@@ -158,29 +124,15 @@ export class ProfessorApp extends LitElement {
 
     _renderMainContent() {
         switch (this._currentView) {
-            case 'timeline':
-                return html`<professor-timeline-view class="h-full flex flex-col" .lessonsData=${this._lessonsData}></professor-timeline-view>`;
-            case 'media':
-                return html`<professor-media-view class="h-full flex flex-col"></professor-media-view>`;
-            case 'editor':
-                return html`<lesson-editor
-                                class="h-full flex flex-col"
-                                .lesson=${this._currentData}
-                                @lesson-updated=${this._onLessonCreatedOrUpdated}
-                                @editor-exit=${this._onEditorExit}>
-                            </lesson-editor>`;
-            case 'students':
-                return html`<professor-students-view class="h-full flex flex-col" @navigate-to-profile=${this._onNavigateToProfile}></professor-students-view>`;
-            case 'student-profile':
-                return html`<professor-student-profile-view class="h-full flex flex-col" .studentId=${this._currentData} @back-to-list=${this._onBackToList}></professor-student-profile-view>`;
-            case 'interactions':
-                return html`<professor-interactions-view class="flex flex-grow h-full"></professor-interactions-view>`;
-            case 'analytics':
-                return html`<professor-analytics-view class="h-full flex flex-col"></professor-analytics-view>`;
-            default:
-                return html`<professor-timeline-view class="h-full flex flex-col" .lessonsData=${this._lessonsData}></professor-timeline-view>`;
+            case 'timeline': return html`<professor-timeline-view class="h-full flex flex-col" .lessonsData=${this._lessonsData}></professor-timeline-view>`;
+            case 'media': return html`<professor-media-view class="h-full flex flex-col"></professor-media-view>`;
+            case 'editor': return html`<lesson-editor class="h-full flex flex-col" .lesson=${this._currentData} @lesson-updated=${this._onLessonCreatedOrUpdated} @editor-exit=${this._onEditorExit}></lesson-editor>`;
+            case 'students': return html`<professor-students-view class="h-full flex flex-col" @navigate-to-profile=${this._onNavigateToProfile}></professor-students-view>`;
+            case 'student-profile': return html`<professor-student-profile-view class="h-full flex flex-col" .studentId=${this._currentData} @back-to-list=${this._onBackToList}></professor-student-profile-view>`;
+            case 'interactions': return html`<professor-interactions-view class="flex flex-grow h-full"></professor-interactions-view>`;
+            case 'analytics': return html`<professor-analytics-view class="h-full flex flex-col"></professor-analytics-view>`;
+            default: return html`<professor-timeline-view class="h-full flex flex-col" .lessonsData=${this._lessonsData}></professor-timeline-view>`;
         }
     }
 }
-
 customElements.define('professor-app', ProfessorApp);
