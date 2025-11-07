@@ -1,4 +1,4 @@
-// Súbor: functions/src/index.ts (KOMPLETNÁ OPRAVENÁ VERZIA)
+// Súbor: functions/src/index.ts (KOMPLETNÁ VERZIA S PRÍSNOU KONTROLOU)
 
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -46,9 +46,30 @@ export const generateContent = onCall({
         if (isJson) {
             switch(contentType) {
                 case 'presentation':
-                    // ===== APLIKOVANÁ OPRAVA (POISTKA): Kontroluje prázdny string =====
-                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${promptData.slide_count ? promptData.slide_count : 5} slidy. Odpověď musí být JSON objekt s klíčem 'slides', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů).`;
+                    // ===== APLIKOVANÁ ZMENA: Prísna kontrola namiesto predvolenej hodnoty =====
+                    
+                    logger.log("Generating presentation, received slide_count:", promptData.slide_count);
+                    
+                    // 1. Prevedieme hodnotu na číslo. Ak je to "" alebo "abc", výsledok bude NaN (Not a Number)
+                    const requestedCount = parseInt(promptData.slide_count, 10);
+
+                    // 2. Ak je výsledok neplatné číslo alebo je 0 či menší, vyhodíme chybu
+                    if (!requestedCount || requestedCount <= 0) {
+                        logger.error("Invalid slide_count received:", promptData.slide_count);
+                        // Vyhodíme chybu, ktorá sa zobrazí používateľovi na frontende
+                        throw new HttpsError(
+                            "invalid-argument", 
+                            `Neplatný počet slidů. Zadejte prosím kladné číslo (dostali jsme '${promptData.slide_count || ''}').`
+                        );
+                    }
+                    
+                    // 3. Ak je všetko v poriadku, použijeme finálne číslo v prompte
+                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${requestedCount} slidy. Odpověď musí být JSON objekt s klíčem 'slides', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů).`;
+                    logger.log(`Final prompt will use ${requestedCount} slides.`);
+                    
                     break;
+                    // ===== KONIEC ZMENY =====
+
                 case 'quiz':
                     finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
                     break;
@@ -73,7 +94,7 @@ export const generateContent = onCall({
         logger.error(`Error in generateContent for type ${contentType}:`, error);
         let message = "An unknown error occurred.";
         if (error instanceof Error) { message = error.message; }
-        // Chybu HttpsError len prepošleme ďalej
+        // Chybu HttpsError len prepošleme ďalej (naša vlastná chyba pre 'invalid-argument' prejde tiež)
         if (error instanceof HttpsError) {
             throw error;
         }
@@ -506,7 +527,7 @@ export const submitQuizResults = onCall({ region: "europe-west1" }, async (reque
     const { lessonId, quizTitle, score, totalQuestions, answers } = request.data;
 
     if (typeof score === 'undefined' || !lessonId || !answers) {
-        throw new HttpsError("invalid-argument", "Chybí potřebná data pro uložení výsledků kvízu.");
+        throw new HH_t_t_p_s_Error("invalid-argument", "Chybí potřebná data pro uložení výsledků kvízu.");
     }
 
     try {
