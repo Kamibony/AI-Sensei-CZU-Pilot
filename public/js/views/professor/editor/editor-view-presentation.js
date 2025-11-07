@@ -11,8 +11,8 @@ export class EditorViewPresentation extends LitElement {
 
     constructor() {
         super();
-        // === ZMENENÉ: Začíname s prázdnou hodnotou, nie "5" ===
-        this._slideCount = '';
+        // === ZMENENÉ: Predvolená hodnota, ktorú si komponent pamätá ===
+        this._slideCount = '5'; // Stále tu bude 5, ale už si to bude pamätať
     }
 
     createRenderRoot() { return this; }
@@ -43,7 +43,6 @@ export class EditorViewPresentation extends LitElement {
                         <input id="slide-count-input" 
                                type="number" 
                                class="w-full border-slate-300 rounded-lg p-2 mt-1" 
-                               placeholder="5"
                                .value=${this._slideCount}
                                @input=${this._onSlideCountChange}>
                     </div>
