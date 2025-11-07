@@ -155,8 +155,9 @@ export class ProfessorTimelineView extends LitElement {
 
     async addLessonToFirstAvailableSlot(lesson) {
         if (!lesson?.id) return;
+        // Hľadáme prvý deň s < 5 lekciami v rámci 31 dní
         let targetDayIndex = 0;
-        for (let i = 0; i < 14; i++) {
+        for (let i = 0; i < 31; i++) {
             if (this._timelineEvents.filter(ev => ev.dayIndex === i).length < 5) {
                 targetDayIndex = i;
                 break;
@@ -192,38 +193,29 @@ export class ProfessorTimelineView extends LitElement {
          if (!container) return;
          container.innerHTML = '';
 
-        // Renderujeme 2 týždne
-        for (let week = 0; week < 2; week++) {
-            const weekWrapper = document.createElement('div');
-            weekWrapper.className = "mb-8";
-            weekWrapper.innerHTML = `<h3 class="text-lg font-bold text-slate-700 mb-3 ml-1 sticky top-0 bg-slate-100 py-2 z-10">${week + 1}. Týden</h3>`;
-            
-            const weekGrid = document.createElement('div');
-            // Mriežka: 1 stĺpec na mobile, 2 na tablete, 3 na desktope, 4 na veľkých, 7 na ultra širokých
-            weekGrid.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-4";
+        // Vytvoríme mriežku pre 31 dní
+        // Na veľkých obrazovkách 5 stĺpcov (typický kalendár má 7, ale 5 je lepšie pre čitateľnosť obsahu)
+        const grid = document.createElement('div');
+        grid.className = "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4";
 
-            for (let d = 0; d < 7; d++) {
-                const dayIndex = (week * 7) + d;
-                const { weekday, dayMonth, fullDate, isToday } = this._getLocalizedDateDetails(dayIndex);
-                const isWeekend = fullDate.getDay() === 0 || fullDate.getDay() === 6;
+        for (let i = 0; i < 31; i++) {
+            const { weekday, dayMonth, fullDate, isToday } = this._getLocalizedDateDetails(i);
+            const isWeekend = fullDate.getDay() === 0 || fullDate.getDay() === 6;
 
-                const dayWrapper = document.createElement('div');
-                // Zvýraznenie dnešného dňa (isToday)
-                dayWrapper.className = `day-slot rounded-xl border-2 ${isToday ? 'border-blue-300 bg-blue-50/30' : (isWeekend ? 'bg-slate-50 border-slate-100' : 'bg-white border-slate-200')} flex flex-col overflow-hidden transition-all hover:border-blue-200 min-h-[180px]`;
-                dayWrapper.dataset.dayIndex = dayIndex;
+            const dayWrapper = document.createElement('div');
+            dayWrapper.className = `day-slot rounded-xl border-2 ${isToday ? 'border-blue-300 bg-blue-50/30' : (isWeekend ? 'bg-slate-50 border-slate-100' : 'bg-white border-slate-200')} flex flex-col overflow-hidden transition-all hover:border-blue-200 min-h-[180px]`;
+            dayWrapper.dataset.dayIndex = i;
 
-                dayWrapper.innerHTML = `
-                    <div class="px-4 py-2 border-b ${isToday ? 'bg-blue-100/50' : (isWeekend ? 'bg-slate-100' : 'bg-slate-50')} flex justify-between items-center">
-                        <span class="font-bold ${isToday ? 'text-blue-800' : 'text-slate-700'} capitalize">${weekday}</span>
-                        <span class="text-xs ${isToday ? 'text-blue-600 font-semibold' : 'text-slate-400'}">${dayMonth}</span>
-                    </div>
-                    <div class="lessons-container flex-grow p-2 space-y-2 min-h-[50px]"></div>
-                `;
-                weekGrid.appendChild(dayWrapper);
-            }
-            weekWrapper.appendChild(weekGrid);
-            container.appendChild(weekWrapper);
+            dayWrapper.innerHTML = `
+                <div class="px-4 py-2 border-b ${isToday ? 'bg-blue-100/50' : (isWeekend ? 'bg-slate-100' : 'bg-slate-50')} flex justify-between items-center sticky top-0 z-10">
+                    <span class="font-bold ${isToday ? 'text-blue-800' : 'text-slate-700'} capitalize truncate">${weekday}</span>
+                    <span class="text-xs ${isToday ? 'text-blue-600 font-semibold' : 'text-slate-400'} ml-2">${dayMonth}</span>
+                </div>
+                <div class="lessons-container flex-grow p-2 space-y-2 min-h-[50px] overflow-y-auto custom-scrollbar"></div>
+            `;
+            grid.appendChild(dayWrapper);
         }
+        container.appendChild(grid);
 
         this._timelineEvents.sort((a,b) => a.orderIndex - b.orderIndex).forEach(event => {
             const daySlot = container.querySelector(`.day-slot[data-day-index='${event.dayIndex ?? 0}'] .lessons-container`);
@@ -247,8 +239,8 @@ export class ProfessorTimelineView extends LitElement {
         return html`
             <header class="px-6 py-4 border-b border-slate-200 bg-white sticky top-0 z-20 shadow-sm flex justify-between items-center">
                 <div>
-                    <h1 class="text-2xl font-extrabold text-slate-800">Plán výuky</h1>
-                    <p class="text-sm text-slate-500">Přetáhněte lekce z levého panelu do požadovaného dne.</p>
+                    <h1 class="text-2xl font-extrabold text-slate-800">Plán výuky (31 dní)</h1>
+                    <p class="text-sm text-slate-500">Přetáhněte lekce do požadovaného dne.</p>
                 </div>
             </header>
             <div class="flex-grow overflow-y-auto bg-slate-100 custom-scrollbar">
