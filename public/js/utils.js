@@ -1,27 +1,8 @@
+// public/js/utils.js
+
 export function showToast(message, isError = false) {
-    const toastContainer = document.getElementById('toast-container') || createToastContainer();
-    const toast = document.createElement('div');
-    toast.className = `toast ${isError ? 'toast-error' : 'toast-success'}`;
-    toast.textContent = message;
-    toastContainer.appendChild(toast);
-    setTimeout(() => {
-        toast.classList.add('show');
-    }, 10);
-    setTimeout(() => {
-        toast.classList.remove('show');
-        toast.addEventListener('transitionend', () => {
-            if (toast.parentNode) {
-                toast.parentNode.removeChild(toast);
-            }
-        });
-    }, 5000);
+    // Toast notifikácie sú kompletne vypnuté.
+    // Funkcia je ponechaná prázdna, aby volania z iných častí aplikácie nespôsobili chybu.
 }
-function createToastContainer() {
-    let container = document.getElementById('toast-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'toast-container';
-        document.body.appendChild(container);
-    }
-    return container;
-}
+
+// Funkcia createToastContainer bola odstránená, pretože ju už nič nepouživa.
