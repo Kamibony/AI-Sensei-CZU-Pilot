@@ -6,8 +6,7 @@ import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/fir
 import './lesson-library.js';
 import './timeline-view.js';
 import './professor-media-view.js';
-// import './lesson-editor-menu.js'; // === ODSTRÁNENÝ IMPORT ===
-import './lesson-editor.js'; // Tento zostáva
+import './lesson-editor.js';
 import './professor-students-view.js';
 import './professor-student-profile-view.js';
 import './professor-interactions-view.js';
@@ -21,10 +20,9 @@ import { showToast } from '../../utils.js';
 export class ProfessorApp extends LitElement {
     static properties = {
         _currentView: { state: true, type: String },
-        _currentData: { state: true }, // Pre lekciu alebo ID študenta
-        // _currentEditorView: { state: true, type: String }, // === ODSTRÁNENÉ - spravuje si lesson-editor ===
+        _currentData: { state: true },
         _lessonsData: { state: true, type: Array },
-        _sidebarVisible: { state: true, type: Boolean }, // === ZMENENÉ - už len boolean ===
+        _sidebarVisible: { state: true, type: Boolean },
     };
 
     constructor() {
@@ -32,7 +30,7 @@ export class ProfessorApp extends LitElement {
         this._currentView = 'timeline';
         this._currentData = null;
         this._lessonsData = [];
-        this._sidebarVisible = true; // Sidebar (knižnica) je viditeľný na začiatku
+        this._sidebarVisible = true;
     }
 
     createRenderRoot() {
@@ -42,6 +40,13 @@ export class ProfessorApp extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._fetchLessons();
+        // Globálny listener pre pridanie lekcie na timeline cez tlačidlo "+"
+        document.addEventListener('add-lesson-to-timeline', this._handleAddToTimeline.bind(this));
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        document.removeEventListener('add-lesson-to-timeline', this._handleAddToTimeline.bind(this));
     }
 
     firstUpdated() {
@@ -63,16 +68,13 @@ export class ProfessorApp extends LitElement {
         }
     }
 
-    // Zjednodušená metóda
     _showProfessorContent(view, data = null) {
-        const fullWidthViews = ['students', 'student-profile', 'interactions', 'analytics', 'media', 'editor']; // Pridali sme 'editor'
-
+        const fullWidthViews = ['students', 'student-profile', 'interactions', 'analytics', 'media', 'editor'];
         this._sidebarVisible = !fullWidthViews.includes(view);
 
         if (view === 'timeline') {
              this._fetchLessons();
         }
-
         this._currentView = view;
         this._currentData = data;
     }
@@ -86,13 +88,8 @@ export class ProfessorApp extends LitElement {
         this._showProfessorContent('editor', null);
     }
 
-    // _onEditorViewChanged už nie je potrebný
-    // _onBackToTimeline už nie je potrebný (obslúži si to lesson-editor)
-
     _onLessonCreatedOrUpdated(e) {
-        this._currentData = e.detail; // Aktualizujeme lekciu
-        // Ak sme v editore, zostaneme tam, len aktualizujeme dáta
-        // Ak sme mimo editora (napr. timeline), znovu načítame knižnicu
+        this._currentData = e.detail;
         if (this._currentView !== 'editor') {
              this._fetchLessons();
         }
@@ -106,21 +103,41 @@ export class ProfessorApp extends LitElement {
          this._showProfessorContent('students');
     }
 
-    // Nový handler pre návrat z editora na timeline
     _onEditorExit() {
         this._showProfessorContent('timeline');
     }
 
-    // --- Renderovacie Metódy ---
+    // Nový handler pre tlačidlo "+"
+    _handleAddToTimeline(e) {
+        const lesson = e.detail;
+        // Ak nie sme na timeline view, prepneme sa tam
+        if (this._currentView !== 'timeline') {
+            this._showProfessorContent('timeline');
+            // Počkáme chvíľu, kým sa timeline načíta, a potom pridáme lekciu
+            setTimeout(() => {
+                 const timelineView = this.querySelector('professor-timeline-view');
+                 if (timelineView) {
+                     timelineView.addLessonToFirstAvailableSlot(lesson);
+                 }
+            }, 500);
+        } else {
+            // Ak už sme na timeline, len zavoláme metódu
+            const timelineView = this.querySelector('professor-timeline-view');
+            if (timelineView) {
+                timelineView.addLessonToFirstAvailableSlot(lesson);
+            }
+        }
+    }
 
+    // --- Renderovacie Metódy ---
     render() {
         return html`
-            <div id="dashboard-professor" class="w-full flex main-view active h-screen">
+            <div id="dashboard-professor" class="w-full flex main-view active h-screen overflow-hidden">
                 <aside id="professor-sidebar"
-                       class="w-full md:w-80 lg:w-96 bg-slate-100 border-r border-slate-200 flex-col flex-shrink-0 h-full ${this._sidebarVisible ? 'flex' : 'hidden'}">
+                       class="w-full md:w-80 lg:w-96 bg-slate-100 border-r border-slate-200 flex-col flex-shrink-0 h-full ${this._sidebarVisible ? 'flex' : 'hidden'} overflow-hidden">
                     ${this._renderSidebar()}
                 </aside>
-                <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-screen overflow-y-auto">
+                <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-full overflow-hidden">
                     ${this._renderMainContent()}
                 </main>
             </div>
@@ -128,9 +145,9 @@ export class ProfessorApp extends LitElement {
     }
 
     _renderSidebar() {
-        // Sidebar teraz zobrazuje iba knižnicu alebo nič
         if (this._sidebarVisible) {
              return html`<lesson-library
+                            class="h-full flex flex-col"
                             .lessonsData=${this._lessonsData}
                             @lesson-selected=${this._onLessonSelected}
                             @add-new-lesson=${this._onAddNewLesson}>
@@ -139,30 +156,29 @@ export class ProfessorApp extends LitElement {
         return html``;
     }
 
-    // Všetky pohľady sú teraz komponenty
     _renderMainContent() {
         switch (this._currentView) {
             case 'timeline':
-                return html`<professor-timeline-view .lessonsData=${this._lessonsData}></professor-timeline-view>`;
+                return html`<professor-timeline-view class="h-full flex flex-col" .lessonsData=${this._lessonsData}></professor-timeline-view>`;
             case 'media':
-                return html`<professor-media-view></professor-media-view>`;
+                return html`<professor-media-view class="h-full flex flex-col"></professor-media-view>`;
             case 'editor':
-                // Pridali sme listener pre @editor-exit
                 return html`<lesson-editor
+                                class="h-full flex flex-col"
                                 .lesson=${this._currentData}
                                 @lesson-updated=${this._onLessonCreatedOrUpdated}
                                 @editor-exit=${this._onEditorExit}>
                             </lesson-editor>`;
             case 'students':
-                return html`<professor-students-view @navigate-to-profile=${this._onNavigateToProfile}></professor-students-view>`;
+                return html`<professor-students-view class="h-full flex flex-col" @navigate-to-profile=${this._onNavigateToProfile}></professor-students-view>`;
             case 'student-profile':
-                return html`<professor-student-profile-view .studentId=${this._currentData} @back-to-list=${this._onBackToList}></professor-student-profile-view>`;
+                return html`<professor-student-profile-view class="h-full flex flex-col" .studentId=${this._currentData} @back-to-list=${this._onBackToList}></professor-student-profile-view>`;
             case 'interactions':
                 return html`<professor-interactions-view class="flex flex-grow h-full"></professor-interactions-view>`;
             case 'analytics':
-                return html`<professor-analytics-view></professor-analytics-view>`;
+                return html`<professor-analytics-view class="h-full flex flex-col"></professor-analytics-view>`;
             default:
-                return html`<professor-timeline-view .lessonsData=${this._lessonsData}></professor-timeline-view>`;
+                return html`<professor-timeline-view class="h-full flex flex-col" .lessonsData=${this._lessonsData}></professor-timeline-view>`;
         }
     }
 }
