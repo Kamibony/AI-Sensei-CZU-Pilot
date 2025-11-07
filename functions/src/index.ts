@@ -527,7 +527,8 @@ export const submitQuizResults = onCall({ region: "europe-west1" }, async (reque
     const { lessonId, quizTitle, score, totalQuestions, answers } = request.data;
 
     if (typeof score === 'undefined' || !lessonId || !answers) {
-        throw new HH_t_t_p_s_Error("invalid-argument", "Chybí potřebná data pro uložení výsledků kvízu.");
+        // ===== TOTO JE OPRAVENÝ RIADOK =====
+        throw new HttpsError("invalid-argument", "Chybí potřebná data pro uložení výsledků kvízu.");
     }
 
     try {
