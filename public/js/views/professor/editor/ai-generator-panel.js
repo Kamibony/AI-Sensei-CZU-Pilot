@@ -115,7 +115,7 @@ export class AiGeneratorPanel extends LitElement {
      }
 
     // --- Generovanie AI (používa this.lesson) ---
-    async _handleGeneration(e) { /* ... kód zostáva rovnaký ... */
+    async _handleGeneration(e) {
         e.preventDefault();
         const promptInput = this.querySelector('#prompt-input');
         const userPrompt = promptInput ? promptInput.value.trim() : '';
@@ -126,7 +126,32 @@ export class AiGeneratorPanel extends LitElement {
             const selectedFiles = getSelectedFiles(); const filePaths = selectedFiles.map(f => f.fullPath);
             const promptData = { userPrompt: userPrompt || '' };
             const slotContent = this.querySelector('slot[name="ai-inputs"]');
-            if (slotContent) { const nodes = slotContent.assignedNodes({flatten: true}).filter(n => n.nodeType === Node.ELEMENT_NODE); nodes.forEach(node => { const inputs = node.querySelectorAll('input, select'); inputs.forEach(input => { if (input.id) { const key = input.id.replace(/-/g, '_').replace('_input', ''); promptData[key] = input.value; } }); if (nodes.length === 1 && node.id) { const key = node.id.replace(/-/g, '_').replace('_input', ''); promptData[key] = node.value; } }); }
+            
+            // ===== ZAČIATOK BLOKU PRE ČÍTANIE HODNÔT (S POISTKOU) =====
+            if (slotContent) {
+                const nodes = slotContent.assignedNodes({flatten: true});
+                nodes.forEach(node => {
+                    // ===== PRIDANÁ BEZPEČNOSTNÁ KONTROLA (proti crashu) =====
+                    if (node && node.nodeType === Node.ELEMENT_NODE && typeof node.querySelectorAll === 'function') {
+                        // Hľadáme inputy priamo v node (slotted element)
+                        const inputs = node.querySelectorAll('input, select');
+                        inputs.forEach(input => {
+                            if (input.id) {
+                                const key = input.id.replace(/-/g, '_').replace('_input', '');
+                                promptData[key] = input.value;
+                            }
+                        });
+                        
+                        // Tento kód tu bol, ale je chybný (node je div, nemá .value)
+                        // if (nodes.length === 1 && node.id) {
+                        //     const key = node.id.replace(/-/g, '_').replace('_input', '');
+                        //     promptData[key] = node.value;
+                        // }
+                    }
+                });
+            }
+            // ===== KONIEC BLOKU PRE ČÍTANIE HODNÔT =====
+
             if (this.contentType === 'presentation') { const topicInput = this.querySelector('#prompt-input-topic'); if (topicInput) promptData.userPrompt = topicInput.value.trim(); }
             if (this.contentType === 'post' && !userPrompt) promptData.userPrompt = this.promptPlaceholder;
 
@@ -136,7 +161,7 @@ export class AiGeneratorPanel extends LitElement {
                 if (!count || count <= 0) {
                     // Zobrazí chybu lokálne bez volania servera
                     // Použijeme existujúcu funkciu showToast, ktorá je už importovaná
-                    showToast(`Neplatný počet slidů. Zadejte prosím kladné číslo.`, true); // true = isError
+                    showToast(`Neplatný počet slidů. Zadejte prosím kladné číslo. (Dostali jsme '${promptData.slide_count || ''}')`, true); // true = isError
                     this._isLoading = false; // Zastaví spinner
                     return; // Zastaví funkciu
                 }
@@ -176,7 +201,7 @@ export class AiGeneratorPanel extends LitElement {
     }
 
     // --- Renderovanie Statického Obsahu (Náhľadu) ---
-    _renderStaticContent(viewId, data) { /* ... kód zostáva rovnaký ... */
+    _renderStaticContent(viewId, data) {
         if (!data) return html`<p>Žádná data k zobrazení.</p>`;
         if (data.error) return html`<div class="p-4 bg-red-100 text-red-700 rounded-lg">${data.error}</div>`;
         try {
@@ -202,7 +227,7 @@ export class AiGeneratorPanel extends LitElement {
                         return html`<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm">
                                     <h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text || 'Chybějící text'}</h4>
                                     <div class="mt-2 space-y-2">${optionsHtml}</div>
-                                </div>`; });
+                                D</div>`; });
                 case 'post':
                     if (!Array.isArray(data?.episodes)) throw new Error("Data neobsahují platné pole 'episodes'.");
                      return data.episodes.map((episode, i) => html`
