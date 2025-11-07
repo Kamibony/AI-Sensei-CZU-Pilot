@@ -5,9 +5,23 @@ import './ai-generator-panel.js';
 export class EditorViewPresentation extends LitElement {
     static properties = {
         lesson: { type: Object },
+        // === PRIDANÉ: Nový lokálny stav pre počet slidov ===
+        _slideCount: { state: true }
     };
 
+    constructor() {
+        super();
+        // === ZMENENÉ: Predvolená hodnota, ktorú si komponent pamätá ===
+        this._slideCount = '5'; // Stále tu bude 5, ale už si to bude pamätať
+    }
+
     createRenderRoot() { return this; }
+
+    // === PRIDANÉ: Funkcia, ktorá sa spustí pri zmene inputu ===
+    _onSlideCountChange(e) {
+        // Uložíme si, čo používateľ napísal (napr. "8")
+        this._slideCount = e.target.value;
+    }
 
     render() {
         const styleId = this.lesson?.presentation?.styleId || 'default';
@@ -26,7 +40,11 @@ export class EditorViewPresentation extends LitElement {
                         </div>
                     <div>
                         <label class="block font-medium text-slate-600">Počet slidů</label>
-                        <input id="slide-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="5">
+                        <input id="slide-count-input" 
+                               type="number" 
+                               class="w-full border-slate-300 rounded-lg p-2 mt-1" 
+                               .value=${this._slideCount}
+                               @input=${this._onSlideCountChange}>
                     </div>
                 </div>
                 <div slot="ai-inputs" class="mb-4">
