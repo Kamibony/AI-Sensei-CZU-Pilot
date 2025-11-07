@@ -4,6 +4,7 @@ import { doc, updateDoc, deleteField, serverTimestamp } from "https://www.gstati
 import * as firebaseInit from '../../../firebase-init.js';
 // showToast už nepoužívame pre bežné veci, ale import necháme pre kritické chyby ak by bolo treba
 import { showToast } from '../../../utils.js';
+// DÔLEŽITÉ: Kompletný zoznam importov z upload-handler.js
 import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles, processAndStoreFile, addSelectedFile } from '../../../upload-handler.js';
 import { callGenerateContent } from '../../../gemini-api.js';
 
@@ -233,12 +234,12 @@ export class AiGeneratorPanel extends LitElement {
             if (this.contentType === 'text') dataToSave = this.querySelector('#editable-content-textarea-text')?.value;
             if (this.contentType === 'presentation') dataToSave = { styleId: this.querySelector('#presentation-style-selector')?.value || 'default', slides: this._generationOutput.slides };
             
-            // === OPRAVA: Uložíme aj aktuálny zoznam RAG súborov ===
+            // === KĽÚČOVÁ OPRAVA: Uložíme aktuálny zoznam RAG súborov do databázy ===
             const currentRagFiles = getSelectedFiles().map(f => f.fullPath);
 
             await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), { 
                 [this.fieldToUpdate]: dataToSave, 
-                ragFilePaths: currentRagFiles, // <-- DÔLEŽITÉ
+                ragFilePaths: currentRagFiles, // <-- TOTO ZABEZPEČÍ, ŽE SA SÚBORY NESTRATIA
                 updatedAt: serverTimestamp() 
             });
 
@@ -246,7 +247,7 @@ export class AiGeneratorPanel extends LitElement {
                 detail: { 
                     ...this.lesson, 
                     [this.fieldToUpdate]: dataToSave,
-                    ragFilePaths: currentRagFiles // <-- DÔLEŽITÉ PRE LOKÁLNY UPDATE
+                    ragFilePaths: currentRagFiles // Aktualizujeme aj lokálny stav
                 }, 
                 bubbles: true, 
                 composed: true 
