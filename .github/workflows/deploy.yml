@@ -3,8 +3,8 @@ name: Build and Deploy to Firebase
 on:
   push:
     branches:
-      - main     # Spustí sa pri push na 'main'
-      - release  # Spustí sa pri push na 'release'
+      - main
+      - release
 
 jobs:
   build_and_deploy:
@@ -16,43 +16,38 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
 
       - name: Install Frontend Dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build CSS from Tailwind
-        run: npm run build:css
+      # Ak používate Tailwind CSS, odkomentujte tento krok:
+      # - name: Build CSS from Tailwind
+      #   run: npm run build:css
 
       - name: Install and Build Functions
         run: |
           cd functions
-          npm install
+          npm ci
           npm run build
-          cd .. # Vráti sa späť do koreňového adresára
+          cd ..
 
-      # --- KROK 1: Nasadenie na DEVELOPMENT ---
-      - name: Deploy to Development (ai-sensei-czu-pilot)
-        if: github.ref == 'refs/heads/main' # Podmienka: Spustiť len pre 'main' vetvu
+      # --- NASADENIE NA DEV (vetva main) ---
+      - name: Deploy to DEV (ai-sensei-czu-pilot)
+        if: github.ref == 'refs/heads/main'
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --only hosting:dev,functions,firestore,storage --force
+          args: deploy --project dev --force
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-          PROJECT_ID: ${{ secrets.PROJECT_ID }}
-          # Pridajte sem ďalšie secrets, ak sú potrebné pre DEV
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          PROFESSOR_TELEGRAM_CHAT_ID: ${{ secrets.PROFESSOR_TELEGRAM_CHAT_ID }}
+          # Tu pridajte prípadné ďalšie ENV premenné pre DEV
 
-      # --- KROK 2: Nasadenie na PRODUCTION ---
-      - name: Deploy to Production (via.academy)
-        if: github.ref == 'refs/heads/release' # Podmienka: Spustiť len pre 'release' vetvu
+      # --- NASADENIE NA PROD (vetva release) ---
+      - name: Deploy to PROD (via-academy-prod)
+        if: github.ref == 'refs/heads/release'
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --only hosting:prod,functions,firestore,storage --force
+          args: deploy --project prod --force
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-          PROJECT_ID: ${{ secrets.PROJECT_ID }}
-          # Pridajte sem ďalšie secrets, ak sú potrebné pre PROD
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          PROFESSOR_TELEGRAM_CHAT_ID: ${{ secrets.PROFESSOR_TELEGRAM_CHAT_ID }}
+          # Tu pridajte prípadné ďalšie ENV premenné pre PROD
