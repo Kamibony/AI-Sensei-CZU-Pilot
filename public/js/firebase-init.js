@@ -14,59 +14,53 @@ export let analytics;
 
 export async function initializeFirebase() {
     try {
+        // 1. Pokus o automatické načítanie konfigurácie
         const response = await fetch('/__/firebase/init.json');
-        if (!response.ok) throw new Error('Failed to fetch Firebase config.');
-        const firebaseConfig = await response.json();
-
-        // --- OPRAVA: Kontrola, či už app neexistuje ---
+        if (!response.ok) {
+             throw new Error('Auto-config failed, switching to fallback.');
+        }
+        const config = await response.json();
+        
         if (getApps().length === 0) {
-            app = initializeApp(firebaseConfig);
-            console.log("Firebase initialized from production config.");
+            app = initializeApp(config);
+            console.log("Firebase initialized from auto-config.");
         } else {
             app = getApp();
-            console.log("Firebase already initialized, using existing app.");
-        }
-        // -------------------------------------------
-
-        auth = getAuth(app);
-        db = getFirestore(app);
-        storage = getStorage(app);
-        functions = getFunctions(app, 'europe-west1');
-        
-        // Analytics iba v produkcii, ak ešte nie je inicializovaná
-        if (typeof analytics === 'undefined') {
-             analytics = getAnalytics(app);
         }
 
     } catch (e) {
-        console.warn("Could not load Firebase config. Initializing for emulators...");
+        console.warn("Could not load auto-config. Using hardcoded production config.", e);
         
-        // Aj pre emulátory pridáme rovnakú kontrolu pre istotu
+        // 2. Záložná (hardcoded) produkčná konfigurácia
+        const prodConfig = {
+            apiKey: "AIzaSyDaGUJ1tCneK9EA7pCi-0fWEJkFvyhc-6I",
+            authDomain: "via-academy-prod-3f4e1.firebaseapp.com",
+            projectId: "via-academy-prod-3f4e1",
+            storageBucket: "via-academy-prod-3f4e1.firebasestorage.app",
+            messagingSenderId: "812602866730",
+            appId: "1:812602866730:web:efde142d2becc4b66b9753",
+            measurementId: "G-F34BQ7LKKC"
+        };
+
         if (getApps().length === 0) {
-             app = initializeApp({
-                projectId: 'ai-sensei-czu-pilot',
-                apiKey: 'dummy-key',
-                authDomain: 'localhost',
-                storageBucket: 'default-bucket'
-            });
+             app = initializeApp(prodConfig);
+             console.log("Firebase initialized from hardcoded prod config.");
         } else {
             app = getApp();
         }
-
-        auth = getAuth(app);
-        db = getFirestore(app);
-        storage = getStorage(app);
-        functions = getFunctions(app, 'europe-west1');
-
-        // Pri emulátoroch sa chceme pripojiť len raz
-        // (zjednodušená kontrola, či už bežíme na localhoste, aby sme nepripájali emulátory opakovane)
-        if (!auth.emulatorConfig) {
-            console.log("Connecting to Firebase Emulators...");
-            connectAuthEmulator(auth, "http://127.0.0.1:9099");
-            connectFirestoreEmulator(db, '127.0.0.1', 8080);
-            connectFunctionsEmulator(functions, '127.0.0.1', 5001);
-            connectStorageEmulator(storage, '127.0.0.1', 9199);
-            console.log("Successfully connected to all running emulators.");
-        }
     }
+
+    // Inicializácia služieb
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+    functions = getFunctions(app, 'europe-west1');
+    
+    if (typeof analytics === 'undefined') {
+        analytics = getAnalytics(app);
+    }
+
+    // (Voliteľné) Emulátory - ak by ste ich niekedy lokálne potrebovali, 
+    // odkomentujte a upravte podmienku, aby sa nespúšťali na produkcii.
+    // if (window.location.hostname === 'localhost') { ... }
 }
