@@ -21,9 +21,10 @@ jobs:
       - name: Install Frontend Dependencies
         run: npm install
 
-      # Ak používate Tailwind CSS a potrebujete ho buildovať, odkomentujte nasledujúce dva riadky:
-      # - name: Build CSS from Tailwind
-      #   run: npm run build:css
+      # --- OPRAVA: TOTO MUSÍ BYŤ POVOLENÉ PRE TAILWIND ---
+      - name: Build CSS from Tailwind
+        run: npm run build:css
+      # ----------------------------------------------------
 
       - name: Install and Build Functions
         run: |
@@ -32,7 +33,7 @@ jobs:
           npm run build
           cd ..
 
-      # --- KROK 1: Nasadenie na DEVELOPMENT (vetva main) ---
+      # --- Nasadenie na DEV (vetva main) ---
       - name: Deploy to DEV (ai-sensei-czu-pilot)
         if: github.ref == 'refs/heads/main'
         uses: w9jds/firebase-action@master
@@ -41,7 +42,7 @@ jobs:
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
-      # --- KROK 2: Nasadenie na PRODUCTION (vetva release) ---
+      # --- Nasadenie na PROD (vetva release) ---
       - name: Deploy to PROD (via-academy-prod)
         if: github.ref == 'refs/heads/release'
         uses: w9jds/firebase-action@master
