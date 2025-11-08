@@ -1,18 +1,7 @@
 {
   "projects": {
-    "default": "ai-sensei-czu-pilot"
-  },
-  "targets": {
-    "ai-sensei-czu-pilot": {
-      "hosting": {
-        "dev": [
-          "ai-sensei-czu-pilot"
-        ],
-        "prod": [
-          "via-academy-prod"
-        ]
-      }
-    }
-  },
-  "etags": {}
+    "default": "ai-sensei-czu-pilot",
+    "dev": "ai-sensei-czu-pilot",
+    "prod": "via-academy-prod-3f4e1"
+  }
 }
