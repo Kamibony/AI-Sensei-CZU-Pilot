@@ -1,12 +1,10 @@
 import { initializeFirebase, auth, db } from './firebase-init.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-// --- OPRAVA IMPORTU 1: Použijeme skutočný názov z professor.js ---
-import { initProfessorDashboard } from './professor.js';
-// -----------------------------------------------------------------
-// --- OPRAVA IMPORTU 2: Použijeme skutočný názov zo student.js ---
-import { initStudentDashboard } from './student.js';
-// ----------------------------------------------------------------
+// --- ZJEDNOTENÉ IMPORTY (TERAZ UŽ MUSIA SEDIEŤ) ---
+import { initProfessorApp } from './professor.js';
+import { initStudentApp, cleanupStudentDashboard } from './student.js';
+// --------------------------------------------------
 import { initAuth } from './auth.js';
 
 // Hlavní funkce pro bezpečný start aplikace
@@ -20,10 +18,7 @@ async function main() {
         document.body.innerHTML = `<div class="flex items-center justify-center h-screen text-red-600 bg-red-50">
             <div class="text-center p-8 bg-white rounded-2xl shadow-xl">
                 <h1 class="text-2xl font-bold mb-4">Chyba připojení</h1>
-                <p class="mb-4">Nepodařilo se připojit k aplikaci.</p>
-                <button onclick="window.location.reload()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors">
-                    Zkusit znovu
-                </button>
+                <p class="mb-4">Nepodařilo se připojit k aplikaci. Zkuste obnovit stránku.</p>
             </div>
         </div>`;
         return;
@@ -45,17 +40,13 @@ async function main() {
                     console.log("Role found:", role);
 
                     if (role === 'professor') {
-                        // --- OPRAVA VOLANIA 1 ---
-                        await initProfessorDashboard(user);
-                        // ------------------------
+                        // --- VOLANIE PROFESORA ---
+                        await initProfessorApp(user);
                     } else if (role === 'student') {
-                         if (window.currentStudentCleanup) {
-                            window.currentStudentCleanup();
-                            window.currentStudentCleanup = null;
-                        }
-                        // --- OPRAVA VOLANIA 2 ---
-                        await initStudentDashboard(user);
-                        // ------------------------
+                         // --- VOLANIE ŠTUDENTA ---
+                         // Pre istotu vyčistíme starý stav
+                        cleanupStudentDashboard();
+                        initStudentApp(); // Už bez 'user', zistí si ho sám
                     } else {
                          console.error("Unknown role:", role);
                          renderErrorState("Neznámá uživatelská role.");
@@ -69,13 +60,11 @@ async function main() {
                 renderErrorState("Chyba při načítání profilu.");
             }
         } else {
-            console.log("User logged out or not logged in");
+            console.log("User logged out");
             renderLoginState();
         }
     });
 }
-
-// --- Pomocné funkce pro vykreslování stavů ---
 
 function renderLoginState() {
     const appContainer = document.getElementById('app-container');
@@ -105,5 +94,4 @@ function renderErrorState(msg) {
     }
 }
 
-// Spuštění aplikace
 main();
