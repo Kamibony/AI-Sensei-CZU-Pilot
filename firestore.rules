@@ -1,35 +1,33 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Funkcia na overenie, či je používateľ profesor
+  
+    // --- DEFINÍCIA ROLY PROFESORA ---
+    // Profesor je identifikovaný natvrdo podľa svojho emailu.
     function isProfessor() {
       return request.auth != null && request.auth.token.email == 'profesor@profesor.cz';
     }
+    // --------------------------------
 
-    // --- CHÝBAJÚCE PRAVIDLO PRE 'users' ---
-    // Toto je kritické pre app.js, aby zistil rolu používateľa.
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    // --------------------------------------
-
-    // Študenti (zachované vaše pôvodné pravidlá):
+    // Študenti:
+    // Každý si môže čítať/upravovať svoj vlastný profil v kolekcii 'students'.
+    // Profesor môže čítať všetko.
     match /students/{studentId} {
       allow read: if (request.auth != null && request.auth.uid == studentId) || isProfessor();
       allow update: if request.auth != null && request.auth.uid == studentId;
+      // Povolíme vytvorenie vlastného profilu pri prvej registrácii
       allow create: if request.auth != null && request.auth.uid == studentId;
       allow delete: if false;
     }
 
     // Lekcie:
+    // Čítať môžu všetci prihlásení, upravovať len profesor.
     match /lessons/{lessonId} {
       allow read: if request.auth != null;
       allow write: if isProfessor();
     }
 
-    // Konverzácie:
+    // Konverzácie (chat):
     match /conversations/{studentId} {
       match /{document=**} {
         allow read, write: if (request.auth != null && request.auth.uid == studentId) || isProfessor();
