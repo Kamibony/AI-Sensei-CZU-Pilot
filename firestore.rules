@@ -6,58 +6,50 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
-    
     function isProfessor() {
-      // DÔLEŽITÉ: Uisti sa, že email profesora je presne 'profesor@profesor.cz'
       return isSignedIn() && request.auth.token.email == 'profesor@profesor.cz';
     }
-
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
     // -----------------------
 
-    // Študenti:
-    // Každý študent si spravuje svoj vlastný dokument.
+    // Kolekcia pre študentov (zjednotená)
     match /students/{studentId} {
-      // Profesor môže čítať všetkých študentov, študent len seba
       allow read: if isOwner(studentId) || isProfessor();
-      // Vytvorenie a úprava profilu je povolená len vlastníkovi (študentovi)
-      // Pri prvom prihlásení sa volá setDoc, čo je 'create' alebo 'update'
       allow create, update: if isOwner(studentId);
       allow delete: if false;
     }
 
-    // Lekcie:
-    // Čítanie pre všetkých prihlásených (aby študenti videli lekcie), zápis len profesor.
+    // FALLBACK pre starú kolekciu users (ak by bola ešte potrebná)
+    match /users/{userId} {
+       allow read, write: if isOwner(userId) || isProfessor();
+    }
+
+    // Lekcie
     match /lessons/{lessonId} {
       allow read: if isSignedIn();
       allow write: if isProfessor();
     }
 
-    // Konverzácie (chat):
+    // Konverzácie
     match /conversations/{studentId}/{document=**} {
       allow read, write: if isOwner(studentId) || isProfessor();
     }
     
-    // Časová os (timeline):
-    // TOTO JE LEN PRE PROFESORA (podľa tvojej poslednej správy)
+    // Timeline (len pre profesora)
     match /timeline_events/{eventId} {
        allow read, write: if isProfessor();
     }
 
-    // Výsledky kvízov:
+    // Kvízy a testy
     match /quiz_submissions/{submissionId} {
       allow create: if isOwner(request.resource.data.studentId);
       allow read: if isProfessor() || isOwner(resource.data.studentId);
-      allow update, delete: if false;
     }
-
-    // Výsledky testov:
     match /test_submissions/{submissionId} {
        allow create: if isOwner(request.resource.data.studentId);
        allow read: if isProfessor() || isOwner(resource.data.studentId);
-       allow update, delete: if false;
     }
   }
 }
