@@ -18,7 +18,8 @@ import { showToast } from './utils.js';
 let loginFormContainer;
 let registerFormContainer;
 
-export function initAuthListeners() {
+// Pôvodný názov funkcie zachovaný pre kompatibilitu s app.js
+export function initAuth() {
     const appContainer = document.getElementById('app-container');
 
     appContainer.addEventListener('click', (e) => {
@@ -28,16 +29,12 @@ export function initAuthListeners() {
         } else if (e.target.id === 'show-login-form') {
             e.preventDefault();
             toggleForms(false);
-        } else if (e.target.id === 'login-btn' || e.target.closest('#login-form-element')) {
-             // Handled by submit event if it's a form, but keeping for button clicks outside form if needed
-        } else if (e.target.id === 'register-btn' || e.target.closest('#register-form-element')) {
-             // Handled by submit event
         } else if (e.target.id === 'login-professor') {
              handleProfessorLogin();
         }
     });
 
-    // Use event delegation for forms to handle dynamic rendering
+    // Pridaný listener pro 'submit' událost formulářů (lepší UX než jen click na tlačítko)
     appContainer.addEventListener('submit', async (e) => {
         if (e.target.id === 'login-form-element') {
             e.preventDefault();
@@ -72,7 +69,7 @@ function clearErrors() {
 }
 
 async function handleLogin(event) {
-    // event.preventDefault() is already called in the event listener
+    // event.preventDefault() je zavoláno v event listeneru
     const emailInput = document.getElementById('login-email');
     const passwordInput = document.getElementById('login-password');
     const email = emailInput.value;
@@ -82,7 +79,7 @@ async function handleLogin(event) {
     try {
         if (errorDiv) errorDiv.classList.add('hidden');
         await signInWithEmailAndPassword(auth, email, password);
-        // onAuthStateChanged in app.js will handle redirect
+        // onAuthStateChanged v app.js se postará o přesměrování
     } catch (error) {
         console.error("Error signing in:", error);
         if (errorDiv) {
@@ -106,13 +103,14 @@ async function handleLogin(event) {
             errorDiv.textContent = message;
             errorDiv.classList.remove('hidden');
         } else {
+             // Fallback pokud by HTML element neexistoval
              showToast("Chyba přihlášení: " + error.message, 'error');
         }
     }
 }
 
 async function handleRegister(event) {
-    // event.preventDefault() is already called
+    // event.preventDefault() je zavoláno v event listeneru
     const emailInput = document.getElementById('register-email');
     const passwordInput = document.getElementById('register-password');
     const email = emailInput.value;
@@ -124,7 +122,6 @@ async function handleRegister(event) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // Create user document in Firestore with 'student' role
         await setDoc(doc(db, "users", user.uid), {
             email: user.email,
             role: 'student',
@@ -132,7 +129,7 @@ async function handleRegister(event) {
         });
 
         showToast("Registrace úspěšná!", 'success');
-        // onAuthStateChanged will handle redirect
+        // onAuthStateChanged se postará o přesměrování
     } catch (error) {
         console.error("Error registering:", error);
         if (errorDiv) {
@@ -160,7 +157,7 @@ async function handleProfessorLogin() {
     const provider = new GoogleAuthProvider();
     try {
         await signInWithPopup(auth, provider);
-        // onAuthStateChanged will handle redirect and role check
+        // onAuthStateChanged se postará o zbytek
     } catch (error) {
         console.error("Error with Google sign-in:", error);
         showToast("Chyba přihlášení přes Google.", 'error');
@@ -171,7 +168,7 @@ export async function handleLogout() {
     try {
         await signOut(auth);
         showToast("Byli jste odhlášeni.", 'info');
-        // onAuthStateChanged will handle redirect to login
+        // onAuthStateChanged se postará o přesměrování na login
     } catch (error) {
         console.error("Error signing out:", error);
         showToast("Chyba při odhlašování.", 'error');
