@@ -1,171 +1,179 @@
-import {
-    getAuth,
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    signOut
+import { 
+    signInWithEmailAndPassword, 
+    createUserWithEmailAndPassword, 
+    signOut, 
+    GoogleAuthProvider, 
+    signInWithPopup 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db } from './firebase-init.js';
+import { 
+    doc, 
+    setDoc, 
+    getDoc, 
+    serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { auth, db } from './firebase-init.js';
 import { showToast } from './utils.js';
 
-let appContainerRef;
+// --- DOM Elements ---
+let loginFormContainer;
+let registerFormContainer;
 
-// Funkcia na zobrazenie prihlasovacieho formulára
-function showLoginForm() {
-    if (!appContainerRef) return;
-    appContainerRef.innerHTML = `
-        <div class="flex items-center justify-center min-h-screen bg-slate-100 px-4">
-            <div class="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
-                <h1 class="text-3xl font-extrabold text-slate-800 mb-2 text-center">Vítejte v AI Sensei</h1>
-                <p class="text-slate-500 mb-6 text-center">Přihlaste se ke svému účtu.</p>
-                <form id="login-form">
-                    <div class="mb-4">
-                        <label for="login-email" class="block font-medium text-slate-600 mb-1">Email</label>
-                        <input type="email" id="login-email" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                    </div>
-                    <div class="mb-6">
-                        <label for="login-password" class="block font-medium text-slate-600 mb-1">Heslo</label>
-                        <input type="password" id="login-password" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                    </div>
-                    <button type="submit" id="login-btn" class="w-full bg-green-700 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-800 transition-colors">Přihlásit se</button>
-                </form>
-                <p class="text-center mt-6 text-sm">
-                    Nemáte účet? <a href="#" id="show-register" class="font-semibold text-green-700 hover:underline">Zaregistrujte se</a>
-                </p>
-            </div>
-        </div>
-    `;
-    document.getElementById('login-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
-        handleLogin(email, password);
+export function initAuthListeners() {
+    const appContainer = document.getElementById('app-container');
+
+    appContainer.addEventListener('click', (e) => {
+        if (e.target.id === 'show-register-form') {
+            e.preventDefault();
+            toggleForms(true);
+        } else if (e.target.id === 'show-login-form') {
+            e.preventDefault();
+            toggleForms(false);
+        } else if (e.target.id === 'login-btn' || e.target.closest('#login-form-element')) {
+             // Handled by submit event if it's a form, but keeping for button clicks outside form if needed
+        } else if (e.target.id === 'register-btn' || e.target.closest('#register-form-element')) {
+             // Handled by submit event
+        } else if (e.target.id === 'login-professor') {
+             handleProfessorLogin();
+        }
     });
-    document.getElementById('show-register').addEventListener('click', (e) => {
-        e.preventDefault();
-        showRegistrationForm();
+
+    // Use event delegation for forms to handle dynamic rendering
+    appContainer.addEventListener('submit', async (e) => {
+        if (e.target.id === 'login-form-element') {
+            e.preventDefault();
+            await handleLogin(e);
+        } else if (e.target.id === 'register-form-element') {
+            e.preventDefault();
+            await handleRegister(e);
+        }
     });
 }
 
-// Funkcia na zobrazenie registračného formulára
-function showRegistrationForm() {
-    if (!appContainerRef) return;
-    appContainerRef.innerHTML = `
-        <div class="flex items-center justify-center min-h-screen bg-slate-100 px-4">
-            <div class="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
-                <h1 class="text-3xl font-extrabold text-slate-800 mb-2 text-center">Vytvořit nový účet</h1>
-                <p class="text-slate-500 mb-6 text-center">Začněte svou cestu s AI Sensei.</p>
-                <form id="register-form">
-                    <div class="mb-4">
-                        <label for="register-email" class="block font-medium text-slate-600 mb-1">Email</label>
-                        <input type="email" id="register-email" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                    </div>
-                    <div class="mb-6">
-                        <label for="register-password" class="block font-medium text-slate-600 mb-1">Heslo</label>
-                        <input type="password" id="register-password" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                    </div>
-                    <button type="submit" id="register-btn" class="w-full bg-green-700 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-800 transition-colors">Zaregistrovat se</button>
-                </form>
-                <p class="text-center mt-6 text-sm">
-                    Máte již účet? <a href="#" id="show-login" class="font-semibold text-green-700 hover:underline">Přihlaste se</a>
-                </p>
-            </div>
-        </div>
-    `;
-    document.getElementById('register-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const email = document.getElementById('register-email').value;
-        const password = document.getElementById('register-password').value;
-        handleRegistration(email, password);
-    });
-    document.getElementById('show-login').addEventListener('click', (e) => {
-        e.preventDefault();
-        showLoginForm();
-    });
+function toggleForms(showRegister) {
+    loginFormContainer = document.getElementById('login-form');
+    registerFormContainer = document.getElementById('register-form');
+
+    if (showRegister) {
+        loginFormContainer.classList.add('hidden');
+        registerFormContainer.classList.remove('hidden');
+    } else {
+        loginFormContainer.classList.remove('hidden');
+        registerFormContainer.classList.add('hidden');
+    }
+    // Vyčistit chyby při přepínání
+    clearErrors();
 }
 
-// Hlavná inicializačná funkcia pre autentifikáciu
-export function initAuth(appContainer) {
-    appContainerRef = appContainer;
-    showLoginForm();
+function clearErrors() {
+    const loginError = document.getElementById('login-error');
+    const registerError = document.getElementById('register-error');
+    if (loginError) loginError.classList.add('hidden');
+    if (registerError) registerError.classList.add('hidden');
 }
 
-// Funkcia na spracovanie registrácie
-async function handleRegistration(email, password) {
-    const auth = getAuth();
-    const registerBtn = document.getElementById('register-btn');
-    const originalBtnText = registerBtn.innerHTML;
-    registerBtn.innerHTML = `<div class="spinner"></div> Registruji...`;
-    registerBtn.disabled = true;
+async function handleLogin(event) {
+    // event.preventDefault() is already called in the event listener
+    const emailInput = document.getElementById('login-email');
+    const passwordInput = document.getElementById('login-password');
+    const email = emailInput.value;
+    const password = passwordInput.value;
+    const errorDiv = document.getElementById('login-error');
 
     try {
+        if (errorDiv) errorDiv.classList.add('hidden');
+        await signInWithEmailAndPassword(auth, email, password);
+        // onAuthStateChanged in app.js will handle redirect
+    } catch (error) {
+        console.error("Error signing in:", error);
+        if (errorDiv) {
+            let message = "Nastala chyba při přihlášení.";
+            switch (error.code) {
+                case 'auth/invalid-credential':
+                case 'auth/user-not-found':
+                case 'auth/wrong-password':
+                    message = "Nesprávný email nebo heslo.";
+                    break;
+                case 'auth/invalid-email':
+                    message = "Neplatný formát emailu.";
+                    break;
+                case 'auth/too-many-requests':
+                    message = "Příliš mnoho pokusů. Zkuste to prosím později.";
+                    break;
+                case 'auth/user-disabled':
+                    message = "Tento účet byl zablokován.";
+                    break;
+            }
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        } else {
+             showToast("Chyba přihlášení: " + error.message, 'error');
+        }
+    }
+}
+
+async function handleRegister(event) {
+    // event.preventDefault() is already called
+    const emailInput = document.getElementById('register-email');
+    const passwordInput = document.getElementById('register-password');
+    const email = emailInput.value;
+    const password = passwordInput.value;
+    const errorDiv = document.getElementById('register-error');
+
+    try {
+        if (errorDiv) errorDiv.classList.add('hidden');
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // Vytvorenie dokumentu študenta v databáze
-        const token = `TGM-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-        await setDoc(doc(db, "students", user.uid), {
+        // Create user document in Firestore with 'student' role
+        await setDoc(doc(db, "users", user.uid), {
             email: user.email,
-            createdAt: serverTimestamp(),
-            name: '', // Meno sa doplní neskôr
-            telegramLinkToken: token
+            role: 'student',
+            createdAt: serverTimestamp()
         });
 
-        showToast("Registrace úspěšná! Nyní se můžete přihlásit.");
-        showLoginForm();
-
+        showToast("Registrace úspěšná!", 'success');
+        // onAuthStateChanged will handle redirect
     } catch (error) {
-        let message = "Při registraci došlo k chybě.";
-        if (error.code === 'auth/email-already-in-use') {
-            message = "Tento email je již zaregistrován.";
-        } else if (error.code === 'auth/weak-password') {
-            message = "Heslo je příliš slabé. Musí mít alespoň 6 znaků.";
-        }
-        showToast(message, true);
-    } finally {
-        if (document.getElementById('register-btn')) {
-            registerBtn.innerHTML = originalBtnText;
-            registerBtn.disabled = false;
+        console.error("Error registering:", error);
+        if (errorDiv) {
+            let message = "Nastala chyba při registraci.";
+            switch (error.code) {
+                case 'auth/email-already-in-use':
+                    message = "Tento email je již používán.";
+                    break;
+                case 'auth/weak-password':
+                    message = "Heslo je příliš slabé (musí mít alespoň 6 znaků).";
+                    break;
+                case 'auth/invalid-email':
+                     message = "Neplatný formát emailu.";
+                     break;
+            }
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        } else {
+            showToast("Chyba registrace: " + error.message, 'error');
         }
     }
 }
 
-// Funkcia na spracovanie prihlásenia
-async function handleLogin(email, password) {
-    const auth = getAuth();
-    const loginBtn = document.getElementById('login-btn');
-    const originalBtnText = loginBtn.innerHTML;
-    loginBtn.innerHTML = `<div class="spinner"></div> Přihlašuji...`;
-    loginBtn.disabled = true;
-
+async function handleProfessorLogin() {
+    const provider = new GoogleAuthProvider();
     try {
-        await signInWithEmailAndPassword(auth, email, password);
-        showToast("Přihlášení úspěšné!");
-        // Po úspešnom prihlásení sa o zobrazenie panelu postará onAuthStateChanged v app.js
-
+        await signInWithPopup(auth, provider);
+        // onAuthStateChanged will handle redirect and role check
     } catch (error) {
-        let message = "Při přihlašování došlo k chybě.";
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-            message = "Nesprávný email nebo heslo.";
-        }
-        showToast(message, true);
-    } finally {
-        if (document.getElementById('login-btn')) {
-            loginBtn.innerHTML = originalBtnText;
-            loginBtn.disabled = false;
-        }
+        console.error("Error with Google sign-in:", error);
+        showToast("Chyba přihlášení přes Google.", 'error');
     }
 }
 
-// Funkcia na odhlásenie
 export async function handleLogout() {
-    const auth = getAuth();
     try {
         await signOut(auth);
-        showToast("Odhlášení proběhlo úspěšně.");
-        // onAuthStateChanged v app.js sa postará o zobrazenie prihlasovacej obrazovky
+        showToast("Byli jste odhlášeni.", 'info');
+        // onAuthStateChanged will handle redirect to login
     } catch (error) {
-        console.error("Chyba při odhlašování:", error);
-        showToast("Při odhlašování došlo k chybě.", true);
+        console.error("Error signing out:", error);
+        showToast("Chyba při odhlašování.", 'error');
     }
 }
