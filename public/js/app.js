@@ -22,11 +22,16 @@ async function main() {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             // console.log("Logged in as:", user.email);
+            
+            // Dočasný stav načítania, kým zistíme rolu a pripravíme layout
             renderLoadingState();
 
             // --- ROBUSTNÁ LOGIKA PODĽA EMAILU ---
             if (user.email === 'profesor@profesor.cz') {
                 // Je to profesor
+                // KĽÚČOVÁ ZMENA: Najprv vykreslíme hlavný layout, aby existoval #role-content-wrapper
+                renderMainLayout();
+                // Až potom inicializujeme aplikáciu, ktorá tento wrapper potrebuje
                 await initProfessorApp(user);
             } else {
                 // Všetci ostatní sú študenti
@@ -34,7 +39,7 @@ async function main() {
                 if (typeof cleanupStudentDashboard === 'function') {
                     cleanupStudentDashboard();
                 }
-                // Spustíme študentskú aplikáciu
+                // Spustíme študentskú aplikáciu (tá si rieši vlastný layout)
                 initStudentApp();
             }
             // ------------------------------------
@@ -61,6 +66,16 @@ function renderLoadingState() {
     const appContainer = document.getElementById('app-container');
     if (appContainer) {
         appContainer.innerHTML = '<div class="flex items-center justify-center h-screen"><div class="text-xl text-slate-600 animate-pulse">Načítám aplikaci...</div></div>';
+    }
+}
+
+// NOVÁ FUNKCIA: Vykreslí základnú kostru aplikácie pre profesora
+function renderMainLayout() {
+    const appContainer = document.getElementById('app-container');
+    const mainAppTemplate = document.getElementById('main-app-template');
+    if (appContainer && mainAppTemplate) {
+        appContainer.innerHTML = '';
+        appContainer.appendChild(mainAppTemplate.content.cloneNode(true));
     }
 }
 
