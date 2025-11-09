@@ -1,10 +1,12 @@
 import { initializeFirebase, auth, db } from './firebase-init.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-// --- OPRAVA: Používame správny názov, ktorý je v professor.js ---
-import { initProfessorApp } from './professor.js';
-// ---------------------------------------------------------------
-import { initStudentApp } from './student.js';
+// --- OPRAVA IMPORTU 1: Použijeme skutočný názov z professor.js ---
+import { initProfessorDashboard } from './professor.js';
+// -----------------------------------------------------------------
+// --- OPRAVA IMPORTU 2: Použijeme skutočný názov zo student.js ---
+import { initStudentDashboard } from './student.js';
+// ----------------------------------------------------------------
 import { initAuth } from './auth.js';
 
 // Hlavní funkce pro bezpečný start aplikace
@@ -15,7 +17,6 @@ async function main() {
         console.log("Firebase fully initialized, starting app...");
     } catch (error) {
         console.error("Firebase init failed:", error);
-        // Zobrazíme uživateli hezkou chybovou hlášku místo bílé obrazovky
         document.body.innerHTML = `<div class="flex items-center justify-center h-screen text-red-600 bg-red-50">
             <div class="text-center p-8 bg-white rounded-2xl shadow-xl">
                 <h1 class="text-2xl font-bold mb-4">Chyba připojení</h1>
@@ -35,7 +36,7 @@ async function main() {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             console.log("User logged in:", user.uid);
-            renderLoadingState(); // Zobrazíme loading, dokud nezjistíme roli
+            renderLoadingState(); 
 
             try {
                 const userDoc = await getDoc(doc(db, "users", user.uid));
@@ -44,26 +45,23 @@ async function main() {
                     console.log("Role found:", role);
 
                     if (role === 'professor') {
-                        // --- OPRAVA: Voláme správnou funkci ---
-                        await initProfessorApp(user);
-                        // --------------------------------------
+                        // --- OPRAVA VOLANIA 1 ---
+                        await initProfessorDashboard(user);
+                        // ------------------------
                     } else if (role === 'student') {
-                        // Pro jistotu vyčistíme předchozí listenery, pokud existují
                          if (window.currentStudentCleanup) {
                             window.currentStudentCleanup();
                             window.currentStudentCleanup = null;
                         }
-                        await initStudentApp(user);
+                        // --- OPRAVA VOLANIA 2 ---
+                        await initStudentDashboard(user);
+                        // ------------------------
                     } else {
                          console.error("Unknown role:", role);
                          renderErrorState("Neznámá uživatelská role.");
-                         // Volitelně: odhlásit uživatele, aby nezůstal zaseknutý
-                         // auth.signOut();
                     }
                 } else {
-                    // Fallback pro uživatele bez profilu (např. čistý Google login, pokud není ošetřen jinde)
                     console.warn("No user profile found in Firestore.");
-                    // Zde by mohla být logika pro vytvoření profilu, nebo jen zobrazíme chybu/login
                      renderErrorState("Uživatelský profil nenalezen.");
                 }
             } catch (error) {
@@ -82,12 +80,9 @@ async function main() {
 function renderLoginState() {
     const appContainer = document.getElementById('app-container');
     const loginTemplate = document.getElementById('login-template');
-    // Ověříme, že elementy existují, než s nimi budeme pracovat
     if (appContainer && loginTemplate) {
         appContainer.innerHTML = '';
         appContainer.appendChild(loginTemplate.content.cloneNode(true));
-    } else {
-        console.error("CRITICAL: Missing app-container or login-template in HTML");
     }
 }
 
