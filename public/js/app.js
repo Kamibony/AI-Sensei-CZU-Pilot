@@ -27,8 +27,10 @@ async function main() {
                 // If role is not in session, fetch from DB (for returning users)
                 const userDocRef = doc(db, 'users', user.uid);
                 const userDoc = await getDoc(userDocRef);
-                if (userDoc.exists) {
-                    role = userDoc.data().role;
+                const userData = userDoc.data();
+
+                if (userDoc.exists && userData && userData.role) {
+                    role = userData.role;
                 } else if (user.email === 'profesor@profesor.cz') {
                     // FALLBACK for original admin
                     role = 'professor';
