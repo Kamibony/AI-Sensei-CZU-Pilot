@@ -1,6 +1,5 @@
 import { initializeFirebase, auth } from './firebase-init.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-// Importy funkcií s názvami, ktoré sme zjednotili
 import { initProfessorApp } from './professor.js';
 import { initStudentApp, cleanupStudentDashboard } from './student.js';
 import { initAuth } from './auth.js';
@@ -15,43 +14,33 @@ async function main() {
         return;
     }
 
-    // Aktivujeme prihlasovacie formuláre
     initAuth();
 
-    // Sledujeme zmeny stavu prihlásenia
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            // console.log("Logged in as:", user.email);
-            
-            // Dočasný stav načítania, kým zistíme rolu a pripravíme layout
             renderLoadingState();
-
-            // --- ROBUSTNÁ LOGIKA PODĽA EMAILU ---
             if (user.email === 'profesor@profesor.cz') {
-                // Je to profesor
-                // KĽÚČOVÁ ZMENA: Najprv vykreslíme hlavný layout, aby existoval #role-content-wrapper
                 renderMainLayout();
-                // Až potom inicializujeme aplikáciu, ktorá tento wrapper potrebuje
                 await initProfessorApp(user);
             } else {
-                // Všetci ostatní sú študenti
-                // Najprv vyčistíme prípadné staré listenery
+                // Pre istotu vyčistíme pred spustením (ak by išlo o prepnutie užívateľov)
                 if (typeof cleanupStudentDashboard === 'function') {
                     cleanupStudentDashboard();
                 }
-                // Spustíme študentskú aplikáciu (tá si rieši vlastný layout)
                 initStudentApp();
             }
-            // ------------------------------------
-
         } else {
-            // Nikto nie je prihlásený, zobrazíme login
+            // --- OPRAVA CHYBY PRI ODHLÁSENÍ ---
+            // Ak sa užívateľ odhlásil, musíme okamžite zrušiť sledovanie dát,
+            // inak vyskočí chyba oprávnení.
+            if (typeof cleanupStudentDashboard === 'function') {
+                cleanupStudentDashboard();
+            }
+            // ----------------------------------
             renderLoginState();
         }
     });
 }
-
-// --- Pomocné funkcie pre vykresľovanie stavov ---
 
 function renderLoginState() {
     const appContainer = document.getElementById('app-container');
@@ -69,7 +58,6 @@ function renderLoadingState() {
     }
 }
 
-// NOVÁ FUNKCIA: Vykreslí základnú kostru aplikácie pre profesora
 function renderMainLayout() {
     const appContainer = document.getElementById('app-container');
     const mainAppTemplate = document.getElementById('main-app-template');
@@ -83,5 +71,4 @@ function renderCriticalError(msg) {
      document.body.innerHTML = `<div class="flex items-center justify-center h-screen text-red-600 bg-red-50 p-8"><h1 class="text-2xl">${msg}</h1></div>`;
 }
 
-// Štart aplikácie
 main();
