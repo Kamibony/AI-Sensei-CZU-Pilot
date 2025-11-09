@@ -1,105 +1,93 @@
 import { initializeFirebase, auth, db } from './firebase-init.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initProfessorApp } from './professor.js';
+// --- OPRAVA NÁZVU IMPORTU ---
+import { initProfessor } from './professor.js';
+// ----------------------------
 import { initStudentApp } from './student.js';
 import { initAuth } from './auth.js';
 
-// Hlavná funkcia, ktorá naštartuje celú aplikáciu
+// Hlavná funkcia pre bezpečný štart aplikácie
 async function main() {
-    // 1. Najprv počkáme na úplnú inicializáciu Firebase
     try {
+        // 1. Počkáme na dokončenie inicializácie Firebase
         await initializeFirebase();
-        console.log("Firebase fully initialized in app.js");
+        console.log("Firebase fully initialized, starting app...");
     } catch (error) {
-        console.error("CRITICAL: Firebase initialization failed:", error);
-        document.body.innerHTML = '<div style="color: red; padding: 20px; text-align: center;">Chyba aplikace: Nepodařilo se připojit k serveru. Zkuste obnovit stránku.</div>';
-        return; // Končíme, nemá zmysel pokračovat
+        console.error("Firebase init failed:", error);
+        document.body.innerHTML = `<div class="flex items-center justify-center h-screen text-red-600 bg-red-50">
+            <div class="text-center">
+                <h1 class="text-2xl font-bold mb-2">Chyba připojení</h1>
+                <p>Nepodařilo se připojit k aplikaci. Zkuste obnovit stránku.</p>
+            </div>
+        </div>`;
+        return;
     }
 
-    // 2. Inicializujeme listenery pro přihlášení/registraci
+    // 2. Spustíme listenery pre auth (formuláre)
     initAuth();
 
-    // 3. Nastavíme sledování stavu přihlášení
-    // Použijeme 'auth' importovaný z firebase-init.js, který je teď už určitě nastavený
+    // 3. Sledujeme stav prihlásenia
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            console.log(`User signed in: ${user.uid} (${user.email})`);
-            
-            // Zobraziť nejaký loading, kým zistíme rolu
-            renderLoadingState();
+            console.log("User logged in:", user.uid);
+            renderLoadingState(); // Zobrazíme loading, kým zistíme rolu
 
             try {
-                // Zistiť rolu užívateľa z Firestore
-                const userDocRef = doc(db, "users", user.uid);
-                const userDoc = await getDoc(userDocRef);
-
+                const userDoc = await getDoc(doc(db, "users", user.uid));
                 if (userDoc.exists()) {
-                    const userData = userDoc.data();
-                    const role = userData.role;
-                    console.log(`User role: ${role}`);
-
+                    const role = userDoc.data().role;
                     if (role === 'professor') {
-                        await initProfessorApp(user);
+                        // --- OPRAVA VOLANIA FUNKCIE ---
+                        await initProfessor(user);
+                        // ------------------------------
                     } else if (role === 'student') {
-                         // Pre istotu odpojíme staré listenery ak nejaké boli
-                        if (window.currentStudentCleanup) {
+                         if (window.currentStudentCleanup) {
                             window.currentStudentCleanup();
                             window.currentStudentCleanup = null;
                         }
                         await initStudentApp(user);
                     } else {
-                        console.error("Unknown role:", role);
-                        renderErrorState("Váš účet nemá nastavenou platnou roli.");
+                         renderErrorState("Neznámá uživatelská role.");
                     }
                 } else {
-                    // Pokud dokument uživatele neexistuje (např. nový Google přihlášení),
-                    // musíme ho vytvořit. Prozatím předpokládejme, že Google login = profesor,
-                    // nebo zobrazíme chybu, pokud se mají registrovat jen přes formulář.
-                    console.warn("User document does not exist in Firestore.");
-                    
-                    // Zde by mohla být logika pro automatické vytvoření profilu,
-                    // pokud to vaše aplikace dovoluje. Pro teď zobrazíme login.
-                    // signOut(auth); // Volitelné: odhlásit, pokud nemá profil
-                    renderLoginState(); 
+                    // Fallback pre užívateľov bez profilu (napr. čistý Google login)
+                    console.warn("No user profile found, showing login.");
+                    renderLoginState();
                 }
             } catch (error) {
-                console.error("Error fetching user role:", error);
-                renderErrorState("Chyba při načítání profilu uživatele.");
+                console.error("Error getting user role:", error);
+                renderErrorState("Chyba při načítání profilu.");
             }
         } else {
-            console.log("No user signed in. Showing login form.");
+            console.log("User logged out");
             renderLoginState();
         }
     });
 }
 
-// Pomocná funkcia na zobrazenie loginu
 function renderLoginState() {
     const appContainer = document.getElementById('app-container');
     const loginTemplate = document.getElementById('login-template');
-    
     if (appContainer && loginTemplate) {
         appContainer.innerHTML = '';
         appContainer.appendChild(loginTemplate.content.cloneNode(true));
     }
 }
 
-// Pomocná funkcia na zobrazenie loadingu
 function renderLoadingState() {
     const appContainer = document.getElementById('app-container');
     if (appContainer) {
-        appContainer.innerHTML = '<div class="flex items-center justify-center h-screen"><div class="text-xl text-slate-600">Načítám aplikaci...</div></div>';
+        appContainer.innerHTML = '<div class="flex items-center justify-center h-screen"><div class="text-xl text-slate-600 animate-pulse">Načítám aplikaci...</div></div>';
     }
 }
 
-// Pomocná funkcia na zobrazenie chyby
-function renderErrorState(message) {
+function renderErrorState(msg) {
     const appContainer = document.getElementById('app-container');
     if (appContainer) {
-        appContainer.innerHTML = `<div class="flex items-center justify-center h-screen"><div class="text-red-600 bg-red-100 p-4 rounded-lg">${message}</div></div>`;
+        appContainer.innerHTML = `<div class="flex items-center justify-center h-screen text-red-600">${msg}</div>`;
     }
 }
 
-// Spustenie aplikácie
+// Štart
 main();
