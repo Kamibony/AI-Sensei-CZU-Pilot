@@ -1,77 +1,93 @@
 import { initializeFirebase, auth, db } from './firebase-init.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-// --- OPRAVA NÁZVU IMPORTU ---
-import { initProfessor } from './professor.js';
-// ----------------------------
+// --- OPRAVA: Používame správny názov, ktorý je v professor.js ---
+import { initProfessorApp } from './professor.js';
+// ---------------------------------------------------------------
 import { initStudentApp } from './student.js';
 import { initAuth } from './auth.js';
 
-// Hlavná funkcia pre bezpečný štart aplikácie
+// Hlavní funkce pro bezpečný start aplikace
 async function main() {
     try {
-        // 1. Počkáme na dokončenie inicializácie Firebase
+        // 1. Počkáme na dokončení inicializace Firebase
         await initializeFirebase();
         console.log("Firebase fully initialized, starting app...");
     } catch (error) {
         console.error("Firebase init failed:", error);
+        // Zobrazíme uživateli hezkou chybovou hlášku místo bílé obrazovky
         document.body.innerHTML = `<div class="flex items-center justify-center h-screen text-red-600 bg-red-50">
-            <div class="text-center">
-                <h1 class="text-2xl font-bold mb-2">Chyba připojení</h1>
-                <p>Nepodařilo se připojit k aplikaci. Zkuste obnovit stránku.</p>
+            <div class="text-center p-8 bg-white rounded-2xl shadow-xl">
+                <h1 class="text-2xl font-bold mb-4">Chyba připojení</h1>
+                <p class="mb-4">Nepodařilo se připojit k aplikaci.</p>
+                <button onclick="window.location.reload()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors">
+                    Zkusit znovu
+                </button>
             </div>
         </div>`;
         return;
     }
 
-    // 2. Spustíme listenery pre auth (formuláre)
+    // 2. Spustíme listenery pro auth (formuláře)
     initAuth();
 
-    // 3. Sledujeme stav prihlásenia
+    // 3. Sledujeme stav přihlášení
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             console.log("User logged in:", user.uid);
-            renderLoadingState(); // Zobrazíme loading, kým zistíme rolu
+            renderLoadingState(); // Zobrazíme loading, dokud nezjistíme roli
 
             try {
                 const userDoc = await getDoc(doc(db, "users", user.uid));
                 if (userDoc.exists()) {
                     const role = userDoc.data().role;
+                    console.log("Role found:", role);
+
                     if (role === 'professor') {
-                        // --- OPRAVA VOLANIA FUNKCIE ---
-                        await initProfessor(user);
-                        // ------------------------------
+                        // --- OPRAVA: Voláme správnou funkci ---
+                        await initProfessorApp(user);
+                        // --------------------------------------
                     } else if (role === 'student') {
+                        // Pro jistotu vyčistíme předchozí listenery, pokud existují
                          if (window.currentStudentCleanup) {
                             window.currentStudentCleanup();
                             window.currentStudentCleanup = null;
                         }
                         await initStudentApp(user);
                     } else {
+                         console.error("Unknown role:", role);
                          renderErrorState("Neznámá uživatelská role.");
+                         // Volitelně: odhlásit uživatele, aby nezůstal zaseknutý
+                         // auth.signOut();
                     }
                 } else {
-                    // Fallback pre užívateľov bez profilu (napr. čistý Google login)
-                    console.warn("No user profile found, showing login.");
-                    renderLoginState();
+                    // Fallback pro uživatele bez profilu (např. čistý Google login, pokud není ošetřen jinde)
+                    console.warn("No user profile found in Firestore.");
+                    // Zde by mohla být logika pro vytvoření profilu, nebo jen zobrazíme chybu/login
+                     renderErrorState("Uživatelský profil nenalezen.");
                 }
             } catch (error) {
                 console.error("Error getting user role:", error);
                 renderErrorState("Chyba při načítání profilu.");
             }
         } else {
-            console.log("User logged out");
+            console.log("User logged out or not logged in");
             renderLoginState();
         }
     });
 }
 
+// --- Pomocné funkce pro vykreslování stavů ---
+
 function renderLoginState() {
     const appContainer = document.getElementById('app-container');
     const loginTemplate = document.getElementById('login-template');
+    // Ověříme, že elementy existují, než s nimi budeme pracovat
     if (appContainer && loginTemplate) {
         appContainer.innerHTML = '';
         appContainer.appendChild(loginTemplate.content.cloneNode(true));
+    } else {
+        console.error("CRITICAL: Missing app-container or login-template in HTML");
     }
 }
 
@@ -85,9 +101,14 @@ function renderLoadingState() {
 function renderErrorState(msg) {
     const appContainer = document.getElementById('app-container');
     if (appContainer) {
-        appContainer.innerHTML = `<div class="flex items-center justify-center h-screen text-red-600">${msg}</div>`;
+        appContainer.innerHTML = `<div class="flex items-center justify-center h-screen text-red-600 bg-red-50 p-8">
+            <div class="text-center">
+                <h2 class="text-xl font-bold mb-2">Chyba</h2>
+                <p>${msg}</p>
+            </div>
+        </div>`;
     }
 }
 
-// Štart
+// Spuštění aplikace
 main();
