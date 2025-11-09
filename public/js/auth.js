@@ -113,26 +113,45 @@ async function handleRegister(event) {
     // event.preventDefault() je zavoláno v event listeneru
     const emailInput = document.getElementById('register-email');
     const passwordInput = document.getElementById('register-password');
+    const professorCheckbox = document.getElementById('register-as-professor');
     const email = emailInput.value;
     const password = passwordInput.value;
+    const isProfessor = professorCheckbox.checked;
     const errorDiv = document.getElementById('register-error');
+
+    const role = isProfessor ? 'professor' : 'student';
+
+    // Optimistically set the role in sessionStorage to prevent race conditions
+    sessionStorage.setItem('userRole', role);
 
     try {
         if (errorDiv) errorDiv.classList.add('hidden');
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // ZMENA: Ukladáme do kolekcie 'students' namiesto 'users'
-        await setDoc(doc(db, "students", user.uid), {
+        // Perform the database writes. onAuthStateChanged will handle the redirect.
+        // ALWAYS write to the new 'users' collection
+        await setDoc(doc(db, "users", user.uid), {
             email: user.email,
-            role: 'student',
-            createdAt: serverTimestamp(),
-            name: '' // Pridané prázdne meno pre konzistenciu
+            role: role,
+            createdAt: serverTimestamp()
         });
+
+        // CRITICAL PRESERVATION (Dual-Write): If the role is 'student', also write to the legacy 'students' collection.
+        if (role === 'student') {
+            await setDoc(doc(db, "students", user.uid), {
+                email: user.email,
+                role: 'student',
+                createdAt: serverTimestamp(),
+                name: '' // Pridané prázdne meno pre konzistenciu
+            });
+        }
 
         showToast("Registrace úspěšná!", 'success');
         // onAuthStateChanged se postará o přesměrování
     } catch (error) {
+        // If registration fails, clear the optimistic role
+        sessionStorage.removeItem('userRole');
         console.error("Error registering:", error);
         if (errorDiv) {
             let message = "Nastala chyba při registraci.";

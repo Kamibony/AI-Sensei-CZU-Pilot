@@ -1,5 +1,6 @@
-import { initializeFirebase, auth } from './firebase-init.js';
+import { initializeFirebase, auth, db } from './firebase-init.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initProfessorApp } from './professor.js';
 import { initStudentApp, cleanupStudentDashboard } from './student.js';
 import { initAuth } from './auth.js';
@@ -19,24 +20,41 @@ async function main() {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             renderLoadingState();
-            if (user.email === 'profesor@profesor.cz') {
+
+            let role = sessionStorage.getItem('userRole');
+
+            if (!role) {
+                // If role is not in session, fetch from DB (for returning users)
+                const userDocRef = doc(db, 'users', user.uid);
+                const userDoc = await getDoc(userDocRef);
+                const userData = userDoc.data();
+
+                if (userDoc.exists && userData && userData.role) {
+                    role = userData.role;
+                } else if (user.email === 'profesor@profesor.cz') {
+                    // FALLBACK for original admin
+                    role = 'professor';
+                } else {
+                    role = 'student'; // Default for safety
+                }
+                sessionStorage.setItem('userRole', role);
+            }
+
+            if (role === 'professor') {
                 renderMainLayout();
                 await initProfessorApp(user);
             } else {
-                // Pre istotu vyčistíme pred spustením (ak by išlo o prepnutie užívateľov)
                 if (typeof cleanupStudentDashboard === 'function') {
                     cleanupStudentDashboard();
                 }
                 initStudentApp();
             }
         } else {
-            // --- OPRAVA CHYBY PRI ODHLÁSENÍ ---
-            // Ak sa užívateľ odhlásil, musíme okamžite zrušiť sledovanie dát,
-            // inak vyskočí chyba oprávnení.
+            // User is signed out, clear session storage
+            sessionStorage.removeItem('userRole');
             if (typeof cleanupStudentDashboard === 'function') {
                 cleanupStudentDashboard();
             }
-            // ----------------------------------
             renderLoginState();
         }
     });
