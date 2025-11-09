@@ -122,10 +122,12 @@ async function handleRegister(event) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        await setDoc(doc(db, "users", user.uid), {
+        // ZMENA: Ukladáme do kolekcie 'students' namiesto 'users'
+        await setDoc(doc(db, "students", user.uid), {
             email: user.email,
             role: 'student',
-            createdAt: serverTimestamp()
+            createdAt: serverTimestamp(),
+            name: '' // Pridané prázdne meno pre konzistenciu
         });
 
         showToast("Registrace úspěšná!", 'success');
@@ -160,7 +162,8 @@ async function handleProfessorLogin() {
         // onAuthStateChanged se postará o zbytek
     } catch (error) {
         console.error("Error with Google sign-in:", error);
-        showToast("Chyba přihlášení přes Google.", 'error');
+        // Tu sa zobrazí chyba, ak nie je Google Sign-in povolený v konzole
+        showToast("Chyba přihlášení přes Google: " + error.message, 'error');
     }
 }
 

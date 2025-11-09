@@ -18,10 +18,12 @@ let selectedLessonId = null;
 
 let mainContentElement = null; // Odkaz na hlavný kontajner
 
-export function initStudentDashboard() {
+// --- JEDINÁ ZMENA: PREMENOVANIE FUNKCIE ---
+export function initStudentApp() {
+// -----------------------------------------
     const user = firebaseInit.auth.currentUser;
     if (!user) {
-        console.error("Kritická chyba: initStudentDashboard bol spustený bez prihláseného používateľa!");
+        console.error("Kritická chyba: initStudentApp bol spustený bez prihláseného používateľa!");
         document.getElementById('app-container').innerHTML = `<p class="p-8 text-center text-red-600">Nastala kritická chyba pri prihlasovaní. Skúste obnoviť stránku.</p>`;
         return;
     }
@@ -159,10 +161,10 @@ function renderAppContent() {
     }
 }
 
-// Funkcia pre zadanie mena (zostáva ako `innerHTML` pre jednoduchosť)
+// Funkcia pre zadanie mena (zostáva ako innerHTML pre jednoduchosť)
 function promptForStudentName(userId) {
-    // Ak je `mainContentElement` (pohľad študenta), vložíme to doň.
-    // Ak nie (napr. pri prvej registrácii), prepíšeme celý `app-container`.
+    // Ak je mainContentElement (pohľad študenta), vložíme to doň.
+    // Ak nie (napr. pri prvej registrácii), prepíšeme celý app-container.
     const container = mainContentElement || document.getElementById('app-container');
     
     container.innerHTML = `
@@ -188,11 +190,3 @@ function promptForStudentName(userId) {
         }
     });
 }
-
-// ==== ODSTRÁNENÉ FUNKCIE (Všetky boli presunuté do komponentov) ====
-// async function fetchAndDisplayLessons() { ... }
-// function normalizeLessonData(rawData) { ... }
-// function showLessonDetail(lessonId) { ... }
-// function renderLessonTabs() { ... }
-// function switchTab(tabId) { ... }
-// ===============================================================
