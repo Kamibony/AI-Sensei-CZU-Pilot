@@ -1,8 +1,9 @@
 // public/js/views/professor/professor-app.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Importy komponentov
+import './professor-header.js';
 import './lesson-library.js';
 import './timeline-view.js';
 import './professor-media-view.js';
@@ -54,9 +55,26 @@ export class ProfessorApp extends LitElement {
 
     async _fetchLessons() {
         try {
+            const user = firebaseInit.auth.currentUser;
+            if (!user) {
+                this._lessonsData = [];
+                return;
+            }
+
             const lessonsCollection = collection(firebaseInit.db, 'lessons');
-            const querySnapshot = await getDocs(query(lessonsCollection, orderBy("createdAt")));
+            let lessonQuery;
+
+            if (user.email === 'profesor@profesor.cz') {
+                // Admin can see all lessons
+                lessonQuery = query(lessonsCollection, orderBy("createdAt"));
+            } else {
+                // Other professors only see their own lessons
+                lessonQuery = query(lessonsCollection, where("ownerId", "==", user.uid), orderBy("createdAt"));
+            }
+
+            const querySnapshot = await getDocs(lessonQuery);
             this._lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
         } catch (error) {
             console.error("Error fetching lessons for app: ", error);
             showToast("Nepodařilo se načíst data lekcí.", true);
@@ -103,9 +121,12 @@ export class ProfessorApp extends LitElement {
                     ${this._renderSidebar()}
                 </aside>
 
-                <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-full overflow-hidden">
-                    ${this._renderMainContent()}
-                </main>
+                <div class="flex-grow flex flex-col h-full overflow-hidden">
+                    <professor-header></professor-header>
+                    <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-full overflow-hidden">
+                        ${this._renderMainContent()}
+                    </main>
+                </div>
             </div>
         `;
     }
