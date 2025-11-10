@@ -88,11 +88,15 @@ export class EditorViewDetails extends LitElement {
         this._isLoading = true; let updatedLessonData;
         try {
             if (this.lesson?.id) { // Používame this.lesson
+                if (!this.lesson.ownerId) {
+                    lessonData.ownerId = firebaseInit.auth.currentUser.uid;
+                }
                 await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), lessonData);
                 updatedLessonData = { ...this.lesson, ...lessonData };
                 showToast("Detaily lekce byly úspěšně aktualizovány.");
             } else {
                 lessonData.createdAt = serverTimestamp();
+                lessonData.ownerId = firebaseInit.auth.currentUser.uid;
                 const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonData);
                 updatedLessonData = { id: docRef.id, ...lessonData };
                 showToast("Nová lekce byla úspěšně vytvořena.");
