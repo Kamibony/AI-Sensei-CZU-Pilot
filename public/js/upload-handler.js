@@ -22,8 +22,20 @@ async function handleFileUpload(files, courseId, progressContainer, mediaListCon
             return;
         }
 
+        const user = firebaseInit.auth.currentUser;
+        if (!user) {
+            showToast(`Nejste přihlášen. Nahrávání bylo zrušeno.`, true);
+            return;
+        }
+
+        const metadata = {
+            customMetadata: {
+                'ownerId': user.uid
+            }
+        };
+
         const storageRef = ref(storage, `courses/${courseId}/media/${file.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, file);
+        const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
         let progressElement = null;
         let progressBar = null;
