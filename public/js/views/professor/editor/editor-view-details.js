@@ -1,6 +1,6 @@
 // public/js/views/professor/editor/editor-view-details.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { doc, addDoc, updateDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, addDoc, updateDoc, collection, serverTimestamp, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../../firebase-init.js';
 import { showToast } from '../../../utils.js';
 // === OPRAVENÝ IMPORT: Pridali sme loadSelectedFiles ===
@@ -13,14 +13,38 @@ const btnSecondary = `${btnBase} bg-slate-200 text-slate-700 hover:bg-slate-300`
 
 export class EditorViewDetails extends LitElement {
     static properties = {
-        lesson: { type: Object }, // Prijímame priamo
+        lesson: { type: Object },
         _isLoading: { state: true, type: Boolean },
+        _groups: { state: true, type: Array },
     };
 
     constructor() {
         super();
         this.lesson = null;
         this._isLoading = false;
+        this._groups = [];
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        this._fetchGroups();
+    }
+
+    async _fetchGroups() {
+        const currentUser = firebaseInit.auth.currentUser;
+        if (!currentUser) return;
+
+        try {
+            const groupsQuery = query(
+                collection(firebaseInit.db, "groups"),
+                where("ownerId", "==", currentUser.uid)
+            );
+            const querySnapshot = await getDocs(groupsQuery);
+            this._groups = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+            console.error("Error fetching groups:", error);
+            showToast("Nepodařilo se načíst skupiny.", true);
+        }
     }
 
     createRenderRoot() { return this; }
@@ -74,14 +98,16 @@ export class EditorViewDetails extends LitElement {
         const title = form.querySelector('#lesson-title-input').value.trim();
         if (!title) { showToast("Název lekce nemůže být prázdný.", true); return; }
 
-        // Získame aktuálny výber z globálnej premennej
         const currentSelection = getSelectedFiles();
+        const selectedGroups = Array.from(form.querySelectorAll('input[name="group-assignment"]:checked')).map(checkbox => checkbox.value);
+
         const lessonData = {
             title: title,
             subtitle: form.querySelector('#lesson-subtitle-input').value.trim(),
             number: form.querySelector('#lesson-number-input').value.trim(),
             icon: form.querySelector('#lesson-icon-input').value.trim() || '🆕',
-            ragFilePaths: currentSelection, // Uložíme aktuálny výber
+            ragFilePaths: currentSelection,
+            assignedToGroups: selectedGroups,
             updatedAt: serverTimestamp()
         };
 
@@ -143,6 +169,26 @@ export class EditorViewDetails extends LitElement {
                         </div>
                         <p class="text-xs text-slate-400 mt-1">Vybrané dokumenty budou uloženy spolu s lekcí.</p>
                     </div>
+
+                    <div class="mb-4">
+                        <label class="block font-medium text-slate-600 mb-2">Přiřadit do tříd:</label>
+                        <div class="space-y-2 border rounded-lg p-3 bg-slate-50">
+                            ${this._groups.length > 0 ? this._groups.map(group => html`
+                                <div class="flex items-center">
+                                    <input type="checkbox"
+                                           id="group-${group.id}"
+                                           name="group-assignment"
+                                           value="${group.id}"
+                                           .checked=${this.lesson?.assignedToGroups?.includes(group.id) || false}
+                                           class="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500">
+                                    <label for="group-${group.id}" class="ml-3 text-sm text-gray-700">${group.name}</label>
+                                </div>
+                            `) : html`
+                                <p class="text-xs text-slate-500">Zatím nemáte vytvořené žádné třídy.</p>
+                            `}
+                        </div>
+                    </div>
+
                     <div class="text-right pt-4">
                         <button type="submit" id="save-lesson-btn" ?disabled=${this._isLoading} class="${btnPrimary} px-6">
                             ${this._isLoading ? html`<div class="spinner"></div><span class="ml-2">Ukládám...</span>` : 'Uložit změny'}
