@@ -211,7 +211,7 @@ export class ProfessorTimelineView extends LitElement {
                     <span class="font-bold ${isToday ? 'text-blue-800' : 'text-slate-700'} capitalize truncate">${weekday}</span>
                     <span class="text-xs ${isToday ? 'text-blue-600 font-semibold' : 'text-slate-400'} ml-2">${dayMonth}</span>
                 </div>
-                <div class="lessons-container flex-grow p-2 space-y-2 min-h-[50px] overflow-y-auto custom-scrollbar"></div>
+                <div class="lessons-container flex-grow p-2 space-y-2 min-h-[120px] overflow-y-auto custom-scrollbar"></div>
             `;
             grid.appendChild(dayWrapper);
         }

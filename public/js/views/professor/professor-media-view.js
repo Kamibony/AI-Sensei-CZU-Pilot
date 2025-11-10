@@ -37,15 +37,29 @@ export class ProfessorMediaView extends LitElement {
     async _loadFiles() {
         this._isLoading = true;
         try {
+            const user = firebaseInit.auth.currentUser;
+            if (!user) {
+                this._files = [];
+                this._isLoading = false;
+                return;
+            }
             const storage = getStorage(firebaseInit.app);
             const listRef = ref(storage, `courses/main-course/media`);
             const res = await listAll(listRef);
             const filePromises = res.items.map(async (itemRef) => {
                 const metadata = await getMetadata(itemRef);
-                return { name: metadata.name, fullPath: metadata.fullPath, size: metadata.size, };
+                const isLegacy = !metadata.customMetadata || !metadata.customMetadata.ownerId;
+                if (user.email === 'profesor@profesor.cz') {
+                     return { name: metadata.name, fullPath: metadata.fullPath, size: metadata.size, ownerId: metadata.customMetadata?.ownerId };
+                } else {
+                    if (isLegacy || metadata.customMetadata.ownerId === user.uid) {
+                         return { name: metadata.name, fullPath: metadata.fullPath, size: metadata.size, ownerId: metadata.customMetadata?.ownerId };
+                    }
+                }
+                return null;
             });
-            const files = await Promise.all(filePromises);
-            // Zoradíme súbory podľa názvu
+
+            const files = (await Promise.all(filePromises)).filter(Boolean);
             this._files = files.sort((a, b) => a.name.localeCompare(b.name));
         } catch (error) {
             console.error("Error loading media files:", error);
