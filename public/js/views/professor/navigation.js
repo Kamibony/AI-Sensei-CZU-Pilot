@@ -13,6 +13,14 @@ export function setupProfessorNav(showProfessorContent) {
                             </div>
                         </button>
                     </li>
+
+                    <li>
+                        <button data-view="classes" class="nav-item w-full p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white group" title="Třídy">
+                            <div class="h-10 w-10 rounded-md flex items-center justify-center bg-green-900 group-hover:bg-green-600 transition-colors duration-200">
+                                <span class="text-2xl">🏫</span>
+                            </div>
+                        </button>
+                    </li>
                     
                     <li>
                         <button data-view="students" class="nav-item w-full p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white group" title="Studenti">
