@@ -587,3 +587,42 @@ export const submitTestResults = onCall({ region: "europe-west1" }, async (reque
         throw new HttpsError("internal", "Nepodařilo se uložit výsledky testu.");
     }
 });
+
+export const joinClass = onCall({ region: "europe-west1" }, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Musíte být přihlášen, abyste se mohl(a) zapsat do třídy.");
+    }
+    const studentId = request.auth.uid;
+
+    const joinCode = request.data.joinCode;
+    if (typeof joinCode !== 'string' || joinCode.trim() === '') {
+        throw new HttpsError("invalid-argument", "Je nutné zadat kód třídy.");
+    }
+
+    try {
+        const groupsRef = db.collection("groups");
+        const querySnapshot = await groupsRef.where("joinCode", "==", joinCode.trim()).limit(1).get();
+
+        if (querySnapshot.empty) {
+            throw new HttpsError("not-found", "Kód třídy není platný");
+        }
+
+        const groupDoc = querySnapshot.docs[0];
+        const groupData = groupDoc.data();
+
+        await groupDoc.ref.update({
+            studentIds: FieldValue.arrayUnion(studentId)
+        });
+
+        logger.log(`Student ${studentId} successfully joined group ${groupDoc.id} (${groupData.name}).`);
+
+        return { success: true, groupName: groupData.name };
+
+    } catch (error) {
+        logger.error(`Error in joinClass for student ${studentId} with code "${joinCode}":`, error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError("internal", "Došlo k chybě při připojování k třídě.");
+    }
+});

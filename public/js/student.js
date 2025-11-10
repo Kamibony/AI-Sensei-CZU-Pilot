@@ -102,6 +102,7 @@ function renderStudentPanel() {
                 <h1 class="text-lg md:text-xl font-bold text-green-800">AI Sensei - Student</h1>
                 <div>
                     <span id="student-name-display" class="text-slate-700 text-sm mr-2 md:mr-4 hidden sm:inline"></span>
+                    <button id="join-class-btn" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-1.5 px-3 md:py-2 md:px-4 rounded-lg mr-2">Připojit se k třídě</button>
                     <button id="student-logout-btn" class="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1.5 px-3 md:py-2 md:px-4 rounded-lg">Odhlásit se</button>
                 </div>
             </header>
@@ -111,6 +112,7 @@ function renderStudentPanel() {
     
     mainContentElement = document.getElementById('student-main-content');
     document.getElementById('student-logout-btn').addEventListener('click', handleLogout);
+    document.getElementById('join-class-btn').addEventListener('click', handleJoinClass);
     
     // Pridáme listenery na vlastné udalosti z našich komponentov
     mainContentElement.addEventListener('lesson-selected', (e) => {
@@ -189,4 +191,28 @@ function promptForStudentName(userId) {
             showToast('Nepodařilo se uložit jméno.', true);
         }
     });
+}
+
+async function handleJoinClass() {
+    const joinCode = window.prompt("Zadejte kód pro připojení do třídy:");
+    if (!joinCode || joinCode.trim() === "") {
+        return; // User cancelled or entered empty code
+    }
+
+    showToast("Připojuji se k třídě...", false);
+
+    try {
+        const joinClass = firebaseInit.functions.httpsCallable('joinClass');
+        const result = await joinClass({ joinCode: joinCode.trim() });
+
+        if (result.data.success) {
+            showToast(`Úspěšně jste se připojil(a) k třídě ${result.data.groupName}!`);
+        } else {
+            // This case might not be reached if errors are thrown, but it's good practice
+            showToast("Neznámá chyba při připojování.", true);
+        }
+    } catch (error) {
+        console.error("Error joining class:", error);
+        showToast(error.message || "Nepodařilo se připojit k třídě.", true);
+    }
 }
