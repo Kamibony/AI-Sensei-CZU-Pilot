@@ -609,10 +609,26 @@ export const joinClass = onCall({ region: "europe-west1" }, async (request) => {
 
         const groupDoc = querySnapshot.docs[0];
         const groupData = groupDoc.data();
+        const groupId = groupDoc.id;
 
-        await groupDoc.ref.update({
+        const studentRef = db.collection("students").doc(studentId);
+
+        // Perform both writes in a single transaction/batch for atomicity
+        const batch = db.batch();
+
+        // 1. Add studentId to the group's studentIds array
+        batch.update(groupDoc.ref, {
             studentIds: FieldValue.arrayUnion(studentId)
         });
+
+        // 2. Add groupId to the student's memberOfGroups array
+        // Using set with { merge: true } is safe and creates the field if it doesn't exist.
+        batch.set(studentRef, {
+            memberOfGroups: FieldValue.arrayUnion(groupId)
+        }, { merge: true });
+
+        await batch.commit();
+
 
         logger.log(`Student ${studentId} successfully joined group ${groupDoc.id} (${groupData.name}).`);
 
