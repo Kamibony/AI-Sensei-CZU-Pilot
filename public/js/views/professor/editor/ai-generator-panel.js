@@ -231,14 +231,25 @@ export class AiGeneratorPanel extends LitElement {
         this._isSaving = true;
         try {
             let dataToSave = this._generationOutput;
-            if (this.contentType === 'text') dataToSave = this.querySelector('#editable-content-textarea-text')?.value;
+
+            // === ZAČIATOK OPRAVY ===
+            if (this.contentType === 'text') {
+                // 1. Pokúsime sa nájsť hodnotu v textovom poli
+                const editorValue = this.querySelector('#editable-content-textarea-text')?.value;
+                
+                // 2. KĽÚČOVÁ POISTKA: Ak je hodnota 'undefined' alebo 'null' (pretože element sa nenašiel), 
+                //    použijeme prázdny reťazec "". V opačnom prípade použijeme nájdenú hodnotu.
+                dataToSave = editorValue || "";
+            }
+            // === KONIEC OPRAVY ===
+
             if (this.contentType === 'presentation') dataToSave = { styleId: this.querySelector('#presentation-style-selector')?.value || 'default', slides: this._generationOutput.slides };
             
             // === KĽÚČOVÁ OPRAVA: Uložíme aktuálny zoznam RAG súborov do databázy ===
             const currentRagFiles = getSelectedFiles().map(f => f.fullPath);
 
             await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), { 
-                [this.fieldToUpdate]: dataToSave, 
+                [this.fieldToUpdate]: dataToSave, // <-- Teraz je to buď text, alebo ""
                 ragFilePaths: currentRagFiles, // <-- TOTO ZABEZPEČÍ, ŽE SA SÚBORY NESTRATIA
                 updatedAt: serverTimestamp() 
             });
@@ -254,7 +265,12 @@ export class AiGeneratorPanel extends LitElement {
             }));
             
             this._generationOutput = null;
-        } catch (e) { console.error(e); alert("Chyba ukládání."); } finally { this._isSaving = false; }
+        } catch (e) { 
+            console.error(e); // Chyba sa stále zaloguje, ak by bol iný problém
+            alert("Chyba ukládání."); 
+        } finally { 
+            this._isSaving = false; 
+        }
     }
 
     async _handleDeleteGeneratedContent() {
