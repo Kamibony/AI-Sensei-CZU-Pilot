@@ -9,6 +9,9 @@ service cloud.firestore {
     function isProfessor() {
       return isSignedIn() && request.auth.token.email == 'profesor@profesor.cz';
     }
+   function isProfessorRole() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor';
+    }
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -16,7 +19,7 @@ service cloud.firestore {
 
     // Kolekcia pre študentov (zjednotená)
     match /students/{studentId} {
-      allow read: if isOwner(studentId) || isProfessor();
+      allow read: if isOwner(studentId) || isProfessor() || isProfessorRole();
       allow create, update: if isOwner(studentId);
       allow delete: if false;
     }

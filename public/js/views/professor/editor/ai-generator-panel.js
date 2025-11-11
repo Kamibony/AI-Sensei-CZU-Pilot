@@ -251,7 +251,7 @@ export class AiGeneratorPanel extends LitElement {
                     status: "Naplánováno",
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
-                    ownerId: firebaseInit.auth.currentUser.uid, // <-- KĽÚČOVÁ OPRAVA
+                    ownerId: firebaseInit.auth.currentUser.uid,
                     [this.fieldToUpdate]: dataToSave,
                     ragFilePaths: currentRagFiles
                 };
