@@ -25,7 +25,17 @@ export class ProfessorTimelineView extends LitElement {
 
     async _fetchTimelineEvents() {
         try {
-            const q = query(collection(firebaseInit.db, 'timeline_events'), orderBy("orderIndex"));
+            const currentUser = firebaseInit.auth.currentUser;
+            if (!currentUser) {
+                this._timelineEvents = [];
+                this._renderDaysAndEvents();
+                return;
+            }
+            const q = query(
+                collection(firebaseInit.db, 'timeline_events'),
+                where("ownerId", "==", currentUser.uid),
+                orderBy("orderIndex")
+            );
             const querySnapshot = await getDocs(q);
             this._timelineEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             this._renderDaysAndEvents();
@@ -124,7 +134,8 @@ export class ProfessorTimelineView extends LitElement {
                  }
             }
 
-            const newEventData = { lessonId, dayIndex: targetDayIndex, createdAt: serverTimestamp(), orderIndex: globalOrderIndex };
+            const ownerId = firebaseInit.auth.currentUser.uid;
+            const newEventData = { lessonId, ownerId, dayIndex: targetDayIndex, createdAt: serverTimestamp(), orderIndex: globalOrderIndex };
             const docRef = await addDoc(collection(firebaseInit.db, 'timeline_events'), newEventData);
             await updateDoc(doc(firebaseInit.db, 'lessons', lessonId), { isScheduled: true }).catch(console.error);
 
@@ -165,7 +176,8 @@ export class ProfessorTimelineView extends LitElement {
         }
 
         const maxOrderIndex = this._timelineEvents.reduce((max, ev) => Math.max(max, ev.orderIndex || 0), -1);
-        const newEventData = { lessonId: lesson.id, dayIndex: targetDayIndex, createdAt: serverTimestamp(), orderIndex: maxOrderIndex + 1 };
+        const ownerId = firebaseInit.auth.currentUser.uid;
+        const newEventData = { lessonId: lesson.id, ownerId, dayIndex: targetDayIndex, createdAt: serverTimestamp(), orderIndex: maxOrderIndex + 1 };
 
         try {
             const daySlot = this.querySelector(`.day-slot[data-day-index='${targetDayIndex}'] .lessons-container`);

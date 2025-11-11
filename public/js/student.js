@@ -2,6 +2,7 @@
 // Tento súbor je teraz "kontrolór" alebo "router" pre študentskú sekciu.
 
 import { doc, onSnapshot, setDoc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { showToast } from './utils.js';
 import * as firebaseInit from './firebase-init.js';
 import { handleLogout } from './auth.js';
@@ -202,7 +203,7 @@ async function handleJoinClass() {
     showToast("Připojuji se k třídě...", false);
 
     try {
-        const joinClass = firebaseInit.functions.httpsCallable('joinClass');
+        const joinClass = httpsCallable(firebaseInit.functions, 'joinClass');
         const result = await joinClass({ joinCode: joinCode.trim() });
 
         if (result.data.success) {
