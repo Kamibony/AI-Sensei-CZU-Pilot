@@ -1,4 +1,4 @@
-// Súbor: functions/src/index.ts (KOMPLETNÁ VERZIA S PRÍSNOU KONTROLOU)
+// Súbor: functions/src/index.ts (KOMPLETNÁ VERZIA S OPRAVENÝM PREKLEPOM)
 
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -384,7 +384,8 @@ ${promptContext}
         if (error instanceof HttpsError) {
             throw error;
         }
-        throw new HDttpsError("internal", "Nepodařilo se vygenerovat AI analýzu.");
+        // === TU BOL PREKLEP, TERAZ JE OPRAVENÝ ===
+        throw new HttpsError("internal", "Nepodařilo se vygenerovat AI analýzu.");
     }
 });
 // ==================================================================
