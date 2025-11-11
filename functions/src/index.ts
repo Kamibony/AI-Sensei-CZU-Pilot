@@ -73,9 +73,16 @@ export const generateContent = onCall({
                 case 'quiz':
                     finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
                     break;
+                
+                // === ZAČIATOK OPRAVY (Test) ===
+                // Opravili sme 'promptData.questionCount' na 'promptData.question_count'
+                // a 'promptData.questionTypes' na 'promptData.question_types',
+                // aby sa zhodovali s dátami, ktoré posiela frontend (ai-generator-panel.js).
                 case 'test':
-                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${promptData.questionCount || 5} otázkami. Obtížnost: ${promptData.difficulty || 'Střední'}. Typy otázek: ${promptData.questionTypes || 'Mix'}. Odpověď musí být JSON objekt s klíčem 'questions', ktorý obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
+                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${promptData.question_count || 5} otázkami. Obtížnost: ${promptData.difficulty || 'Střední'}. Typy otázek: ${promptData.question_types || 'Mix'}. Odpověď musí být JSON objekt s klíčem 'questions', ktorý obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
                     break;
+                // === KONIEC OPRAVY (Test) ===
+                
                 case 'post':
                      finalPrompt = `Vytvoř sérii ${promptData.episodeCount || 3} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string).`;
                      break;
@@ -377,7 +384,7 @@ ${promptContext}
         if (error instanceof HttpsError) {
             throw error;
         }
-        throw new HttpsError("internal", "Nepodařilo se vygenerovat AI analýzu.");
+        throw new HDttpsError("internal", "Nepodařilo se vygenerovat AI analýzu.");
     }
 });
 // ==================================================================
@@ -585,5 +592,60 @@ export const submitTestResults = onCall({ region: "europe-west1" }, async (reque
     } catch (error) {
         logger.error("Error in submitTestResults:", error);
         throw new HttpsError("internal", "Nepodařilo se uložit výsledky testu.");
+    }
+});
+
+export const joinClass = onCall({ region: "europe-west1" }, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Musíte být přihlášen, abyste se mohl(a) zapsat do třídy.");
+    }
+    const studentId = request.auth.uid;
+
+    const joinCode = request.data.joinCode;
+    if (typeof joinCode !== 'string' || joinCode.trim() === '') {
+        throw new HttpsError("invalid-argument", "Je nutné zadat kód třídy.");
+    }
+
+    try {
+        const groupsRef = db.collection("groups");
+        const querySnapshot = await groupsRef.where("joinCode", "==", joinCode.trim()).limit(1).get();
+
+        if (querySnapshot.empty) {
+            throw new HttpsError("not-found", "Kód třídy není platný");
+        }
+
+        const groupDoc = querySnapshot.docs[0];
+        const groupData = groupDoc.data();
+        const groupId = groupDoc.id;
+
+        const studentRef = db.collection("students").doc(studentId);
+
+        // Perform both writes in a single transaction/batch for atomicity
+        const batch = db.batch();
+
+        // 1. Add studentId to the group's studentIds array
+        batch.update(groupDoc.ref, {
+            studentIds: FieldValue.arrayUnion(studentId)
+        });
+
+        // 2. Add groupId to the student's memberOfGroups array
+        // Using set with { merge: true } is safe and creates the field if it doesn't exist.
+        batch.set(studentRef, {
+            memberOfGroups: FieldValue.arrayUnion(groupId)
+        }, { merge: true });
+
+        await batch.commit();
+
+
+        logger.log(`Student ${studentId} successfully joined group ${groupDoc.id} (${groupData.name}).`);
+
+        return { success: true, groupName: groupData.name };
+
+    } catch (error) {
+        logger.error(`Error in joinClass for student ${studentId} with code "${joinCode}":`, error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError("internal", "Došlo k chybě při připojování k třídě.");
     }
 });
