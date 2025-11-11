@@ -1,6 +1,6 @@
 // public/js/views/professor/editor/ai-generator-panel.js
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { doc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, updateDoc, deleteField, serverTimestamp, addDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../../firebase-init.js';
 // showToast už nepoužívame pre bežné veci, ale import necháme pre kritické chyby ak by bolo treba
 import { showToast } from '../../../utils.js';
@@ -227,34 +227,75 @@ export class AiGeneratorPanel extends LitElement {
     }
 
     async _handleSaveGeneratedContent() {
-        if (!this.lesson?.id) { alert("Nejprve uložte lekci."); return; }
         this._isSaving = true;
         try {
             let dataToSave = this._generationOutput;
-            if (this.contentType === 'text') dataToSave = this.querySelector('#editable-content-textarea-text')?.value;
-            if (this.contentType === 'presentation') dataToSave = { styleId: this.querySelector('#presentation-style-selector')?.value || 'default', slides: this._generationOutput.slides };
-            
-            // === KĽÚČOVÁ OPRAVA: Uložíme aktuálny zoznam RAG súborov do databázy ===
+            if (this.contentType === 'text') {
+                const textarea = this.querySelector('#editable-content-textarea-text');
+                if (textarea) dataToSave = textarea.value;
+            }
+            if (this.contentType === 'presentation') {
+                const styleSelector = this.querySelector('#presentation-style-selector');
+                dataToSave = {
+                    styleId: styleSelector ? styleSelector.value : 'default',
+                    slides: this._generationOutput.slides
+                };
+            }
+
             const currentRagFiles = getSelectedFiles().map(f => f.fullPath);
 
-            await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), { 
-                [this.fieldToUpdate]: dataToSave, 
-                ragFilePaths: currentRagFiles, // <-- TOTO ZABEZPEČÍ, ŽE SA SÚBORY NESTRATIA
-                updatedAt: serverTimestamp() 
-            });
-
-            this.dispatchEvent(new CustomEvent('lesson-updated', { 
-                detail: { 
-                    ...this.lesson, 
+            if (!this.lesson || !this.lesson.id) {
+                // SCENÁR: Nová lekcia, voláme addDoc
+                const lessonData = {
+                    title: "Nová lekce (AI)",
+                    status: "Naplánováno",
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                    ownerId: firebaseInit.auth.currentUser.uid, // <-- KĽÚČOVÁ OPRAVA
                     [this.fieldToUpdate]: dataToSave,
-                    ragFilePaths: currentRagFiles // Aktualizujeme aj lokálny stav
-                }, 
-                bubbles: true, 
-                composed: true 
-            }));
-            
+                    ragFilePaths: currentRagFiles
+                };
+
+                const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonData);
+
+                // Po úspešnom vytvorení presmerujeme alebo aktualizujeme stav
+                // Pre jednoduchosť zatiaľ len zobrazíme alert a necháme na hlavnom view, aby sa obnovil
+                alert("Nová lekce byla úspěšně vytvořena s AI obsahem!");
+
+                // Idealne by bolo dispatchnut event, ktory by sposobil refresh a otvorenie novej lekcie
+                 this.dispatchEvent(new CustomEvent('lesson-created', {
+                    detail: { newLessonId: docRef.id },
+                    bubbles: true,
+                    composed: true
+                }));
+
+
+            } else {
+                // SCENÁR: Existujúca lekcia, voláme updateDoc
+                await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
+                    [this.fieldToUpdate]: dataToSave,
+                    ragFilePaths: currentRagFiles,
+                    updatedAt: serverTimestamp()
+                });
+
+                this.dispatchEvent(new CustomEvent('lesson-updated', {
+                    detail: {
+                        ...this.lesson,
+                        [this.fieldToUpdate]: dataToSave,
+                        ragFilePaths: currentRagFiles
+                    },
+                    bubbles: true,
+                    composed: true
+                }));
+            }
+
             this._generationOutput = null;
-        } catch (e) { console.error(e); alert("Chyba ukládání."); } finally { this._isSaving = false; }
+        } catch (e) {
+            console.error("Firebase Error:", e);
+            alert("Došlo k chybě při ukládání: " + e.message);
+        } finally {
+            this._isSaving = false;
+        }
     }
 
     async _handleDeleteGeneratedContent() {
