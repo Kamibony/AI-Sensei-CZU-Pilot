@@ -1,4 +1,4 @@
-// Súbor: functions/src/index.ts (KOMPLETNÁ VERZIA S OPRAVENÝM PREKLEPOM)
+// Súbor: functions/src/index.ts (KOMPLETNÁ VERZIA S OPRAVOU PRE PODCAST)
 
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -74,18 +74,24 @@ export const generateContent = onCall({
                     finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
                     break;
                 
-                // === ZAČIATOK OPRAVY (Test) ===
-                // Opravili sme 'promptData.questionCount' na 'promptData.question_count'
-                // a 'promptData.questionTypes' na 'promptData.question_types',
-                // aby sa zhodovali s dátami, ktoré posiela frontend (ai-generator-panel.js).
                 case 'test':
                     finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${promptData.question_count || 5} otázkami. Obtížnost: ${promptData.difficulty || 'Střední'}. Typy otázek: ${promptData.question_types || 'Mix'}. Odpověď musí být JSON objekt s klíčem 'questions', ktorý obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
                     break;
-                // === KONIEC OPRAVY (Test) ===
                 
+                // === ZAČIATOK OPRAVY (Podcast) ===
                 case 'post':
-                     finalPrompt = `Vytvoř sérii ${promptData.episodeCount || 3} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string).`;
+                     // Oprava 1: Použitie 'episode_count' namiesto 'episodeCount'
+                     const episodeCount = promptData.episode_count || 3;
+                     
+                     // Oprava 2: Oveľa prísnejší prompt, ktorý bráni halucináciám
+                     finalPrompt = `
+Jsi editor podcastů. Vytvoř sérii ${episodeCount} podcast epizod na téma "${promptData.userPrompt}".
+DŮLEŽITÉ: Zpracuj POUZE informace poskytnuté v přiložených dokumentech (kontextu). Nevymýšlej si žádné informace, které nejsou v textu.
+Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string).
+Skript musí být poutavý, ale fakticky přesný podle kontextu.
+`;
                      break;
+                // === KONIEC OPRAVY (Podcast) ===
             }
         }
         if (filePaths && filePaths.length > 0) {
