@@ -223,34 +223,43 @@ export class AiGeneratorPanel extends LitElement {
     }
 
     _renderEditableContent(contentType, data) {
+        // Pre text vždy vrátime textarea, aby sa dala editovať
         return contentType === 'text' ? html`<textarea id="editable-content-textarea-text" class="w-full border-slate-300 rounded-lg p-3 h-64 font-sans text-sm" .value=${data || ''}></textarea>` : this._renderStaticContent(contentType, data);
     }
 
+    // === ZAČIATOK OPRAVY 2 (Logika ukladania) ===
     async _handleSaveGeneratedContent() {
         if (!this.lesson?.id) { alert("Nejprve uložte lekci."); return; }
         this._isSaving = true;
         try {
-            let dataToSave = this._generationOutput;
+            let dataToSave; // Začíname s undefined
 
-            // === ZAČIATOK OPRAVY ===
             if (this.contentType === 'text') {
-                // 1. Pokúsime sa nájsť hodnotu v textovom poli
+                // Pre text VŽDY čítame z textového poľa.
+                // Toto pole existuje buď preto, že 'hasContent' je true,
+                // alebo preto, že sme ho práve vyrenderovali v 'generation-output' (vďaka Oprave 1).
                 const editorValue = this.querySelector('#editable-content-textarea-text')?.value;
-                
-                // 2. KĽÚČOVÁ POISTKA: Ak je hodnota 'undefined' alebo 'null' (pretože element sa nenašiel), 
-                //    použijeme prázdny reťazec "". V opačnom prípade použijeme nájdenú hodnotu.
-                dataToSave = editorValue || "";
+                dataToSave = editorValue || ""; // Poistka proti undefined
+            } 
+            else if (this.contentType === 'presentation') {
+                // Pre prezentáciu skladáme objekt
+                dataToSave = { 
+                    styleId: this.querySelector('#presentation-style-selector')?.value || 'default', 
+                    // Musíme zabezpečiť, že _generationOutput nie je null
+                    slides: this._generationOutput?.slides || this.lesson[this.fieldToUpdate]?.slides
+                };
+            } 
+            else {
+                // Pre všetky ostatné typy (quiz, test, post), berieme dáta z _generationOutput
+                // alebo z existujúcej lekcie, ak ukladáme zmeny (hoci pre ne nemáme tlačidlo "uložiť zmeny")
+                dataToSave = this._generationOutput || this.lesson[this.fieldToUpdate];
             }
-            // === KONIEC OPRAVY ===
-
-            if (this.contentType === 'presentation') dataToSave = { styleId: this.querySelector('#presentation-style-selector')?.value || 'default', slides: this._generationOutput.slides };
             
-            // === KĽÚČOVÁ OPRAVA: Uložíme aktuálny zoznam RAG súborov do databázy ===
             const currentRagFiles = getSelectedFiles().map(f => f.fullPath);
 
             await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), { 
-                [this.fieldToUpdate]: dataToSave, // <-- Teraz je to buď text, alebo ""
-                ragFilePaths: currentRagFiles, // <-- TOTO ZABEZPEČÍ, ŽE SA SÚBORY NESTRATIA
+                [this.fieldToUpdate]: dataToSave, 
+                ragFilePaths: currentRagFiles, 
                 updatedAt: serverTimestamp() 
             });
 
@@ -258,20 +267,22 @@ export class AiGeneratorPanel extends LitElement {
                 detail: { 
                     ...this.lesson, 
                     [this.fieldToUpdate]: dataToSave,
-                    ragFilePaths: currentRagFiles // Aktualizujeme aj lokálny stav
+                    ragFilePaths: currentRagFiles
                 }, 
                 bubbles: true, 
                 composed: true 
             }));
             
-            this._generationOutput = null;
+            this._generationOutput = null; // Skryje generátor, zobrazí sa editor
+            
         } catch (e) { 
-            console.error(e); // Chyba sa stále zaloguje, ak by bol iný problém
+            console.error(e); 
             alert("Chyba ukládání."); 
         } finally { 
             this._isSaving = false; 
         }
     }
+    // === KONIEC OPRAVY 2 ===
 
     async _handleDeleteGeneratedContent() {
         if (!confirm("Smazat obsah?")) return;
@@ -289,7 +300,9 @@ export class AiGeneratorPanel extends LitElement {
         return html`
             <div class="flex justify-between items-start mb-6"><h2 class="text-3xl font-extrabold text-slate-800">${this.viewTitle}</h2>${hasContent ? html`<button @click=${this._handleDeleteGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnDestructive} px-4 py-2 text-sm">${this._isLoading?'...':'🗑️ Smazat'} ${!isText?'a nové':''}</button>`:nothing}</div>
             <div class="bg-white p-6 rounded-2xl shadow-lg">
-                ${hasContent ? html`${this._renderEditableContent(this.contentType, this.lesson[this.fieldToUpdate])}${isText?html`<div class="text-right mt-4"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?'Ukládám...':'Uložit změny'}</button></div>`:nothing}`
+                ${hasContent ? html`
+                    ${this._renderEditableContent(this.contentType, this.lesson[this.fieldToUpdate])}
+                    ${isText?html`<div class="text-right mt-4"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?'Ukládám...':'Uložit změny'}</button></div>`:nothing}`
                 : html`
                     <p class="text-slate-500 mb-6">${this.description}</p>
                     ${this._createDocumentSelectorUI()}
@@ -298,7 +311,20 @@ export class AiGeneratorPanel extends LitElement {
                         ${this.contentType === 'presentation' ? html`<label class="block font-medium text-slate-600">Téma prezentace</label><input id="prompt-input-topic" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1 mb-4" placeholder=${this.promptPlaceholder}>`:html`<textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder=${this.promptPlaceholder}></textarea>`}
                         <div class="flex items-center justify-end mt-4"><button @click=${this._handleGeneration} ?disabled=${this._isLoading||this._isSaving || this._isUploading} class="${btnGenerate}">${this._isLoading?html`<div class="spinner"></div> Generuji...`:html`✨ Generovat`}</button></div>
                     </div>
-                    <div id="generation-output" class="mt-6 border-t pt-6 text-slate-700 prose max-w-none">${this._isLoading?html`<div class="p-8 text-center pulse-loader text-slate-500">🤖 AI přemýšlí...</div>`:''}${this._generationOutput?this._renderStaticContent(this.contentType, this._generationOutput):(!this._isLoading?html`<div class="text-center p-8 text-slate-400">Obsah se vygeneruje zde...</div>`:'')}</div>
+                    
+                    <div id="generation-output" class="mt-6 border-t pt-6 text-slate-700 prose max-w-none">
+                        ${this._isLoading?html`<div class="p-8 text-center pulse-loader text-slate-500">🤖 AI přemýšlí...</div>`:''}
+                        
+                        ${this._generationOutput ? 
+                            (isText ? 
+                                // Ak je typ 'text', okamžite renderuj editovateľnú textarea
+                                this._renderEditableContent(this.contentType, this._generationOutput) :
+                                // Pre všetky ostatné typy (quiz, atď.) renderuj statický náhľad
+                                this._renderStaticContent(this.contentType, this._generationOutput)
+                            )
+                            : (!this._isLoading ? html`<div class="text-center p-8 text-slate-400">Obsah se vygeneruje zde...</div>`:'')
+                        }
+                    </div>
                     ${(this._generationOutput&&!this._generationOutput.error)?html`<div class="text-right mt-4"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?'Ukládám...':'Uložit do lekce'}</button></div>`:nothing}
                 `}
             </div>`;
