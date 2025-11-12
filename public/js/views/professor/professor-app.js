@@ -103,7 +103,7 @@ export class ProfessorApp extends LitElement {
                     ${this._renderSidebar()}
                 </aside>
 
-                <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-full overflow-hidden">
+                <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-full overflow-y-auto">
                     ${this._renderMainContent()}
                 </main>
             </div>
