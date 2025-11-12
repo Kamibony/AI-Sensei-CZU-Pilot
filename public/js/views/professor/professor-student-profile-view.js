@@ -253,7 +253,7 @@ export class ProfessorStudentProfileView extends LitElement {
         });
 
         return html`
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto max-h-[60vh] overflow-y-auto">
                 <table class="min-w-full text-left text-sm">
                     <thead class="bg-gray-50">
                         <tr>
