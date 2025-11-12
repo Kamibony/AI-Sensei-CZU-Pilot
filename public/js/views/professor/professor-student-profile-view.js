@@ -61,7 +61,7 @@ export class ProfessorStudentProfileView extends LitElement {
 
         try {
             const studentDocRef = doc(firebaseInit.db, 'students', this.studentId);
-            const studentDoc = await getDoc(studentDocRef);
+            const studentDoc = await getDoc(studentDoc);
 
             if (!studentDoc.exists()) {
                 showToast(`Student s ID ${this.studentId} nebyl nalezen.`, true);
@@ -272,10 +272,13 @@ export class ProfessorStudentProfileView extends LitElement {
     }
 
     renderResultsContent() {
+        // TOTO JE UPRAVENÁ ČASŤ:
         return html`
-            <div class="bg-white p-6 rounded-lg shadow max-h-[70vh] overflow-y-auto">
-                <h2 class="text-xl font-semibold mb-4">Historie výsledků</h2>
-                ${this.renderSubmissionsTable()}
+            <div class="rounded-lg shadow max-h-[70vh] overflow-y-auto">
+                <div class="bg-white p-6">
+                    <h2 class="text-xl font-semibold mb-4">Historie výsledků</h2>
+                    ${this.renderSubmissionsTable()}
+                </div>
             </div>
         `;
     }
@@ -305,7 +308,7 @@ export class ProfessorStudentProfileView extends LitElement {
         return html`
             <div class="p-6 md:p-8">
                 <button @click=${this._goBack} class="mb-6 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                     Zpět na seznam studentů
                 </button>
 
