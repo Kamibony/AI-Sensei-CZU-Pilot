@@ -58,10 +58,16 @@ export class ProfessorStudentProfileView extends LitElement {
         this._studentData = null;
         this._submissions = [];
         this._activeTab = 'overview'; // Vždy začneme prehľadom
+        
+        // --- OPRAVA CHYBY 'ReferenceError' ---
+        // Premenná 'studentDoc' je deklarovaná tu, mimo 'try' bloku
+        let studentDoc; 
+        // --- KONIEC OPRAVY ---
 
         try {
             const studentDocRef = doc(firebaseInit.db, 'students', this.studentId);
-            const studentDoc = await getDoc(studentDoc);
+            // Priradíme hodnotu, nedeclarujeme s 'const'
+            studentDoc = await getDoc(studentDocRef); 
 
             if (!studentDoc.exists()) {
                 showToast(`Student s ID ${this.studentId} nebyl nalezen.`, true);
@@ -272,7 +278,7 @@ export class ProfessorStudentProfileView extends LitElement {
     }
 
     renderResultsContent() {
-        // TOTO JE UPRAVENÁ ČASŤ:
+        // Toto je finálna oprava skrolovania (vnorené divy)
         return html`
             <div class="rounded-lg shadow max-h-[70vh] overflow-y-auto">
                 <div class="bg-white p-6">
@@ -308,7 +314,7 @@ export class ProfessorStudentProfileView extends LitElement {
         return html`
             <div class="p-6 md:p-8">
                 <button @click=${this._goBack} class="mb-6 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                     Zpět na seznam studentů
                 </button>
 
