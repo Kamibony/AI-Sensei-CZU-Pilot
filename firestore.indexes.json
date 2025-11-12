@@ -1,15 +1,29 @@
 {
   "indexes": [
     {
-      "collectionGroup": "lessons",
+      "collectionGroup": "quiz_submissions",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "isScheduled",
+          "fieldPath": "studentId",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "createdAt",
+          "fieldPath": "submittedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "test_submissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "studentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "submittedAt",
           "order": "DESCENDING"
         }
       ]
