@@ -7,7 +7,7 @@ service firebase.storage {
 
         // Povolí čítanie, len ak sa UID prihláseného používateľa zhoduje s 'ownerId' v metadátach súboru
         // ALEBO ak ide o hlavného profesora, ktorý vidí všetko.
-        allow read: if request.auth.uid == resource.metadata.ownerId || get(/databases/(default)/documents/users/$(request.auth.uid)).data.email == 'profesor@profesor.cz';
+        allow read: if request.auth.uid == resource.metadata.ownerId || request.auth.token.email == 'profesor@profesor.cz';
     }
   }
 }
