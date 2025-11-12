@@ -19,7 +19,7 @@ service cloud.firestore {
 
     // Kolekcia pre študentov (zjednotená)
     match /students/{studentId} {
-      allow read: if isOwner(studentId) || isProfessor() || isProfessorRole();
+       allow read: if isOwner(studentId) || isProfessor();
       allow create, update: if isOwner(studentId);
       allow delete: if false;
     }
@@ -31,7 +31,7 @@ service cloud.firestore {
 
     // Lekcie
     match /lessons/{lessonId} {
-      allow read: if isSignedIn();
+      allow read: if (resource.data.ownerId == request.auth.uid) || isProfessor();
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if (resource.data.ownerId == request.auth.uid) || isProfessor();
     }
