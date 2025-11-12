@@ -1,7 +1,7 @@
 {
   "indexes": [
     {
-      "collectionGroup": "quiz_submissions",
+      "collectionId": "quiz_submissions",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -15,7 +15,7 @@
       ]
     },
     {
-      "collectionGroup": "test_submissions",
+      "collectionId": "test_submissions",
       "queryScope": "COLLECTION",
       "fields": [
         {
