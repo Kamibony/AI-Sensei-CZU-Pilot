@@ -253,7 +253,7 @@ export class ProfessorStudentProfileView extends LitElement {
         });
 
         return html`
-            <div class="overflow-x-auto max-h-[60vh] overflow-y-auto">
+            <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm">
                     <thead class="bg-gray-50">
                         <tr>
@@ -273,7 +273,7 @@ export class ProfessorStudentProfileView extends LitElement {
 
     renderResultsContent() {
         return html`
-            <div class="bg-white p-6 rounded-lg shadow">
+            <div class="bg-white p-6 rounded-lg shadow max-h-[70vh] overflow-y-auto">
                 <h2 class="text-xl font-semibold mb-4">Historie výsledků</h2>
                 ${this.renderSubmissionsTable()}
             </div>
