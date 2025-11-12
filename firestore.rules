@@ -19,7 +19,13 @@ service cloud.firestore {
 
     // Kolekcia pre študentov (zjednotená)
     match /students/{studentId} {
-       allow read: if isOwner(studentId) || isProfessor();
+       // UPOZORNENIE: Toto pravidlo poskytuje "defense-in-depth", ale má obmedzenia.
+       // Kontroluje iba prvé ID skupiny v poli `memberOfGroups` študenta, pretože Firestore rules
+       // nepodporujú iteráciu alebo joiny na overenie všetkých skupín.
+       // Hlavná logika autorizácie je vynútená v client-side kóde, ktorý používa 'array-contains-any'.
+       allow read: if isOwner(studentId) || isProfessor() ||
+                    (isProfessorRole() && resource.data.memberOfGroups.size() > 0 &&
+                     get(/databases/$(database)/documents/groups/$(resource.data.memberOfGroups[0])).data.ownerId == request.auth.uid);
       allow create, update: if isOwner(studentId);
       allow delete: if false;
     }
@@ -31,7 +37,9 @@ service cloud.firestore {
 
     // Lekcie
     match /lessons/{lessonId} {
-      allow read: if (resource.data.ownerId == request.auth.uid) || isProfessor();
+      allow read: if (resource.data.ownerId == request.auth.uid) || isProfessor() || (
+        get(/databases/$(database)/documents/students/$(request.auth.uid)).data.memberOfGroups.hasAny(resource.data.assignedToGroups)
+      );
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if (resource.data.ownerId == request.auth.uid) || isProfessor();
     }
@@ -57,7 +65,9 @@ service cloud.firestore {
     // Kvízy a testy
     match /quiz_submissions/{submissionId} {
       allow create: if isOwner(request.resource.data.studentId);
-      allow read: if isProfessor() || isOwner(resource.data.studentId);
+      allow read: if (isOwner(resource.data.studentId)) ||
+                  (isProfessor() && get(/databases/$(database)/documents/lessons/$(resource.data.lessonId)).data.ownerId == request.auth.uid) ||
+                  (isProfessorRole() && get(/databases/$(database)/documents/lessons/$(resource.data.lessonId)).data.ownerId == request.auth.uid);
     }
     match /test_submissions/{submissionId} {
        allow create: if isOwner(request.resource.data.studentId);

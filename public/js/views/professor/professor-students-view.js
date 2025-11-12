@@ -1,6 +1,6 @@
 // public/js/views/professor/professor-students-view.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { collection, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, query, where, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
 
@@ -8,7 +8,7 @@ export class ProfessorStudentsView extends LitElement {
     static properties = {
         _students: { state: true, type: Array },
         _isLoading: { state: true, type: Boolean },
-        _searchTerm: { state: true, type: String }, // Pre vyhľadávanie
+        _searchTerm: { state: true, type: String },
     };
 
     constructor() {
@@ -19,11 +19,11 @@ export class ProfessorStudentsView extends LitElement {
         this._searchTerm = '';
     }
 
-    createRenderRoot() { return this; } // Light DOM
+    createRenderRoot() { return this; }
 
     connectedCallback() {
         super.connectedCallback();
-        this._listenForStudents();
+        this._fetchStudentsForProfessor();
     }
 
     disconnectedCallback() {
@@ -34,21 +34,51 @@ export class ProfessorStudentsView extends LitElement {
         }
     }
 
-    _listenForStudents() {
-        this._isLoading = true;
-        const q = query(collection(firebaseInit.db, 'students'), orderBy("createdAt", "desc"));
+    async _fetchProfessorGroups() {
+        const currentUser = firebaseInit.auth.currentUser;
+        if (!currentUser) return [];
 
+        const groupsQuery = query(
+            collection(firebaseInit.db, 'groups'),
+            where("ownerId", "==", currentUser.uid)
+        );
+        const querySnapshot = await getDocs(groupsQuery);
+        return querySnapshot.docs.map(doc => doc.id);
+    }
+
+    async _fetchStudentsForProfessor() {
+        this._isLoading = true;
         if (this.studentsUnsubscribe) this.studentsUnsubscribe();
 
-        this.studentsUnsubscribe = onSnapshot(q, (querySnapshot) => {
-            this._students = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        try {
+            const groupIds = await this._fetchProfessorGroups();
+
+            if (groupIds.length === 0) {
+                this._students = [];
+                this._isLoading = false;
+                return;
+            }
+
+            const studentsQuery = query(
+                collection(firebaseInit.db, 'students'),
+                where("memberOfGroups", "array-contains-any", groupIds)
+            );
+
+            this.studentsUnsubscribe = onSnapshot(studentsQuery, (querySnapshot) => {
+                this._students = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                this._isLoading = false;
+            }, (error) => {
+                console.error("Error fetching students:", error);
+                showToast("Nepodařilo se načíst studenty.", true);
+                this._isLoading = false;
+                this._students = [];
+            });
+
+        } catch (error) {
+            console.error("Error fetching professor's groups:", error);
+            showToast("Chyba při načítání skupin profesora.", true);
             this._isLoading = false;
-        }, (error) => {
-            console.error("Error fetching students:", error);
-            showToast("Nepodařilo se načíst studenty.", true);
-            this._isLoading = false;
-            this._students = [];
-        });
+        }
     }
 
     _navigateToProfile(studentId) {
@@ -59,12 +89,10 @@ export class ProfessorStudentsView extends LitElement {
         }));
     }
 
-    // Handler pre input vyhľadávania
     _handleSearchInput(e) {
         this._searchTerm = e.target.value.toLowerCase();
     }
 
-    // Filtrovaný zoznam študentov
     get _filteredStudents() {
         if (!this._searchTerm) {
             return this._students;
@@ -75,12 +103,9 @@ export class ProfessorStudentsView extends LitElement {
         );
     }
 
-
-    // === ZMENENÁ METÓDA - Renderovanie Karty ===
     renderStudentCard(student) {
-        // Jednoduchý avatar placeholder (iniciály)
         const initials = (student.name || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-        const avatarBgColor = this._getAvatarColor(student.id); // Funkcia pre konzistentnú farbu
+        const avatarBgColor = this._getAvatarColor(student.id);
 
         return html`
             <div class="student-card bg-white rounded-xl shadow-md overflow-hidden transition-shadow duration-200 hover:shadow-lg cursor-pointer border border-slate-200"
@@ -103,10 +128,8 @@ export class ProfessorStudentsView extends LitElement {
         `;
     }
 
-    // Pomocná funkcia na generovanie farby pozadia pre avatar
     _getAvatarColor(id) {
         const colors = ['bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-yellow-500', 'bg-lime-500', 'bg-green-500', 'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-sky-500', 'bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-purple-500', 'bg-fuchsia-500', 'bg-pink-500', 'bg-rose-500'];
-        // Jednoduchý hash pre konzistentnú farbu
         let hash = 0;
         for (let i = 0; i < id.length; i++) {
             hash = id.charCodeAt(i) + ((hash << 5) - hash);
@@ -114,8 +137,6 @@ export class ProfessorStudentsView extends LitElement {
         const index = Math.abs(hash % colors.length);
         return colors[index];
     }
-    // === KONIEC ZMENENEJ METÓDY ===
-
 
     render() {
         const filteredStudents = this._filteredStudents;
@@ -128,12 +149,10 @@ export class ProfessorStudentsView extends LitElement {
         } else if (filteredStudents.length === 0) {
              content = html`<p class="text-center p-8 text-slate-500">Nebyly nalezeny žádné odpovídající studenti.</p>`;
         } else {
-            // === ZMENA: Použijeme grid pre karty ===
             content = html`
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     ${filteredStudents.map(student => this.renderStudentCard(student))}
                 </div>`;
-            // ===================================
         }
 
         return html`
