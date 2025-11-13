@@ -1,4 +1,4 @@
-import { getAuth } from "firebase/auth";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 export function setupProfessorNav(showProfessorContent) {
     const nav = document.getElementById('main-nav');
