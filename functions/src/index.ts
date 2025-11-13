@@ -642,3 +642,35 @@ export const joinClass = onCall({ region: "europe-west1" }, async (request) => {
         throw new HttpsError("internal", "Došlo k chybě při připojování k třídě.");
     }
 });
+
+export const admin_setUserRole = onCall({ region: "europe-west1" }, async (request) => {
+    // 1. Verify caller is the admin
+    if (request.auth?.token.email !== 'profesor@profesor.cz') {
+        logger.warn(`Unauthorized role change attempt by ${request.auth?.token.email}`);
+        throw new HttpsError('unauthenticated', 'Tato akce vyžaduje oprávnění administrátora.');
+    }
+
+    const { userId, newRole } = request.data;
+
+    // 2. Validate arguments
+    if (!userId || !newRole) {
+        throw new HttpsError('invalid-argument', 'Chybí ID uživatele nebo nová role.');
+    }
+    if (newRole !== 'professor' && newRole !== 'student') {
+        throw new HttpsError('invalid-argument', 'Nová role může být pouze "professor" nebo "student".');
+    }
+
+    try {
+        // 3. Update user role in Firestore
+        const userRef = db.collection('users').doc(userId);
+        await userRef.update({ role: newRole });
+
+        logger.log(`Admin ${request.auth.token.email} successfully changed role of user ${userId} to ${newRole}`);
+
+        // 4. Return success
+        return { success: true, message: `Role uživatele byla úspěšně změněna.` };
+    } catch (error) {
+        logger.error(`Error setting user role for ${userId} by admin ${request.auth?.token.email}:`, error);
+        throw new HttpsError('internal', 'Nepodařilo se změnit roli uživatele v databázi.');
+    }
+});

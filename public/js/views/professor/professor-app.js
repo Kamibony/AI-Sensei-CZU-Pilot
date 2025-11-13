@@ -13,6 +13,7 @@ import './professor-student-profile-view.js';
 import './professor-interactions-view.js';
 import './professor-analytics-view.js';
 import './professor-classes-view.js';
+import './admin-user-management-view.js';
 
 import { setupProfessorNav } from './navigation.js';
 import { handleLogout } from '../../auth.js';
@@ -83,7 +84,7 @@ export class ProfessorApp extends LitElement {
     }
 
     _showProfessorContent(view, data = null) {
-        const fullWidthViews = ['students', 'student-profile', 'interactions', 'analytics', 'media', 'editor', 'classes'];
+        const fullWidthViews = ['students', 'student-profile', 'interactions', 'analytics', 'media', 'editor', 'classes', 'admin'];
         this._sidebarVisible = !fullWidthViews.includes(view);
         if (view === 'timeline') this._fetchLessons();
         this._currentView = view;
@@ -154,6 +155,7 @@ export class ProfessorApp extends LitElement {
             case 'interactions': return html`<professor-interactions-view class="flex flex-grow h-full"></professor-interactions-view>`;
             case 'analytics': return html`<professor-analytics-view class="h-full flex flex-col"></professor-analytics-view>`;
             case 'classes': return html`<professor-classes-view class="h-full flex flex-col"></professor-classes-view>`;
+            case 'admin': return html`<admin-user-management-view class="h-full flex flex-col"></admin-user-management-view>`;
             default: return html`<professor-timeline-view class="h-full flex flex-col" .lessonsData=${this._lessonsData}></professor-timeline-view>`;
         }
     }
