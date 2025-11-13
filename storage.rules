@@ -5,9 +5,14 @@ service firebase.storage {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor';
     }
 
-    // Allow professors to manage all course media
-    match /courses/{courseId}/media/{allPaths=**} {
-      allow read, write, list: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
+    // Professors can list files in the media library
+    match /courses/{courseId}/media {
+      allow list: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
+    }
+
+    // Professors can read and write files in the media library
+    match /courses/{courseId}/media/{fileId} {
+      allow read, write: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
     }
 
     // Fallback for any other paths - only owner can read/write
