@@ -1,6 +1,6 @@
 // Súbor: public/js/student/student-lesson-list.js
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { collection, getDocs, query, where, orderBy, getDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../firebase-init.js';
 
 export class StudentLessonList extends LitElement {
@@ -37,40 +37,26 @@ export class StudentLessonList extends LitElement {
         }
 
         try {
-            // 1. Fetch the current student's document to get their group memberships
-            const studentRef = doc(firebaseInit.db, "students", currentUser.uid);
-            const studentSnap = await getDoc(studentRef);
+            const getStudentLessons = httpsCallable(firebaseInit.functions, 'getStudentLessons');
+            const result = await getStudentLessons();
 
-            if (!studentSnap.exists()) {
-                throw new Error("Profil studenta nebyl nalezen.");
+            // The cloud function now returns a `lessons` array directly.
+            // It also handles the case where a student is not in any group.
+            this.lessons = result.data.lessons;
+
+            // Determine if the user is not in a group based on the result.
+            // This is a proxy, a more explicit flag from the function would be better.
+            // For now, we assume if lessons are empty, we check their group status.
+            if (this.lessons.length === 0) {
+                 this.isNotInAnyGroup = true; // This might need refinement
+            } else {
+                 this.isNotInAnyGroup = false;
             }
 
-            const studentData = studentSnap.data();
-            const memberOfGroups = studentData.memberOfGroups || [];
-
-            // 2. If the student is not in any groups, show a message and stop.
-            if (memberOfGroups.length === 0) {
-                this.lessons = [];
-                this.isLoading = false;
-                // A specific property could be used to show a distinct message
-                this.isNotInAnyGroup = true;
-                return;
-            }
-             this.isNotInAnyGroup = false;
-
-            // 3. Query lessons where 'assignedToGroups' has any of the student's groups
-            const lessonsQuery = query(
-                collection(firebaseInit.db, "lessons"),
-                where("assignedToGroups", "array-contains-any", memberOfGroups),
-                orderBy("createdAt", "desc")
-            );
-
-            const querySnapshot = await getDocs(lessonsQuery);
-            this.lessons = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
         } catch (error) {
-            console.error("Error fetching lessons:", error);
-            this.error = "Nepodařilo se načíst lekce.";
+            console.error("Error fetching lessons via Cloud Function:", error);
+            this.error = error.message || "Nepodařilo se načíst lekce.";
         } finally {
             this.isLoading = false;
         }
@@ -133,7 +119,7 @@ export class StudentLessonList extends LitElement {
                             
                             <div class="flex items-center justify-between mt-6 pt-4 border-t border-slate-50">
                                 <span class="text-xs text-slate-400">
-                                    ${lesson.createdAt ? new Date(lesson.createdAt.seconds * 1000).toLocaleDateString('cs-CZ') : ''}
+                                    ${lesson.createdAt ? new Date(lesson.createdAt).toLocaleDateString('cs-CZ') : ''}
                                 </span>
                                 <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-green-50 text-green-700 group-hover:bg-green-600 group-hover:text-white transition-colors">
                                     Otevřít
