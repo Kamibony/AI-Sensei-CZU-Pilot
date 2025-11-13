@@ -37,7 +37,8 @@ service cloud.firestore {
 
     // Lekcie
     match /lessons/{lessonId} {
-      allow read: if isSignedIn();
+      allow read: if (resource.data.ownerId == request.auth.uid) || isProfessor() ||
+                  (get(/databases/$(database)/documents/students/$(request.auth.uid)).data.memberOfGroups.hasAny(resource.data.assignedToGroups));
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if (resource.data.ownerId == request.auth.uid) || isProfessor();
     }
