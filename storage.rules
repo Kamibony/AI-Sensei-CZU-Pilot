@@ -1,22 +1,36 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+
+    // Pomocná funkcia na overenie, či má používateľ rolu 'profesor'.
+    // Overuje existenciu dokumentu používateľa a hodnotu poľa 'role'.
     function isProfessor() {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor';
     }
 
-    // Security enhancement: Professors can only list files in their own media library. Admin has full access.
+    // --- PRAVIDLÁ PRE PROFESOROV A ADMINA ---
+    // Tieto pravidlá udeľujú prístup k súborom médií v rámci špecifických adresárov kurzu.
+    // Prístup je udelený, ak je používateľ overený profesor a zároveň vlastník obsahu kurzu,
+    // alebo ak je to starý admin účet ('profesor@profesor.cz').
+
+    // Toto pravidlo povoľuje vypísanie obsahu adresára médií.
+    // Je nevyhnutné pre funkcie ako knižnica médií.
     match /courses/{courseId}/media {
       allow list: if (request.auth.uid == courseId && isProfessor()) || request.auth.token.email == 'profesor@profesor.cz';
     }
 
-    // Security enhancement: Professors can only read/write their own files. Admin has full access.
+    // Toto pravidlo udeľuje oprávnenia na čítanie a zápis pre jednotlivé súbory.
+    // 'read' je na prezeranie/sťahovanie súborov.
+    // 'write' pokrýva vytváranie, aktualizáciu a mazanie súborov.
     match /courses/{courseId}/media/{fileId} {
       allow read, write: if (request.auth.uid == courseId && isProfessor()) || request.auth.token.email == 'profesor@profesor.cz';
     }
 
-    // Fallback for any other paths - only owner can read/write
+    // --- ZÁLOŽNÉ PRAVIDLO PRE OSTATNÉ CESTY ---
+    // Toto je bezpečnostné opatrenie. Pre akúkoľvek cestu, ktorá nie je explicitne definovaná vyššie,
+    // je prístup udelený iba v prípade, že UID žiadajúceho používateľa sa zhoduje s 'ownerId'
+    // uloženým v metadátach súboru. Tým sa zabezpečí, že používatelia majú prístup iba k vlastným súborom.
     match /{allPaths=**} {
         allow read, write: if request.auth.uid == resource.metadata.ownerId;
     }
