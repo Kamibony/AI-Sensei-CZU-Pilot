@@ -36,11 +36,16 @@ export class LessonLibrary extends LitElement {
                 return;
             }
             const lessonsCollection = collection(firebaseInit.db, 'lessons');
-            const q = query(
-                lessonsCollection,
-                where("ownerId", "==", currentUser.uid),
-                orderBy("createdAt")
-            );
+            let q;
+            if (currentUser.email === 'profesor@profesor.cz') {
+                q = query(lessonsCollection, orderBy("createdAt"));
+            } else {
+                q = query(
+                    lessonsCollection,
+                    where("ownerId", "==", currentUser.uid),
+                    orderBy("createdAt")
+                );
+            }
             const querySnapshot = await getDocs(q);
             this.lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (error) {
