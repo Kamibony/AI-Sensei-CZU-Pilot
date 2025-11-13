@@ -643,6 +643,59 @@ export const joinClass = onCall({ region: "europe-west1" }, async (request) => {
     }
 });
 
+export const getStudentLessons = onCall({ region: "europe-west1" }, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Pro zobrazení lekcí se musíte přihlásit.");
+    }
+    const studentId = request.auth.uid;
+
+    try {
+        // 1. Fetch the current student's document to get their group memberships
+        const studentRef = db.collection("students").doc(studentId);
+        const studentSnap = await studentRef.get();
+
+        if (!studentSnap.exists) {
+            logger.error(`Student document not found for UID: ${studentId}`);
+            throw new HttpsError("not-found", "Profil studenta nebyl nalezen.");
+        }
+
+        const studentData = studentSnap.data();
+        const memberOfGroups = studentData?.memberOfGroups || [];
+
+        // 2. If the student is not in any groups, return an empty array.
+        if (memberOfGroups.length === 0) {
+            return { lessons: [] };
+        }
+
+        // 3. Query lessons where 'assignedToGroups' has any of the student's groups
+        const lessonsQuery = db.collection("lessons")
+            .where("assignedToGroups", "array-contains-any", memberOfGroups)
+            .orderBy("createdAt", "desc");
+
+        const querySnapshot = await lessonsQuery.get();
+
+        const lessons = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            // Convert Firestore Timestamps to a serializable format (ISO string)
+            const serializedData = {
+                ...data,
+                // The client will need to be adapted to handle this ISO string
+                createdAt: data.createdAt?.toDate().toISOString(),
+            };
+            return { id: doc.id, ...serializedData };
+        });
+
+        return { lessons: lessons };
+
+    } catch (error) {
+        logger.error(`Error fetching lessons for student ${studentId}:`, error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError("internal", "Nepodařilo se načíst lekce.");
+    }
+});
+
 export const admin_setUserRole = onCall({ region: "europe-west1" }, async (request) => {
     // 1. Verify caller is the admin
     if (request.auth?.token.email !== 'profesor@profesor.cz') {
