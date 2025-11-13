@@ -31,11 +31,19 @@ export class ProfessorTimelineView extends LitElement {
                 this._renderDaysAndEvents();
                 return;
             }
-            const q = query(
-                collection(firebaseInit.db, 'timeline_events'),
-                where("ownerId", "==", currentUser.uid),
-                orderBy("orderIndex")
-            );
+
+            const timelineCollection = collection(firebaseInit.db, 'timeline_events');
+            let q;
+            if (currentUser.email === 'profesor@profesor.cz') {
+                q = query(timelineCollection, orderBy("orderIndex"));
+            } else {
+                q = query(
+                    timelineCollection,
+                    where("ownerId", "==", currentUser.uid),
+                    orderBy("orderIndex")
+                );
+            }
+
             const querySnapshot = await getDocs(q);
             this._timelineEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             this._renderDaysAndEvents();

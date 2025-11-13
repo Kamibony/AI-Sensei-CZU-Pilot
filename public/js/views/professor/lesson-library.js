@@ -1,6 +1,6 @@
 // public/js/views/professor/lesson-library.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { collection, getDocs, doc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, deleteDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
 
@@ -30,8 +30,23 @@ export class LessonLibrary extends LitElement {
 
     async fetchLessons() {
         try {
+            const currentUser = firebaseInit.auth.currentUser;
+            if (!currentUser) {
+                this.lessonsData = [];
+                return;
+            }
             const lessonsCollection = collection(firebaseInit.db, 'lessons');
-            const querySnapshot = await getDocs(query(lessonsCollection, orderBy("createdAt")));
+            let q;
+            if (currentUser.email === 'profesor@profesor.cz') {
+                q = query(lessonsCollection, orderBy("createdAt"));
+            } else {
+                q = query(
+                    lessonsCollection,
+                    where("ownerId", "==", currentUser.uid),
+                    orderBy("createdAt")
+                );
+            }
+            const querySnapshot = await getDocs(q);
             this.lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (error) {
             console.error("Error fetching lessons for library: ", error);
