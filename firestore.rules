@@ -15,13 +15,6 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-    function canStudentReadLesson(lesson) {
-      let studentDoc = get(/databases/$(database)/documents/students/$(request.auth.uid));
-      return studentDoc.exists &&
-             'memberOfGroups' in studentDoc.data &&
-             'assignedToGroups' in lesson.data &&
-             studentDoc.data.memberOfGroups.hasAny(lesson.data.assignedToGroups);
-    }
     // -----------------------
 
     // Kolekcia pre študentov (zjednotená)
@@ -40,7 +33,7 @@ service cloud.firestore {
 
     // Lekcie
     match /lessons/{lessonId} {
-      allow read: if (resource.data.ownerId == request.auth.uid) || isProfessor() || canStudentReadLesson(resource);
+      allow read: if (resource.data.ownerId == request.auth.uid) || isProfessor();
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if (resource.data.ownerId == request.auth.uid) || isProfessor();
     }
