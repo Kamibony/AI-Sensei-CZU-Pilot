@@ -23,9 +23,12 @@ service cloud.firestore {
       allow create, update: if isOwner(studentId);
     }
 
-    // FALLBACK pre starú kolekciu users (ak by bola ešte potrebná)
+    // Pravidlá pre správu používateľov
     match /users/{userId} {
-       allow read, write: if isOwner(userId) || isProfessor();
+      // Admin môže čítať zoznam všetkých používateľov pre admin panel
+      allow list: if isProfessor();
+      // Používateľ môže čítať/písať svoje dáta, admin môže tiež
+      allow get, write: if isOwner(userId) || isProfessor();
     }
 
     // Lekcie
