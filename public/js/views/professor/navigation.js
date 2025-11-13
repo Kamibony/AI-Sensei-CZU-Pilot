@@ -1,6 +1,11 @@
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
 export function setupProfessorNav(showProfessorContent) {
     const nav = document.getElementById('main-nav');
-    if (nav) {
+    const auth = getAuth();
+    const user = auth.currentUser;
+
+    if (nav && user) {
         // === ZAČIATOK ÚPRAVY HTML ===
         nav.innerHTML = `
             <div class="flex flex-col h-full">
@@ -58,6 +63,17 @@ export function setupProfessorNav(showProfessorContent) {
                 
                 <!-- === OPRAVA KOMENTÁRA === -->
                 <div class="mt-auto"> <!-- Posunie logout na spodok -->
+                     ${user.email === 'profesor@profesor.cz' ? `
+                    <li class="border-t border-green-700 my-4"></li>
+                    <li>
+                        <button data-view="admin" class="nav-item w-full p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-yellow-700 hover:text-white group" title="Admin">
+                            <div class="h-10 w-10 rounded-md flex items-center justify-center bg-green-900 group-hover:bg-yellow-600 transition-colors duration-200">
+                                <span class="text-2xl">⚙️</span>
+                            </div>
+                        </button>
+                    </li>
+                    ` : ''}
+
                     <li>
                         <button id="logout-btn-nav" class="nav-item w-full p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white group" title="Odhlásit se">
                             <div class="h-10 w-10 rounded-md flex items-center justify-center bg-green-900 group-hover:bg-red-600 transition-colors duration-200">
