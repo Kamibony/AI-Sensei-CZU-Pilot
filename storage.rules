@@ -5,18 +5,14 @@ service firebase.storage {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor';
     }
 
-    // Specific rule for listing media files for a course
-    match /courses/{courseId}/media {
-      allow list: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
+    // Allow professors to manage all course media
+    match /courses/{courseId}/media/{allPaths=**} {
+      allow read, write, list: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
     }
 
-    // General rule for all other paths and operations
+    // Fallback for any other paths - only owner can read/write
     match /{allPaths=**} {
-        // Allow any authenticated user to write (upload files)
-        allow write: if request.auth != null;
-
-        // Allow file owner or any professor to read
-        allow read: if request.auth.uid == resource.metadata.ownerId || isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
+        allow read, write: if request.auth.uid == resource.metadata.ownerId;
     }
   }
 }
