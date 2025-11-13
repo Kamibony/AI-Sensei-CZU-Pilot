@@ -19,15 +19,8 @@ service cloud.firestore {
 
     // Kolekcia pre študentov (zjednotená)
     match /students/{studentId} {
-       // UPOZORNENIE: Toto pravidlo poskytuje "defense-in-depth", ale má obmedzenia.
-       // Kontroluje iba prvé ID skupiny v poli `memberOfGroups` študenta, pretože Firestore rules
-       // nepodporujú iteráciu alebo joiny na overenie všetkých skupín.
-       // Hlavná logika autorizácie je vynútená v client-side kóde, ktorý používa 'array-contains-any'.
-       allow read: if isOwner(studentId) || isProfessor() ||
-                    (isProfessorRole() && resource.data.memberOfGroups.size() > 0 &&
-                     get(/databases/$(database)/documents/groups/$(resource.data.memberOfGroups[0])).data.ownerId == request.auth.uid);
+      allow read: if isProfessor() || isProfessorRole() || isOwner(studentId);
       allow create, update: if isOwner(studentId);
-      allow delete: if false;
     }
 
     // FALLBACK pre starú kolekciu users (ak by bola ešte potrebná)
@@ -51,12 +44,12 @@ service cloud.firestore {
 
     // Konverzácie
     match /conversations/{studentId}/{document=**} {
-      allow read, write: if isOwner(studentId) || isProfessor();
+      allow read, write: if isProfessor() || isProfessorRole() || isOwner(studentId);
     }
     
     // Timeline (každý profesor vlastní svoje eventy)
     match /timeline_events/{eventId} {
-      allow read: if isSignedIn();
+      allow read: if (resource.data.ownerId == request.auth.uid) || isProfessor();
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if (resource.data.ownerId == request.auth.uid) || isProfessor();
     }
