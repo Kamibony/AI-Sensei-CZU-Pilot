@@ -60,7 +60,12 @@ export async function initializeFirebase() {
         analytics = getAnalytics(app);
     }
 
-    // (Voliteľné) Emulátory - ak by ste ich niekedy lokálne potrebovali, 
-    // odkomentujte a upravte podmienku, aby sa nespúšťali na produkcii.
-    // if (window.location.hostname === 'localhost') { ... }
+    // Pripojenie k emulátorom, ak bežíme na localhoste
+    if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+        console.log("Connecting to Firebase emulators.");
+        connectAuthEmulator(auth, "http://127.0.0.1:9099");
+        connectFirestoreEmulator(db, "127.0.0.1", 8080);
+        connectStorageEmulator(storage, "127.0.0.1", 9199);
+        connectFunctionsEmulator(functions, "127.0.0.1", 5001);
+    }
 }
