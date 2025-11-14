@@ -41,8 +41,10 @@ service cloud.firestore {
       // Admin môže čítať zoznam všetkých používateľov pre admin panel
       allow list: if isProfessor();
       // Používateľ môže čítať/písať svoje dáta, admin môže tiež.
-      // OPRAVA: Používame priame porovnanie UID, aby sme zaistili, že `get()` zo storage.rules prebehne úspešne.
-      allow get, update: if isOwner(userId) || isProfessor();
+      // OPRAVA: Rozdelili sme pravidlá a používame priame porovnanie UID,
+      // aby sme zaistili, že `get()` zo storage.rules prebehne úspešne.
+      allow get: if request.auth.uid == userId || isProfessor();
+      allow update: if isOwner(userId) || isProfessor();
       allow create: if isOwner(userId);
     }
 
