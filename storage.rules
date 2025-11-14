@@ -9,22 +9,29 @@ service firebase.storage {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor';
     }
 
-    // --- PRAVIDLÁ PRE PROFESOROV A ADMINA ---
-    // Tieto pravidlá udeľujú prístup k súborom médií v rámci špecifických adresárov kurzu.
-    // Prístup je udelený, ak je používateľ overený profesor a zároveň vlastník obsahu kurzu,
-    // alebo ak je to starý admin účet ('profesor@profesor.cz').
-
-    // Toto pravidlo povoľuje vypísanie obsahu adresára médií.
-    // Je nevyhnutné pre funkcie ako knižnica médií.
-    match /courses/{courseId}/media {
-      allow list: if (request.auth.uid == courseId && isProfessor()) || request.auth.token.email == 'profesor@profesor.cz';
+    // --- VEREJNÉ ZDROJE ---
+    // Súbory v tomto adresári sú verejne čitateľné pre kohokoľvek.
+    match /public-assets/{allPaths=**} {
+      allow read;
     }
 
-    // Toto pravidlo udeľuje oprávnenia na čítanie a zápis pre jednotlivé súbory.
-    // 'read' je na prezeranie/sťahovanie súborov.
-    // 'write' pokrýva vytváranie, aktualizáciu a mazanie súborov.
+    // --- PRAVIDLÁ PRE PROFESOROV A ADMINA ---
+    // Tieto pravidlá udeľujú prístup k súborom médií v rámci špecifických adresárov kurzu.
+
+    // Umožňuje profesorom a adminovi vypísať zoznam súborov v knižnici médií.
+    match /courses/{courseId}/media {
+      allow list: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
+    }
+
+    // Pravidlá pre jednotlivé súbory v knižnici médií.
     match /courses/{courseId}/media/{fileId} {
-      allow read, write: if (request.auth.uid == courseId && isProfessor()) || request.auth.token.email == 'profesor@profesor.cz';
+      // Čítať a mazať môže vlastník súboru (profesor) alebo admin.
+      allow read, delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId) ||
+                             request.auth.token.email == 'profesor@profesor.cz';
+
+      // Vytvárať môže profesor, pričom musí nastaviť seba ako vlastníka, alebo admin.
+      allow create: if (isProfessor() && request.auth.uid == request.resource.metadata.customMetadata.ownerId) ||
+                       request.auth.token.email == 'profesor@profesor.cz';
     }
 
     // --- ZÁLOŽNÉ PRAVIDLO PRE OSTATNÉ CESTY ---
