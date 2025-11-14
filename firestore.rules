@@ -38,14 +38,27 @@ service cloud.firestore {
 
     // Pravidlá pre správu používateľov
     match /users/{userId} {
-      // Admin môže čítať zoznam všetkých používateľov pre admin panel
+      // Admin (profesor@profesor.cz) môže čítať zoznam všetkých používateľov
       allow list: if isProfessor();
-      // Používateľ môže čítať/písať svoje dáta, admin môže tiež.
-      // OPRAVA: Rozdelili sme pravidlá a používame priame porovnanie UID,
-      // aby sme zaistili, že `get()` zo storage.rules prebehne úspešne.
-      allow get: if request.auth.uid == userId || isProfessor();
-      allow update: if isOwner(userId) || isProfessor();
+
+      // --- ZAČIATOK OPRAVY PARADOXU ---
+
+      // 1. OPRAVA: Povoľ čítanie (get) VŠETKÝM PRIHLÁSENÝM.
+      // Toto je kľúčové, aby služba Storage mohla overiť rolu
+      // volaním get() na tento dokument.
+      allow get: if isSignedIn();
+
+      // 2. OPRAVA: Explicitne povoľ 'create' iba pre vlastníka.
+      // Toto rieši zlyhanie registrácie nového profesora.
       allow create: if isOwner(userId);
+
+      // 3. Ponechaj 'update' prísne (len vlastník alebo starý admin).
+      allow update: if isOwner(userId) || isProfessor();
+
+      // 4. Ponechaj 'delete' prísne (len starý admin).
+      allow delete: if isProfessor();
+
+      // --- KONIEC OPRAVY ---
     }
 
     // Lekcie
