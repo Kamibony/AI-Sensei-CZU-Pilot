@@ -2,8 +2,10 @@
 
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onRequest } from "firebase-functions/v2/https";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import * as GeminiAPI from "./gemini-api.js";
 import cors from "cors";
@@ -714,6 +716,9 @@ export const admin_setUserRole = onCall({ region: "europe-west1" }, async (reque
     }
 
     try {
+        // Set custom claims
+        await getAuth().setCustomUserClaims(userId, { role: newRole });
+
         // 3. Update user role in Firestore
         const userRef = db.collection('users').doc(userId);
         await userRef.update({ role: newRole });
@@ -725,5 +730,23 @@ export const admin_setUserRole = onCall({ region: "europe-west1" }, async (reque
     } catch (error) {
         logger.error(`Error setting user role for ${userId} by admin ${request.auth?.token.email}:`, error);
         throw new HttpsError('internal', 'Nepodařilo se změnit roli uživatele v databázi.');
+    }
+});
+
+export const onUserCreate = onDocumentCreated("users/{userId}", async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) {
+        logger.log("No data associated with the event");
+        return;
+    }
+    const data = snapshot.data();
+    const role = data.role || 'student'; // Default to 'student' if role is not set
+    const userId = event.params.userId;
+
+    try {
+        await getAuth().setCustomUserClaims(userId, { role: role });
+        logger.log(`Custom claim set for user ${userId}: role=${role}`);
+    } catch (error) {
+        logger.error(`Error setting custom claim for user ${userId}:`, error);
     }
 });

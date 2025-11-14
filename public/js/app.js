@@ -21,24 +21,19 @@ async function main() {
         if (user) {
             renderLoadingState();
 
-            let role = sessionStorage.getItem('userRole');
+            // Force refresh of the token to get the latest claims
+            const idTokenResult = await user.getIdTokenResult(true);
+            let role = idTokenResult.claims.role;
 
+            // Fallback for the original admin, then default to student
             if (!role) {
-                // If role is not in session, fetch from DB (for returning users)
-                const userDocRef = doc(db, 'users', user.uid);
-                const userDoc = await getDoc(userDocRef);
-                const userData = userDoc.data();
-
-                if (userDoc.exists && userData && userData.role) {
-                    role = userData.role;
-                } else if (user.email === 'profesor@profesor.cz') {
-                    // FALLBACK for original admin
+                if (user.email === 'profesor@profesor.cz') {
                     role = 'professor';
                 } else {
-                    role = 'student'; // Default for safety
+                    role = 'student';
                 }
-                sessionStorage.setItem('userRole', role);
             }
+            sessionStorage.setItem('userRole', role);
 
             if (role === 'professor') {
                 renderMainLayout();
