@@ -5,8 +5,7 @@ service firebase.storage {
     // Pomocná funkcia na overenie, či má používateľ rolu 'profesor'.
     // Overuje existenciu dokumentu používateľa a hodnotu poľa 'role'.
     function isProfessor() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor';
+      return request.auth != null && request.auth.token.role == 'professor';
     }
 
     // --- VEREJNÉ ZDROJE ---
