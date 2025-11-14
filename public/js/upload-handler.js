@@ -272,7 +272,20 @@ export function processAndStoreFile(file, courseId, userId, onProgress, onError,
      const storage = getStorage(firebaseInit.app);
      // Ukladáme do rovnakej zložky ako bežné médiá kurzu
      const storageRef = ref(storage, `courses/${courseId}/media/${file.name}`);
-     const uploadTask = uploadBytesResumable(storageRef, file);
+
+     // =========== ZAČIATOK OPRAVY ===========
+     // Táto funkcia nespĺňala bezpečnostné pravidlá v storage.rules.
+     // Musíme pridať rovnaké metadáta ako v 'handleFileUpload'.
+     const metadata = {
+        contentType: file.type, // Dobrá prax je pridať aj contentType
+        customMetadata: {
+            'ownerId': userId // Použijeme userId, ktoré prišlo ako argument funkcie
+        }
+     };
+
+     // Pridáme 'metadata' ako tretí argument
+     const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+     // =========== KONIEC OPRAVY ===========
 
      uploadTask.on('state_changed',
         (snapshot) => {
