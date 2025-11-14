@@ -10,6 +10,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email == 'profesor@profesor.cz';
     }
    function isProfessorRole() {
+      // Táto funkcia potrebuje povolenie na čítanie /users/{userId}
       return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor';
     }
     function isOwner(userId) {
@@ -39,8 +40,9 @@ service cloud.firestore {
     match /users/{userId} {
       // Admin môže čítať zoznam všetkých používateľov pre admin panel
       allow list: if isProfessor();
-      // Používateľ môže čítať/písať svoje dáta, admin môže tiež
-      allow get, write: if isOwner(userId) || isProfessor();
+      // Používateľ môže čítať/písať svoje dáta, admin môže tiež.
+      // OPRAVA: Používame priame porovnanie UID, aby sme zaistili, že `get()` zo storage.rules prebehne úspešne.
+      allow get, write: if (request.auth.uid == userId) || isProfessor();
     }
 
     // Lekcie
