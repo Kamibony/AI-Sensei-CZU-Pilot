@@ -1,5 +1,7 @@
 // public/js/views/professor/professor-media-view.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { auth } from '../../firebase-init.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 // Odstránime import renderMediaLibraryFiles, už sa nevolá odtiaľto
 import { initializeCourseMediaUpload } from '../../upload-handler.js';
 import * as firebaseInit from '../../firebase-init.js';
@@ -24,7 +26,27 @@ export class ProfessorMediaView extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
-        this._loadFiles();
+
+        // NESPÚŠŤAJ TOTO IHNEĎ:
+        // this._loadFiles();
+
+        // Namiesto toho počkaj na potvrdenie prihlásenia od Firebase:
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // Výborne, používateľ je prihlásený a token je pripravený.
+                // Až teraz môžeme bezpečne načítať súbory.
+                console.log('Auth state confirmed, loading media files...');
+                this._loadFiles();
+                unsubscribe(); // Dôležité: Odhlásime listener, aby sa nespustil viackrát
+            } else {
+                // Toto by sa nemalo stať, ak je používateľ na tejto stránke,
+                // ale pre istotu:
+                console.error('User is not authenticated. Cannot load media files.');
+                this.errorMessage = 'Chyba: Nejste přihlášen.';
+                this.loading = false;
+                unsubscribe();
+            }
+        });
     }
 
     firstUpdated() {
