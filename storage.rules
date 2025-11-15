@@ -1,31 +1,52 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+
     // Pomocná funkcia na overenie, či má používateľ rolu 'profesor'.
-    // Kontroluje "odznak" (Custom Claim) v tokene.
+    // (Nezmenené)
     function isProfessor() {
       return request.auth != null && request.auth.token.role == 'professor';
     }
 
     // --- VEREJNÉ ZDROJE ---
+    // (Nezmenené)
     match /public-assets/{allPaths=**} {
       allow read;
     }
 
     // --- PRAVIDLÁ PRE PROFESOROV A ADMINA ---
+
+    // Pravidlo 1: Prístup k *adresáru* médií (pre LIST)
+    // Toto povoľuje "listAll()" na ceste /courses/{courseId}/media/
+    // (Nezmenené, toto bolo v poriadku)
     match /courses/{courseId}/media {
       allow list: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
     }
 
+    // Pravidlo 2: Prístup k *jednotlivým súborom* v médiách
     match /courses/{courseId}/media/{fileId} {
-      // Čítať a mazať môže vlastník súboru (profesor) alebo admin.
-      allow read, delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId) || request.auth.token.email == 'profesor@profesor.cz';
+      
+      // OPRAVA 1: ČÍTANIE (Read)
+      // Profesor alebo admin teraz môže ČÍTAŤ *akýkoľvek* súbor v tomto adresári.
+      // Toto je nevyhnutné, aby "list" (z Pravidla 1) úspešne prebehol.
+      allow read: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
 
-      // Vytvárať môže profesor, pričom musí nastaviť seba ako vlastníka, alebo admin.
-      allow create: if (isProfessor() && request.auth.uid == request.resource.metadata.customMetadata.ownerId) || request.auth.token.email == 'profesor@profesor.cz';
+      // OPRAVA 2: VYTVÁRANIE (Create / Upload)
+      // Zmiernili sme pravidlo. Povoľujeme "create" (upload) akémukoľvek profesorovi
+      // alebo adminovi, bez kontroly metadát priamo pri nahrávaní.
+      // Toto priamo opraví chybu 403 pri nahrávaní súboru.
+      allow create: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
+      
+      // MAZANIE (Delete)
+      // Ponechávame pôvodné, reštriktívne pravidlo. Mazať môže iba
+      // profesor-vlastník alebo admin. Stále je dobrý nápad, aby váš
+      // upload-handler.js tie 'ownerId' metadata k súborom pridával.
+      allow delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId) 
+                      || request.auth.token.email == 'profesor@profesor.cz';
     }
 
     // --- ZÁLOŽNÉ PRAVIDLO PRE OSTATNÉ CESTY ---
+    // (Nezmenené)
     match /{allPaths=**} {
         allow read, write: if request.auth.uid == resource.metadata.ownerId;
     }
