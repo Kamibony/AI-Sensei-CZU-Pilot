@@ -1,9 +1,10 @@
 import { initializeFirebase, auth, db } from './firebase-init.js';
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initProfessorApp } from './professor.js';
 import { initStudentApp, cleanupStudentDashboard } from './student.js';
 import { initAuth } from './auth.js';
+import { showToast, showGlobalSpinner, hideGlobalSpinner } from './utils.js';
 
 async function main() {
     try {
@@ -19,36 +20,65 @@ async function main() {
 
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            renderLoadingState();
+            let tokenResult = await user.getIdTokenResult();
+            let userRole = tokenResult.claims.role;
 
-            // Force refresh of the token to get the latest claims
-            const idTokenResult = await user.getIdTokenResult(true);
-            let role = idTokenResult.claims.role;
+            // Ak rola chýba, predpokladáme, že je to nová registrácia
+            // a funkcia na serveri ešte len beží.
+            if (!userRole) {
+                console.warn("User role is missing, attempting to refresh token...");
 
-            // Fallback for the original admin, then default to student
-            if (!role) {
-                if (user.email === 'profesor@profesor.cz') {
-                    role = 'professor';
-                } else {
-                    role = 'student';
+                // Zobrazíme nejaký globálny spinner/loading
+                showGlobalSpinner("Nastavujem váš účet, prosím čakajte...");
+
+                // Začneme "poll" (dopytovať sa) na nový token
+                // Použijeme parameter 'true' na vynútenie obnovy
+
+                // Skúsime to 3-krát, s 3-sekundovým oneskorením
+                for (let i = 0; i < 3; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 3000)); // Počkáme 3 sekundy
+
+                    tokenResult = await user.getIdTokenResult(true); // Vynútime refresh
+                    userRole = tokenResult.claims.role;
+
+                    if (userRole) break; // Ak rolu máme, končíme
+
+                    console.log(`Token refresh attempt ${i + 1} failed to get role.`);
                 }
-            }
-            sessionStorage.setItem('userRole', role);
 
-            if (role === 'professor') {
+                // Skryjeme spinner
+                hideGlobalSpinner();
+            }
+
+            // Fallback for the original admin if role is still missing
+            if (!userRole && user.email === 'profesor@profesor.cz') {
+                userRole = 'professor';
+                 console.log("Applying legacy admin fallback role.");
+            }
+
+            // Teraz (po prípadnom čakaní) skontrolujeme rolu znova
+            if (userRole === 'professor') {
+                sessionStorage.setItem('userRole', userRole);
                 renderMainLayout();
                 await initProfessorApp(user);
-            } else {
+            } else if (userRole === 'student') {
+                sessionStorage.setItem('userRole', userRole);
                 if (typeof cleanupStudentDashboard === 'function') {
                     cleanupStudentDashboard();
                 }
                 initStudentApp();
+            } else {
+                // Ak rola stále chýba, odhlásime ho s chybou
+                console.error("Failed to get user role after multiple attempts. Logging out.");
+                showToast("Nepodarilo sa načítať rolu používateľa. Skúste sa prihlásiť znova.", true);
+                signOut(auth);
             }
+
         } else {
-            // User is signed out, clear session storage
+            // Používateľ nie je prihlásený
             sessionStorage.removeItem('userRole');
             if (typeof cleanupStudentDashboard === 'function') {
-                cleanupStudentDashboard();
+                 cleanupStudentDashboard();
             }
             renderLoginState();
         }
