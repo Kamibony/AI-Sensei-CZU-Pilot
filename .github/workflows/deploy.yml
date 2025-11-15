@@ -28,6 +28,7 @@ jobs:
 
       - name: Install and Build Functions
         run: |
+          set -e  # <-- PRIDAJ TENTO RIADOK
           cd functions
           npm install
           npm run build
