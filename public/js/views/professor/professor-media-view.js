@@ -6,7 +6,8 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/f
 import { initializeCourseMediaUpload } from '../../upload-handler.js';
 import * as firebaseInit from '../../firebase-init.js';
 import { storage } from '../../firebase-init.js';
-import { ref, listAll, getMetadata, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { ref, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { collection, query, where, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from '../../utils.js';
 
 export class ProfessorMediaView extends LitElement {
@@ -66,25 +67,26 @@ export class ProfessorMediaView extends LitElement {
                 this._isLoading = false;
                 return;
             }
-            const listRef = ref(storage, `courses/main-course/media`);
-            const res = await listAll(listRef);
-            const filePromises = res.items.map(async (itemRef) => {
-                const metadata = await getMetadata(itemRef);
-                const isLegacy = !metadata.customMetadata || !metadata.customMetadata.ownerId;
-                if (user.email === 'profesor@profesor.cz') {
-                     return { name: metadata.name, fullPath: metadata.fullPath, size: metadata.size, ownerId: metadata.customMetadata?.ownerId };
-                } else {
-                    if (isLegacy || metadata.customMetadata.ownerId === user.uid) {
-                         return { name: metadata.name, fullPath: metadata.fullPath, size: metadata.size, ownerId: metadata.customMetadata?.ownerId };
-                    }
-                }
-                return null;
-            });
 
-            const files = (await Promise.all(filePromises)).filter(Boolean);
+            // Nahradenie listAll() za Firestore query
+            let filesQuery;
+            if (user.email === 'profesor@profesor.cz') {
+                // Admin vidí všetky súbory v kurze
+                filesQuery = query(collection(firebaseInit.db, "fileMetadata"), where("courseId", "==", "main-course"));
+            } else {
+                // Bežný profesor vidí len svoje súbory
+                filesQuery = query(collection(firebaseInit.db, "fileMetadata"),
+                    where("courseId", "==", "main-course"),
+                    where("ownerId", "==", user.uid)
+                );
+            }
+
+            const querySnapshot = await getDocs(filesQuery);
+            const files = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, name: doc.data().fileName, fullPath: doc.data().storagePath }));
+
             this._files = files.sort((a, b) => a.name.localeCompare(b.name));
         } catch (error) {
-            console.error("Error loading media files:", error);
+            console.error("Error loading media files from Firestore:", error);
             showToast("Nepodařilo se načíst soubory z knihovny.", true);
             this._files = [];
         } finally {
@@ -98,14 +100,19 @@ export class ProfessorMediaView extends LitElement {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
-    async _deleteFile(filePath, fileName) {
-        if (!confirm(`Opravdu chcete trvale smazat soubor "${fileName}"?`)) return;
+    async _deleteFile(file) {
+        if (!confirm(`Opravdu chcete trvale smazat soubor "${file.name}"?`)) return;
         try {
-            const fileRef = ref(storage, filePath);
+            // 1. Zmazať súbor zo Storage
+            const fileRef = ref(storage, file.fullPath);
             await deleteObject(fileRef);
-            showToast(`Soubor "${fileName}" byl smazán.`);
+
+            // 2. Zmazať metadáta z Firestore
+            await deleteDoc(doc(firebaseInit.db, "fileMetadata", file.id));
+
+            showToast(`Soubor "${file.name}" byl smazán.`);
             // Odstránime súbor z lokálneho stavu a obnovíme zobrazenie
-            this._files = this._files.filter(file => file.fullPath !== filePath);
+            this._files = this._files.filter(f => f.id !== file.id);
         } catch (error) {
             console.error("Error deleting file:", error);
             showToast(`Chyba při mazání souboru: ${error.message}`, true);
@@ -128,7 +135,7 @@ export class ProfessorMediaView extends LitElement {
                                     <p class="text-xs text-slate-500">${this._formatFileSize(file.size)}</p>
                                 </div>
                             </div>
-                            <button @click=${() => this._deleteFile(file.fullPath, file.name)} title="Smazat soubor" class="ml-4 p-1.5 rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100">
+                            <button @click=${() => this._deleteFile(file)} title="Smazat soubor" class="ml-4 p-1.5 rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                             </button>
                         </li>

@@ -1,5 +1,6 @@
 // public/js/upload-handler.js
-import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject, listAll, getMetadata } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from './firebase-init.js';
 import { showToast } from "./utils.js";
 
@@ -77,6 +78,24 @@ async function handleFileUpload(files, courseId, progressContainer, mediaListCon
                 },
                 async () => {
                     console.log(`Upload ${file.name} complete.`);
+                    // Dvojitý zápis: Po úspešnom nahratí do Storage, vytvoríme záznam vo Firestore
+                    try {
+                        const uploadResult = uploadTask.snapshot;
+                        await addDoc(collection(firebaseInit.db, "fileMetadata"), {
+                            storagePath: uploadResult.ref.fullPath,
+                            fileName: uploadResult.metadata.name,
+                            ownerId: user.uid,
+                            courseId: courseId,
+                            createdAt: serverTimestamp(),
+                            size: uploadResult.metadata.size,
+                            contentType: uploadResult.metadata.contentType
+                        });
+                    } catch (firestoreError) {
+                        console.error("Error creating file metadata in Firestore:", firestoreError);
+                        // TODO: Zvážiť logiku pre rollback - zmazanie súboru zo Storage, ak zápis do DB zlyhá
+                        showToast(`Soubor ${file.name} byl nahrán, ale nepodařilo se vytvořit záznam v databázi.`, true);
+                    }
+
                     if (progressElement) {
                          progressBar.style.width = '100%';
                          progressElement.querySelector('.percentage').textContent = '100%';
@@ -157,20 +176,34 @@ export async function renderMediaLibraryFiles(courseId, listElementId) {
     listEl.innerHTML = '<p class="text-slate-500 text-sm">Načítám soubory...</p>';
 
     try {
-        const storage = getStorage(firebaseInit.app);
-        const listRef = ref(storage, `courses/${courseId}/media`);
-        const res = await listAll(listRef);
+        const user = firebaseInit.auth.currentUser;
+        if (!user) {
+            listEl.innerHTML = '<p class="text-red-500 text-sm">Nejste přihlášen.</p>';
+            return;
+        }
 
-        if (res.items.length === 0) {
+        // Nahradenie listAll() za Firestore query
+        let q;
+        if (user.email === 'profesor@profesor.cz') {
+            q = query(collection(firebaseInit.db, "fileMetadata"), where("courseId", "==", courseId));
+        } else {
+            q = query(collection(firebaseInit.db, "fileMetadata"),
+                where("courseId", "==", courseId),
+                where("ownerId", "==", user.uid)
+            );
+        }
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
             listEl.innerHTML = '<p class="text-slate-500 text-sm">V knihovně nejsou žádné soubory.</p>';
             return;
         }
 
-        const filePromises = res.items.map(async (itemRef) => {
-            const metadata = await getMetadata(itemRef);
-            return { name: metadata.name, fullPath: metadata.fullPath };
+        let allFiles = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return { name: data.fileName, fullPath: data.storagePath, id: doc.id };
         });
-        const allFiles = await Promise.all(filePromises);
+
         allFiles.sort((a,b) => a.name.localeCompare(b.name));
 
         listEl.innerHTML = '';
@@ -178,10 +211,10 @@ export async function renderMediaLibraryFiles(courseId, listElementId) {
             const isSelected = selectedFiles.some(sf => sf.fullPath === file.fullPath);
             const li = document.createElement('li');
             li.className = "flex items-center justify-between p-2 rounded hover:bg-slate-100 text-sm";
-            
+
             const label = document.createElement('label');
             label.className = "flex items-center cursor-pointer flex-grow mr-2 min-w-0";
-            
+
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.className = "mr-2 h-4 w-4 text-green-600 border-slate-300 rounded focus:ring-green-500";
@@ -202,7 +235,7 @@ export async function renderMediaLibraryFiles(courseId, listElementId) {
         });
 
     } catch (error) {
-        console.error("Error listing files for modal:", error);
+        console.error("Error listing files from Firestore:", error);
         listEl.innerHTML = '<p class="text-red-500 text-sm">Nepodařilo se načíst soubory.</p>';
     }
 }
@@ -273,19 +306,14 @@ export function processAndStoreFile(file, courseId, userId, onProgress, onError,
      // Ukladáme do rovnakej zložky ako bežné médiá kurzu
      const storageRef = ref(storage, `courses/${courseId}/media/${file.name}`);
 
-     // =========== ZAČIATOK OPRAVY ===========
-     // Táto funkcia nespĺňala bezpečnostné pravidlá v storage.rules.
-     // Musíme pridať rovnaké metadáta ako v 'handleFileUpload'.
      const metadata = {
-        contentType: file.type, // Dobrá prax je pridať aj contentType
+        contentType: file.type,
         customMetadata: {
-            'ownerId': userId // Použijeme userId, ktoré prišlo ako argument funkcie
+            'ownerId': userId
         }
      };
 
-     // Pridáme 'metadata' ako tretí argument
      const uploadTask = uploadBytesResumable(storageRef, file, metadata);
-     // =========== KONIEC OPRAVY ===========
 
      uploadTask.on('state_changed',
         (snapshot) => {
@@ -296,10 +324,22 @@ export function processAndStoreFile(file, courseId, userId, onProgress, onError,
             if (onError) onError(error);
         },
         async () => {
-            // Upload complete
+            // Upload complete, now write to Firestore
             try {
-                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                if (onSuccess) onSuccess(downloadURL, uploadTask.snapshot.ref.fullPath);
+                const uploadResult = uploadTask.snapshot;
+                const docRef = await addDoc(collection(firebaseInit.db, "fileMetadata"), {
+                    storagePath: uploadResult.ref.fullPath,
+                    fileName: uploadResult.metadata.name,
+                    ownerId: userId,
+                    courseId: courseId,
+                    createdAt: serverTimestamp(),
+                    size: uploadResult.metadata.size,
+                    contentType: uploadResult.metadata.contentType
+                });
+
+                const downloadURL = await getDownloadURL(uploadResult.ref);
+                if (onSuccess) onSuccess(downloadURL, uploadResult.ref.fullPath);
+
             } catch (e) {
                  if (onError) onError(e);
             }

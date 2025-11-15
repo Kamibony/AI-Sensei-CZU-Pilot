@@ -93,5 +93,17 @@ service cloud.firestore {
        allow create: if isOwner(request.resource.data.studentId);
        allow read: if isProfessor() || isOwner(resource.data.studentId);
     }
+
+    // Kolekcia pre metadáta súborov (index pre Storage)
+    match /fileMetadata/{fileId} {
+      // Vytvoriť záznam môže len prihlásený používateľ, a to iba ak je 'ownerId' v dokumente jeho vlastné UID.
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+
+      // Čítať a mazať záznam môže iba vlastník alebo hlavný admin.
+      allow read, delete: if (isSignedIn() && resource.data.ownerId == request.auth.uid) || request.auth.token.email == 'profesor@profesor.cz';
+
+      // Aktualizácia záznamov nie je povolená.
+      allow update: if false;
+    }
   }
 }

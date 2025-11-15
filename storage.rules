@@ -16,32 +16,24 @@ service firebase.storage {
 
     // --- PRAVIDLÁ PRE PROFESOROV A ADMINA ---
 
-    // Pravidlo 1: Prístup k *adresáru* médií (pre LIST)
-    // Toto povoľuje "listAll()" na ceste /courses/{courseId}/media/
-    // (Nezmenené, toto bolo v poriadku)
+    // ARCHITEKTÚRA: "Firestore ako index pre Storage"
+    // Pravidlo 1: Zakáž 'list' operáciu
+    // 'listAll()' je nebezpečné, nahrádzame ho dotazom do Firestore.
     match /courses/{courseId}/media {
-      allow list: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
+      allow list: if false; // Explicitne zakázané
     }
 
-    // Pravidlo 2: Prístup k *jednotlivým súborom* v médiách
+    // Pravidlo 2: Prístup k jednotlivým súborom len na základe vlastníctva
     match /courses/{courseId}/media/{fileId} {
-      
-      // OPRAVA 1: ČÍTANIE (Read)
-      // Profesor alebo admin teraz môže ČÍTAŤ *akýkoľvek* súbor v tomto adresári.
-      // Toto je nevyhnutné, aby "list" (z Pravidla 1) úspešne prebehol.
-      allow read: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
+      // Čítať súbor môže iba jeho vlastník (podľa metadát) alebo admin.
+      allow read: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
+                  || request.auth.token.email == 'profesor@profesor.cz';
 
-      // OPRAVA 2: VYTVÁRANIE (Create / Upload)
-      // Zmiernili sme pravidlo. Povoľujeme "create" (upload) akémukoľvek profesorovi
-      // alebo adminovi, bez kontroly metadát priamo pri nahrávaní.
-      // Toto priamo opraví chybu 403 pri nahrávaní súboru.
-      allow create: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
-      
-      // MAZANIE (Delete)
-      // Ponechávame pôvodné, reštriktívne pravidlo. Mazať môže iba
-      // profesor-vlastník alebo admin. Stále je dobrý nápad, aby váš
-      // upload-handler.js tie 'ownerId' metadata k súborom pridával.
-      allow delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId) 
+      // Vytvoriť súbor môže profesor, iba ak vkladá metadáta s vlastným UID.
+      allow create: if isProfessor() && request.auth.uid == request.resource.metadata.customMetadata.ownerId;
+
+      // Mazať súbor môže iba jeho vlastník alebo admin.
+      allow delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
                       || request.auth.token.email == 'profesor@profesor.cz';
     }
 
