@@ -5,7 +5,8 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/f
 // Odstránime import renderMediaLibraryFiles, už sa nevolá odtiaľto
 import { initializeCourseMediaUpload } from '../../upload-handler.js';
 import * as firebaseInit from '../../firebase-init.js';
-import { getStorage, ref, listAll, getMetadata, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { storage } from '../../firebase-init.js';
+import { ref, listAll, getMetadata, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { showToast } from '../../utils.js';
 
 export class ProfessorMediaView extends LitElement {
@@ -65,7 +66,6 @@ export class ProfessorMediaView extends LitElement {
                 this._isLoading = false;
                 return;
             }
-            const storage = getStorage(firebaseInit.app);
             const listRef = ref(storage, `courses/main-course/media`);
             const res = await listAll(listRef);
             const filePromises = res.items.map(async (itemRef) => {
@@ -101,7 +101,6 @@ export class ProfessorMediaView extends LitElement {
     async _deleteFile(filePath, fileName) {
         if (!confirm(`Opravdu chcete trvale smazat soubor "${fileName}"?`)) return;
         try {
-            const storage = getStorage(firebaseInit.app);
             const fileRef = ref(storage, filePath);
             await deleteObject(fileRef);
             showToast(`Soubor "${fileName}" byl smazán.`);
