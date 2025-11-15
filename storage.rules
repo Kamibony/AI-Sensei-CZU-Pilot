@@ -1,49 +1,49 @@
 rules_version = '2';
 service firebase.storage {
-  match /b/{bucket}/o {
+  match /b/{bucket}/o {
 
-    // --- DIAGNOSTICKÁ VERZIA ---
-    // Pomocná funkcia na overenie, či má používateľ rolu 'profesor'.
-    // Dočasne upravená tak, aby púšťala každého prihláseného používateľa
-    // bez ohľadu na jeho rolu (Custom Claim).
-    function isProfessor() {
-      // DOČASNÝ TEST: Povolíme prístup komukoľvek, kto je prihlásený.
-      return request.auth != null;
-    }
-    // --- KONIEC DIAGNOSTICKEJ VERZIE ---
+    // --- DIAGNOSTICKÁ VERZIA ---
+    // Pomocná funkcia na overenie, či má používateľ rolu 'profesor'.
+    // Dočasne upravená tak, aby púšťala každého prihláseného používateľa
+    // bez ohľadu na jeho rolu (Custom Claim).
+    function isProfessor() {
+      // DOČASNÝ TEST: Povolíme prístup komukoľvek, kto je prihlásený.
+      return request.auth != null;
+    }
+    // --- KONIEC DIAGNOSTICKEJ VERZIE ---
 
-    // --- VEREJNÉ ZDROJE ---
-    // Súbory v tomto adresári sú verejne čitateľné pre kohokoľvek.
-    match /public-assets/{allPaths=**} {
-      allow read;
-    }
+    // --- VEREJNÉ ZDROJE ---
+    // Súbory v tomto adresári sú verejne čitateľné pre kohokoľvek.
+    match /public-assets/{allPaths=**} {
+      allow read;
+    }
 
-    // --- PRAVIDLÁ PRE PROFESOROV A ADMINA ---
-    // Tieto pravidlá udeľujú prístup k súborom médií v rámci špecifických adresárov kurzu.
+    // --- PRAVIDLÁ PRE PROFESOROV A ADMINA ---
+    // Tieto pravidlá udeľujú prístup k súborom médií v rámci špecifických adresárov kurzu.
 
-    // Umožňuje profesorom a adminovi vypísať zoznam súborov v knižnici médií.
-    match /courses/{courseId}/media {
-      // Táto kontrola teraz vďaka testu prejde pre každého prihláseného
-      allow list: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
-    }
+    // Umožňuje profesorom a adminovi vypísať zoznam súborov v knižnici médií.
+    match /courses/{courseId}/media {
+      // Táto kontrola teraz vďaka testu prejde pre každého prihláseného
+      allow list: if isProfessor() || request.auth.token.email == 'profesor@profesor.cz';
+    }
 
-    // Pravidlá pre jednotlivé súbory v knižnici médií.
-    match /courses/{courseId}/media/{fileId} {
-      // Čítať a mazať môže vlastník súboru (profesor) alebo admin.
-      allow read, delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId) ||
-                             request.auth.token.email == 'profesor@profesor.cz';
+    // Pravidlá pre jednotlivé súbory v knižnici médií.
+    match /courses/{courseId}/media/{fileId} {
+      // Čítať a mazať môže vlastník súboru (profesor) alebo admin.
+      allow read, delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId) ||
+                             request.auth.token.email == 'profesor@profesor.cz';
 
-      // Vytvárať môže profesor, pričom musí nastaviť seba ako vlastníka, alebo admin.
-      allow create: if (isProfessor() && request.auth.uid == request.resource.metadata.customMetadata.ownerId) ||
-                       request.auth.token.email == 'profesor@profesor.cz';
-    }
+      // Vytvárať môže profesor, pričom musí nastaviť seba ako vlastníka, alebo admin.
+      allow create: if (isProfessor() && request.auth.uid == request.resource.metadata.customMetadata.ownerId) ||
+                       request.auth.token.email == 'profesor@profesor.cz';
+    }
 
-    // --- ZÁLOŽNÉ PRAVIDLO PRE OSTATNÉ CESTY ---
-    // Toto je bezpečnostné opatrenie. Pre akúkoľvek cestu, ktorá nie je explicitne definovaná vyššie,
-    // je prístup udelený iba v prípade, že UID žiadajúceho používateľa sa zhoduje s 'ownerId'
-    // uloženým v metadátach súboru. Tým sa zabezpečí, že používatelia majú prístup iba k vlastným súborom.
-    match /{allPaths=**} {
-        allow read, write: if request.auth.uid == resource.metadata.ownerId;
-    }
-  }
+    // --- ZÁLOŽNÉ PRAVIDLO PRE OSTATNÉ CESTY ---
+    // Toto je bezpečnostné opatrenie. Pre akúkoľvek cestu, ktorá nie je explicitne definovaná vyššie,
+    // je prístup udelený iba v prípade, že UID žiadajúceho používateľa sa zhoduje s 'ownerId'
+    // uloženým v metadátach súboru. Tým sa zabezpečí, že používatelia majú prístup iba k vlastným súborom.
+    match /{allPaths=**} {
+        allow read, write: if request.auth.uid == resource.metadata.ownerId;
+    }
+  }
 }
