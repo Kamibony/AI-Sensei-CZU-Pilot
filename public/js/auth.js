@@ -3,15 +3,16 @@ import {
     createUserWithEmailAndPassword, 
     signOut, 
     GoogleAuthProvider, 
-    signInWithPopup 
+    signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { 
-    doc, 
-    setDoc, 
-    getDoc, 
-    serverTimestamp 
+import {
+    doc,
+    setDoc,
+    getDoc,
+    serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { auth, db } from './firebase-init.js';
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { auth, db, functions } from './firebase-init.js';
 import { showToast } from './utils.js';
 
 // --- DOM Elements ---
@@ -110,7 +111,7 @@ async function handleLogin(event) {
 }
 
 async function handleRegister(event) {
-    // event.preventDefault() je zavoláno v event listeneru
+    // event.preventDefault() is called in the event listener
     const emailInput = document.getElementById('register-email');
     const passwordInput = document.getElementById('register-password');
     const professorCheckbox = document.getElementById('register-as-professor');
@@ -121,41 +122,29 @@ async function handleRegister(event) {
 
     const role = isProfessor ? 'professor' : 'student';
 
-    // Optimistically set the role in sessionStorage to prevent race conditions
-    sessionStorage.setItem('userRole', role);
+    // Do NOT optimistically set role anymore, as the token will have it.
 
     try {
         if (errorDiv) errorDiv.classList.add('hidden');
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
 
-        // Perform the database writes. onAuthStateChanged will handle the redirect.
-        // ALWAYS write to the new 'users' collection
-        await setDoc(doc(db, "users", user.uid), {
-            email: user.email,
-            role: role,
-            createdAt: serverTimestamp()
-        });
+        // 1. Call the new onCall Cloud Function
+        const registerUserWithRole = httpsCallable(functions, 'registerUserWithRole');
+        await registerUserWithRole({ email, password, role });
 
-        // CRITICAL PRESERVATION (Dual-Write): If the role is 'student', also write to the legacy 'students' collection.
-        if (role === 'student') {
-            await setDoc(doc(db, "students", user.uid), {
-                email: user.email,
-                role: 'student',
-                createdAt: serverTimestamp(),
-                name: '' // Pridané prázdne meno pre konzistenciu
-            });
-        }
+        // 2. If the function call is successful, sign the user in to get the fresh ID token
+        await signInWithEmailAndPassword(auth, email, password);
 
         showToast("Registrace úspěšná!", 'success');
-        // onAuthStateChanged se postará o přesměrování
+        // onAuthStateChanged in app.js will handle the redirect because a user is now signed in.
+
     } catch (error) {
-        // If registration fails, clear the optimistic role
-        sessionStorage.removeItem('userRole');
-        console.error("Error registering:", error);
+        // No need to clear optimistic role, it's not set.
+        console.error("Error during registration process:", error);
         if (errorDiv) {
             let message = "Nastala chyba při registraci.";
-            switch (error.code) {
+            // Handle specific errors returned from the Cloud Function
+            const errorCode = error.details?.errorCode;
+            switch (errorCode) {
                 case 'auth/email-already-in-use':
                     message = "Tento email je již používán.";
                     break;
@@ -163,8 +152,11 @@ async function handleRegister(event) {
                     message = "Heslo je příliš slabé (musí mít alespoň 6 znaků).";
                     break;
                 case 'auth/invalid-email':
-                     message = "Neplatný formát emailu.";
-                     break;
+                    message = "Neplatný formát emailu.";
+                    break;
+                default:
+                    // Use the message from the error object if available, otherwise use the generic one.
+                    message = error.message || message;
             }
             errorDiv.textContent = message;
             errorDiv.classList.remove('hidden');
