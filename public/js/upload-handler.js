@@ -1,126 +1,126 @@
-// Súbor: public/js/upload-handler.js (Nová verzia)
+// Súbor: public/js/upload-handler.js (Nová verzia s dynamickou inicializáciou)
 
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { collection, doc, setDoc, updateDoc, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStorage, ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from './firebase-init.js';
 import { showToast } from "./utils.js";
 
-// Inicializácia Cloud Functions
-const getSecureUploadUrl = httpsCallable(firebaseInit.functions, 'getSecureUploadUrl');
-const finalizeUpload = httpsCallable(firebaseInit.functions, 'finalizeUpload');
-
 // Hlavná funkcia na spracovanie nahrávania súborov (Bulk upload)
 export async function handleFileUpload(files, courseId, progressContainer, mediaListContainer, onCompleteCallback) {
-if (!files || files.length === 0) return;
+    if (!files || files.length === 0) return;
 
-progressContainer.classList.remove('hidden');
-progressContainer.innerHTML = ''; // Vyčistíme staré progressy
+    progressContainer.classList.remove('hidden');
+    progressContainer.innerHTML = ''; // Vyčistíme staré progressy
 
-const user = firebaseInit.auth.currentUser;
-if (!user) {
-showToast(`Nejste přihlášen. Nahrávání bylo zrušeno.`, true);
-return;
-}
+    const user = firebaseInit.auth.currentUser;
+    if (!user) {
+        showToast(`Nejste přihlášen. Nahrávání bylo zrušeno.`, true);
+        return;
+    }
 
-// Spracujeme každý súbor samostatne
-const uploadPromises = Array.from(files).map(file =>
-uploadSingleFile(file, courseId, user, progressContainer)
-);
+    // Spracujeme každý súbor samostatne
+    const uploadPromises = Array.from(files).map(file =>
+        uploadSingleFile(file, courseId, user, progressContainer)
+    );
 
-try {
-await Promise.all(uploadPromises);
-showToast("Všechny soubory byly úspěšně nahrány.");
-if (onCompleteCallback) onCompleteCallback(); // Zavoláme callback
-} catch (error) {
-console.error("Některé nahrávání selhala:", error);
-showToast("Některé soubory se nepodařilo nahrát.", true);
-if (onCompleteCallback) onCompleteCallback(); // Zavoláme callback aj pri chybe
-} finally {
-// Skryjeme progress bar po chvíli
-setTimeout(() => {
-if (progressContainer) progressContainer.classList.add('hidden');
-}, 3000);
-}
+    try {
+        await Promise.all(uploadPromises);
+        showToast("Všechny soubory byly úspěšně nahrány.");
+        if (onCompleteCallback) onCompleteCallback(); // Zavoláme callback
+    } catch (error) {
+        console.error("Některé nahrávání selhala:", error);
+        showToast("Některé soubory se nepodařilo nahrát.", true);
+        if (onCompleteCallback) onCompleteCallback(); // Zavoláme callback aj pri chybe
+    } finally {
+        // Skryjeme progress bar po chvíli
+        setTimeout(() => {
+            if (progressContainer) progressContainer.classList.add('hidden');
+        }, 3000);
+    }
 }
 
 // Pomocná funkcia na nahratie JEDNÉHO súboru
 async function uploadSingleFile(file, courseId, user, progressContainer) {
-// Vytvorenie UI pre progress bar
-const progressElement = document.createElement('div');
-progressElement.className = 'upload-progress-item p-2 bg-slate-100 rounded mb-2';
-progressElement.innerHTML = `
-<div class="flex justify-between items-center text-xs mb-1">
-    <span class="font-medium text-slate-700 truncate pr-2">${file.name}</span>
-    <span class="percentage text-slate-500">0%</span>
-</div>
-<div class="w-full bg-slate-200 rounded-full h-1.5">
-    <div class="progress-bar bg-blue-600 h-1.5 rounded-full" style="width: 0%"></div>
-</div>
-`;
-progressContainer.appendChild(progressElement);
-const progressBar = progressElement.querySelector('.progress-bar');
-const percentageText = progressElement.querySelector('.percentage');
+    // Vytvorenie UI pre progress bar
+    const progressElement = document.createElement('div');
+    progressElement.className = 'upload-progress-item p-2 bg-slate-100 rounded mb-2';
+    progressElement.innerHTML = `
+    <div class="flex justify-between items-center text-xs mb-1">
+        <span class="font-medium text-slate-700 truncate pr-2">${file.name}</span>
+        <span class="percentage text-slate-500">0%</span>
+    </div>
+    <div class="w-full bg-slate-200 rounded-full h-1.5">
+        <div class="progress-bar bg-blue-600 h-1.5 rounded-full" style="width: 0%"></div>
+    </div>
+    `;
+    progressContainer.appendChild(progressElement);
+    const progressBar = progressElement.querySelector('.progress-bar');
+    const percentageText = progressElement.querySelector('.percentage');
 
-try {
-// KROK 1: Vypýtame si Signed URL z našej Cloud Function
-percentageText.textContent = 'Příprava...';
-const result = await getSecureUploadUrl({
-fileName: file.name,
-contentType: file.type,
-courseId: courseId,
-size: file.size
-});
+    try {
+        // ===== KĽÚČOVÁ ZMENA: Dynamická inicializácia =====
+        // Funkcie inicializujeme až tesne pred ich použitím,
+        // čím zabezpečíme, že `firebaseInit.functions` už je definované.
+        const getSecureUploadUrl = httpsCallable(firebaseInit.functions, 'getSecureUploadUrl');
+        const finalizeUpload = httpsCallable(firebaseInit.functions, 'finalizeUpload');
+        // =================================================
 
-const { signedUrl, docId, filePath } = result.data;
+        // KROK 1: Vypýtame si Signed URL z našej Cloud Function
+        percentageText.textContent = 'Příprava...';
+        const result = await getSecureUploadUrl({
+            fileName: file.name,
+            contentType: file.type,
+            courseId: courseId,
+            size: file.size
+        });
 
-// KROK 2: Nahráme súbor pomocou Fetch (mimo Firebase SDK)
-// Pre progress s fetch by bol potrebný XMLHttpRequest, zatiaľ zjednodušené
-progressBar.style.width = '50%';
-percentageText.textContent = 'Nahrávám...';
+        const { signedUrl, docId, filePath } = result.data;
 
-const response = await fetch(signedUrl, {
-method: 'PUT',
-body: file,
-headers: {
-'Content-Type': file.type,
-}
-});
+        // KROK 2: Nahráme súbor pomocou Fetch (mimo Firebase SDK)
+        progressBar.style.width = '50%';
+        percentageText.textContent = 'Nahrávám...';
 
-if (!response.ok) {
-throw new Error(`Nahrávání selhalo se statusem: ${response.status}`);
-}
+        const response = await fetch(signedUrl, {
+            method: 'PUT',
+            body: file,
+            headers: {
+                'Content-Type': file.type,
+            }
+        });
 
-// KROK 3: Finalizujeme upload
-progressBar.style.width = '90%';
-progressBar.classList.remove('bg-blue-600');
-progressBar.classList.add('bg-yellow-500');
-percentageText.textContent = 'Finalizace...';
+        if (!response.ok) {
+            throw new Error(`Nahrávání selhalo se statusem: ${response.status}`);
+        }
 
-await finalizeUpload({ docId: docId, filePath: filePath });
+        // KROK 3: Finalizujeme upload
+        progressBar.style.width = '90%';
+        progressBar.classList.remove('bg-blue-600');
+        progressBar.classList.add('bg-yellow-500');
+        percentageText.textContent = 'Finalizace...';
 
-// KROK 4: Hotovo
-progressBar.style.width = '100%';
-progressBar.classList.remove('bg-yellow-500');
-progressBar.classList.add('bg-green-600');
-percentageText.textContent = 'Hotovo!';
+        await finalizeUpload({ docId: docId, filePath: filePath });
 
-} catch (error) {
-console.error(`Nahrávání souboru ${file.name} selhalo:`, error);
-progressBar.classList.remove('bg-blue-600');
-progressBar.classList.add('bg-red-600');
-percentageText.textContent = 'Chyba!';
-// Zobrazí chybu HttpsError pekne
-if (error.message) {
-showToast(`Chyba: ${error.message}`, true);
-}
-throw error; // Vrátime chybu, aby ju zachytil Promise.all
-}
+        // KROK 4: Hotovo
+        progressBar.style.width = '100%';
+        progressBar.classList.remove('bg-yellow-500');
+        progressBar.classList.add('bg-green-600');
+        percentageText.textContent = 'Hotovo!';
+
+    } catch (error) {
+        console.error(`Nahrávání souboru ${file.name} selhalo:`, error);
+        progressBar.classList.remove('bg-blue-600');
+        progressBar.classList.add('bg-red-600');
+        percentageText.textContent = 'Chyba!';
+        if (error.message) {
+            showToast(`Chyba: ${error.message}`, true);
+        }
+        throw error;
+    }
 }
 
 // --- OSTATNÉ FUNKCIE (napr. RAG, Media Library) ---
 // Tieto funkcie zostávajú, pretože sú potrebné pre iné časti aplikácie.
-// Uisti sa, že renderMediaLibraryFiles a ostatné sú tu zachované.
 
 let selectedFiles = [];
 export function clearSelectedFiles() { selectedFiles = []; }
@@ -178,7 +178,6 @@ export async function renderMediaLibraryFiles(courseId, listElementId) {
             return;
         }
 
-        // Nahradenie listAll() za Firestore query
         let q;
         if (user.email === 'profesor@profesor.cz') {
             q = query(collection(firebaseInit.db, "fileMetadata"), where("courseId", "==", courseId));
@@ -291,10 +290,13 @@ export function addSelectedFile(fileData) {
         selectedFiles.push(fileData);
     }
 }
+
 export async function processAndStoreFile(file, courseId, userId, onProgress, onError, onSuccess) {
     try {
-        // Step 1: Get Signed URL
-        if (onProgress) onProgress(10); // Preparation
+        const getSecureUploadUrl = httpsCallable(firebaseInit.functions, 'getSecureUploadUrl');
+        const finalizeUpload = httpsCallable(firebaseInit.functions, 'finalizeUpload');
+
+        if (onProgress) onProgress(10);
         const result = await getSecureUploadUrl({
             fileName: file.name,
             contentType: file.type,
@@ -303,8 +305,7 @@ export async function processAndStoreFile(file, courseId, userId, onProgress, on
         });
         const { signedUrl, docId, filePath } = result.data;
 
-        // Step 2: Upload using Fetch (cannot track progress easily)
-        if (onProgress) onProgress(50); // Uploading
+        if (onProgress) onProgress(50);
         const response = await fetch(signedUrl, {
             method: 'PUT',
             body: file,
@@ -315,11 +316,9 @@ export async function processAndStoreFile(file, courseId, userId, onProgress, on
             throw new Error(`Upload failed with status: ${response.status}`);
         }
 
-        // Step 3: Finalize upload
-        if (onProgress) onProgress(90); // Finalizing
+        if (onProgress) onProgress(90);
         await finalizeUpload({ docId, filePath });
 
-        // Step 4: Get Download URL for onSuccess callback
         const storage = getStorage(firebaseInit.app);
         const fileRef = ref(storage, filePath);
         const downloadURL = await getDownloadURL(fileRef);
