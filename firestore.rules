@@ -96,8 +96,8 @@ service cloud.firestore {
 
     // Kolekcia pre metadáta súborov (index pre Storage)
     match /fileMetadata/{fileId} {
-      // Vytvoriť záznam môže len prihlásený používateľ, a to iba ak je 'ownerId' v dokumente jeho vlastné UID.
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      // Vytvoriť záznam môže len používateľ s rolou 'profesor', a to iba ak je 'ownerId' v dokumente jeho vlastné UID.
+      allow create: if isProfessorRole() && request.resource.data.ownerId == request.auth.uid;
 
       // Čítať a mazať záznam môže iba vlastník alebo hlavný admin.
       allow read, delete: if (isSignedIn() && resource.data.ownerId == request.auth.uid) || request.auth.token.email == 'profesor@profesor.cz';
