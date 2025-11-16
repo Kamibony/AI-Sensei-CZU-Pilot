@@ -29,8 +29,11 @@ service firebase.storage {
       allow read: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
                   || request.auth.token.email == 'profesor@profesor.cz';
 
-      // Vytvoriť súbor môže profesor, iba ak vkladá metadáta s vlastným UID.
-      allow create: if isProfessor() && request.auth.uid == request.resource.metadata.customMetadata.ownerId;
+      // Vytvoriť súbor (upload) môže profesor, ak pre daný súbor existuje platný
+      // "placeholder" dokument vo Firestore, ktorý vlastní daný používateľ.
+      // Súbor v Storage musí mať ako názov ID tohto dokumentu.
+      allow create: if isProfessor() && exists(/databases/$(database)/documents/fileMetadata/$(fileId))
+                    && get(/databases/$(database)/documents/fileMetadata/$(fileId)).data.ownerId == request.auth.uid;
 
       // Mazať súbor môže iba jeho vlastník alebo admin.
       allow delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
