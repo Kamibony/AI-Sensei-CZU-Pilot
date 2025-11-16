@@ -66,6 +66,21 @@ async function handleFileUpload(files, courseId, progressContainer, mediaListCon
                     status: 'uploading' // Indikátor, že nahrávanie prebieha
                 });
 
+                // --- NOVÁ DIAGNOSTIKA ---
+                // Overíme, či bol dokument skutočne zapísaný a je čitateľný.
+                try {
+                    const docSnapshot = await getDoc(placeholderRef);
+                    if (docSnapshot.exists()) {
+                        console.log(`[DIAGNOSTIKA] ✅ Placeholder dokument ${docId} úspešne prečítaný z Firestore.`);
+                    } else {
+                        console.error(`[DIAGNOSTIKA] ❌ KRITICKÁ CHYBA: Placeholder dokument ${docId} NEBOL NÁJDENÝ po zápise!`);
+                    }
+                } catch (e) {
+                    console.error(`[DIAGNOSTIKA] ❌ KRITICKÁ CHYBA: Chyba pri pokuse o prečítanie placeholder dokumentu ${docId}:`, e);
+                }
+                // --- KONIEC DIAGNOSTIKY ---
+
+
                 // 3. Použijeme ID dokumentu ako názov súboru v Storage
                 console.log(`[DIAGNOSTIKA] Zápis do Firestore pre ${docId} by mal byť dokončený. Pripravujem nahratie na Storage.`);
                 const storagePath = `courses/${courseId}/media/${docId}`;
