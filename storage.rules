@@ -38,9 +38,14 @@ service firebase.storage {
     }
 
     // --- ZÁLOŽNÉ PRAVIDLO PRE OSTATNÉ CESTY ---
-    // (Nezmenené)
+    //
+    // === OPRAVA CHYBY ===
+    // Toto pravidlo zachytáva všetky požiadavky, ktoré "prepadnú"
+    // cez špecifické pravidlá vyššie. Musí byť tiež konzistentné
+    // a používať 'customMetadata' rovnako ako tvoj klientsky kód.
+    //
     match /{allPaths=**} {
-        allow read, write: if request.auth.uid == resource.metadata.ownerId;
+        allow read, write: if request.auth.uid == resource.metadata.customMetadata.ownerId;
     }
   }
 }
