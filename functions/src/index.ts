@@ -698,6 +698,62 @@ export const getStudentLessons = onCall({ region: "europe-west1" }, async (reque
     }
 });
 
+export const registerUserWithRole = onCall({ region: "europe-west1" }, async (request) => {
+    const { email, password, role } = request.data;
+
+    // Validate role
+    if (role !== 'professor' && role !== 'student') {
+        throw new HttpsError('invalid-argument', 'Role must be either "professor" or "student".');
+    }
+    // Validate email and password
+    if (!email || !password) {
+        throw new HttpsError('invalid-argument', 'Email and password are required.');
+    }
+
+    try {
+        // 1. Create user
+        const userRecord = await getAuth().createUser({
+            email: email,
+            password: password,
+        });
+        const userId = userRecord.uid;
+
+        // 2. Set custom claim immediately
+        await getAuth().setCustomUserClaims(userId, { role: role });
+
+        // 3. Create document in 'users' collection
+        const userDocRef = db.collection('users').doc(userId);
+        await userDocRef.set({
+            email: email,
+            role: role,
+            createdAt: FieldValue.serverTimestamp(),
+        });
+
+        // 4. PRESERVE DUAL-WRITE: If role is 'student', create doc in 'students' collection
+        if (role === 'student') {
+            const studentDocRef = db.collection('students').doc(userId);
+            await studentDocRef.set({
+                email: email,
+                role: 'student', // Redundant but kept for consistency
+                createdAt: FieldValue.serverTimestamp(),
+                name: '' // Empty name for consistency
+            });
+        }
+
+        logger.log(`Successfully registered user ${userId} with role ${role}.`);
+        return { success: true, userId: userId };
+
+    } catch (error: any) {
+        logger.error("Error in registerUserWithRole:", error);
+        // Forward known auth errors to the client
+        if (error.code && error.code.startsWith('auth/')) {
+            throw new HttpsError('invalid-argument', error.message, { errorCode: error.code });
+        }
+        // Generic error for other issues
+        throw new HttpsError('internal', 'An unexpected error occurred during registration.');
+    }
+});
+
 export const admin_setUserRole = onCall({ region: "europe-west1" }, async (request) => {
     // 1. Verify caller is the admin
     if (request.auth?.token.email !== 'profesor@profesor.cz') {
