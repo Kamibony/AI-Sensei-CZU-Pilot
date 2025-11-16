@@ -14,12 +14,14 @@ export class ProfessorMediaView extends LitElement {
     static properties = {
         _files: { state: true, type: Array },
         _isLoading: { state: true, type: Boolean },
+        _isAuthReady: { state: true, type: Boolean },
     };
 
     constructor() {
         super();
         this._files = [];
         this._isLoading = true;
+        this._isAuthReady = false;
     }
 
     createRenderRoot() {
@@ -38,6 +40,7 @@ export class ProfessorMediaView extends LitElement {
                 // Výborne, používateľ je prihlásený a token je pripravený.
                 // Až teraz môžeme bezpečne načítať súbory.
                 console.log('Auth state confirmed, loading media files...');
+                this._isAuthReady = true;
                 this._loadFiles();
                 unsubscribe(); // Dôležité: Odhlásime listener, aby sa nespustil viackrát
             } else {
@@ -45,6 +48,7 @@ export class ProfessorMediaView extends LitElement {
                 // ale pre istotu:
                 console.error('User is not authenticated. Cannot load media files.');
                 this.errorMessage = 'Chyba: Nejste přihlášen.';
+                this._isAuthReady = false;
                 this.loading = false;
                 unsubscribe();
             }
@@ -154,10 +158,15 @@ export class ProfessorMediaView extends LitElement {
                     <div class="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
                         <h2 class="text-xl font-semibold text-slate-800 mb-4">Nahrát nový soubor</h2>
                         <p class="text-slate-500 mb-5 text-sm">Přetáhněte PDF soubor do oblasti níže nebo klikněte pro výběr.</p>
-                        <div id="course-media-upload-area" class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center text-slate-500 cursor-pointer transition-all duration-200 hover:border-green-500 hover:bg-green-50 hover:shadow-inner group">
+                        <div id="course-media-upload-area"
+                             class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center text-slate-500 transition-all duration-200
+                                    ${this._isAuthReady
+                                        ? 'cursor-pointer hover:border-green-500 hover:bg-green-50 hover:shadow-inner group'
+                                        : 'cursor-not-allowed bg-slate-50 opacity-60'}"
+                             ?disabled=${!this._isAuthReady}>
                              <div class="flex flex-col items-center justify-center space-y-3 pointer-events-none">
-                                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400 group-hover:text-green-600 transition-colors duration-200"> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path> <polyline points="17 8 12 3 7 8"></polyline> <line x1="12" y1="3" x2="12" y2="15"></line> </svg>
-                                 <p class="font-semibold text-slate-600 group-hover:text-green-700">Přetáhněte soubor sem</p>
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400 ${this._isAuthReady ? 'group-hover:text-green-600' : ''} transition-colors duration-200"> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path> <polyline points="17 8 12 3 7 8"></polyline> <line x1="12" y1="3" x2="12" y2="15"></line> </svg>
+                                 <p class="font-semibold ${this._isAuthReady ? 'text-slate-600 group-hover:text-green-700' : 'text-slate-500'}">Přetáhněte soubor sem</p>
                                  <p class="text-xs">nebo</p>
                                  <span class="text-sm font-medium text-green-700">Klikněte pro výběr souboru</span>
                                  <p class="text-xs text-slate-400 mt-1">Podporovaný formát: PDF</p>
