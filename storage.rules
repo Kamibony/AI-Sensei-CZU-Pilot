@@ -29,9 +29,9 @@ service firebase.storage {
       allow read: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
                   || request.auth.token.email == 'profesor@profesor.cz';
 
-      // Vytvoriť súbor (upload) môže profesor, ak požiadavka obsahuje
-      // 'customMetadata' s 'ownerId' zhodujúcim sa s UID používateľa.
-      allow create: if isProfessor() && request.resource.metadata.customMetadata.ownerId == request.auth.uid;
+      // Vytvoriť súbor (upload) môže prihlásený používateľ, ak požiadavka obsahuje
+      // 'customMetadata' s 'ownerId' zhodujúcim sa s jeho UID.
+      allow create: if request.auth != null && request.resource.metadata.customMetadata.ownerId == request.auth.uid;
 
       // Mazať súbor môže iba jeho vlastník alebo admin.
       allow delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
