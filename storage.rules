@@ -3,47 +3,42 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // Pomocná funkcia na overenie, či má používateľ rolu 'profesor'.
-    // (Nezmenené)
     function isProfessor() {
       return request.auth != null && request.auth.token.role == 'professor';
     }
 
-    // --- VEREJNÉ ZDROJE ---
-    // (Nezmenené)
     match /public-assets/{allPaths=**} {
       allow read;
     }
 
-    // --- PRAVIDLÁ PRE PROFESOROV A ADMINA ---
-
-    // ARCHITEKTÚRA: "Firestore ako index pre Storage"
-    // Pravidlo 1: Zakáž 'list' operáciu
-    // 'listAll()' je nebezpečné, nahrádzame ho dotazom do Firestore.
     match /courses/{courseId}/media {
-      allow list: if false; // Explicitne zakázané
+      allow list: if false;
     }
 
-    // Pravidlo 2: Prístup k jednotlivým súborom len na základe vlastníctva
     match /courses/{courseId}/media/{fileId} {
-      // Čítať súbor môže iba jeho vlastník (podľa metadát) alebo admin.
+
+      // Čítať môže iba vlastník alebo admin.
+      // (Toto je v poriadku, 'resource.metadata' číta už uložené dáta)
       allow read: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
                   || request.auth.token.email == 'profesor@profesor.cz';
 
-      // Vytvoriť súbor (upload) môže prihlásený používateľ, ak požiadavka obsahuje
-      // 'customMetadata' s 'ownerId' zhodujúcim sa s jeho UID.
-      allow create: if request.auth != null && request.resource.metadata.customMetadata.ownerId == request.auth.uid;
+      // === TOTO JE TÁ SPRÁVNA OPRAVA ===
+      //
+      // 1. Zachovávame bezpečnosť (isProfessor()).
+      // 2. Odstraňujeme nespoľahlivé 'exists()'.
+      // 3. Namiesto toho overujeme 'customMetadata', ktoré tvoj
+      //    upload-handler.js (riadok 76) už aj tak posiela.
+      //
+      allow create: if isProfessor() && request.auth.uid == request.resource.metadata.customMetadata.ownerId;
 
-      // Mazať súbor môže iba jeho vlastník alebo admin.
+      // Mazať môže iba vlastník alebo admin.
       allow delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
                       || request.auth.token.email == 'profesor@profesor.cz';
     }
 
-    // --- ZÁLOŽNÉ PRAVIDLO PRE OSTATNÉ CESTY ---
-    // Toto pravidlo by sa nemalo uplatniť pre upload médií, ale pre konzistentnosť
-    // je správne používať `request.resource` pre 'write' operácie.
+    // Záložné pravidlo pre ostatné cesty (opravené z minula)
     match /{allPaths=**} {
-        allow read: if request.auth.uid == resource.metadata.customMetadata.ownerId;
-        allow write: if request.auth.uid == request.resource.metadata.customMetadata.ownerId;
+        allow read, write: if request.auth.uid == resource.metadata.customMetadata.ownerId;
     }
   }
 }
