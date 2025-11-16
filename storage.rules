@@ -29,11 +29,9 @@ service firebase.storage {
       allow read: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
                   || request.auth.token.email == 'profesor@profesor.cz';
 
-      // Vytvoriť súbor (upload) môže profesor, ak pre daný súbor existuje platný
-      // "placeholder" dokument vo Firestore, ktorý vlastní daný používateľ.
-      // Súbor v Storage musí mať ako názov ID tohto dokumentu.
-      allow create: if isProfessor() && exists(/databases/$(database)/documents/fileMetadata/$(fileId))
-                    && get(/databases/$(database)/documents/fileMetadata/$(fileId)).data.ownerId == request.auth.uid;
+      // Vytvoriť súbor (upload) môže profesor, ak požiadavka obsahuje
+      // 'customMetadata' s 'ownerId' zhodujúcim sa s UID používateľa.
+      allow create: if isProfessor() && request.resource.metadata.customMetadata.ownerId == request.auth.uid;
 
       // Mazať súbor môže iba jeho vlastník alebo admin.
       allow delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
@@ -41,14 +39,11 @@ service firebase.storage {
     }
 
     // --- ZÁLOŽNÉ PRAVIDLO PRE OSTATNÉ CESTY ---
-    //
-    // === OPRAVA CHYBY ===
-    // Toto pravidlo zachytáva všetky požiadavky, ktoré "prepadnú"
-    // cez špecifické pravidlá vyššie. Musí byť tiež konzistentné
-    // a používať 'customMetadata' rovnako ako tvoj klientsky kód.
-    //
+    // Toto pravidlo by sa nemalo uplatniť pre upload médií, ale pre konzistentnosť
+    // je správne používať `request.resource` pre 'write' operácie.
     match /{allPaths=**} {
-        allow read, write: if request.auth.uid == resource.metadata.customMetadata.ownerId;
+        allow read: if request.auth.uid == resource.metadata.customMetadata.ownerId;
+        allow write: if request.auth.uid == request.resource.metadata.customMetadata.ownerId;
     }
   }
 }
