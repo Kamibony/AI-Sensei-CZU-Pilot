@@ -102,8 +102,8 @@ service cloud.firestore {
       // Čítať a mazať záznam môže iba vlastník alebo hlavný admin.
       allow read, delete: if (isSignedIn() && resource.data.ownerId == request.auth.uid) || request.auth.token.email == 'profesor@profesor.cz';
 
-      // Aktualizácia záznamov nie je povolená.
-      allow update: if false;
+      // Aktualizovať záznam môže iba jeho vlastník (potrebné pre dokončenie uploadu).
+      allow update: if (isSignedIn() && resource.data.ownerId == request.auth.uid);
     }
   }
 }
