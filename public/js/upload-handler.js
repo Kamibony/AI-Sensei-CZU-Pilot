@@ -125,6 +125,7 @@ async function uploadSingleFile(file, courseId, user, progressContainer) {
 let selectedFiles = [];
 export function clearSelectedFiles() { selectedFiles = []; }
 export function getSelectedFiles() { return [...selectedFiles]; }
+// ... (všetky tvoje ostatné exportované funkcie) ...
 
 export function loadSelectedFiles(initialFiles = []) {
      clearSelectedFiles();
