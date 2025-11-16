@@ -1,6 +1,6 @@
 // public/js/upload-handler.js
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from './firebase-init.js';
 import { showToast } from "./utils.js";
 
@@ -17,26 +17,17 @@ async function handleFileUpload(files, courseId, progressContainer, mediaListCon
     const storage = getStorage(firebaseInit.app);
     const uploadPromises = [];
 
-    Array.from(files).forEach(file => {
+    for (const file of Array.from(files)) {
         if (file.type !== 'application/pdf') {
             showToast(`Soubor ${file.name} není PDF a bude přeskočen.`, true);
-            return;
+            continue;
         }
 
         const user = firebaseInit.auth.currentUser;
         if (!user) {
             showToast(`Nejste přihlášen. Nahrávání bylo zrušeno.`, true);
-            return;
+            break; // Ukončíme cyklus, ak nie je používateľ prihlásený
         }
-
-        const metadata = {
-            customMetadata: {
-                'ownerId': user.uid
-            }
-        };
-
-        const storageRef = ref(storage, `courses/${courseId}/media/${file.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
         let progressElement = null;
         let progressBar = null;
@@ -56,57 +47,84 @@ async function handleFileUpload(files, courseId, progressContainer, mediaListCon
              progressBar = progressElement.querySelector('.progress-bar');
         }
 
-        const promise = new Promise((resolve, reject) => {
-            uploadTask.on('state_changed',
-                (snapshot) => {
-                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    console.log(`Upload ${file.name} is ${progress}% done`);
-                    if (progressBar && progressElement) {
-                        progressBar.style.width = progress + '%';
-                        progressElement.querySelector('.percentage').textContent = Math.round(progress) + '%';
+        const promise = new Promise(async (resolve, reject) => {
+            let placeholderRef = null;
+            try {
+                // 1. Vytvoríme referenciu pre nový dokument vo Firestore, aby sme získali jeho ID
+                placeholderRef = doc(collection(firebaseInit.db, "fileMetadata"));
+                const docId = placeholderRef.id;
+
+                // 2. Uložíme "placeholder" dokument do Firestore
+                await setDoc(placeholderRef, {
+                    fileName: file.name,
+                    ownerId: user.uid,
+                    courseId: courseId,
+                    createdAt: serverTimestamp(),
+                    size: file.size,
+                    contentType: file.type,
+                    status: 'uploading' // Indikátor, že nahrávanie prebieha
+                });
+
+                // 3. Použijeme ID dokumentu ako názov súboru v Storage
+                const storagePath = `courses/${courseId}/media/${docId}`;
+                const storageRef = ref(storage, storagePath);
+
+                // Metadáta pre Storage sú teraz menej kritické pre pravidlá, ale stále užitočné
+                const metadata = {
+                    contentType: file.type,
+                    customMetadata: {
+                        'ownerId': user.uid,
+                        'firestoreId': docId // Prepojenie späť na Firestore
                     }
-                },
-                (error) => {
-                    console.error(`Upload ${file.name} failed:`, error);
-                    showToast(`Nahrávání souboru ${file.name} selhalo.`, true);
-                     if (progressElement) {
-                        progressElement.classList.add('bg-red-100');
-                        progressElement.querySelector('.percentage').textContent = 'Chyba!';
-                        setTimeout(() => progressElement?.remove(), 5000);
-                     }
-                    reject(error);
-                },
-                async () => {
-                    console.log(`Upload ${file.name} complete.`);
-                    // Dvojitý zápis: Po úspešnom nahratí do Storage, vytvoríme záznam vo Firestore
-                    try {
+                };
+
+                const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+
+                uploadTask.on('state_changed',
+                    (snapshot) => {
+                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                        if (progressBar) {
+                            progressBar.style.width = progress + '%';
+                            progressElement.querySelector('.percentage').textContent = Math.round(progress) + '%';
+                        }
+                    },
+                    async (error) => {
+                        console.error(`Upload ${file.name} failed:`, error);
+                        showToast(`Nahrávání souboru ${file.name} selhalo.`, true);
+                        if (placeholderRef) await deleteDoc(placeholderRef); // Zmažeme placeholder
+                        if (progressElement) {
+                           progressElement.classList.add('bg-red-100');
+                           progressElement.querySelector('.percentage').textContent = 'Chyba!';
+                           setTimeout(() => progressElement?.remove(), 5000);
+                        }
+                        reject(error);
+                    },
+                    async () => {
+                        // 4. Po úspešnom nahratí aktualizujeme Firestore dokument
                         const uploadResult = uploadTask.snapshot;
-                        await addDoc(collection(firebaseInit.db, "fileMetadata"), {
+                        await updateDoc(placeholderRef, {
                             storagePath: uploadResult.ref.fullPath,
-                            fileName: uploadResult.metadata.name,
-                            ownerId: user.uid,
-                            courseId: courseId,
-                            createdAt: serverTimestamp(),
+                            status: 'completed',
                             size: uploadResult.metadata.size,
                             contentType: uploadResult.metadata.contentType
                         });
-                    } catch (firestoreError) {
-                        console.error("Error creating file metadata in Firestore:", firestoreError);
-                        // TODO: Zvážiť logiku pre rollback - zmazanie súboru zo Storage, ak zápis do DB zlyhá
-                        showToast(`Soubor ${file.name} byl nahrán, ale nepodařilo se vytvořit záznam v databázi.`, true);
+                        if (progressElement) {
+                            progressBar.style.width = '100%';
+                            progressElement.querySelector('.percentage').textContent = '100%';
+                            setTimeout(() => progressElement?.remove(), 1500);
+                        }
+                        resolve();
                     }
-
-                    if (progressElement) {
-                         progressBar.style.width = '100%';
-                         progressElement.querySelector('.percentage').textContent = '100%';
-                         setTimeout(() => progressElement?.remove(), 1500);
-                    }
-                    resolve();
-                }
-            );
+                );
+            } catch (error) {
+                console.error("An error occurred during the upload process for:", file.name, error);
+                showToast(`Vyskytla se kritická chyba při přípravě nahrávání souboru ${file.name}.`, true);
+                if (placeholderRef) await deleteDoc(placeholderRef).catch(e => console.error("Failed to clean up placeholder doc:", e));
+                reject(error);
+            }
         });
         uploadPromises.push(promise);
-    });
+    }
 
     try {
         await Promise.all(uploadPromises);
@@ -301,48 +319,75 @@ export function addSelectedFile(fileData) {
 }
 
 // Spracuje inline upload jedného súboru (pre AI panel)
-export function processAndStoreFile(file, courseId, userId, onProgress, onError, onSuccess) {
-     const storage = getStorage(firebaseInit.app);
-     // Ukladáme do rovnakej zložky ako bežné médiá kurzu
-     const storageRef = ref(storage, `courses/${courseId}/media/${file.name}`);
+// === OPRAVA CHYBY (RACE CONDITION) ===
+// Pôvodná funkcia nahrávala najprv na Storage a až potom do Firestore,
+// čo je v rozpore s bezpečnostnými pravidlami.
+// Nová verzia funguje podľa vzoru `handleFileUpload`:
+// 1. Vytvorí placeholder vo Firestore.
+// 2. Použije jeho ID pre názov súboru v Storage.
+// 3. Nahrá súbor.
+// 4. Aktualizuje placeholder finálnymi dátami.
+export async function processAndStoreFile(file, courseId, userId, onProgress, onError, onSuccess) {
+    const storage = getStorage(firebaseInit.app);
+    let placeholderRef = null;
 
-     const metadata = {
-        contentType: file.type,
-        customMetadata: {
-            'ownerId': userId
-        }
-     };
+    try {
+        // 1. Vytvoríme placeholder dokument vo Firestore, aby sme získali unikátne ID
+        placeholderRef = doc(collection(firebaseInit.db, "fileMetadata"));
+        const docId = placeholderRef.id;
 
-     const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+        await setDoc(placeholderRef, {
+            fileName: file.name,
+            ownerId: userId,
+            courseId: courseId,
+            createdAt: serverTimestamp(),
+            size: file.size,
+            contentType: file.type,
+            status: 'uploading'
+        });
 
-     uploadTask.on('state_changed',
-        (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            if (onProgress) onProgress(progress);
-        },
-        (error) => {
-            if (onError) onError(error);
-        },
-        async () => {
-            // Upload complete, now write to Firestore
-            try {
+        // 2. Použijeme ID dokumentu ako názov súboru v Storage
+        const storagePath = `courses/${courseId}/media/${docId}`;
+        const storageRef = ref(storage, storagePath);
+        const metadata = {
+            contentType: file.type,
+            customMetadata: { 'ownerId': userId, 'firestoreId': docId }
+        };
+
+        // 3. Spustíme nahrávanie
+        const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+
+        uploadTask.on('state_changed',
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                if (onProgress) onProgress(progress);
+            },
+            async (error) => {
+                // V prípade chyby nahrávania zmažeme placeholder
+                console.error("Upload failed for inline file, cleaning up placeholder...", error);
+                if (placeholderRef) await deleteDoc(placeholderRef);
+                if (onError) onError(error);
+            },
+            async () => {
+                // 4. Po úspešnom nahratí aktualizujeme Firestore dokument
                 const uploadResult = uploadTask.snapshot;
-                const docRef = await addDoc(collection(firebaseInit.db, "fileMetadata"), {
+                await updateDoc(placeholderRef, {
                     storagePath: uploadResult.ref.fullPath,
-                    fileName: uploadResult.metadata.name,
-                    ownerId: userId,
-                    courseId: courseId,
-                    createdAt: serverTimestamp(),
+                    status: 'completed',
                     size: uploadResult.metadata.size,
                     contentType: uploadResult.metadata.contentType
                 });
 
                 const downloadURL = await getDownloadURL(uploadResult.ref);
                 if (onSuccess) onSuccess(downloadURL, uploadResult.ref.fullPath);
-
-            } catch (e) {
-                 if (onError) onError(e);
             }
+        );
+    } catch (error) {
+        console.error("Critical error during inline file upload preparation:", error);
+        // Ak zlyhá už príprava, zmažeme placeholder, ak bol vytvorený
+        if (placeholderRef) {
+            await deleteDoc(placeholderRef).catch(e => console.error("Failed to clean up placeholder doc after critical error:", e));
         }
-    );
+        if (onError) onError(error);
+    }
 }
