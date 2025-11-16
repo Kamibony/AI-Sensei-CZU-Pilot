@@ -3,6 +3,7 @@
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { getStorage } from "firebase-admin/storage";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onRequest } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
@@ -805,4 +806,106 @@ export const onUserCreate = onDocumentCreated("users/{userId}", async (event) =>
     } catch (error) {
         logger.error(`Error setting custom claim for user ${userId}:`, error);
     }
+});
+
+// 1. NOVÁ FUNKCIA: Pripraví nahrávanie a vráti Signed URL
+export const getSecureUploadUrl = onCall({ region: "europe-west1" }, async (request) => {
+// 1. AUTORIZÁCIA: Povolíme iba profesorom
+if (!request.auth || request.auth.token.role !== 'professor') {
+throw new HttpsError('unauthenticated', 'Na túto akciu musíte mať rolu profesora.');
+}
+
+const { fileName, contentType, courseId, size } = request.data;
+if (!fileName || !contentType || !courseId) {
+throw new HttpsError('invalid-argument', 'Chýbajú povinné údaje (fileName, contentType, courseId).');
+}
+
+const userId = request.auth.uid;
+// Použijeme ID z Firestore ako unikátny názov súboru
+const docId = db.collection("fileMetadata").doc().id;
+const filePath = `courses/${courseId}/media/${docId}`;
+
+// 2. Vytvoríme "placeholder" vo Firestore
+try {
+await db.collection("fileMetadata").doc(docId).set({
+ownerId: userId,
+courseId: courseId,
+fileName: fileName,
+contentType: contentType,
+size: size,
+storagePath: filePath, // Uložíme finálnu cestu
+status: 'pending_upload', // Zatiaľ čaká na nahratie
+createdAt: FieldValue.serverTimestamp()
+});
+} catch (error) {
+logger.error("Chyba pri vytváraní placeholderu vo Firestore:", error);
+throw new HttpsError("internal", "Nepodarilo sa pripraviť nahrávanie.");
+}
+
+// 3. Generovanie Signed URL
+const storage = getStorage();
+// POZNÁMKA: Názov bucketu musí byť správny!
+const bucket = storage.bucket('ai-sensei-czu-pilot.appspot.com');
+const file = bucket.file(filePath);
+
+const options = {
+version: 'v4' as const,
+action: 'write' as const,
+expires: Date.now() + 15 * 60 * 1000, // 15 minút platnosť
+contentType: contentType, // Vynútime presný typ obsahu
+};
+
+try {
+const [url] = await file.getSignedUrl(options);
+// Vrátime klientovi všetko, čo potrebuje
+return { signedUrl: url, docId: docId, filePath: filePath };
+} catch (error) {
+logger.error("Chyba pri generovaní Signed URL:", error);
+throw new HttpsError("internal", "Nepodarilo sa vygenerovať URL na nahrávanie.");
+}
+});
+
+// 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí
+export const finalizeUpload = onCall({ region: "europe-west1" }, async (request) => {
+if (!request.auth) {
+throw new HttpsError('unauthenticated', 'Musíte byť prihlásený.');
+}
+
+const { docId, filePath } = request.data;
+if (!docId || !filePath) {
+throw new HttpsError('invalid-argument', 'Chýba docId alebo filePath.');
+}
+
+const userId = request.auth.uid;
+const docRef = db.collection("fileMetadata").doc(docId);
+
+try {
+// 1. Overenie vlastníctva (dvojitá kontrola)
+const doc = await docRef.get();
+if (!doc.exists || doc.data()?.ownerId !== userId) {
+throw new HttpsError('permission-denied', 'Nemáte oprávnenie na finalizáciu tohto súboru.');
+}
+
+// 2. Nastavenie finálnych metadát na súbor v Storage
+// Toto je kľúčové pre tvoje 'storage.rules' pri ČÍTANÍ (read)
+const storage = getStorage();
+const bucket = storage.bucket('ai-sensei-czu-pilot.appspot.com');
+await bucket.file(filePath).setMetadata({
+customMetadata: {
+ownerId: userId,
+firestoreDocId: docId
+}
+});
+
+// 3. Aktualizácia stavu vo Firestore
+await docRef.update({
+status: 'completed',
+uploadedAt: FieldValue.serverTimestamp()
+});
+
+return { success: true, docId: docId };
+} catch (error) {
+logger.error("Chyba pri finalizácii uploadu:", error);
+throw new HttpsError("internal", "Nepodarilo sa dokončiť nahrávanie.");
+}
 });
