@@ -209,13 +209,6 @@ async function handleJoinClass() {
         if (result.data.success) {
             showToast(`Úspěšně jste se připojil(a) k třídě ${result.data.groupName}!`);
 
-            // --- FIX: Force the lesson list to refresh ---
-            const lessonListElement = document.querySelector('student-lesson-list');
-            if (lessonListElement && typeof lessonListElement._fetchLessons === 'function') {
-                lessonListElement._fetchLessons();
-            }
-            // ---------------------------------------------
-
         } else {
             // This case might not be reached if errors are thrown, but it's good practice
             showToast("Neznámá chyba při připojování.", true);
