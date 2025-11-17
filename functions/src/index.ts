@@ -853,6 +853,10 @@ version: 'v4' as const,
 action: 'write' as const,
 expires: Date.now() + 15 * 60 * 1000, // 15 minút platnosť
 contentType: contentType, // Vynútime presný typ obsahu
+metadata: {
+ownerId: userId,
+firestoreDocId: docId
+}
 };
 
 try {
@@ -898,23 +902,6 @@ export const finalizeUpload = onCall({ region: "europe-west1" }, async (request)
             throw new HttpsError('permission-denied', 'Nemáte oprávnenie na finalizáciu tohto súboru.');
         }
 
-        const storage = getStorage();
-        const bucket = storage.bucket();
-        const file = bucket.file(filePath);
-
-        try {
-            logger.log(`Attempting to set metadata on gs://${bucket.name}/${filePath}...`);
-            await file.setMetadata({
-                metadata: {
-                    ownerId: ownerIdFromFirestore,
-                    firestoreDocId: docId
-                }
-            });
-            logger.log(`SUCCESS: Metadata successfully set for ${filePath}. ownerId is now ${ownerIdFromFirestore}.`);
-        } catch (storageError) {
-            logger.error(`CRITICAL: Failed to set metadata for ${filePath}.`, storageError);
-            throw new HttpsError("internal", "Nepodarilo sa nastaviť metadáta súboru v Storage.");
-        }
 
         await docRef.update({
             status: 'completed',
