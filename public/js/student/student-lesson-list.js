@@ -1,6 +1,6 @@
 // Súbor: public/js/student/student-lesson-list.js
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { doc, onSnapshot, collection, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../firebase-init.js';
 
 export class StudentLessonList extends LitElement {
@@ -9,6 +9,7 @@ export class StudentLessonList extends LitElement {
         lessons: { type: Array, state: true },
         isLoading: { type: Boolean, state: true },
         error: { type: String, state: true },
+        isNotInAnyGroup: { type: Boolean, state: true },
     };
 
     constructor() {
@@ -16,16 +17,29 @@ export class StudentLessonList extends LitElement {
         this.lessons = [];
         this.isLoading = true;
         this.error = null;
+        this.isNotInAnyGroup = false;
+        this.studentUnsubscribe = null;
+        this.lessonsUnsubscribe = null;
     }
 
     createRenderRoot() { return this; }
 
     connectedCallback() {
         super.connectedCallback();
-        this._fetchLessons();
+        this._initReactiveLessons();
     }
 
-    async _fetchLessons() {
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        if (this.studentUnsubscribe) {
+            this.studentUnsubscribe();
+        }
+        if (this.lessonsUnsubscribe) {
+            this.lessonsUnsubscribe();
+        }
+    }
+
+    _initReactiveLessons() {
         this.isLoading = true;
         this.error = null;
         const currentUser = firebaseInit.auth.currentUser;
@@ -36,30 +50,50 @@ export class StudentLessonList extends LitElement {
             return;
         }
 
-        try {
-            const getStudentLessons = httpsCallable(firebaseInit.functions, 'getStudentLessons');
-            const result = await getStudentLessons();
+        const studentDocRef = doc(firebaseInit.db, "students", currentUser.uid);
 
-            // The cloud function now returns a `lessons` array directly.
-            // It also handles the case where a student is not in any group.
-            this.lessons = result.data.lessons;
-
-            // Determine if the user is not in a group based on the result.
-            // This is a proxy, a more explicit flag from the function would be better.
-            // For now, we assume if lessons are empty, we check their group status.
-            if (this.lessons.length === 0) {
-                 this.isNotInAnyGroup = true; // This might need refinement
-            } else {
-                 this.isNotInAnyGroup = false;
+        this.studentUnsubscribe = onSnapshot(studentDocRef, (studentSnap) => {
+            // Unsubscribe from previous lesson listener to prevent leaks
+            if (this.lessonsUnsubscribe) {
+                this.lessonsUnsubscribe();
             }
 
+            if (!studentSnap.exists() || !studentSnap.data().memberOfGroups || studentSnap.data().memberOfGroups.length === 0) {
+                this.isNotInAnyGroup = true;
+                this.lessons = [];
+                this.isLoading = false;
+                return;
+            }
 
-        } catch (error) {
-            console.error("Error fetching lessons via Cloud Function:", error);
-            this.error = error.message || "Nepodařilo se načíst lekce.";
-        } finally {
+            this.isNotInAnyGroup = false;
+            const myGroups = studentSnap.data().memberOfGroups;
+
+            const lessonsQuery = query(
+                collection(firebaseInit.db, "lessons"),
+                where("assignedToGroups", "array-contains-any", myGroups)
+            );
+
+            this.lessonsUnsubscribe = onSnapshot(lessonsQuery, (querySnapshot) => {
+                this.lessons = querySnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        ...data,
+                        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString()
+                    };
+                });
+                this.isLoading = false;
+            }, (error) => {
+                console.error("Error fetching lessons with onSnapshot:", error);
+                this.error = "Nepodařilo se reaktivně načíst lekce.";
+                this.isLoading = false;
+            });
+
+        }, (error) => {
+            console.error("Error fetching student profile:", error);
+            this.error = "Nepodařilo se načíst profil studenta.";
             this.isLoading = false;
-        }
+        });
     }
 
     _handleLessonClick(lessonId) {
