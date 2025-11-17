@@ -2,19 +2,22 @@
   {
     "origin": [
       "https://ai-sensei-czu-pilot.web.app",
-      "https://via-academy-prod.web.app" 
-      // Pridaj sem aj localhost, ak testuješ lokálne
-      // "http://127.0.0.1:5000",
-      // "http://localhost:5000"
+      "https://via-academy-prod.web.app",
+      "http://127.0.0.1:5000",
+      "http://localhost:5000"
     ],
     "method": [
       "GET",
       "PUT",
+      "POST",
+      "DELETE",
       "HEAD"
     ],
     "responseHeader": [
       "Content-Type",
-      "Access-Control-Allow-Origin"
+      "Access-Control-Allow-Origin",
+      "Authorization",
+      "x-goog-resumable"
     ],
     "maxAgeSeconds": 3600
   }
