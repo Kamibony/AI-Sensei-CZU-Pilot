@@ -1,44 +1,33 @@
 rules_version = '2';
 service firebase.storage {
-  match /b/{bucket}/o {
+match /b/{bucket}/o {
 
-    // Pomocná funkcia na overenie, či má používateľ rolu 'profesor'.
-    function isProfessor() {
-      return request.auth != null && request.auth.token.role == 'professor';
-    }
+function isProfessor() {
+return request.auth != null && request.auth.token.role == 'professor';
+}
 
-    match /public-assets/{allPaths=**} {
-      allow read;
-    }
+match /public-assets/{allPaths=**} {
+allow read;
+}
 
-    match /courses/{courseId}/media {
-      allow list: if false;
-    }
+match /courses/{courseId}/media/{fileId} {
 
-    match /courses/{courseId}/media/{fileId} {
+// ČÍTAŤ (read) môže vlastník (overujeme metadáta, ktoré nastavila funkcia 'finalizeUpload')
+allow read: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
+|| request.auth.token.email == 'profesor@profesor.cz';
 
-      // Čítať môže iba vlastník alebo admin.
-      // (Toto je v poriadku, 'resource.metadata' číta už uložené dáta)
-      allow read: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
-                  || request.auth.token.email == 'profesor@profesor.cz';
+// VYTVORIŤ (create) nemôže NIKTO priamo.
+// Nahrávanie prebieha výlučne cez časovo obmedzené Signed URLs.
+allow create: if false;
 
-      // === TOTO JE TÁ SPRÁVNA OPRAVA ===
-      //
-      // 1. Zachovávame bezpečnosť (isProfessor()).
-      // 2. Odstraňujeme nespoľahlivé 'exists()'.
-      // 3. Namiesto toho overujeme 'customMetadata', ktoré tvoj
-      //    upload-handler.js (riadok 76) už aj tak posiela.
-      //
-      allow create: if isProfessor() && request.auth.uid == request.resource.metadata.customMetadata.ownerId;
+// MAZAŤ (delete) môže vlastník
+allow delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
+|| request.auth.token.email == 'profesor@profesor.cz';
+}
 
-      // Mazať môže iba vlastník alebo admin.
-      allow delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
-                      || request.auth.token.email == 'profesor@profesor.cz';
-    }
-
-    // Záložné pravidlo pre ostatné cesty (opravené z minula)
-    match /{allPaths=**} {
-        allow read, write: if request.auth.uid == resource.metadata.customMetadata.ownerId;
-    }
-  }
+// Záložné pravidlo: Všetko ostatné je prísne zakázané.
+match /{allPaths=**} {
+allow read, write: if false;
+}
+}
 }
