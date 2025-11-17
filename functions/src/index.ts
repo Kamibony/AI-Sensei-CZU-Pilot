@@ -905,7 +905,7 @@ export const finalizeUpload = onCall({ region: "europe-west1" }, async (request)
         try {
             logger.log(`Attempting to set metadata on gs://${bucket.name}/${filePath}...`);
             await file.setMetadata({
-                customMetadata: {
+                metadata: {
                     ownerId: ownerIdFromFirestore,
                     firestoreDocId: docId
                 }
