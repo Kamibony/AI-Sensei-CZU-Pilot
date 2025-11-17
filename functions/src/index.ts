@@ -905,7 +905,7 @@ export const finalizeUpload = onCall({ region: "europe-west1" }, async (request)
         try {
             logger.log(`Attempting to set metadata on gs://${bucket.name}/${filePath}...`);
             await file.setMetadata({
-                customMetadata: {
+                metadata: {
                     ownerId: ownerIdFromFirestore,
                     firestoreDocId: docId
                 }
@@ -931,5 +931,76 @@ export const finalizeUpload = onCall({ region: "europe-west1" }, async (request)
             throw error;
         }
         throw new HttpsError("internal", "Nepodarilo sa dokončiť nahrávanie.");
+    }
+});
+
+// ==================================================================
+// =================== DATA MIGRATION FUNCTION ======================
+// ==================================================================
+export const admin_migrateFileMetadata = onCall({ region: "europe-west1" }, async (request) => {
+    // 1. Authorize: Only the admin can run this
+    if (request.auth?.token.email !== 'profesor@profesor.cz') {
+        throw new HttpsError('unauthenticated', 'This action requires administrator privileges.');
+    }
+
+    logger.log("Starting metadata migration process...");
+    const fileMetadataCollection = db.collection("fileMetadata");
+    const storage = getStorage();
+    const bucket = storage.bucket();
+
+    let processedCount = 0;
+    let errorCount = 0;
+
+    try {
+        const snapshot = await fileMetadataCollection.get();
+        if (snapshot.empty) {
+            logger.log("No documents found in fileMetadata collection. Nothing to migrate.");
+            return { success: true, message: "No files to migrate." };
+        }
+
+        for (const doc of snapshot.docs) {
+            const data = doc.data();
+            const { storagePath, ownerId } = data;
+
+            if (!storagePath || !ownerId) {
+                logger.warn(`Skipping document ${doc.id} due to missing storagePath or ownerId.`);
+                errorCount++;
+                continue;
+            }
+
+            try {
+                const file = bucket.file(storagePath);
+                // Check if file exists before trying to update metadata
+                const [exists] = await file.exists();
+                if (!exists) {
+                    logger.warn(`File at path ${storagePath} (from doc ${doc.id}) does not exist in Storage. Skipping.`);
+                    errorCount++;
+                    continue;
+                }
+
+                await file.setMetadata({
+                    metadata: {
+                        ownerId: ownerId,
+                        firestoreDocId: doc.id
+                    }
+                });
+                logger.log(`Successfully set metadata for file: ${storagePath}`);
+                processedCount++;
+            } catch (error) {
+                logger.error(`Failed to set metadata for file ${storagePath} (doc ${doc.id}):`, error);
+                errorCount++;
+            }
+        }
+
+        const message = `Migration complete. Processed: ${processedCount}, Errors: ${errorCount}.`;
+        logger.log(message);
+        return { success: true, message: message };
+
+    } catch (error) {
+        logger.error("A critical error occurred during the migration process:", error);
+        if (error instanceof Error) {
+            throw new HttpsError("internal", `Migration failed: ${error.message}`);
+        }
+        throw new HttpsError("internal", "An unknown error occurred during migration.");
     }
 });

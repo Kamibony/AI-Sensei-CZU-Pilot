@@ -1,33 +1,39 @@
 rules_version = '2';
 service firebase.storage {
-match /b/{bucket}/o {
+  match /b/{bucket}/o {
 
-function isProfessor() {
-return request.auth != null && request.auth.token.role == 'professor';
-}
+    function isProfessor() {
+      return request.auth != null && request.auth.token.role == 'professor';
+    }
 
-match /public-assets/{allPaths=**} {
-allow read;
-}
+    // Helper function to safely check for ownership via file metadata
+    function isOwner(fileResource) {
+      return fileResource.metadata != null &&
+             'ownerId' in fileResource.metadata &&
+             fileResource.metadata.ownerId == request.auth.uid;
+    }
 
-match /courses/{courseId}/media/{fileId} {
+    match /public-assets/{allPaths=**} {
+      allow read;
+    }
 
-// ČÍTAŤ (read) môže vlastník (overujeme metadáta, ktoré nastavila funkcia 'finalizeUpload')
-allow read: if (isProfessor() && request.auth.uid == resource.metadata.ownerId)
-|| request.auth.token.email == 'profesor@profesor.cz';
+    match /courses/{courseId}/media/{fileId} {
 
-// VYTVORIŤ (create) nemôže NIKTO priamo.
-// Nahrávanie prebieha výlučne cez časovo obmedzené Signed URLs.
-allow create: if false;
+      // READ is allowed for the owner or the legacy admin
+      allow read: if (isProfessor() && isOwner(resource))
+                  || request.auth.token.email == 'profesor@profesor.cz';
 
-// MAZAŤ (delete) môže vlastník
-allow delete: if (isProfessor() && request.auth.uid == resource.metadata.ownerId)
-|| request.auth.token.email == 'profesor@profesor.cz';
-}
+      // CREATE is disallowed. Uploads must use signed URLs.
+      allow create: if false;
 
-// Záložné pravidlo: Všetko ostatné je prísne zakázané.
-match /{allPaths=**} {
-allow read, write: if false;
-}
-}
+      // DELETE is allowed for the owner or the legacy admin
+      allow delete: if (isProfessor() && isOwner(resource))
+                    || request.auth.token.email == 'profesor@profesor.cz';
+    }
+
+    // Default deny all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
 }
