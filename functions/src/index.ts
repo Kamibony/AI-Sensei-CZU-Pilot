@@ -865,7 +865,7 @@ throw new HttpsError("internal", "Nepodarilo sa vygenerovať URL na nahrávanie.
 }
 });
 
-// 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí (S OPRAVOU)
+// 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí (S DETAILNÝM LOGOVANÍM)
 export const finalizeUpload = onCall({ region: "europe-west1" }, async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'Musíte byť prihlásený.');
@@ -876,43 +876,57 @@ export const finalizeUpload = onCall({ region: "europe-west1" }, async (request)
         throw new HttpsError('invalid-argument', 'Chýba docId alebo filePath.');
     }
 
-    const currentUserId = request.auth.uid; // Toto UID použijeme na overenie oprávnenia
+    logger.log(`Starting finalizeUpload for docId: ${docId}, filePath: ${filePath}`);
+
+    const currentUserId = request.auth.uid;
     const docRef = db.collection("fileMetadata").doc(docId);
 
     try {
         const doc = await docRef.get();
         if (!doc.exists) {
+            logger.error(`Firestore document not found for docId: ${docId}`);
             throw new HttpsError('not-found', 'Metadata súboru neboli nájdené.');
         }
 
         const metadata = doc.data();
-        const ownerIdFromFirestore = metadata?.ownerId; // <-- Získame ownerId priamo z Firestore
+        const ownerIdFromFirestore = metadata?.ownerId;
 
-        // 1. Overenie vlastníctva: Porovnáme aktuálneho usera s ownerId z Firestore
+        logger.log(`OwnerId from Firestore is: ${ownerIdFromFirestore}. Current user is: ${currentUserId}.`);
+
         if (ownerIdFromFirestore !== currentUserId) {
+            logger.warn(`Permission denied. Firestore ownerId (${ownerIdFromFirestore}) does not match current user (${currentUserId}).`);
             throw new HttpsError('permission-denied', 'Nemáte oprávnenie na finalizáciu tohto súboru.');
         }
 
-        // 2. Nastavenie finálnych metadát na súbor v Storage
-        // POUŽIJEME ownerId z Firestore, aby sme mali istotu, že je správne.
         const storage = getStorage();
         const bucket = storage.bucket();
-        await bucket.file(filePath).setMetadata({
-            customMetadata: {
-                ownerId: ownerIdFromFirestore, // <-- Používame UID z Firestore
-                firestoreDocId: docId
-            }
-        });
+        const file = bucket.file(filePath);
 
-        // 3. Aktualizácia stavu vo Firestore
+        try {
+            logger.log(`Attempting to set metadata on gs://${bucket.name}/${filePath}...`);
+            await file.setMetadata({
+                customMetadata: {
+                    ownerId: ownerIdFromFirestore,
+                    firestoreDocId: docId
+                }
+            });
+            logger.log(`SUCCESS: Metadata successfully set for ${filePath}. ownerId is now ${ownerIdFromFirestore}.`);
+        } catch (storageError) {
+            logger.error(`CRITICAL: Failed to set metadata for ${filePath}.`, storageError);
+            throw new HttpsError("internal", "Nepodarilo sa nastaviť metadáta súboru v Storage.");
+        }
+
         await docRef.update({
             status: 'completed',
             uploadedAt: FieldValue.serverTimestamp()
         });
 
+        logger.log(`Finalization complete for docId: ${docId}.`);
         return { success: true, docId: docId };
+
     } catch (error) {
-        logger.error("Chyba pri finalizácii uploadu:", error);
+        // Logujeme chybu, ktorá nastala buď v našej logike, alebo pri 'setMetadata'
+        logger.error(`Error during finalizeUpload for docId ${docId}:`, error);
         if (error instanceof HttpsError) {
             throw error;
         }

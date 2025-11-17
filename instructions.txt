@@ -1,0 +1,69 @@
+# Inštrukcie pre Google Cloud Shell
+
+Tieto inštrukcie slúžia na nastavenie CORS policy pre váš Google Cloud Storage bucket.
+
+## Krok 1: Otvorenie Google Cloud Shell
+
+1.  Prihláste sa do svojho Google Cloud Console: [https://console.cloud.google.com/](https://console.cloud.google.com/)
+2.  Uistite sa, že máte v hornej lište vybraný správny projekt: `ai-sensei-czu-pilot`.
+3.  V pravom hornom rohu kliknite na ikonu `>_` (Activate Cloud Shell). Otvorí sa vám terminál v dolnej časti obrazovky.
+
+## Krok 2: Vytvorenie súboru cors-config.json
+
+1.  Počkajte, kým sa Cloud Shell úplne načíta.
+2.  Skopírujte a vložte nasledujúci príkaz do Cloud Shellu. Tento príkaz vytvorí súbor `cors-config.json` a vloží doň potrebný obsah. Stlačte Enter.
+
+```bash
+cat > cors-config.json << EOL
+[
+  {
+    "origin": [
+      "https://ai-sensei-czu-pilot.web.app",
+      "http://localhost:5000",
+      "http://127.0.0.1:5000",
+      "http://localhost:5001",
+      "http://127.0.0.1:5001"
+    ],
+    "method": [
+      "GET",
+      "HEAD",
+      "PUT",
+      "POST",
+      "DELETE"
+    ],
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "Content-Length",
+      "User-Agent",
+      "x-goog-resumable"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]
+EOL
+```
+
+3.  Overte, že súbor bol úspešne vytvorený zadaním príkazu `cat cors-config.json`. Mali by ste vidieť obsah súboru, ktorý ste práve vložili.
+
+## Krok 3: Aplikácia CORS konfigurácie
+
+1.  Teraz, keď máte súbor pripravený, aplikujte ho na váš bucket pomocou nasledujúceho príkazu. Nahraďte `ai-sensei-czu-pilot.appspot.com` názvom vášho bucketu, ak sa líši.
+
+```bash
+gsutil cors set cors-config.json gs://ai-sensei-czu-pilot.appspot.com
+```
+
+2.  Po zadaní príkazu by ste mali vidieť správu o úspešnom nastavení.
+
+## Krok 4: Overenie konfigurácie
+
+1.  Na záver overte, že sa konfigurácia správne nastavila. Použite tento príkaz:
+
+```bash
+gsutil cors get gs://ai-sensei-czu-pilot.appspot.com
+```
+
+2.  Výstup by mal zodpovedať obsahu vášho `cors-config.json` súboru.
+
+Týmto je proces dokončený. Problém s nahrávaním súborov by mal byť vyriešený.
