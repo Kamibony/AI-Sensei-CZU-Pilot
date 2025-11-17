@@ -106,20 +106,32 @@ export class ProfessorMediaView extends LitElement {
 
     async _deleteFile(file) {
         if (!confirm(`Opravdu chcete trvale smazat soubor "${file.name}"?`)) return;
+
+        // Krok 1: Pokus o zmazanie súboru zo Storage.
+        // Táto operácia by nemala zablokovať zmazanie záznamu z Firestore.
         try {
-            // 1. Zmazať súbor zo Storage
             const fileRef = ref(storage, file.fullPath);
             await deleteObject(fileRef);
+        } catch (error) {
+            // Ak súbor neexistuje, je to v poriadku. Vypíšeme varovanie a pokračujeme.
+            if (error.code === 'storage/object-not-found') {
+                console.warn(`File not found in Storage, proceeding to delete Firestore record: ${file.fullPath}`);
+            } else {
+                // Iné chyby pri mazaní zo Storage tiež neblokujú ďalší postup, ale mali by sme ich zaznamenať.
+                console.error("Error deleting file from Storage (will still attempt to delete Firestore record):", error);
+            }
+        }
 
-            // 2. Zmazať metadáta z Firestore
+        // Krok 2: Vždy sa pokúsiť zmazať záznam z Firestore. Toto je kľúčová operácia.
+        try {
             await deleteDoc(doc(firebaseInit.db, "fileMetadata", file.id));
 
-            showToast(`Soubor "${file.name}" byl smazán.`);
-            // Odstránime súbor z lokálneho stavu a obnovíme zobrazenie
+            showToast(`Záznam "${file.name}" byl smazán.`);
+            // Aktualizujeme UI až po úspešnom zmazaní z Firestore.
             this._files = this._files.filter(f => f.id !== file.id);
         } catch (error) {
-            console.error("Error deleting file:", error);
-            showToast(`Chyba při mazání souboru: ${error.message}`, true);
+            console.error("Critical error: Failed to delete file metadata from Firestore:", error);
+            showToast(`Chyba při mazání záznamu souboru: ${error.message}`, true);
         }
     }
 
