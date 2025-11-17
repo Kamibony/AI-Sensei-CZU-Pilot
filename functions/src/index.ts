@@ -844,8 +844,8 @@ throw new HttpsError("internal", "Nepodarilo sa pripraviť nahrávanie.");
 
 // 3. Generovanie Signed URL
 const storage = getStorage();
-// POZNÁMKA: Názov bucketu musí byť správny!
-const bucket = storage.bucket('ai-sensei-czu-pilot.appspot.com');
+// Použijeme predvolený bucket projektu
+const bucket = storage.bucket();
 const file = bucket.file(filePath);
 
 const options = {
@@ -889,7 +889,7 @@ throw new HttpsError('permission-denied', 'Nemáte oprávnenie na finalizáciu t
 // 2. Nastavenie finálnych metadát na súbor v Storage
 // Toto je kľúčové pre tvoje 'storage.rules' pri ČÍTANÍ (read)
 const storage = getStorage();
-const bucket = storage.bucket('ai-sensei-czu-pilot.appspot.com');
+const bucket = storage.bucket();
 await bucket.file(filePath).setMetadata({
 customMetadata: {
 ownerId: userId,
