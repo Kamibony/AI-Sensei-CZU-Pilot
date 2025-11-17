@@ -28,6 +28,14 @@
     ],
     "rewrites": [
       {
+        "source": "/teaserprovedeni",
+        "destination": "/ai_sensei_teaser_vedeni.html"
+      },
+      {
+        "source": "/prohlidka",
+        "destination": "/ai_sensei_tour.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
