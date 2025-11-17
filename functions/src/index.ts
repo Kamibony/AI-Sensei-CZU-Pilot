@@ -955,3 +955,64 @@ export const admin_migrateFileMetadata = onCall({ region: "europe-west1" }, asyn
         throw new HttpsError("internal", "An unknown error occurred during migration.");
     }
 });
+
+// ==================================================================
+// =================== STUDENT ROLE MIGRATION =======================
+// ==================================================================
+export const admin_migrateStudentRoles = onCall({ region: "europe-west1" }, async (request) => {
+    // 1. Authorize: Only the admin can run this
+    if (request.auth?.token.email !== 'profesor@profesor.cz') {
+        logger.warn(`Unauthorized role migration attempt by ${request.auth?.token.email}`);
+        throw new HttpsError('unauthenticated', 'This action requires administrator privileges.');
+    }
+
+    logger.log("Starting student role migration process...");
+    const studentsCollection = db.collection("students");
+    const auth = getAuth();
+
+    let processedCount = 0;
+    let updatedCount = 0;
+    let errorCount = 0;
+
+    try {
+        const snapshot = await studentsCollection.get();
+        if (snapshot.empty) {
+            logger.log("No documents found in students collection. Nothing to migrate.");
+            return { success: true, message: "No students to migrate." };
+        }
+
+        for (const doc of snapshot.docs) {
+            const studentId = doc.id;
+            processedCount++;
+
+            try {
+                const userRecord = await auth.getUser(studentId);
+                const currentClaims = userRecord.customClaims || {};
+
+                if (currentClaims.role !== 'student') {
+                    await auth.setCustomUserClaims(studentId, { ...currentClaims, role: 'student' });
+                    logger.log(`Successfully set role 'student' for user: ${studentId}`);
+                    updatedCount++;
+                }
+            } catch (error: any) {
+                if (error.code === 'auth/user-not-found') {
+                    logger.warn(`Orphaned student record found. User with ID ${studentId} does not exist in Auth. Skipping.`);
+                } else {
+                    logger.error(`Failed to process user ${studentId}:`, error);
+                }
+                errorCount++;
+            }
+        }
+
+        const message = `Migration complete. Processed: ${processedCount}, Updated: ${updatedCount}, Errors: ${errorCount}.`;
+        logger.log(message);
+        return { success: true, message: message };
+
+    } catch (error) {
+        logger.error("A critical error occurred during the student role migration process:", error);
+        if (error instanceof Error) {
+            throw new HttpsError("internal", `Migration failed: ${error.message}`);
+        }
+        throw new HttpsError("internal", "An unknown error occurred during migration.");
+    }
+});
