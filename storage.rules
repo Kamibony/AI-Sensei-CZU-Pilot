@@ -13,7 +13,7 @@ allow read;
 match /courses/{courseId}/media/{fileId} {
 
 // ČÍTAŤ (read) môže vlastník (overujeme metadáta, ktoré nastavila funkcia 'finalizeUpload')
-allow read: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
+allow read: if (isProfessor() && request.auth.uid == resource.metadata.ownerId)
 || request.auth.token.email == 'profesor@profesor.cz';
 
 // VYTVORIŤ (create) nemôže NIKTO priamo.
@@ -21,7 +21,7 @@ allow read: if (isProfessor() && request.auth.uid == resource.metadata.customMet
 allow create: if false;
 
 // MAZAŤ (delete) môže vlastník
-allow delete: if (isProfessor() && request.auth.uid == resource.metadata.customMetadata.ownerId)
+allow delete: if (isProfessor() && request.auth.uid == resource.metadata.ownerId)
 || request.auth.token.email == 'profesor@profesor.cz';
 }
 

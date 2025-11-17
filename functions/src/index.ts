@@ -865,47 +865,71 @@ throw new HttpsError("internal", "Nepodarilo sa vygenerovať URL na nahrávanie.
 }
 });
 
-// 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí
+// 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí (S DETAILNÝM LOGOVANÍM)
 export const finalizeUpload = onCall({ region: "europe-west1" }, async (request) => {
-if (!request.auth) {
-throw new HttpsError('unauthenticated', 'Musíte byť prihlásený.');
-}
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Musíte byť prihlásený.');
+    }
 
-const { docId, filePath } = request.data;
-if (!docId || !filePath) {
-throw new HttpsError('invalid-argument', 'Chýba docId alebo filePath.');
-}
+    const { docId, filePath } = request.data;
+    if (!docId || !filePath) {
+        throw new HttpsError('invalid-argument', 'Chýba docId alebo filePath.');
+    }
 
-const userId = request.auth.uid;
-const docRef = db.collection("fileMetadata").doc(docId);
+    logger.log(`Starting finalizeUpload for docId: ${docId}, filePath: ${filePath}`);
 
-try {
-// 1. Overenie vlastníctva (dvojitá kontrola)
-const doc = await docRef.get();
-if (!doc.exists || doc.data()?.ownerId !== userId) {
-throw new HttpsError('permission-denied', 'Nemáte oprávnenie na finalizáciu tohto súboru.');
-}
+    const currentUserId = request.auth.uid;
+    const docRef = db.collection("fileMetadata").doc(docId);
 
-// 2. Nastavenie finálnych metadát na súbor v Storage
-// Toto je kľúčové pre tvoje 'storage.rules' pri ČÍTANÍ (read)
-const storage = getStorage();
-const bucket = storage.bucket();
-await bucket.file(filePath).setMetadata({
-customMetadata: {
-ownerId: userId,
-firestoreDocId: docId
-}
-});
+    try {
+        const doc = await docRef.get();
+        if (!doc.exists) {
+            logger.error(`Firestore document not found for docId: ${docId}`);
+            throw new HttpsError('not-found', 'Metadata súboru neboli nájdené.');
+        }
 
-// 3. Aktualizácia stavu vo Firestore
-await docRef.update({
-status: 'completed',
-uploadedAt: FieldValue.serverTimestamp()
-});
+        const metadata = doc.data();
+        const ownerIdFromFirestore = metadata?.ownerId;
 
-return { success: true, docId: docId };
-} catch (error) {
-logger.error("Chyba pri finalizácii uploadu:", error);
-throw new HttpsError("internal", "Nepodarilo sa dokončiť nahrávanie.");
-}
+        logger.log(`OwnerId from Firestore is: ${ownerIdFromFirestore}. Current user is: ${currentUserId}.`);
+
+        if (ownerIdFromFirestore !== currentUserId) {
+            logger.warn(`Permission denied. Firestore ownerId (${ownerIdFromFirestore}) does not match current user (${currentUserId}).`);
+            throw new HttpsError('permission-denied', 'Nemáte oprávnenie na finalizáciu tohto súboru.');
+        }
+
+        const storage = getStorage();
+        const bucket = storage.bucket();
+        const file = bucket.file(filePath);
+
+        try {
+            logger.log(`Attempting to set metadata on gs://${bucket.name}/${filePath}...`);
+            await file.setMetadata({
+                customMetadata: {
+                    ownerId: ownerIdFromFirestore,
+                    firestoreDocId: docId
+                }
+            });
+            logger.log(`SUCCESS: Metadata successfully set for ${filePath}. ownerId is now ${ownerIdFromFirestore}.`);
+        } catch (storageError) {
+            logger.error(`CRITICAL: Failed to set metadata for ${filePath}.`, storageError);
+            throw new HttpsError("internal", "Nepodarilo sa nastaviť metadáta súboru v Storage.");
+        }
+
+        await docRef.update({
+            status: 'completed',
+            uploadedAt: FieldValue.serverTimestamp()
+        });
+
+        logger.log(`Finalization complete for docId: ${docId}.`);
+        return { success: true, docId: docId };
+
+    } catch (error) {
+        // Logujeme chybu, ktorá nastala buď v našej logike, alebo pri 'setMetadata'
+        logger.error(`Error during finalizeUpload for docId ${docId}:`, error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError("internal", "Nepodarilo sa dokončiť nahrávanie.");
+    }
 });
