@@ -853,6 +853,10 @@ version: 'v4' as const,
 action: 'write' as const,
 expires: Date.now() + 15 * 60 * 1000, // 15 minút platnosť
 contentType: contentType, // Vynútime presný typ obsahu
+metadata: {
+ownerId: userId,
+firestoreDocId: docId
+}
 };
 
 try {
