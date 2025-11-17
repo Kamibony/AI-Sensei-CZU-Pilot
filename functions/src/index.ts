@@ -865,47 +865,57 @@ throw new HttpsError("internal", "Nepodarilo sa vygenerovať URL na nahrávanie.
 }
 });
 
-// 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí
+// 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí (S OPRAVOU)
 export const finalizeUpload = onCall({ region: "europe-west1" }, async (request) => {
-if (!request.auth) {
-throw new HttpsError('unauthenticated', 'Musíte byť prihlásený.');
-}
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Musíte byť prihlásený.');
+    }
 
-const { docId, filePath } = request.data;
-if (!docId || !filePath) {
-throw new HttpsError('invalid-argument', 'Chýba docId alebo filePath.');
-}
+    const { docId, filePath } = request.data;
+    if (!docId || !filePath) {
+        throw new HttpsError('invalid-argument', 'Chýba docId alebo filePath.');
+    }
 
-const userId = request.auth.uid;
-const docRef = db.collection("fileMetadata").doc(docId);
+    const currentUserId = request.auth.uid; // Toto UID použijeme na overenie oprávnenia
+    const docRef = db.collection("fileMetadata").doc(docId);
 
-try {
-// 1. Overenie vlastníctva (dvojitá kontrola)
-const doc = await docRef.get();
-if (!doc.exists || doc.data()?.ownerId !== userId) {
-throw new HttpsError('permission-denied', 'Nemáte oprávnenie na finalizáciu tohto súboru.');
-}
+    try {
+        const doc = await docRef.get();
+        if (!doc.exists) {
+            throw new HttpsError('not-found', 'Metadata súboru neboli nájdené.');
+        }
 
-// 2. Nastavenie finálnych metadát na súbor v Storage
-// Toto je kľúčové pre tvoje 'storage.rules' pri ČÍTANÍ (read)
-const storage = getStorage();
-const bucket = storage.bucket();
-await bucket.file(filePath).setMetadata({
-customMetadata: {
-ownerId: userId,
-firestoreDocId: docId
-}
-});
+        const metadata = doc.data();
+        const ownerIdFromFirestore = metadata?.ownerId; // <-- Získame ownerId priamo z Firestore
 
-// 3. Aktualizácia stavu vo Firestore
-await docRef.update({
-status: 'completed',
-uploadedAt: FieldValue.serverTimestamp()
-});
+        // 1. Overenie vlastníctva: Porovnáme aktuálneho usera s ownerId z Firestore
+        if (ownerIdFromFirestore !== currentUserId) {
+            throw new HttpsError('permission-denied', 'Nemáte oprávnenie na finalizáciu tohto súboru.');
+        }
 
-return { success: true, docId: docId };
-} catch (error) {
-logger.error("Chyba pri finalizácii uploadu:", error);
-throw new HttpsError("internal", "Nepodarilo sa dokončiť nahrávanie.");
-}
+        // 2. Nastavenie finálnych metadát na súbor v Storage
+        // POUŽIJEME ownerId z Firestore, aby sme mali istotu, že je správne.
+        const storage = getStorage();
+        const bucket = storage.bucket();
+        await bucket.file(filePath).setMetadata({
+            customMetadata: {
+                ownerId: ownerIdFromFirestore, // <-- Používame UID z Firestore
+                firestoreDocId: docId
+            }
+        });
+
+        // 3. Aktualizácia stavu vo Firestore
+        await docRef.update({
+            status: 'completed',
+            uploadedAt: FieldValue.serverTimestamp()
+        });
+
+        return { success: true, docId: docId };
+    } catch (error) {
+        logger.error("Chyba pri finalizácii uploadu:", error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError("internal", "Nepodarilo sa dokončiť nahrávanie.");
+    }
 });
