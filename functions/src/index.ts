@@ -11,6 +11,7 @@ import * as logger from "firebase-functions/logger";
 import * as GeminiAPI from "./gemini-api.js";
 import cors from "cors";
 import fetch from "node-fetch";
+import pdf from "pdf-parse";
 
 initializeApp();
 const db = getFirestore();
@@ -84,11 +85,57 @@ export const generateContent = onCall({
                      break;
             }
         }
+        // RAG Pipeline Logic
         if (filePaths && filePaths.length > 0) {
-            return isJson 
-                ? await GeminiAPI.generateJsonFromDocuments(filePaths, finalPrompt)
-                : { text: await GeminiAPI.generateTextFromDocuments(filePaths, finalPrompt) };
+            const fileIds = filePaths; // Alias for clarity
+            logger.log(`Starting RAG pipeline for ${fileIds.length} file(s).`);
+
+            // 1. Generate embedding for the user's prompt
+            const promptEmbedding = await GeminiAPI.getEmbeddings(promptData.userPrompt);
+
+            // 2. Fetch all chunks from the relevant files
+            const allChunks: { text: string; embedding: number[] }[] = [];
+            for (const fileId of fileIds) {
+                const chunksSnapshot = await db.collection(`fileMetadata/${fileId}/chunks`).get();
+                chunksSnapshot.forEach(doc => {
+                    const chunkData = doc.data();
+                    if (chunkData.text && chunkData.embedding) {
+                        allChunks.push({
+                            text: chunkData.text,
+                            embedding: chunkData.embedding
+                        });
+                    }
+                });
+            }
+
+            if (allChunks.length === 0) {
+                 throw new HttpsError('not-found', 'No processed text chunks found for the provided files. Please process the files first.');
+            }
+            logger.log(`Found a total of ${allChunks.length} chunks to compare.`);
+
+            // 3. Calculate cosine similarity for each chunk
+            const scoredChunks = allChunks.map(chunk => ({
+                text: chunk.text,
+                similarity: GeminiAPI.calculateCosineSimilarity(promptEmbedding, chunk.embedding)
+            }));
+
+            // 4. Sort chunks by similarity and pick the top N
+            const sortedChunks = scoredChunks.sort((a, b) => b.similarity - a.similarity);
+            const topChunks = sortedChunks.slice(0, 5); // Take top 5
+
+            logger.log(`Top 5 chunks selected with scores: ${topChunks.map(c => c.similarity.toFixed(4)).join(', ')}`);
+
+            // 5. Construct the final prompt with context
+            const context = topChunks.map(chunk => chunk.text).join("\n\n---\n\n");
+            const ragPrompt = `Based on the following context, please fulfill the user's request.\n\nCONTEXT:\n${context}\n\n---\n\nREQUEST:\n${finalPrompt}`;
+
+            // 6. Call Gemini with the new prompt (no documents needed anymore)
+             return isJson
+                ? await GeminiAPI.generateJsonFromPrompt(ragPrompt)
+                : { text: await GeminiAPI.generateTextFromPrompt(ragPrompt) };
+
         } else {
+            // Original logic for when no files are provided
             return isJson
                 ? await GeminiAPI.generateJsonFromPrompt(finalPrompt)
                 : { text: await GeminiAPI.generateTextFromPrompt(finalPrompt) };
@@ -103,6 +150,104 @@ export const generateContent = onCall({
         }
         throw new HttpsError("internal", `Failed to generate content: ${message}`);
     }
+});
+
+export const processFileForRAG = onCall({
+    region: "europe-west1",
+    timeoutSeconds: 540 // 9 minutes for potentially large files
+}, async (request) => {
+    // 1. Authentication & Authorization
+    if (!request.auth || request.auth.token.role !== 'professor') {
+        throw new HttpsError('unauthenticated', 'This action requires professor privileges.');
+    }
+    const { fileId } = request.data;
+    if (!fileId) {
+        throw new HttpsError('invalid-argument', 'The function must be called with a "fileId".');
+    }
+
+    const userId = request.auth.uid;
+    logger.log(`Starting RAG processing for fileId: ${fileId} by user: ${userId}`);
+
+    // 2. Get File Metadata from Firestore
+    const fileDocRef = db.collection("fileMetadata").doc(fileId);
+    const fileDoc = await fileDocRef.get();
+
+    if (!fileDoc.exists) {
+        throw new HttpsError('not-found', `File metadata with ID ${fileId} not found.`);
+    }
+    const fileData = fileDoc.data();
+    if (fileData?.ownerId !== userId) {
+        throw new HttpsError('permission-denied', 'You do not have permission to process this file.');
+    }
+    if (fileData?.status !== 'completed') {
+        throw new HttpsError('failed-precondition', `File status is '${fileData?.status}', not 'completed'.`);
+    }
+
+    // 3. Download File from Storage
+    const storage = getStorage();
+    const bucket = storage.bucket();
+    const file = bucket.file(fileData.storagePath);
+    const [fileBuffer] = await file.download();
+
+    // 4. Extract Text
+    let text = '';
+    if (fileData.contentType === 'application/pdf') {
+        const data = await pdf(fileBuffer);
+        text = data.text;
+    } else {
+        // Basic text extraction for other types
+        text = fileBuffer.toString('utf-8');
+    }
+
+    if (!text.trim()) {
+        logger.warn(`No text could be extracted from fileId: ${fileId}`);
+        await fileDocRef.update({ ragStatus: 'processing_failed', ragError: 'No text content found' });
+        return { success: false, message: "No text content found in the file." };
+    }
+
+    // 5. Chunking Logic
+    const chunks: string[] = [];
+    const chunkSize = 1000;
+    const chunkOverlap = 100;
+    let i = 0;
+    while (i < text.length) {
+        chunks.push(text.substring(i, i + chunkSize));
+        i += chunkSize - chunkOverlap;
+    }
+
+    logger.log(`File ${fileId} was split into ${chunks.length} chunks.`);
+    await fileDocRef.update({ ragStatus: 'processing_started', chunkCount: chunks.length });
+
+    // 6. Embedding and Saving Loop
+    const chunksCollectionRef = fileDocRef.collection('chunks');
+    const batchPromises = [];
+
+    for (let j = 0; j < chunks.length; j++) {
+        const chunkText = chunks[j];
+        const promise = GeminiAPI.getEmbeddings(chunkText)
+            .then(embedding => {
+                return chunksCollectionRef.add({
+                    text: chunkText,
+                    embedding: embedding,
+                    fileId: fileId,
+                    chunkIndex: j,
+                    createdAt: FieldValue.serverTimestamp(),
+                });
+            })
+            .catch(error => {
+                logger.error(`Failed to create embedding for chunk ${j} of file ${fileId}`, error);
+                // We'll continue processing other chunks
+            });
+        batchPromises.push(promise);
+    }
+
+    await Promise.all(batchPromises);
+
+    // 7. Finalize Status
+    await fileDocRef.update({ ragStatus: 'processing_complete' });
+
+    logger.log(`Successfully processed and embedded ${chunks.length} chunks for fileId: ${fileId}.`);
+    return { success: true, chunkCount: chunks.length };
 });
 
 export const getAiAssistantResponse = onCall({ 

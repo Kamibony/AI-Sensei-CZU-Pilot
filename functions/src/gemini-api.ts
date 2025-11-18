@@ -31,6 +31,65 @@ const model = vertex_ai.getGenerativeModel({
     ],
 });
 
+const embeddingModel = vertex_ai.getGenerativeModel({
+    model: "text-embedding-004",
+});
+
+export async function getEmbeddings(text: string): Promise<number[]> {
+    if (process.env.FUNCTIONS_EMULATOR === "true") {
+        console.log("EMULATOR_MOCK for getEmbeddings: Returning a mock vector.");
+        // Return a fixed-size vector of non-zero values for emulator testing
+        return Array(768).fill(0).map((_, i) => Math.sin(i));
+    }
+
+    try {
+        const request = {
+            contents: [{ role: "user", parts: [{ text }] }],
+        };
+        const result = await embeddingModel.embedContent(request);
+
+        const embedding = result.embedding;
+
+        if (!embedding || !embedding.values) {
+            throw new Error("Failed to extract embedding from the Vertex AI response.");
+        }
+
+        return embedding.values;
+    } catch (error) {
+        logger.error("[gemini-api:getEmbeddings] Error generating embeddings:", error);
+        if (error instanceof Error) {
+            throw new HttpsError("internal", `Vertex AI embedding call failed: ${error.message}`);
+        }
+        throw new HttpsError("internal", "An unknown error occurred while generating embeddings.");
+    }
+}
+
+export function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
+    if (vecA.length !== vecB.length) {
+        throw new Error("Vectors must be of the same length to calculate similarity.");
+    }
+
+    let dotProduct = 0;
+    let magA = 0;
+    let magB = 0;
+
+    for (let i = 0; i < vecA.length; i++) {
+        dotProduct += vecA[i] * vecB[i];
+        magA += vecA[i] * vecA[i];
+        magB += vecB[i] * vecB[i];
+    }
+
+    magA = Math.sqrt(magA);
+    magB = Math.sqrt(magB);
+
+    if (magA === 0 || magB === 0) {
+        return 0; // Or throw an error, depending on desired behavior for zero vectors
+    }
+
+    return dotProduct / (magA * magB);
+}
+
+
 async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
     const functionName = requestBody.generationConfig?.responseMimeType === "application/json"
         ? "generateJson"
