@@ -957,6 +957,67 @@ export const admin_migrateFileMetadata = onCall({ region: "europe-west1" }, asyn
 });
 
 // ==================================================================
+// =================== EMERGENCY ROLE RESTORE =======================
+// ==================================================================
+export const emergency_restoreProfessors = onCall({ region: "europe-west1" }, async (request) => {
+    // 1. Authorize: Bypass role check, use email for the admin
+    if (request.auth?.token.email !== 'profesor@profesor.cz') {
+        logger.warn(`Unauthorized emergency role restore attempt by ${request.auth?.token.email}`);
+        throw new HttpsError('unauthenticated', 'This action requires special administrator privileges.');
+    }
+
+    logger.log(`Emergency role restore initiated by ${request.auth.token.email}...`);
+    const usersCollection = db.collection("users");
+    const auth = getAuth();
+    let updatedCount = 0;
+    const errorList: string[] = [];
+
+    try {
+        const snapshot = await usersCollection.where("role", "==", "professor").get();
+        if (snapshot.empty) {
+            logger.log("No users with 'professor' role found in the 'users' collection.");
+            return { success: true, message: "No professors found to restore." };
+        }
+
+        const promises = snapshot.docs.map(async (doc) => {
+            const userId = doc.id;
+            const userData = doc.data();
+            const email = userData.email || 'N/A';
+
+            try {
+                await getAuth().setCustomUserClaims(userId, { role: 'professor' });
+                logger.log(`Successfully restored role 'professor' for user: ${userId} (${email})`);
+                updatedCount++;
+            } catch (error) {
+                const errorMessage = `Failed to set custom claim for user ${userId} (${email})`;
+                logger.error(errorMessage, error);
+                errorList.push(errorMessage);
+            }
+        });
+
+        await Promise.all(promises);
+
+        if (errorList.length > 0) {
+            const message = `Restore partially complete. Successfully restored roles for ${updatedCount} professors. Failed for ${errorList.length}.`;
+            logger.warn(message, errorList);
+            // Still return success=true, but with a warning message
+             return { success: true, message: `${message} Check logs for details.` };
+        }
+
+        const message = `Restore complete. Successfully restored roles for ${updatedCount} professors.`;
+        logger.log(message);
+        return { success: true, message: message };
+
+    } catch (error) {
+        logger.error("A critical error occurred during the emergency role restore process:", error);
+        if (error instanceof Error) {
+            throw new HttpsError("internal", `Restore failed: ${error.message}`);
+        }
+        throw new HttpsError("internal", "An unknown error occurred during the restore process.");
+    }
+});
+
+// ==================================================================
 // =================== STUDENT ROLE MIGRATION =======================
 // ==================================================================
 export const admin_migrateStudentRoles = onCall({ region: "europe-west1" }, async (request) => {
