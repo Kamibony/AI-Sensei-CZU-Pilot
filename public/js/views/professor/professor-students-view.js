@@ -15,70 +15,88 @@ export class ProfessorStudentsView extends LitElement {
         super();
         this._students = [];
         this._isLoading = true;
-        this.studentsUnsubscribe = null;
         this._searchTerm = '';
+        this._unsubscribeListeners = [];
+        this._studentData = new Map();
     }
 
     createRenderRoot() { return this; }
 
     connectedCallback() {
         super.connectedCallback();
-        this._fetchStudentsForProfessor();
+        this._initializeListeners();
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
-        if (this.studentsUnsubscribe) {
-            this.studentsUnsubscribe();
-            this.studentsUnsubscribe = null;
+        this._unsubscribeListeners.forEach(item => item.unsub());
+    }
+
+    _createBatchedStudentListeners(groupIds) {
+        this._unsubscribeByIds('students'); // Clear previous student listeners
+        this._studentData.clear();
+
+        if (groupIds.length === 0) {
+            this._students = [];
+            this._isLoading = false;
+            this.requestUpdate();
+            return;
+        }
+
+        const BATCH_SIZE = 30;
+        for (let i = 0; i < groupIds.length; i += BATCH_SIZE) {
+            const batch = groupIds.slice(i, i + BATCH_SIZE);
+            const studentsQuery = query(
+                collection(firebaseInit.db, 'students'),
+                where("memberOfGroups", "array-contains-any", batch)
+            );
+
+            const unsub = onSnapshot(studentsQuery, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === "removed") {
+                        this._studentData.delete(change.doc.id);
+                    } else {
+                        this._studentData.set(change.doc.id, { id: change.doc.id, ...change.doc.data() });
+                    }
+                });
+                this._students = Array.from(this._studentData.values());
+                this._isLoading = false;
+            }, (error) => {
+                console.error("Error fetching students batch:", error);
+                showToast("Nepodařilo se načíst část studentů.", true);
+            });
+            this._unsubscribeListeners.push({ id: 'students', unsub });
         }
     }
 
-    async _fetchProfessorGroups() {
-        const currentUser = firebaseInit.auth.currentUser;
-        if (!currentUser) return [];
-
-        const groupsQuery = query(
-            collection(firebaseInit.db, 'groups'),
-            where("ownerId", "==", currentUser.uid)
-        );
-        const querySnapshot = await getDocs(groupsQuery);
-        return querySnapshot.docs.map(doc => doc.id);
+    _unsubscribeByIds(id) {
+        const newUnsubscribes = [];
+        this._unsubscribeListeners.forEach(item => {
+            if (item.id === id) {
+                item.unsub();
+            } else {
+                newUnsubscribes.push(item);
+            }
+        });
+        this._unsubscribeListeners = newUnsubscribes;
     }
 
-    async _fetchStudentsForProfessor() {
+    _initializeListeners() {
         this._isLoading = true;
-        if (this.studentsUnsubscribe) this.studentsUnsubscribe();
+        const currentUser = firebaseInit.auth.currentUser;
+        if (!currentUser) return;
 
-        try {
-            const groupIds = await this._fetchProfessorGroups();
+        const groupsQuery = query(collection(firebaseInit.db, 'groups'), where("ownerId", "==", currentUser.uid));
 
-            if (groupIds.length === 0) {
-                this._students = [];
-                this._isLoading = false;
-                return;
-            }
-
-            const studentsQuery = query(
-                collection(firebaseInit.db, 'students'),
-                where("memberOfGroups", "array-contains-any", groupIds)
-            );
-
-            this.studentsUnsubscribe = onSnapshot(studentsQuery, (querySnapshot) => {
-                this._students = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                this._isLoading = false;
-            }, (error) => {
-                console.error("Error fetching students:", error);
-                showToast("Nepodařilo se načíst studenty.", true);
-                this._isLoading = false;
-                this._students = [];
-            });
-
-        } catch (error) {
+        const unsubGroups = onSnapshot(groupsQuery, (groupsSnapshot) => {
+            const groupIds = groupsSnapshot.docs.map(doc => doc.id);
+            this._createBatchedStudentListeners(groupIds);
+        }, (error) => {
             console.error("Error fetching professor's groups:", error);
             showToast("Chyba při načítání skupin profesora.", true);
             this._isLoading = false;
-        }
+        });
+        this._unsubscribeListeners.push({ id: 'groups', unsub: unsubGroups });
     }
 
     _navigateToProfile(studentId) {
