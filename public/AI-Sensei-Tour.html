@@ -12,22 +12,22 @@
     <style>
         /* Definice barev podle via.academy */
         :root {
-            --bg-sidebar: #276749; /* Tmavě zelená */
-            --bg-sidebar-active: #2F855A; /* Světlejší zelená (aktivní) */
+            --bg-sidebar: #276749; /* Tmavě zelená (Primary Dark) */
+            --bg-sidebar-active: #2F855A; /* Světlejší zelená (Active Nav BG) */
             --text-sidebar-inactive: #C6F6D5; /* Bledě zelený text */
             --text-sidebar-active: #FFFFFF; /* Bílý text */
             --bg-content: #F4F7F6; /* Velmi světle šedozelené pozadí */
             --bg-card: #FFFFFF; /* Bílé karty */
             --text-hlavni: #2D3748; /* Tmavý text */
-            --accent-green: #38A169; /* Akcentní zelená */
-            --accent-orange: #DD6B20; /* Akcentní oranžová */
+            --accent-green: #38A169; /* Akcentní zelená (UI Highlight) */
+            --accent-orange: #DD6B20; /* Akcentní oranžová (Hotspot/CTA) */
         }
 
         /* Vlastní písma (pokud jsou potřeba) */
         body {
-            font-family: 'Inter', sans-serif; /* Předpokládáme použití 'Inter' nebo podobného moderního písma */
+            font-family: 'Inter', sans-serif;
             background-color: var(--bg-content);
-            overflow: hidden; /* Zabráníme posouvání stránky pod aplikací */
+            overflow: hidden; 
         }
 
         /* --- Styly pro interaktivní Hotspoty --- */
@@ -35,7 +35,7 @@
             position: absolute;
             width: 40px;
             height: 40px;
-            background-color: rgba(221, 107, 32, 0.9); /* Oranžový akcent */
+            background-color: rgba(221, 107, 32, 0.9);
             color: white;
             border-radius: 50%;
             display: flex;
@@ -47,8 +47,6 @@
             box-shadow: 0 0 15px rgba(221, 107, 32, 0.7);
             z-index: 100;
             transition: all 0.3s ease;
-            
-            /* Pulzující animace */
             animation: pulse 2s infinite;
         }
 
@@ -57,26 +55,17 @@
         }
 
         @keyframes pulse {
-            0% {
-                box-shadow: 0 0 0 0 rgba(221, 107, 32, 0.7);
-            }
-            70% {
-                box-shadow: 0 0 0 20px rgba(221, 107, 32, 0);
-            }
-            100% {
-                box-shadow: 0 0 0 0 rgba(221, 107, 32, 0);
-            }
+            0% { box-shadow: 0 0 0 0 rgba(221, 107, 32, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(221, 107, 32, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(221, 107, 32, 0); }
         }
 
-        /* --- Styly pro Modální Okna (Bubliny) --- */
+        /* --- Styly pro Modální Okna --- */
         .modal-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0; width: 100%; height: 100%;
             background-color: rgba(0, 0, 0, 0.6);
-            display: none; /* Skryté ve výchozím stavu */
+            display: none;
             align-items: center;
             justify-content: center;
             z-index: 1000;
@@ -88,61 +77,50 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
             width: 90%;
             max-width: 500px;
-            padding: 2.5rem; /* 40px */
+            padding: 2.5rem; 
             position: relative;
             transform: scale(0.9);
             opacity: 0;
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         
-        /* Styl pro zobrazení modálu */
-        .modal-overlay.visible {
-            display: flex;
-        }
-        .modal-overlay.visible .modal-content {
-            transform: scale(1);
-            opacity: 1;
-        }
-
-        .modal-close-btn {
-            position: absolute;
-            top: 15px;
-            right: 20px;
-            font-size: 24px;
-            color: #999;
-            cursor: pointer;
-            transition: color 0.2s;
-        }
-        .modal-close-btn:hover {
-            color: var(--text-hlavni);
-        }
+        .modal-overlay.visible { display: flex; }
+        .modal-overlay.visible .modal-content { transform: scale(1); opacity: 1; }
 
         .modal-content h3 {
             color: var(--accent-green);
-            font-size: 1.75rem; /* 28px */
+            font-size: 1.75rem; 
             font-weight: 700;
-            margin-bottom: 1rem; /* 16px */
+            margin-bottom: 1rem; 
             font-family: 'Poppins', sans-serif;
         }
         
-        .modal-content p {
-            color: var(--text-hlavni);
-            font-size: 1rem; /* 16px */
-            line-height: 1.6;
-            margin-bottom: 1.5rem; /* 24px */
-        }
+        .hotspot.hidden-by-view { display: none !important; }
 
-        .modal-next-btn {
+        /* Styly pre simuláciu kariet obsahu študenta */
+        .content-badge {
+            background-color: var(--bg-content);
+            color: var(--text-hlavni);
+            border: 1px solid #E2E8F0;
+        }
+        .content-badge.active {
             background-color: var(--accent-green);
             color: white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.2s;
+            border: 1px solid var(--accent-green);
         }
-        .modal-next-btn:hover {
-            background-color: var(--bg-sidebar-active);
+        
+        /* Simulačné štýly pre Editor */
+        .editor-tab {
+            padding: 10px 20px;
+            border-radius: 8px 8px 0 0;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: border-bottom 0.2s;
+        }
+        .editor-tab.active {
+            color: var(--accent-green);
+            border-bottom: 2px solid var(--accent-green);
         }
 
     </style>
@@ -218,82 +196,130 @@
             </div>
         </nav>
 
-        <!-- 2. FALEŠNÁ HLAVNÍ OBRAZOVKA (PLÁN VÝUKY) -->
+        <!-- 2. FALEŠNÁ HLAVNÍ OBRAZOVKA (KONTEJNER PRO KALENDÁR/EDITOR) -->
         <main class="flex-1 h-full overflow-y-auto" style="background-color: var(--bg-content);">
             <div class="flex h-full">
-                
-                <!-- Hlavní obsah (Kalendář) -->
-                <div class="flex-1 p-8">
-                    <h1 class="text-3xl font-bold mb-6" style="color: var(--text-hlavni);">Plán výuky</h1>
-                    
-                    <!-- Falešný kalendář -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                        <!-- Hlavička kalendáře -->
-                        <div class="flex justify-between items-center p-4 border-b">
-                            <i class="fa-solid fa-chevron-left text-gray-400 cursor-pointer"></i>
-                            <h2 class="text-xl font-semibold" style="color: var(--text-hlavni);">Listopad 2025</h2>
-                            <i class="fa-solid fa-chevron-right text-gray-400 cursor-pointer"></i>
-                        </div>
-                        <!-- Dny v týdnu -->
-                        <div class="grid grid-cols-7 gap-px p-2">
-                            <div class="text-center text-sm font-semibold text-gray-500 py-2">Po</div>
-                            <div class="text-center text-sm font-semibold text-gray-500 py-2">Út</div>
-                            <div class="text-center text-sm font-semibold text-gray-500 py-2">St</div>
-                            <div class="text-center text-sm font-semibold text-gray-500 py-2">Čt</div>
-                            <div class="text-center text-sm font-semibold text-gray-500 py-2">Pá</div>
-                            <div class="text-center text-sm font-semibold text-gray-500 py-2">So</div>
-                            <div class="text-center text-sm font-semibold text-gray-500 py-2">Ne</div>
-                        </div>
-                        <!-- Falešné dny -->
-                        <div class="grid grid-cols-7 grid-rows-5 gap-px p-2">
-                            <!-- Prvních pár dní (prázdné) -->
-                            <div class="h-24 bg-gray-50"></div>
-                            <div class="h-24 bg-gray-50"></div>
-                            <div class="h-24 border border-gray-100 p-2">
-                                <span class="text-sm font-semibold">1</span>
+
+                <!-- POHLED KALENDÁŘE/PLÁNU VÝUKY -->
+                <div id="professor-calendar-view" class="flex flex-1">
+                    <!-- A. KNIHOVNA LEKCÍ (Vľavo vedľa navigačného panela) -->
+                    <aside id="lesson-library-sidebar" class="w-80 h-full bg-white p-6 border-r border-gray-200 flex-shrink-0">
+                        <h2 class="text-xl font-bold mb-4" style="color: var(--text-hlavni);">Knihovna lekcí</h2>
+                        <button id="add-lesson-btn" class="w-full py-3 mb-4 rounded-lg font-semibold text-white transition" style="background-color: var(--accent-orange); box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <i class="fa-solid fa-plus mr-2"></i> Přidat novou lekci
+                        </button>
+                        
+                        <!-- Falešné karty lekcí -->
+                        <div class="space-y-3">
+                            <div class="p-3 border rounded-lg shadow-sm cursor-grab" style="background-color: #f7fafc;">
+                                <h4 class="font-semibold">Úvod do AI</h4>
+                                <p class="text-sm text-gray-500">1. týden, 3 soubory</p>
                             </div>
-                            <div class="h-24 border border-gray-100 p-2"><span class="text-sm font-semibold">2</span></div>
-                            <!-- Zde je falešná lekce -->
-                            <div class="h-24 border border-gray-100 p-2 relative">
-                                <span class="text-sm font-semibold">3</span>
-                                <div class="mt-1 p-2 rounded-lg text-sm cursor-pointer" style="background-color: var(--accent-green); color: white;">
-                                    <i class="fa-solid fa-book-open"></i> Úvod do AI
+                            <div class="p-3 border rounded-lg shadow-sm cursor-grab" style="background-color: #f7fafc;">
+                                <h4 class="font-semibold">Neuronové sítě</h4>
+                                <p class="text-sm text-gray-500">2. týden, 1 soubor</p>
+                            </div>
+                        </div>
+                    </aside>
+
+                    <!-- B. HLAVNÍ OBSAH (Kalendář/Timeline) -->
+                    <div id="calendar-main-content" class="flex-1 p-8">
+                        <h1 class="text-3xl font-bold mb-6" style="color: var(--text-hlavni);">Plán výuky</h1>
+                        
+                        <!-- Falešný kalendár (Vizuálne upravený) -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                            <!-- Hlavička kalendáře -->
+                            <div class="flex justify-between items-center p-4 border-b">
+                                <i class="fa-solid fa-chevron-left text-gray-400 cursor-pointer"></i>
+                                <h2 class="text-xl font-semibold" style="color: var(--text-hlavni);">Listopad 2025</h2>
+                                <i class="fa-solid fa-chevron-right text-gray-400 cursor-pointer"></i>
+                            </div>
+                            <!-- Dny v týdnu -->
+                            <div class="grid grid-cols-7 gap-px p-2" style="background-color: #f7fafc;">
+                                <div class="text-center text-sm font-semibold text-gray-500 py-2">Po</div>
+                                <div class="text-center text-sm font-semibold text-gray-500 py-2">Út</div>
+                                <div class="text-center text-sm font-semibold text-gray-500 py-2">St</div>
+                                <div class="text-center text-sm font-semibold text-gray-500 py-2">Čt</div>
+                                <div class="text-center text-sm font-semibold text-gray-500 py-2">Pá</div>
+                                <div class="text-center text-sm font-semibold text-gray-500 py-2">So</div>
+                                <div class="text-center text-sm font-semibold text-gray-500 py-2">Ne</div>
+                            </div>
+                            <!-- Falešné dny -->
+                            <div class="grid grid-cols-7 grid-rows-5 gap-px p-2 border-t border-gray-200" style="background-color: #f7fafc;">
+                                <div class="h-24 bg-white border border-gray-100"></div>
+                                <div class="h-24 bg-white border border-gray-100"></div>
+                                <div class="h-24 bg-white border border-gray-100 p-2"><span class="text-sm font-semibold">1</span></div>
+                                <div class="h-24 bg-white border border-gray-100 p-2"><span class="text-sm font-semibold">2</span></div>
+                                <!-- Zde je falešná lekce -->
+                                <div class="h-24 bg-white border border-gray-100 p-2 relative">
+                                    <span class="text-sm font-semibold">3</span>
+                                    <div class="mt-1 p-2 rounded-lg text-sm cursor-pointer" style="background-color: var(--accent-green); color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                        <i class="fa-solid fa-book-open"></i> Úvod do AI
+                                    </div>
                                 </div>
+                                <div class="h-24 bg-white border border-gray-100 p-2"><span class="text-sm font-semibold">4</span></div>
+                                <div class="h-24 bg-white border border-gray-100 p-2"><span class="text-sm font-semibold">5</span></div>
+                                <div class="h-24 bg-white border border-gray-100 p-2"><span class="text-sm font-semibold">6</span></div>
+                                <div class="h-24 bg-white border border-gray-100 p-2"><span class="text-sm font-semibold">7</span></div>
+                                <div class="h-24 bg-white border border-gray-100 p-2"><span class="text-sm font-semibold">8</span></div>
+                                <div class="h-24 bg-white border border-gray-100 p-2"><span class="text-sm font-semibold">9</span></div>
+                                <div class="h-24 bg-white border border-gray-100 p-2"><span class="text-sm font-semibold">10</span></div>
+                                <div class="h-24 bg-white border border-gray-100 p-2"><span class="text-sm font-semibold">11</span></div>
+                                <div class="h-24 bg-white border border-gray-100 p-2"><span class="text-sm font-semibold">12</span></div>
+                                <!-- Další falešné dny -->
+                                <div class="h-24 bg-white border border-gray-100 p-2" v-for="n in 21" :key="n"></div>
                             </div>
-                            <div class="h-24 border border-gray-100 p-2"><span class="text-sm font-semibold">4</span></div>
-                            <div class="h-24 border border-gray-100 p-2"><span class="text-sm font-semibold">5</span></div>
-                            <div class="h-24 border border-gray-100 p-2"><span class="text-sm font-semibold">6</span></div>
-                            <div class="h-24 border border-gray-100 p-2"><span class="text-sm font-semibold">7</span></div>
-                            <div class="h-24 border border-gray-100 p-2"><span class="text-sm font-semibold">8</span></div>
-                            <div class="h-24 border border-gray-100 p-2"><span class="text-sm font-semibold">9</span></div>
-                            <div class="h-24 border border-gray-100 p-2"><span class="text-sm font-semibold">10</span></div>
-                            <div class="h-24 border border-gray-100 p-2"><span class="text-sm font-semibold">11</span></div>
-                            <div class="h-24 border border-gray-100 p-2"><span class="text-sm font-semibold">12</span></div>
-                            <!-- Další falešné dny -->
-                            <div class="h-24 border border-gray-100 p-2" v-for="n in 21" :key="n"></div>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Postranní panel (Knihovna lekcí) -->
-                <aside class="w-80 h-full border-l border-gray-200 bg-white p-6">
-                    <h2 class="text-xl font-bold mb-4" style="color: var(--text-hlavni);">Knihovna lekcí</h2>
-                    <button class="w-full py-3 mb-4 rounded-lg font-semibold text-white transition" style="background-color: var(--accent-orange);">
-                        <i class="fa-solid fa-plus mr-2"></i> Přidat novou lekci
-                    </button>
-                    
-                    <!-- Falešné karty lekcí -->
-                    <div class="space-y-3">
-                        <div class="p-3 border rounded-lg shadow-sm cursor-grab">
-                            <h4 class="font-semibold">Úvod do AI</h4>
-                            <p class="text-sm text-gray-500">1. týden, 3 soubory</p>
+
+
+                <!-- POHLED EDITORU LEKCÍ (Záložka s AI generátorem) -->
+                <div id="professor-editor-view" class="flex-1 p-8 hidden">
+                     <h1 class="text-3xl font-bold mb-6" style="color: var(--text-hlavni);">Editor lekce: Nová lekce</h1>
+
+                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
+                        <!-- Taby obsahu -->
+                        <div class="flex border-b border-gray-200 px-6 pt-4 space-x-6 text-gray-500">
+                            <div class="editor-tab active" style="color: var(--accent-green); border-bottom: 2px solid var(--accent-green);">Text pro studenty</div>
+                            <div class="editor-tab">Prezentace</div>
+                            <div class="editor-tab">Kvíz</div>
+                            <div class="editor-tab">Test</div>
+                            <div class="editor-tab">Podcast</div>
+                            <div class="editor-tab">Detaily (RAG)</div>
                         </div>
-                        <div class="p-3 border rounded-lg shadow-sm cursor-grab">
-                            <h4 class="font-semibold">Neuronové sítě</h4>
-                            <p class="text-sm text-gray-500">2. týden, 1 soubor</p>
+                        
+                        <!-- Obsah Taby -->
+                        <div class="p-6 flex-1 flex">
+                            <!-- Pole pro text/editor -->
+                            <div class="flex-1 mr-6">
+                                <textarea class="w-full h-full p-4 border rounded-lg focus:outline-none focus:ring-2" placeholder="Vygenerovaný obsah se objeví zde..." style="border-color: #E2E8F0;"></textarea>
+                            </div>
+
+                            <!-- Panel AI Generátoru -->
+                            <div class="w-80 bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col flex-shrink-0">
+                                <h3 class="text-xl font-bold mb-4" style="color: var(--text-hlavni);">AI Generátor</h3>
+                                <p class="text-sm text-gray-600 mb-4">
+                                    Vygenerujte obsah na základě souborů, které jste pro tuto lekci vybrali v záložce "Detaily".
+                                </p>
+                                
+                                <label class="text-sm font-semibold mb-1 block" style="color: var(--text-hlavni);">Váš Prompt:</label>
+                                <textarea class="w-full p-2 mb-4 border rounded-lg text-sm resize-none" rows="3" placeholder="Např.: Vytvoř 500 slov dlouhé shrnutí o byznys model canvas."></textarea>
+                                
+                                <button class="w-full py-3 rounded-lg font-semibold text-white transition" style="background-color: var(--accent-green); box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                    Generovat obsah <i class="fa-solid fa-magic ml-2"></i>
+                                </button>
+                                
+                                <div class="mt-auto pt-4 border-t border-gray-200">
+                                    <button id="back-to-calendar-btn" class="w-full py-2.5 rounded-lg font-semibold border text-gray-600 hover:bg-gray-100 transition">
+                                        <i class="fa-solid fa-times mr-2"></i> Zavřít Editor
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </aside>
+                     </div>
+                </div>
+
             </div>
         </main>
     </div>
@@ -302,7 +328,7 @@
       POHLED STUDENTA
     -->
     <div id="student-view" class="flex-col h-screen overflow-hidden hidden" style="background-color: var(--bg-content);">
-        <!-- Horní navigační lišta studenta -->
+        <!-- Horní navigační lišta studenta (Vizuálne upravená) -->
         <nav class="w-full h-20 flex-shrink-0 flex justify-between items-center px-8 shadow-md" style="background-color: var(--bg-sidebar);">
             <!-- Logo -->
             <div class="flex items-center">
@@ -321,41 +347,41 @@
             </div>
         </nav>
         
-        <!-- Obsah studenta -->
+        <!-- Obsah studenta (Vizuálne upravený) -->
         <main class="flex-1 overflow-y-auto p-8">
             <h1 class="text-3xl font-bold mb-6" style="color: var(--text-hlavni);">Dostupné lekce</h1>
             
             <!-- Falešná karta lekce -->
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 relative">
                 <!-- Hotspot 6: Karta lekce -->
-                <div class="hotspot" data-modal-target="modal-6" style="top: 20px; right: 20px;">6</div>
+                <div class="hotspot" data-modal-target="modal-6" data-step="6" style="top: 20px; right: 20px;">6</div>
 
                 <h2 class="text-2xl font-bold mb-4" style="color: var(--accent-green);">Úvod do AI</h2>
                 <p class="text-gray-600 mb-6">Tato lekce pokrývá základy umělé inteligence, strojového učení a neuronových sítí.</p>
                 
                 <h3 class="text-lg font-semibold mb-3" style="color: var(--text-hlavni);">Obsah lekce</h3>
                 <div class="flex flex-wrap gap-3 mb-6 relative">
-                    <!-- Hotspot 7: Typy obsahu -->
-                    <div class="hotspot" data-modal-target="modal-7" style="top: 0; left: 300px;">7</div>
+                    <!-- Hotspot 7: Typy obsahu (vložený do divu pre pozíciu) -->
+                    <div class="hotspot" data-modal-target="modal-7" data-step="7" style="top: 15px; left: 300px;">7</div>
                     
-                    <span class="py-2 px-4 rounded-full text-sm font-medium" style="background-color: var(--bg-content); color: var(--text-hlavni);"><i class="fa-solid fa-file-lines mr-2"></i> Text</span>
-                    <span class="py-2 px-4 rounded-full text-sm font-medium" style="background-color: var(--bg-content); color: var(--text-hlavni);"><i class="fa-solid fa-video mr-2"></i> Video</span>
-                    <span class="py-2 px-4 rounded-full text-sm font-medium" style="background-color: var(--bg-content); color: var(--text-hlavni);"><i class="fa-solid fa-list-check mr-2"></i> Kvíz</span>
-                    <span class="py-2 px-4 rounded-full text-sm font-medium" style="background-color: var(--bg-content); color: var(--text-hlavni);"><i class="fa-solid fa-microphone-lines mr-2"></i> Podcast</span>
-                    <span class="py-2 px-4 rounded-full text-sm font-medium" style="background-color: var(--accent-orange); color: white;"><i class="fa-solid fa-pen-to-square mr-2"></i> Test (Hodnocený)</span>
+                    <span class="content-badge py-2 px-4 rounded-full text-sm font-medium"><i class="fa-solid fa-file-lines mr-2"></i> Text</span>
+                    <span class="content-badge py-2 px-4 rounded-full text-sm font-medium"><i class="fa-solid fa-video mr-2"></i> Video</span>
+                    <span class="content-badge py-2 px-4 rounded-full text-sm font-medium"><i class="fa-solid fa-list-check mr-2"></i> Kvíz</span>
+                    <span class="content-badge py-2 px-4 rounded-full text-sm font-medium"><i class="fa-solid fa-microphone-lines mr-2"></i> Podcast</span>
+                    <span class="content-badge active py-2 px-4 rounded-full text-sm font-medium" style="background-color: var(--accent-orange); color: white;"><i class="fa-solid fa-pen-to-square mr-2"></i> Test (Hodnocený)</span>
                 </div>
 
                 <h3 class="text-lg font-semibold mb-3" style="color: var(--text-hlavni);">Nástroje</h3>
                 <div class="flex gap-4 relative">
                     <!-- Hotspot 8: AI Asistent -->
-                    <div class="hotspot" data-modal-target="modal-8" style="top: 0; left: 100px;">8</div>
+                    <div class="hotspot" data-modal-target="modal-8" data-step="8" style="top: 10px; left: 140px;">8</div>
                     <!-- Hotspot 9: Konzultace -->
-                    <div class="hotspot" data-modal-target="modal-9" style="top: 0; left: 300px;">9</div>
+                    <div class="hotspot" data-modal-target="modal-9" data-step="9" style="top: 10px; left: 360px;">9</div>
 
-                    <button class="py-3 px-5 rounded-lg font-semibold text-white" style="background-color: var(--accent-green);">
+                    <button class="py-3 px-5 rounded-lg font-semibold text-white" style="background-color: var(--accent-green); box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                         <i class="fa-solid fa-robot mr-2"></i> AI Asistent
                     </button>
-                    <button class="py-3 px-5 rounded-lg font-semibold border" style="background-color: white; color: var(--accent-green); border-color: var(--accent-green);">
+                    <button class="py-3 px-5 rounded-lg font-semibold border" style="background-color: white; color: var(--accent-green); border-color: var(--accent-green); box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                         <i class="fa-solid fa-message mr-2"></i> Konzultace
                     </button>
                 </div>
@@ -370,15 +396,35 @@
 
     <!-- --- Hotspoty (Interaktivní body) --- -->
     
-    <!-- Pohled Profesora -->
-    <div class="hotspot" data-modal-target="modal-1" style="top: 360px; left: 100px;">1</div>
-    <div class="hotspot" data-modal-target="modal-2" style="top: 140px; left: 1100px;">2</div>
-    <div class="hotspot" data-modal-target="modal-3" style="top: 480px; left: 950px;">3</div>
-    <div class="hotspot" data-modal-target="modal-4" style="top: 305px; left: 100px;">4</div>
-    <div class="hotspot" data-modal-target="modal-5" style="top: 250px; left: 100px;">5</div>
+    <!-- Pohled Profesora - KALENDÁŘ -->
+    <div class="hotspot professor-hotspot" data-modal-target="modal-1" data-step="1" data-screen="calendar" style="top: 360px; left: 100px;">1</div>
+    <div class="hotspot professor-hotspot" data-modal-target="modal-5" data-step="5" data-screen="calendar" style="top: 250px; left: 100px;">5</div>
+    <div class="hotspot professor-hotspot" data-modal-target="modal-4" data-step="4" data-screen="calendar" style="top: 305px; left: 100px;">4</div>
+    
+    <!-- Hotspot 2: Přidat lekci (v Knihovně lekcí - levý panel) -->
+    <div class="hotspot professor-hotspot" data-modal-target="modal-2" data-step="2" data-screen="calendar" style="top: 140px; left: 350px;">2</div> 
+    
+    <!-- Hotspot 3: Publikování (Drag and Drop v Kalendáři - pravá strana) -->
+    <div class="hotspot professor-hotspot" data-modal-target="modal-3" data-step="3" data-screen="calendar" style="top: 480px; left: 950px;">3</div> 
 
-    <!-- Pohled Studenta (zde jsou, ale budou skryté, dokud se nezobrazí #student-view) -->
-    <!-- Hotspoty 6-9 jsou již vloženy do #student-view nahoře -->
+
+    <!-- Hotspot 10: AI Generátor (v Editoru) -->
+    <div class="hotspot professor-hotspot" data-modal-target="modal-10" data-step="10" data-screen="editor" style="top: 615px; left: 1100px;">10</div> 
+    
+    <!-- Hotspot 11: Editor (Pole pro psaní promptu) -->
+    <div class="hotspot professor-hotspot" data-modal-target="modal-11" data-step="11" data-screen="editor" style="top: 370px; left: 1100px;">11</div> 
+
+    
+    <!-- Pohled Studenta - Hotspoty sú umiestnené v student-view v kóde a inicializované v JS -->
+    
+    <!-- Hotspot 6: Karta lekce -->
+    <div class="hotspot student-hotspot" data-modal-target="modal-6" data-step="6" data-screen="student" style="top: 200px; left: 950px;">6</div> 
+    <!-- Hotspot 7: Typy obsahu -->
+    <div class="hotspot student-hotspot" data-modal-target="modal-7" data-step="7" data-screen="student" style="top: 600px; left: 450px;">7</div> 
+    <!-- Hotspot 8: AI Asistent -->
+    <div class="hotspot student-hotspot" data-modal-target="modal-8" data-step="8" data-screen="student" style="top: 730px; left: 350px;">8</div> 
+    <!-- Hotspot 9: Konzultace -->
+    <div class="hotspot student-hotspot" data-modal-target="modal-9" data-step="9" data-screen="student" style="top: 730px; left: 550px;">9</div> 
 
 
     <!-- --- Modální Okna (Vyskakovací bubliny) --- -->
@@ -389,115 +435,225 @@
         <!-- Modál 0: Vítejte -->
         <div id="modal-0" class="modal-content">
             <span class="modal-close-btn" data-modal-close>&times;</span>
-            <h3>Vítejte v AI Sensei!</h3>
-            <p>Toto je interaktivní prohlídka, která vám ukáže hlavní funkce AI Sensei. Klikněte na "Další" pro zahájení, nebo prozkoumejte sami klikáním na pulzující oranžová čísla.</p>
+            <h3 data-modal-title>Vítejte v AI Sensei!</h3>
+            <p data-modal-text>Toto je interaktivní prohlídka, která vám ukáže hlavní funkce AI Sensei. Klikněte na "Další" pro zahájení, nebo prozkoumejte sami klikáním na pulzující oranžová čísla.</p>
             <button class="modal-next-btn" data-modal-next="modal-1">Začít prohlídku</button>
         </div>
 
-        <!-- Modály Profesora (1-5) -->
-        <div id="modal-1" class="modal-content" style="display: none;">
+        <!-- Modály Profesora (1, 5, 4, 2, 10, 11, 3) -->
+        <div id="modal-1" class="modal-content" data-view="professor" data-step="1" style="display: none;">
             <span class="modal-close-btn" data-modal-close>&times;</span>
-            <h3><i class="fa-solid fa-box-archive mr-2"></i> Krok 1: Knihovna médií</h3>
-            <p>Vše začíná zde! V <strong>"Knihovně médií"</strong> nahrajete své existující materiály (PDF, dokumenty). Toto je "mozek" a kontext (RAG), který AI použije k vytvoření obsahu vaší lekce.</p>
+            <h3 data-modal-title><i class="fa-solid fa-box-archive mr-2"></i> Krok 1: Knihovna médií</h3>
+            <p data-modal-text>Vše začíná zde! V <strong>"Knihovně médií"</strong> nahrajete své existující materiály (PDF, dokumenty). Toto je "mozek" a kontext (RAG), který AI použije k vytvoření obsahu vaší lekce.</p>
             <button class="modal-next-btn" data-modal-next="modal-2">Další krok</button>
         </div>
-
-        <div id="modal-2" class="modal-content" style="display: none;">
+        
+        <!-- Hotspot 2 nyní volá Lesson Editor -->
+        <div id="modal-2" class="modal-content" data-view="professor" data-step="2" style="display: none;">
             <span class="modal-close-btn" data-modal-close>&times;</span>
-            <h3><i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Krok 2: Editor lekcí</h3>
-            <p>Po nahrání souborů kliknete na <strong>"Přidat novou lekci"</strong>. Tím se otevře Editor, kde se děje kouzlo. Propojíte své nahrané soubory s lekcí a pomocí <strong>"AI Generátoru"</strong> vytvoříte:</p>
-            <ul class="list-disc list-inside mb-4 text-sm space-y-1">
-                <li>Studijní texty a shrnutí</li>
-                <li>Prezentace (slajdy)</li>
-                <li>Interaktivní kvízy</li>
-                <li>Pokročilé testy</li>
-                <li>Scénáře pro podcasty</li>
-            </ul>
-            <button class="modal-next-btn" data-modal-next="modal-3">Další krok</button>
+            <h3 data-modal-title><i class="fa-solid fa-calendar-plus mr-2"></i> Krok 2: Vytvořit novou lekci</h3>
+            <p data-modal-text>Kliknutím na <strong>"Přidat novou lekci"</strong> se celá obrazovka přepne do <strong>Editoru lekcí</strong> (základní nástroj profesora). Tam se vytváří obsah.</p>
+            <button class="modal-next-btn" data-modal-next="modal-10" data-action="goto-editor">Přejít do Editoru</button>
+        </div>
+
+        <!-- Hotspot 10 (Nový) -->
+        <div id="modal-10" class="modal-content" data-view="professor" data-step="10" style="display: none;">
+            <span class="modal-close-btn" data-modal-close>&times;</span>
+            <h3 data-modal-title><i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Krok 3: AI Generátor</h3>
+            <p data-modal-text>V Editoru je <strong>AI Generátor</strong> to nejdůležitější. Zde zadáte jednoduchý příkaz (prompt) a AI na základě souborů, které jste vybrali, automaticky vytvoří texty, kvízy, testy nebo podcasty.</p>
+            <button class="modal-next-btn" data-modal-next="modal-3" data-action="back-to-calendar">Publikovat lekci</button>
         </div>
         
-        <div id="modal-3" class="modal-content" style="display: none;">
+        <div id="modal-3" class="modal-content" data-view="professor" data-step="3" style="display: none;">
             <span class="modal-close-btn" data-modal-close>&times;</span>
-            <h3><i class="fa-solid fa-calendar-check mr-2"></i> Krok 3: Publikování</h3>
-            <p>Hotovou lekci jednoduše <strong>přetáhnete</strong> z "Knihovny lekcí" (vpravo) přímo do kalendáře v <strong>"Plánu výuky"</strong>. Tím lekci publikujete a zpřístupníte studentům v daný den.</p>
+            <h3 data-modal-title><i class="fa-solid fa-calendar-check mr-2"></i> Krok 4: Publikování</h3>
+            <p data-modal-text>Po vytvoření a uložení lekce se vraťte do <strong>"Plánu výuky"</strong>. Hotovou lekci jednoduše <strong>přetáhnete</strong> z "Knihovny lekcí" (vlevo) přímo do kalendáře. Tím je lekce zveřejněna.</p>
             <button class="modal-next-btn" data-modal-next="modal-4">Další krok</button>
         </div>
-
-        <div id="modal-4" class="modal-content" style="display: none;">
+        
+        <div id="modal-4" class="modal-content" data-view="professor" data-step="4" style="display: none;">
             <span class="modal-close-btn" data-modal-close>&times;</span>
-            <h3><i class="fa-solid fa-chart-line mr-2"></i> Krok 4: Analýza (Po hodině)</h3>
-            <p>V sekci <strong>"Analýza"</strong> uvidíte, jak si vaši studenti vedou. Systém automaticky vyhodnotí testy a ukáže vám přehledné grafy, průměrné skóre a dokonce i <strong>"AI Postřehy"</strong> pro každého studenta zvlášť.</p>
+            <h3 data-modal-title><i class="fa-solid fa-chart-line mr-2"></i> Krok 5: Analýza (Po hodině)</h3>
+            <p data-modal-text>V sekci <strong>"Analýza"</strong> uvidíte, jak si vaši studenti vedou. Systém automaticky vyhodnotí testy a ukáže vám přehledné grafy, průměrné skóre a dokonce i <strong>"AI Postřehy"</strong> pro každého studenta zvlášť.</p>
             <button class="modal-next-btn" data-modal-next="modal-5">Další krok</button>
         </div>
         
-        <div id="modal-5" class="modal-content" style="display: none;">
+        <div id="modal-5" class="modal-content" data-view="professor" data-step="5" style="display: none;">
             <span class="modal-close-btn" data-modal-close>&times;</span>
-            <h3><i class="fa-solid fa-users mr-2"></i> Krok 5: Správa a Komunikace</h3>
-            <p>V sekcích <strong>"Studenti"</strong> a <strong>"Interakce"</strong> spravujete svou třídu. Můžete zde odpovídat na dotazy, které vám studenti položili přes "Konzultace", a udržovat s nimi přímý kontakt.</p>
-            <!-- Tlačítko nyní vede na Krok 6 (pohled studenta) -->
+            <h3 data-modal-title><i class="fa-solid fa-users mr-2"></i> Krok 6: Správa a Komunikace</h3>
+            <p data-modal-text>V sekcích <strong>"Studenti"</strong> a <strong>"Interakce"</strong> spravujete svou třídu. Můžete zde odpovídat na dotazy, které vám studenti položili přes "Konzultace", a udržovat s nimi přímý kontakt.</p>
+            <!-- Tlačítko nyní vede na Krok 7 (pohled studenta) -->
             <button class="modal-next-btn" data-modal-next="modal-6">Podívat se jako student</button>
         </div>
 
-        <!-- Modály Studenta (6-9) -->
-        <div id="modal-6" class="modal-content" style="display: none;">
+
+        <!-- Modály Studenta (6-9) - TEXTY SÚ PREPISANÉ PRE POHLAD STUDENTA -->
+        <div id="modal-6" class="modal-content" data-view="student" data-step="6" style="display: none;">
             <span class="modal-close-btn" data-modal-close>&times;</span>
-            <h3><i class="fa-solid fa-user-graduate mr-2"></i> Pohled Studenta: Lekce</h3>
-            <p>A takto to vidí student! Místo editoru vidí publikované lekce. Po kliknutí na kartu se mu zobrazí veškerý obsah, který jste připravili.</p>
+            <h3 data-modal-title><i class="fa-solid fa-user-graduate mr-2"></i> Krok 7: Moje Lekce</h3>
+            <p data-modal-text>A takto to vidí student! Místo editoru vidí publikované lekce. Po kliknutí na kartu se mu zobrazí veškerý obsah, který profesor pripravil.</p>
             <button class="modal-next-btn" data-modal-next="modal-7">Další (Obsah)</button>
         </div>
         
-        <div id="modal-7" class="modal-content" style="display: none;">
+        <div id="modal-7" class="modal-content" data-view="student" data-step="7" style="display: none;">
             <span class="modal-close-btn" data-modal-close>&times;</span>
-            <h3><i class="fa-solid fa-layer-group mr-2"></i> Různé typy obsahu</h3>
-            <p>Student má přístup ke všem formátům, které jste vygenerovali: textům, prezentacím, kvízům (na procvičení) i hodnoceným <strong>Testům</strong> a <strong>Podcastům</strong> (pro poslech na cestách).</p>
+            <h3 data-modal-title><i class="fa-solid fa-layer-group mr-2"></i> Různé typy obsahu</h3>
+            <p data-modal-text>Student má přístup ke všem formátům: textům, prezentacím, kvízům (na procvičení) i hodnoceným <strong>Testům</strong> a <strong>Podcastům</strong> (pro poslech na cestách).</p>
             <button class="modal-next-btn" data-modal-next="modal-8">Další (AI)</button>
         </div>
 
-        <div id="modal-8" class="modal-content" style="display: none;">
+        <div id="modal-8" class="modal-content" data-view="student" data-step="8" style="display: none;">
             <span class="modal-close-btn" data-modal-close>&times;</span>
-            <h3><i class="fa-solid fa-robot mr-2"></i> AI Asistent Studenta</h3>
-            <p>Toto je klíčová funkce. Student může klást otázky <strong>"AI Asistentovi"</strong>, který odpovídá *pouze* na základě kontextu (vašich PDF), který jste pro danou lekci nastavili. Je to bezpečný a soukromý tutor.</p>
+            <h3 data-modal-title><i class="fa-solid fa-robot mr-2"></i> AI Asistent: Můj Tutor</h3>
+            <p data-modal-text>Toto je klíčová funkce. Student může klást otázky <strong>"AI Asistentovi"</strong>, který odpovídá *pouze* na základě kontextu, který nastavil profesor. Je to bezpečný a soukromý tutor 24/7.</p>
             <button class="modal-next-btn" data-modal-next="modal-9">Další (Chat)</button>
         </div>
 
-        <div id="modal-9" class="modal-content" style="display: none;">
+        <div id="modal-9" class="modal-content" data-view="student" data-step="9" style="display: none;">
             <span class="modal-close-btn" data-modal-close>&times;</span>
-            <h3><i class="fa-solid fa-message mr-2"></i> Konzultace</h3>
-            <p>Pokud AI asistent nestačí, student může pomocí tlačítka <strong>"Konzultace"</strong> poslat přímou zprávu vám (profesorovi). Tuto zprávu uvidíte ve vaší sekci "Interakce".</p>
+            <h3 data-modal-title><i class="fa-solid fa-message mr-2"></i> Konzultace s Profesorem</h3>
+            <p data-modal-text>Pokud AI asistent nestačí, student může pomocí tlačítka <strong>"Konzultace"</strong> poslat přímou zprávu profesorovi. Tato zpráva se objeví v sekci "Interakce".</p>
             <button class="modal-next-btn" data-modal-next="modal-0">Dokončit prohlídku</button>
         </div>
+        
+        <!-- Přidán placeholder pro staré/nepoužité modály -->
+        <div id="modal-11" class="modal-content" style="display: none;"></div> 
+        <div id="modal-12" class="modal-content" style="display: none;"></div>
 
     </div>
 
 
     <script>
+        // Data pro snadnou správu modálů (pohled profesora)
+        const PROFESSOR_HOTSPOT_MAP = {
+            1: { target: 'modal-1', top: 360, left: 100, screen: 'calendar' }, // Knihovna médií
+            2: { target: 'modal-2', top: 140, left: 350, screen: 'calendar' }, // Přidat novou lekci (v panelu)
+            3: { target: 'modal-3', top: 480, left: 950, screen: 'calendar' }, // Publikování (Drag and Drop v Kalendáři - pravá strana)
+            4: { target: 'modal-4', top: 305, left: 100, screen: 'calendar' }, // Analýza
+            5: { target: 'modal-5', top: 250, left: 100, screen: 'calendar' }, // Studenti/Interakce
+            10: { target: 'modal-10', top: 615, left: 1100, screen: 'editor' }, // AI Generátor (v Editoru)
+        };
+        
+        // Data pro snadnou správu modálů (pohled studenta)
+        const STUDENT_HOTSPOT_MAP = {
+            6: { target: 'modal-6', top: 200, left: 950, screen: 'student' }, // Karta Lekce 
+            7: { target: 'modal-7', top: 600, left: 450, screen: 'student' }, // Typy Obsahu (Uvnitř karty)
+            8: { target: 'modal-8', top: 730, left: 350, screen: 'student' }, // AI Asistent
+            9: { target: 'modal-9', top: 730, left: 550, screen: 'student' } // Konzultace (Chat)
+        };
+
+
         document.addEventListener('DOMContentLoaded', () => {
             const overlay = document.getElementById('modal-overlay');
             const allModals = overlay.querySelectorAll('.modal-content');
-            const hotspots = document.querySelectorAll('.hotspot');
-
             const professorView = document.getElementById('professor-view');
             const studentView = document.getElementById('student-view');
             const switchToStudentBtn = document.getElementById('switch-to-student-btn');
             const switchToProfessorBtn = document.getElementById('switch-to-professor-btn');
+            const professorCalendarView = document.getElementById('professor-calendar-view');
+            const professorEditorView = document.getElementById('professor-editor-view');
+            const addLessonBtn = document.getElementById('add-lesson-btn'); // Tlačítko pro vstup do editoru
+            const backToCalendarBtn = document.getElementById('back-to-calendar-btn'); // Tlačítko pro opuštění editoru
             
-            // --- Funkce pro zobrazení ---
+            let currentGlobalView = 'professor'; // professor | student
+            let currentProfessorScreen = 'calendar'; // calendar | editor
+            
+            // Incializuje hotspoty v JS
+            initializeHotspots('professor');
+            initializeHotspots('student');
 
-            // Funkce pro přepnutí pohledu
-            function switchView(view) {
-                if (view === 'student') {
-                    professorView.style.display = 'none';
-                    studentView.style.display = 'flex'; // Student view je flex-col
-                } else {
-                    professorView.style.display = 'flex'; // Professor view je flex
-                    studentView.style.display = 'none';
+
+            function initializeHotspots(viewType) {
+                const map = viewType === 'professor' ? PROFESSOR_HOTSPOT_MAP : STUDENT_HOTSPOT_MAP;
+                const viewContainer = viewType === 'professor' ? professorView : studentView;
+                
+                for (const step in map) {
+                    const data = map[step];
+                    let hotspot = document.querySelector(`.hotspot[data-step="${step}"]`);
+
+                    // Pokud hotspot neexistuje v DOM, vytvoříme jej a vložíme do správného ViewContaineru
+                    if (!hotspot) {
+                        hotspot = document.createElement('div');
+                        hotspot.className = `hotspot ${viewType}-hotspot`;
+                        hotspot.setAttribute('data-modal-target', data.target);
+                        hotspot.setAttribute('data-step', step);
+                        hotspot.textContent = step;
+                        // Pro správnou pozici v rámci hlavního kontejneru
+                        professorView.appendChild(hotspot); 
+                    }
+                    
+                    // Nastavíme pozici a zobrazení/skrytí
+                    hotspot.style.top = data.top + 'px';
+                    hotspot.style.left = data.left + 'px';
+                    hotspot.classList.add('hidden-by-view'); // Skryjeme všechny na začátku
+                    
+                    hotspot.addEventListener('click', () => {
+                         // Pokud je aktivní Editor, skryjeme ho
+                         if (currentProfessorScreen === 'editor' && data.screen === 'calendar') {
+                            showProfessorScreen('calendar');
+                         }
+                         showModal(data.target);
+                    });
                 }
             }
+
+
+            // FUNKCE PRO ZMĚNU POHLEDŮ (profesor/student)
+            function switchView(view) {
+                currentGlobalView = view;
+                if (view === 'student') {
+                    professorView.style.display = 'none';
+                    studentView.style.display = 'flex'; 
+                    updateHotspotVisibility('student', 'student');
+                } else {
+                    professorView.style.display = 'flex'; 
+                    studentView.style.display = 'none';
+                    showProfessorScreen(currentProfessorScreen); // Zůstane na poslední obrazovce profesora
+                }
+            }
+            
+            // FUNKCE PRO ZMĚNU OBRAZOVKY PROFESORA (kalendář/editor)
+            function showProfessorScreen(screen) {
+                currentProfessorScreen = screen;
+                if (screen === 'editor') {
+                    professorCalendarView.style.display = 'none';
+                    professorEditorView.style.display = 'flex';
+                } else {
+                    professorCalendarView.style.display = 'flex';
+                    professorEditorView.style.display = 'none';
+                }
+                updateHotspotVisibility('professor', screen);
+            }
+
+            // Aktualizuje viditelnost hotspotů
+            function updateHotspotVisibility(globalView, professorScreen) {
+                document.querySelectorAll('.hotspot').forEach(h => {
+                    const data = globalView === 'professor' ? PROFESSOR_HOTSPOT_MAP[h.getAttribute('data-step')] : STUDENT_HOTSPOT_MAP[h.getAttribute('data-step')];
+                    
+                    if (!data) {
+                        h.classList.add('hidden-by-view');
+                        return;
+                    }
+                    
+                    // Viditelnost v aktuálním globálním pohledu (profesor/student)
+                    const isGlobalViewMatch = (globalView === 'professor' && data.screen !== 'student') || (globalView === 'student' && data.screen === 'student');
+                    
+                    // Viditelnost v aktuálním pohledu profesora (calendar/editor)
+                    const isScreenMatch = (globalView === 'professor' && data.screen === professorScreen) || (globalView === 'student');
+                    
+                    if (isGlobalViewMatch && isScreenMatch) {
+                        h.classList.remove('hidden-by-view');
+                    } else {
+                        h.classList.add('hidden-by-view');
+                    }
+                });
+            }
+
 
             // Funkce pro zobrazení modálu
             function showModal(modalId) {
                 allModals.forEach(modal => {
-                    modal.style.display = 'none'; // Skryjeme všechny
+                    modal.style.display = 'none';
                 });
                 
                 const modalToShow = document.getElementById(modalId);
@@ -510,7 +666,6 @@
             // Funkce pro skrytí všech modálů
             function hideAllModals() {
                 overlay.classList.remove('visible');
-                // Dáme malou prodlevu před skrytím, aby stihla proběhnout animace
                 setTimeout(() => {
                     allModals.forEach(modal => {
                         modal.style.display = 'none';
@@ -523,26 +678,35 @@
             // Zobrazit první modál (Vítejte) při načtení
             setTimeout(() => {
                 showModal('modal-0');
-            }, 500); // Malá prodleva po načtení
+                updateHotspotVisibility(currentGlobalView, currentProfessorScreen);
+            }, 500); 
 
-            // Kliknutí na hotspoty
-            hotspots.forEach(hotspot => {
-                hotspot.addEventListener('click', () => {
-                    const modalId = hotspot.getAttribute('data-modal-target');
-                    showModal(modalId);
-                });
+            // Navigace: Přidat novou lekci (Hotspot 2 & tlačítko)
+            addLessonBtn.addEventListener('click', () => {
+                hideAllModals();
+                showProfessorScreen('editor');
+                // Po vstupu do editoru automaticky spustíme Krok 3 (Generátor)
+                setTimeout(() => showModal('modal-10'), 300);
             });
+            
+            // Tlačítko zpět z Editoru do Kalendáře
+            backToCalendarBtn.addEventListener('click', () => {
+                hideAllModals();
+                showProfessorScreen('calendar');
+                // Po návratu do kalendáře automaticky spustíme Krok 4 (Publikování)
+                setTimeout(() => showModal('modal-3'), 300);
+            });
+
 
             // Ruční přepínání pohledů
             switchToStudentBtn.addEventListener('click', () => {
                 switchView('student');
-                // Zobrazíme první modál studenta
                 showModal('modal-6');
             });
 
             switchToProfessorBtn.addEventListener('click', () => {
                 switchView('professor');
-                // Zobrazíme první modál profesora
+                showProfessorScreen('calendar'); // Vždy vráti na Kalendár
                 showModal('modal-1');
             });
 
@@ -552,18 +716,39 @@
                 button.addEventListener('click', () => {
                     const nextModalId = button.getAttribute('data-modal-next');
                     const currentModalId = button.closest('.modal-content').id;
+                    const action = button.getAttribute('data-action');
 
-                    // SPECIÁLNÍ PŘÍPAD: Přepnutí z prof na studenta (Krok 5 -> 6)
+                    // ACTION: Přejít do Editoru (Krok 2 -> Krok 10)
+                    if (action === 'goto-editor') {
+                        hideAllModals();
+                        setTimeout(() => {
+                            showProfessorScreen('editor');
+                            showModal('modal-10');
+                        }, 300);
+                        return;
+                    }
+                    
+                    // ACTION: Publikovat/Vrátit se (Krok 10 -> Krok 3)
+                    if (action === 'back-to-calendar') {
+                        hideAllModals();
+                        setTimeout(() => {
+                            showProfessorScreen('calendar');
+                            showModal('modal-3');
+                        }, 300);
+                        return;
+                    }
+
+                    // SPECIÁLNY PRÍPAD: Prepnutie z prof na studenta (Krok 6 -> 7)
                     if (currentModalId === 'modal-5' && nextModalId === 'modal-6') {
                         hideAllModals();
                         setTimeout(() => {
                             switchView('student');
                             showModal('modal-6');
                         }, 300);
-                        return; // Zastavíme normální tok
+                        return;
                     }
                     
-                    // SPECIÁLNÍ PŘÍPAD: Přepnutí zpět na profa (Krok 9 -> 0)
+                    // SPECIÁLNY PRÍPAD: Koniec prehliadky (Krok 9 -> 0)
                     if (currentModalId === 'modal-9' && nextModalId === 'modal-0') {
                          hideAllModals();
                          setTimeout(() => {
@@ -573,7 +758,7 @@
                          return;
                     }
 
-                    // Normální tok (zůstáváme ve stejném pohledu)
+                    // Normálny tok (zostávame v rovnakom pohľade)
                     if (nextModalId === 'modal-0') {
                         hideAllModals();
                         setTimeout(() => showModal('modal-0'), 300);
@@ -592,11 +777,22 @@
 
             // Kliknutí na overlay (mimo obsah modálu)
             overlay.addEventListener('click', (e) => {
-                // Zavřeme pouze pokud se kliklo na overlay, ne na jeho potomky (modal-content)
                 if (e.target === overlay) {
                     hideAllModals();
                 }
             });
+            
+            // Vytvoříme hotspoty pro student view po inicializaci
+            const studentHotspotsContainer = document.querySelector('#student-view main .bg-white.rounded-xl.shadow-sm.border.border-gray-200.p-6.relative');
+
+            for (const step in STUDENT_HOTSPOT_MAP) {
+                const data = STUDENT_HOTSPOT_MAP[step];
+                const hotspot = document.querySelector(`.hotspot[data-step="${step}"]`);
+                if (hotspot && studentHotspotsContainer) {
+                    studentHotspotsContainer.appendChild(hotspot);
+                }
+            }
+
         });
     </script>
 
