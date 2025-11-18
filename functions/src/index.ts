@@ -988,10 +988,17 @@ export const admin_migrateStudentRoles = onCall({ region: "europe-west1" }, asyn
             try {
                 const userRecord = await auth.getUser(studentId);
                 const currentClaims = userRecord.customClaims || {};
+                const email = userRecord.email;
+
+                // SECURITY CHECK: Skip admin or existing professors
+                if (email === 'profesor@profesor.cz' || currentClaims.role === 'professor') {
+                    logger.log(`Skipping admin/professor account: ${email}`);
+                    continue;
+                }
 
                 if (currentClaims.role !== 'student') {
                     await auth.setCustomUserClaims(studentId, { ...currentClaims, role: 'student' });
-                    logger.log(`Successfully set role 'student' for user: ${studentId}`);
+                    logger.log(`Successfully set role 'student' for user: ${studentId} (${email})`);
                     updatedCount++;
                 }
             } catch (error: any) {
