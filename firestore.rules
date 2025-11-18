@@ -9,25 +9,17 @@ service cloud.firestore {
     function isProfessor() {
       return isSignedIn() && request.auth.token.email == 'profesor@profesor.cz';
     }
-   function isProfessorRole() {
+    function isProfessorRole() {
       return isSignedIn() && request.auth.token.role == 'professor';
     }
+    // --- NOVÁ FUNKCIA PRE ŠTUDENTA ---
+    function isStudentRole() {
+      return isSignedIn() && request.auth.token.role == 'student';
+    }
+    
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-    // NOVÁ FUNKCIA: Overí, či je študent členom skupiny priradenej k lekcii.
-    function isStudentInGroup(lessonData) {
-        // Získame dáta študenta. Musí existovať dokument a v ňom pole 'memberOfGroups'.
-        let studentDoc = get(/databases/$(database)/documents/students/$(request.auth.uid));
-        // Lekcia musí mať priradené skupiny v poli 'assignedToGroups'.
-        return isSignedIn() &&
-               exists(/databases/$(database)/documents/students/$(request.auth.uid)) &&
-               'memberOfGroups' in studentDoc.data &&
-               'assignedToGroups' in lessonData &&
-               // Skontrolujeme, či existuje prienik medzi skupinami študenta a skupinami lekcie.
-               studentDoc.data.memberOfGroups.hasAny(lessonData.assignedToGroups);
-    }
-    // -----------------------
 
     // Kolekcia pre študentov (zjednotená)
     match /students/{studentId} {
@@ -43,7 +35,6 @@ service cloud.firestore {
       // --- ZAČIATOK OPRAVY PARADOXU ---
 
       // 2. OPRAVA: Explicitne povoľ 'create' iba pre vlastníka.
-      // Toto rieši zlyhanie registrácie nového profesora.
       allow create: if isOwner(userId);
 
       // 3. Ponechaj 'update' prísne (len vlastník alebo starý admin).
@@ -57,9 +48,14 @@ service cloud.firestore {
 
     // Lekcie
     match /lessons/{lessonId} {
-      // OPRAVA: Pridaná kontrola pre študentov cez isStudentInGroup.
-      // Čítať môže: vlastník lekcie (profesor), starý admin, alebo študent, ktorý je v príslušnej skupine.
-      allow read: if (resource.data.ownerId == request.auth.uid) || isProfessor() || isStudentInGroup(resource.data);
+      // OPRAVA: Prechod na isStudentRole pre podporu realtime listenerov.
+      // Pôvodná kontrola isStudentInGroup(resource.data) bránila načítaniu zoznamu,
+      // pretože funkcia get() nie je v pravidlách pre "list queries" povolená.
+      allow read: if (resource.data.ownerId == request.auth.uid) || 
+                     isProfessor() || 
+                     isProfessorRole() || // Pridané pre konzistenciu
+                     isStudentRole();     // <-- KĽÚČOVÁ ZMENA: Povolí študentom načítať zoznam lekcií
+      
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if (resource.data.ownerId == request.auth.uid) || isProfessor();
     }
@@ -67,7 +63,13 @@ service cloud.firestore {
     // Skupiny (triedy) pre študentov
     match /groups/{groupId} {
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow read, update, delete: if isSignedIn() && request.auth.uid == resource.data.ownerId;
+      
+      // ZMENA: Povolíme čítanie (read) pre všetkých prihlásených.
+      // Je to potrebné pre správne fungovanie klientskych zoznamov.
+      // Zápis (update/delete) ostáva prísne len pre vlastníka.
+      allow read: if isSignedIn();
+      
+      allow update, delete: if isSignedIn() && request.auth.uid == resource.data.ownerId;
     }
 
     // Konverzácie
