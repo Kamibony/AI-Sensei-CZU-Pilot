@@ -29,11 +29,11 @@
     "rewrites": [
       {
         "source": "/teaserprovedeni",
-        "destination": "/ai_sensei_teaser_vedeni.html"
+        "destination": "/AI-Sensei-Teaser-pro-Vedeni.html"
       },
       {
         "source": "/prohlidka",
-        "destination": "/ai_sensei_tour.html"
+        "destination": "/AI-Sensei-Tour.html"
       },
       {
         "source": "**",
