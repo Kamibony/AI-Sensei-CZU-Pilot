@@ -43,11 +43,12 @@ export async function getEmbeddings(text: string): Promise<number[]> {
     }
 
     try {
-        const result = await embeddingModel.generateContent({
+        const request = {
             contents: [{ role: "user", parts: [{ text }] }],
-        });
+        };
+        const result = await embeddingModel.embedContent(request);
 
-        const embedding = result.response.candidates?.[0].content.parts?.[0].embedding;
+        const embedding = result.embedding;
 
         if (!embedding || !embedding.values) {
             throw new Error("Failed to extract embedding from the Vertex AI response.");
