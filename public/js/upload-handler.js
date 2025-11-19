@@ -64,6 +64,7 @@ async function uploadSingleFile(file, courseId, user, progressContainer) {
         // čím zabezpečíme, že `firebaseInit.functions` už je definované.
         const getSecureUploadUrl = httpsCallable(firebaseInit.functions, 'getSecureUploadUrl');
         const finalizeUpload = httpsCallable(firebaseInit.functions, 'finalizeUpload');
+        const processFileForRAG = httpsCallable(firebaseInit.functions, 'processFileForRAG');
         // =================================================
 
         // KROK 1: Vypýtame si Signed URL z našej Cloud Function
@@ -101,7 +102,25 @@ async function uploadSingleFile(file, courseId, user, progressContainer) {
 
         await finalizeUpload({ docId: docId, filePath: filePath });
 
-        // KROK 4: Hotovo
+        // KROK 4: Spustíme RAG spracovanie
+        progressBar.style.width = '95%';
+        percentageText.textContent = 'Zpracování AI...';
+        try {
+            await processFileForRAG({ docId: docId, filePath: filePath });
+        } catch (ragError) {
+            console.error(`RAG spracovanie pre ${file.name} zlyhalo:`, ragError);
+            showToast(`Soubor ${file.name} byl nahrán, ale AI analýza selhala.`, true);
+            // Necháme progress na 95% a zmeníme farbu na oranžovú ako varovanie
+            progressBar.classList.remove('bg-yellow-500');
+            progressBar.classList.add('bg-orange-500');
+            percentageText.textContent = 'AI Chyba';
+            // V tomto prípade nepokračujeme ďalej a nehlásime chybu "vyššie",
+            // pretože upload samotný bol úspešný.
+            return; // Ukončíme funkciu tu
+        }
+
+
+        // KROK 5: Hotovo
         progressBar.style.width = '100%';
         progressBar.classList.remove('bg-yellow-500');
         progressBar.classList.add('bg-green-600');
