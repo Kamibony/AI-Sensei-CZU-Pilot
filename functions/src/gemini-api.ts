@@ -7,7 +7,7 @@ import {
   HarmBlockThreshold,
   Part,
 } from "@google-cloud/vertexai";
-import { v1 } from '@google-cloud/aiplatform';
+import * as aiplatform from '@google-cloud/aiplatform';
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions"; // <--- PRIDANÉ
 import { HttpsError } from "firebase-functions/v2/https"; // <--- PRIDANÉ
@@ -32,8 +32,7 @@ const model = vertex_ai.getGenerativeModel({
     ],
 });
 
-import aiplatform from '@google-cloud/aiplatform';
-const { PredictionServiceClient } = v1;
+const { PredictionServiceClient } = aiplatform.v1;
 const { helpers } = aiplatform;
 
 export async function getEmbeddings(text: string): Promise<number[]> {
