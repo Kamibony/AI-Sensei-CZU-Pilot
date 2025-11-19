@@ -88,6 +88,7 @@ exports.generateContent = onCall({
                      break;
             }
         }
+        // RAG Pipeline Logic
         if (filePaths && filePaths.length > 0) {
             // RAG-based response
             logger.log(`[RAG] Starting RAG process for prompt: "${finalPrompt}" with ${filePaths.length} files.`);
