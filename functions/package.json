@@ -14,7 +14,6 @@
     "node": "20"
   },
   "main": "lib/index.js",
-  "type": "module",
   "dependencies": {
     "@google-cloud/aiplatform": "^3.22.0",
     "@google-cloud/vertexai": "^1.10.0",
