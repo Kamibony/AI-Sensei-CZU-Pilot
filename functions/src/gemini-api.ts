@@ -32,9 +32,9 @@ const model = vertex_ai.getGenerativeModel({
     ],
 });
 
+import aiplatform from '@google-cloud/aiplatform';
 const { PredictionServiceClient } = v1;
-const { helpers } = require('@google-cloud/aiplatform');
-const aiplatform = require('@google-cloud/aiplatform');
+const { helpers } = aiplatform;
 
 export async function getEmbeddings(text: string): Promise<number[]> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
@@ -49,7 +49,7 @@ export async function getEmbeddings(text: string): Promise<number[]> {
 
     const client = new PredictionServiceClient(clientOptions);
 
-    const instances = [helpers.toValue({ content: text, task_type: "RETRIEVAL_DOCUMENT" })];
+    const instances = [helpers.toValue({ content: text, task_type: "RETRIEVAL_DOCUMENT" })] as aiplatform.protos.google.protobuf.IValue[];
     const endpoint = `projects/${GCLOUD_PROJECT}/locations/${LOCATION}/publishers/google/models/text-embedding-004`;
 
     const request = {
@@ -59,25 +59,26 @@ export async function getEmbeddings(text: string): Promise<number[]> {
 
     try {
         const [response] = await client.predict(request);
+
         if (!response || !response.predictions || response.predictions.length === 0) {
-            throw new Error("Invalid response from Vertex AI");
+            throw new HttpsError("internal", "Received an invalid response from the Vertex AI embedding model.");
         }
-        const predictions = response.predictions;
-        const embeddings = predictions.map(p => {
-            if (!p.structValue || !p.structValue.fields || !p.structValue.fields.embeddings) {
-                return [];
-            }
-            const embeddingsProto = p.structValue.fields.embeddings;
-            if (!embeddingsProto.structValue || !embeddingsProto.structValue.fields || !embeddingsProto.structValue.fields.values) {
-                return [];
-            }
-            const valuesProto = embeddingsProto.structValue.fields.values;
-            if (!valuesProto.listValue || !valuesProto.listValue.values) {
-                return [];
-            }
-            return valuesProto.listValue.values.map(v => v.numberValue);
-        });
-        return embeddings[0] as number[];
+
+        const prediction = response.predictions[0];
+        const embeddingsValue = prediction.structValue?.fields?.embeddings;
+
+        if (!embeddingsValue || !embeddingsValue.structValue || !embeddingsValue.structValue.fields) {
+             throw new HttpsError("internal", "Could not find embeddings in the Vertex AI response.");
+        }
+
+        const embeddingValues = embeddingsValue.structValue.fields.values.listValue?.values;
+
+        if (!embeddingValues) {
+            throw new HttpsError("internal", "Could not find embedding values in the Vertex AI response.");
+        }
+
+        return embeddingValues.map((v: any) => v.numberValue);
+
     } catch (error) {
         logger.error("[gemini-api:getEmbeddings] Error generating embeddings:", error);
         if (error instanceof Error) {
