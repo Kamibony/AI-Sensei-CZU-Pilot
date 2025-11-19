@@ -7,6 +7,7 @@ import {
   HarmBlockThreshold,
   Part,
 } from "@google-cloud/vertexai";
+import { v1 } from '@google-cloud/aiplatform';
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions"; // <--- PRIDANÉ
 import { HttpsError } from "firebase-functions/v2/https"; // <--- PRIDANÉ
@@ -31,9 +32,9 @@ const model = vertex_ai.getGenerativeModel({
     ],
 });
 
-const embeddingModel = vertex_ai.getGenerativeModel({
-    model: "text-embedding-004",
-});
+const { PredictionServiceClient } = v1;
+const { helpers } = require('@google-cloud/aiplatform');
+const aiplatform = require('@google-cloud/aiplatform');
 
 export async function getEmbeddings(text: string): Promise<number[]> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
@@ -42,19 +43,41 @@ export async function getEmbeddings(text: string): Promise<number[]> {
         return Array(768).fill(0).map((_, i) => Math.sin(i));
     }
 
+    const clientOptions = {
+        apiEndpoint: `${LOCATION}-aiplatform.googleapis.com`,
+    };
+
+    const client = new PredictionServiceClient(clientOptions);
+
+    const instances = [helpers.toValue({ content: text, task_type: "RETRIEVAL_DOCUMENT" })];
+    const endpoint = `projects/${GCLOUD_PROJECT}/locations/${LOCATION}/publishers/google/models/text-embedding-004`;
+
+    const request = {
+        endpoint,
+        instances,
+    };
+
     try {
-        const request = {
-            contents: [{ role: "user", parts: [{ text }] }],
-        };
-        const result = await embeddingModel.embedContent(request);
-
-        const embedding = result.embedding;
-
-        if (!embedding || !embedding.values) {
-            throw new Error("Failed to extract embedding from the Vertex AI response.");
+        const [response] = await client.predict(request);
+        if (!response || !response.predictions || response.predictions.length === 0) {
+            throw new Error("Invalid response from Vertex AI");
         }
-
-        return embedding.values;
+        const predictions = response.predictions;
+        const embeddings = predictions.map(p => {
+            if (!p.structValue || !p.structValue.fields || !p.structValue.fields.embeddings) {
+                return [];
+            }
+            const embeddingsProto = p.structValue.fields.embeddings;
+            if (!embeddingsProto.structValue || !embeddingsProto.structValue.fields || !embeddingsProto.structValue.fields.values) {
+                return [];
+            }
+            const valuesProto = embeddingsProto.structValue.fields.values;
+            if (!valuesProto.listValue || !valuesProto.listValue.values) {
+                return [];
+            }
+            return valuesProto.listValue.values.map(v => v.numberValue);
+        });
+        return embeddings[0] as number[];
     } catch (error) {
         logger.error("[gemini-api:getEmbeddings] Error generating embeddings:", error);
         if (error instanceof Error) {
