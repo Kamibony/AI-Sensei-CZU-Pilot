@@ -1,16 +1,18 @@
-// Súbor: functions/src/index.ts (KOMPLETNÁ VERZIA S PRÍSNOU KONTROLOU)
+import type { CallableRequest, Request } from "firebase-functions/v2/https";
+import type { FirestoreEvent, QueryDocumentSnapshot } from "firebase-functions/v2/firestore";
 
-import { initializeApp } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getAuth } from "firebase-admin/auth";
-import { getStorage } from "firebase-admin/storage";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { onRequest } from "firebase-functions/v2/https";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import * as logger from "firebase-functions/logger";
-import * as GeminiAPI from "./gemini-api.js";
-import cors from "cors";
-import fetch from "node-fetch";
+const { initializeApp } = require("firebase-admin/app");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
+const { getStorage } = require("firebase-admin/storage");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onRequest } = require("firebase-functions/v2/https");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const logger = require("firebase-functions/logger");
+const GeminiAPI = require("./gemini-api.js");
+const cors = require("cors");
+const fetch = require("node-fetch");
+const pdf = require("pdf-parse");
 
 initializeApp();
 const db = getFirestore();
@@ -35,10 +37,10 @@ async function sendTelegramMessage(chatId: number, text: string) {
 }
 
 // ZJEDNOTENÁ FUNKCIA PRE VŠETKY AI OPERÁCIE
-export const generateContent = onCall({ 
+exports.generateContent = onCall({
     region: "europe-west1",
     timeoutSeconds: 300 // <-- ZMENENÉ (5 minút)
-}, async (request) => {
+}, async (request: CallableRequest) => {
     const { contentType, promptData, filePaths } = request.data;
     if (!contentType || !promptData) {
         throw new HttpsError("invalid-argument", "Missing contentType or promptData.");
@@ -85,10 +87,57 @@ export const generateContent = onCall({
             }
         }
         if (filePaths && filePaths.length > 0) {
-            return isJson 
-                ? await GeminiAPI.generateJsonFromDocuments(filePaths, finalPrompt)
-                : { text: await GeminiAPI.generateTextFromDocuments(filePaths, finalPrompt) };
+            // RAG-based response
+            logger.log(`[RAG] Starting RAG process for prompt: "${finalPrompt}" with ${filePaths.length} files.`);
+
+            // 1. Generate embedding for the user's prompt
+            const promptEmbedding = await GeminiAPI.getEmbeddings(finalPrompt);
+
+            // 2. Fetch all chunks from the relevant files
+            let allChunks: any[] = [];
+            for (const filePath of filePaths) {
+                // Extract fileId from storage path `courses/{courseId}/media/{fileId}`
+                const fileId = filePath.split('/').pop();
+                if (!fileId) continue;
+
+                const chunksSnapshot = await db.collection(`fileMetadata/${fileId}/chunks`).get();
+                chunksSnapshot.forEach((doc: QueryDocumentSnapshot) => {
+                    allChunks.push(doc.data());
+                });
+            }
+            logger.log(`[RAG] Fetched a total of ${allChunks.length} chunks from Firestore.`);
+
+            if (allChunks.length === 0) {
+                 logger.warn("[RAG] No chunks found for the provided files. Falling back to non-RAG generation.");
+                 return isJson
+                    ? await GeminiAPI.generateJsonFromDocuments(filePaths, finalPrompt)
+                    : { text: await GeminiAPI.generateTextFromDocuments(filePaths, finalPrompt) };
+            }
+
+            // 3. Calculate Cosine Similarity and sort
+            for (const chunk of allChunks) {
+                chunk.similarity = GeminiAPI.calculateCosineSimilarity(promptEmbedding, chunk.embedding);
+            }
+            allChunks.sort((a, b) => b.similarity - a.similarity);
+
+            // 4. Pick the top 3-5 chunks
+            const topChunks = allChunks.slice(0, 5);
+            logger.log(`[RAG] Selected top ${topChunks.length} chunks based on similarity.`);
+
+
+            // 5. Construct the final prompt
+            const context = topChunks.map(chunk => chunk.text).join("\n\n---\n\n");
+            const augmentedPrompt = `Based on the following contexts, answer the user's question.\n\nContexts:\n${context}\n\nUser's Question:\n${finalPrompt}`;
+
+            logger.log(`[RAG] Sending augmented prompt to Gemini.`);
+            // Use the standard text/json generation with the new augmented prompt.
+            // Note: We don't pass the filePaths to these functions anymore, as the context is in the prompt.
+            return isJson
+                ? await GeminiAPI.generateJsonFromPrompt(augmentedPrompt)
+                : { text: await GeminiAPI.generateTextFromPrompt(augmentedPrompt) };
+
         } else {
+            // Standard non-RAG response
             return isJson
                 ? await GeminiAPI.generateJsonFromPrompt(finalPrompt)
                 : { text: await GeminiAPI.generateTextFromPrompt(finalPrompt) };
@@ -105,10 +154,108 @@ export const generateContent = onCall({
     }
 });
 
-export const getAiAssistantResponse = onCall({ 
+exports.processFileForRAG = onCall({ region: "europe-west1", timeoutSeconds: 540 }, async (request: CallableRequest) => {
+    if (!request.auth || request.auth.token.role !== 'professor') {
+        throw new HttpsError('unauthenticated', 'This action requires professor privileges.');
+    }
+
+    const { fileId } = request.data;
+    if (!fileId) {
+        throw new HttpsError('invalid-argument', 'Missing fileId.');
+    }
+
+    try {
+        logger.log(`[RAG] Starting processing for fileId: ${fileId}`);
+        const fileMetadataRef = db.collection("fileMetadata").doc(fileId);
+        const fileMetadataDoc = await fileMetadataRef.get();
+
+        if (!fileMetadataDoc.exists) {
+            throw new HttpsError('not-found', `File metadata not found for id: ${fileId}`);
+        }
+
+        const { storagePath, ownerId } = fileMetadataDoc.data();
+
+        // Security check
+        if (ownerId !== request.auth.uid) {
+             throw new HttpsError('permission-denied', 'You do not have permission to process this file.');
+        }
+
+        // 1. Download file from Storage
+        const bucket = getStorage().bucket();
+        const file = bucket.file(storagePath);
+        const [fileBuffer] = await file.download();
+        logger.log(`[RAG] Downloaded ${storagePath} (${(fileBuffer.length / 1024).toFixed(2)} KB)`);
+
+        // 2. Extract text from PDF
+        const pdfData = await pdf(fileBuffer);
+        const text = pdfData.text;
+        logger.log(`[RAG] Extracted ${text.length} characters of text from PDF.`);
+
+
+        // 3. Chunking Logic
+        const chunks = [];
+        const chunkSize = 1000;
+        const chunkOverlap = 100;
+        let startIndex = 0;
+        while (startIndex < text.length) {
+            const endIndex = Math.min(startIndex + chunkSize, text.length);
+            chunks.push(text.substring(startIndex, endIndex));
+            startIndex += chunkSize - chunkOverlap;
+        }
+        logger.log(`[RAG] Split text into ${chunks.length} chunks.`);
+
+        // 4. Embedding Loop and Save to Firestore
+        const batchSize = 5; // Process in smaller batches to avoid overwhelming the embedding API
+        let chunksProcessed = 0;
+        for (let i = 0; i < chunks.length; i += batchSize) {
+            const batchChunks = chunks.slice(i, i + batchSize);
+            const embeddingPromises = batchChunks.map(async (chunkText, index) => {
+                const embedding = await GeminiAPI.getEmbeddings(chunkText);
+                const chunkId = `${fileId}_${i + index}`;
+                const chunkRef = fileMetadataRef.collection("chunks").doc(chunkId);
+                return chunkRef.set({
+                    text: chunkText,
+                    embedding: embedding,
+                    fileId: fileId,
+                    chunkIndex: i + index,
+                    createdAt: FieldValue.serverTimestamp(),
+                });
+            });
+
+            await Promise.all(embeddingPromises);
+            chunksProcessed += batchChunks.length;
+            logger.log(`[RAG] Processed and saved batch of ${batchChunks.length} chunks. Total: ${chunksProcessed}/${chunks.length}`);
+        }
+
+        await fileMetadataRef.update({ ragStatus: 'processed', processedAt: FieldValue.serverTimestamp() });
+
+        logger.log(`[RAG] Successfully processed and stored chunks for fileId: ${fileId}`);
+        return { success: true, message: `Successfully processed file into ${chunks.length} chunks.` };
+
+    } catch (error) {
+        logger.error(`[RAG] Error processing file ${fileId}:`, error);
+        // Attempt to mark the file as failed in Firestore
+        try {
+            if (error instanceof Error) {
+                await db.collection("fileMetadata").doc(fileId).update({ ragStatus: 'failed', error: error.message });
+            }
+        } catch (updateError) {
+            logger.error(`[RAG] Failed to update file metadata with error status for ${fileId}:`, updateError);
+        }
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        if (error instanceof Error) {
+            throw new HttpsError("internal", `Failed to process file for RAG: ${error.message}`);
+        }
+        throw new HttpsError("internal", "An unknown error occurred while processing the file for RAG.");
+    }
+});
+
+exports.getAiAssistantResponse = onCall({
     region: "europe-west1",
     timeoutSeconds: 300 // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
-}, async (request) => {
+}, async (request: CallableRequest) => {
     const { lessonId, userQuestion } = request.data;
     if (!lessonId || !userQuestion) {
         throw new HttpsError("invalid-argument", "Missing lessonId or userQuestion");
@@ -134,7 +281,7 @@ export const getAiAssistantResponse = onCall({
     }
 });
 
-export const sendMessageFromStudent = onCall({ region: "europe-west1" }, async (request) => {
+exports.sendMessageFromStudent = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
     }
@@ -172,7 +319,7 @@ export const sendMessageFromStudent = onCall({ region: "europe-west1" }, async (
     }
 });
 
-export const sendMessageToStudent = onCall({ region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, async (request) => {
+exports.sendMessageToStudent = onCall({ region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, async (request: CallableRequest) => {
     const { studentId, text } = request.data;
     if (!studentId || !text) {
         throw new HttpsError("invalid-argument", "Chybí ID studenta nebo text zprávy.");
@@ -211,7 +358,7 @@ export const sendMessageToStudent = onCall({ region: "europe-west1", secrets: ["
 // =================== ZAČIATOK ÚPRAVY PRE ANALÝZU =====================
 // ==================================================================
 
-export const getGlobalAnalytics = onCall({ region: "europe-west1" }, async (request) => {
+exports.getGlobalAnalytics = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
     try {
         // ... (kód zostáva nezmenený) ...
         // 1. Získať počet študentov
@@ -222,7 +369,7 @@ export const getGlobalAnalytics = onCall({ region: "europe-west1" }, async (requ
         const quizSnapshot = await db.collection("quiz_submissions").get();
         const quizSubmissionCount = quizSnapshot.size;
         let totalQuizScore = 0;
-        quizSnapshot.forEach(doc => {
+        quizSnapshot.forEach((doc: QueryDocumentSnapshot) => {
             totalQuizScore += doc.data().score; // score je 0 až 1
         });
         const avgQuizScore = quizSubmissionCount > 0 ? (totalQuizScore / quizSubmissionCount) * 100 : 0; // v percentách
@@ -231,18 +378,18 @@ export const getGlobalAnalytics = onCall({ region: "europe-west1" }, async (requ
         const testSnapshot = await db.collection("test_submissions").get();
         const testSubmissionCount = testSnapshot.size;
         let totalTestScore = 0;
-        testSnapshot.forEach(doc => {
+        testSnapshot.forEach((doc: QueryDocumentSnapshot) => {
             totalTestScore += doc.data().score;
         });
         const avgTestScore = testSubmissionCount > 0 ? (totalTestScore / testSubmissionCount) * 100 : 0; // v percentách
 
         // 4. (Voliteľné) Nájsť najaktívnejších študentov
-        const activityMap = new Map<string, number>();
-        quizSnapshot.forEach(doc => {
+        const activityMap = new Map();
+        quizSnapshot.forEach((doc: QueryDocumentSnapshot) => {
             const studentId = doc.data().studentId;
             activityMap.set(studentId, (activityMap.get(studentId) || 0) + 1);
         });
-        testSnapshot.forEach(doc => {
+        testSnapshot.forEach((doc: QueryDocumentSnapshot) => {
             const studentId = doc.data().studentId;
             activityMap.set(studentId, (activityMap.get(studentId) || 0) + 1);
         });
@@ -251,7 +398,7 @@ export const getGlobalAnalytics = onCall({ region: "europe-west1" }, async (requ
         const sortedActivity = Array.from(activityMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
         
         // Získať mená študentov
-        const topStudents = [];
+        const topStudents: any[] = [];
         for (const [studentId, count] of sortedActivity) {
             const studentDoc = await db.collection("students").doc(studentId).get();
             if (studentDoc.exists) {
@@ -278,10 +425,10 @@ export const getGlobalAnalytics = onCall({ region: "europe-west1" }, async (requ
 });
 
 // UPRAVENÁ FUNKCIA: AI Analýza študenta
-export const getAiStudentSummary = onCall({ 
+exports.getAiStudentSummary = onCall({
     region: "europe-west1",
     timeoutSeconds: 300 // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
-}, async (request) => {
+}, async (request: CallableRequest) => {
     const { studentId } = request.data;
     if (!studentId) {
         logger.error("getAiStudentSummary called without studentId.");
@@ -303,7 +450,7 @@ export const getAiStudentSummary = onCall({
             .limit(10)
             .get();
         
-        const quizResults = quizSnapshot.docs.map(doc => {
+        const quizResults = quizSnapshot.docs.map((doc: QueryDocumentSnapshot) => {
             const data = doc.data();
             return `Kvíz '${data.quizTitle || 'bez názvu'}': ${(data.score * 100).toFixed(0)}%`;
         });
@@ -315,7 +462,7 @@ export const getAiStudentSummary = onCall({
             .limit(10)
             .get();
             
-        const testResults = testSnapshot.docs.map(doc => {
+        const testResults = testSnapshot.docs.map((doc: QueryDocumentSnapshot) => {
             const data = doc.data();
             return `Test '${data.testTitle || 'bez názvu'}': ${(data.score * 100).toFixed(0)}%`;
         });
@@ -326,7 +473,7 @@ export const getAiStudentSummary = onCall({
             .limit(15) // Odstránené orderBy, aby sme nepotrebovali index
             .get();
 
-        const studentQuestions = messagesSnapshot.docs.map(doc => doc.data().text);
+        const studentQuestions = messagesSnapshot.docs.map((doc: QueryDocumentSnapshot) => doc.data().text);
 
         // 5. Vytvoriť kontext pre AI
         let promptContext = `
@@ -337,7 +484,7 @@ ${quizResults.length > 0 ? quizResults.join("\n") : "Žádné odevzdané kvízy.
 Výsledky testů (posledních 10):
 ${testResults.length > 0 ? testResults.join("\n") : "Žádné odevzdané testy."}
 Dotazy studenta (AI asistentovi nebo profesorovi):
-${studentQuestions.length > 0 ? studentQuestions.map(q => `- ${q}`).join("\n") : "Žádné dotazy."}
+${studentQuestions.length > 0 ? studentQuestions.map((q: string) => `- ${q}`).join("\n") : "Žádné dotazy."}
 `;
 
         // 6. Vytvoriť finálny prompt
@@ -388,7 +535,7 @@ ${promptContext}
 // ==================================================================
 
 
-export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, (req, res) => {
+exports.telegramBotWebhook = onRequest({ region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, (req: Request, res: any) => {
     corsHandler(req, res, async () => {
         // ... (kód zostáva nezmenený, ale s opravami) ...
         if (req.method !== 'POST') {
@@ -520,7 +667,7 @@ export const telegramBotWebhook = onRequest({ region: "europe-west1", secrets: [
 });
 
 // --- FUNKCIA PRE UKLADANIE VÝSLEDKOV KVÍZU ---
-export const submitQuizResults = onCall({ region: "europe-west1" }, async (request) => {
+exports.submitQuizResults = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
     // ... (kód zostáva nezmenený) ...
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
@@ -556,7 +703,7 @@ export const submitQuizResults = onCall({ region: "europe-west1" }, async (reque
 });
 
 // --- ODDELENÁ FUNKCIA PRE UKLADANIE VÝSLEDKOV TESTU ---
-export const submitTestResults = onCall({ region: "europe-west1" }, async (request) => {
+exports.submitTestResults = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
     // ... (kód zostáva nezmenený) ...
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
@@ -591,7 +738,7 @@ export const submitTestResults = onCall({ region: "europe-west1" }, async (reque
     }
 });
 
-export const joinClass = onCall({ region: "europe-west1" }, async (request) => {
+exports.joinClass = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen, abyste se mohl(a) zapsat do třídy.");
     }
@@ -646,7 +793,7 @@ export const joinClass = onCall({ region: "europe-west1" }, async (request) => {
     }
 });
 
-export const registerUserWithRole = onCall({ region: "europe-west1" }, async (request) => {
+exports.registerUserWithRole = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
     const { email, password, role } = request.data;
 
     // Validate role
@@ -702,7 +849,7 @@ export const registerUserWithRole = onCall({ region: "europe-west1" }, async (re
     }
 });
 
-export const admin_setUserRole = onCall({ region: "europe-west1" }, async (request) => {
+exports.admin_setUserRole = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
     // 1. Verify caller is the admin
     if (request.auth?.token.email !== 'profesor@profesor.cz') {
         logger.warn(`Unauthorized role change attempt by ${request.auth?.token.email}`);
@@ -737,7 +884,7 @@ export const admin_setUserRole = onCall({ region: "europe-west1" }, async (reque
     }
 });
 
-export const onUserCreate = onDocumentCreated("users/{userId}", async (event) => {
+exports.onUserCreate = onDocumentCreated("users/{userId}", async (event: FirestoreEvent<QueryDocumentSnapshot | undefined>) => {
     const snapshot = event.data;
     if (!snapshot) {
         logger.log("No data associated with the event");
@@ -756,7 +903,7 @@ export const onUserCreate = onDocumentCreated("users/{userId}", async (event) =>
 });
 
 // 1. NOVÁ FUNKCIA: Pripraví nahrávanie a vráti Signed URL
-export const getSecureUploadUrl = onCall({ region: "europe-west1" }, async (request) => {
+exports.getSecureUploadUrl = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
 // 1. AUTORIZÁCIA: Povolíme iba profesorom
 if (!request.auth || request.auth.token.role !== 'professor') {
 throw new HttpsError('unauthenticated', 'Na túto akciu musíte mať rolu profesora.');
@@ -817,7 +964,7 @@ throw new HttpsError("internal", "Nepodarilo sa vygenerovať URL na nahrávanie.
 });
 
 // 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí (S DETAILNÝM LOGOVANÍM)
-export const finalizeUpload = onCall({ region: "europe-west1" }, async (request) => {
+exports.finalizeUpload = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'Musíte byť prihlásený.');
     }
@@ -888,7 +1035,7 @@ export const finalizeUpload = onCall({ region: "europe-west1" }, async (request)
 // ==================================================================
 // =================== DATA MIGRATION FUNCTION ======================
 // ==================================================================
-export const admin_migrateFileMetadata = onCall({ region: "europe-west1" }, async (request) => {
+exports.admin_migrateFileMetadata = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
     // 1. Authorize: Only the admin can run this
     if (request.auth?.token.email !== 'profesor@profesor.cz') {
         throw new HttpsError('unauthenticated', 'This action requires administrator privileges.');
@@ -959,7 +1106,7 @@ export const admin_migrateFileMetadata = onCall({ region: "europe-west1" }, asyn
 // ==================================================================
 // =================== EMERGENCY ROLE RESTORE =======================
 // ==================================================================
-export const emergency_restoreProfessors = onCall({ region: "europe-west1" }, async (request) => {
+exports.emergency_restoreProfessors = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
     // 1. Authorize: Bypass role check, use email for the admin
     if (request.auth?.token.email !== 'profesor@profesor.cz') {
         logger.warn(`Unauthorized emergency role restore attempt by ${request.auth?.token.email}`);
@@ -979,7 +1126,7 @@ export const emergency_restoreProfessors = onCall({ region: "europe-west1" }, as
             return { success: true, message: "No professors found to restore." };
         }
 
-        const promises = snapshot.docs.map(async (doc) => {
+        const promises = snapshot.docs.map(async (doc: QueryDocumentSnapshot) => {
             const userId = doc.id;
             const userData = doc.data();
             const email = userData.email || 'N/A';
@@ -1020,7 +1167,7 @@ export const emergency_restoreProfessors = onCall({ region: "europe-west1" }, as
 // ==================================================================
 // =================== STUDENT ROLE MIGRATION =======================
 // ==================================================================
-export const admin_migrateStudentRoles = onCall({ region: "europe-west1" }, async (request) => {
+exports.admin_migrateStudentRoles = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
     // 1. Authorize: Only the admin can run this
     if (request.auth?.token.email !== 'profesor@profesor.cz') {
         logger.warn(`Unauthorized role migration attempt by ${request.auth?.token.email}`);
@@ -1076,7 +1223,7 @@ export const admin_migrateStudentRoles = onCall({ region: "europe-west1" }, asyn
         logger.log(message);
         return { success: true, message: message };
 
-    } catch (error) {
+    } catch (error: any) {
         logger.error("A critical error occurred during the student role migration process:", error);
         if (error instanceof Error) {
             throw new HttpsError("internal", `Migration failed: ${error.message}`);
