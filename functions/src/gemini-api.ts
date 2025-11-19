@@ -2,8 +2,7 @@ import type { GenerateContentRequest, Part } from "@google-cloud/vertexai";
 const { VertexAI, HarmCategory, HarmBlockThreshold } = require("@google-cloud/vertexai");
 const aiplatform = require("@google-cloud/aiplatform");
 const { getStorage } = require("firebase-admin/storage");
-const functions = require("firebase-functions");
-const logger = functions.logger;
+const logger = require("firebase-functions/logger");
 const { HttpsError } = require("firebase-functions/v2/https");
 
 // --- KONFIGURACE MODELU ---
