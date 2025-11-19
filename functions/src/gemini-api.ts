@@ -7,6 +7,7 @@ import {
   HarmBlockThreshold,
   Part,
 } from "@google-cloud/vertexai";
+import * as aiplatform from '@google-cloud/aiplatform';
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions"; // <--- PRIDANÉ
 import { HttpsError } from "firebase-functions/v2/https"; // <--- PRIDANÉ
@@ -30,6 +31,87 @@ const model = vertex_ai.getGenerativeModel({
         { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
     ],
 });
+
+const { PredictionServiceClient } = aiplatform.v1;
+const { helpers } = aiplatform;
+
+export async function getEmbeddings(text: string): Promise<number[]> {
+    if (process.env.FUNCTIONS_EMULATOR === "true") {
+        console.log("EMULATOR_MOCK for getEmbeddings: Returning a mock vector.");
+        // Return a fixed-size vector of non-zero values for emulator testing
+        return Array(768).fill(0).map((_, i) => Math.sin(i));
+    }
+
+    const clientOptions = {
+        apiEndpoint: `${LOCATION}-aiplatform.googleapis.com`,
+    };
+
+    const client = new PredictionServiceClient(clientOptions);
+
+    const instances = [helpers.toValue({ content: text, task_type: "RETRIEVAL_DOCUMENT" })] as aiplatform.protos.google.protobuf.IValue[];
+    const endpoint = `projects/${GCLOUD_PROJECT}/locations/${LOCATION}/publishers/google/models/text-embedding-004`;
+
+    const request = {
+        endpoint,
+        instances,
+    };
+
+    try {
+        const [response] = await client.predict(request);
+
+        if (!response || !response.predictions || response.predictions.length === 0) {
+            throw new HttpsError("internal", "Received an invalid response from the Vertex AI embedding model.");
+        }
+
+        const prediction = response.predictions[0];
+        const embeddingsValue = prediction.structValue?.fields?.embeddings;
+
+        if (!embeddingsValue || !embeddingsValue.structValue || !embeddingsValue.structValue.fields) {
+             throw new HttpsError("internal", "Could not find embeddings in the Vertex AI response.");
+        }
+
+        const embeddingValues = embeddingsValue.structValue.fields.values.listValue?.values;
+
+        if (!embeddingValues) {
+            throw new HttpsError("internal", "Could not find embedding values in the Vertex AI response.");
+        }
+
+        return embeddingValues.map((v: any) => v.numberValue);
+
+    } catch (error) {
+        logger.error("[gemini-api:getEmbeddings] Error generating embeddings:", error);
+        if (error instanceof Error) {
+            throw new HttpsError("internal", `Vertex AI embedding call failed: ${error.message}`);
+        }
+        throw new HttpsError("internal", "An unknown error occurred while generating embeddings.");
+    }
+}
+
+export function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
+    if (vecA.length !== vecB.length) {
+        throw new Error("Vectors must be of the same length to calculate similarity.");
+    }
+
+    let dotProduct = 0;
+    let magA = 0;
+    let magB = 0;
+
+    for (let i = 0; i < vecA.length; i++) {
+        dotProduct += vecA[i] * vecB[i];
+        magA += vecA[i] * vecA[i];
+        magB += vecB[i] * vecB[i];
+    }
+
+    magA = Math.sqrt(magA);
+    magB = Math.sqrt(magB);
+
+    if (magA === 0 || magB === 0) {
+        return 0; // Or throw an error, depending on desired behavior for zero vectors
+    }
+
+    return dotProduct / (magA * magB);
+}
+
 
 async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
     const functionName = requestBody.generationConfig?.responseMimeType === "application/json"
