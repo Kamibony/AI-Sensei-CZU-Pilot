@@ -1,3 +1,5 @@
+/// <reference types="@google-cloud/aiplatform" />
+
 // functions/src/gemini-api.ts
 
 import {
@@ -7,7 +9,10 @@ import {
   HarmBlockThreshold,
   Part,
 } from "@google-cloud/vertexai";
+import { createRequire } from 'module';
 import * as aiplatform from '@google-cloud/aiplatform';
+const require = createRequire(import.meta.url);
+const aiplatformValue = require('@google-cloud/aiplatform');
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions"; // <--- PRIDANÉ
 import { HttpsError } from "firebase-functions/v2/https"; // <--- PRIDANÉ
@@ -32,8 +37,8 @@ const model = vertex_ai.getGenerativeModel({
     ],
 });
 
-const { PredictionServiceClient } = aiplatform.v1;
-const { helpers } = aiplatform;
+const { PredictionServiceClient } = aiplatformValue.v1;
+const { helpers } = aiplatformValue;
 
 export async function getEmbeddings(text: string): Promise<number[]> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
