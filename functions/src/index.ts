@@ -14,6 +14,8 @@ const cors = require("cors");
 const fetch = require("node-fetch");
 const pdf = require("pdf-parse");
 
+const DEPLOY_REGION = "europe-west1";
+
 initializeApp();
 const db = getFirestore();
 const corsHandler = cors({ origin: true });
@@ -38,7 +40,7 @@ async function sendTelegramMessage(chatId: number, text: string) {
 
 // ZJEDNOTENÁ FUNKCIA PRE VŠETKY AI OPERÁCIE
 exports.generateContent = onCall({
-    region: "europe-west1",
+    region: DEPLOY_REGION,
     timeoutSeconds: 300 // <-- ZMENENÉ (5 minút)
 }, async (request: CallableRequest) => {
     const { contentType, promptData, filePaths } = request.data;
@@ -69,7 +71,7 @@ exports.generateContent = onCall({
                     }
                     
                     // 3. Ak je všetko v poriadku, použijeme finálne číslo v prompte
-                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${requestedCount} slidy. Odpověď musí být JSON objekt s klíčem 'slides', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů).`;
+                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${requestedCount} slidy. Odpověď musí být JSON objekt s klíčem 'slides', ktorý obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů).`;
                     logger.log(`Final prompt will use ${requestedCount} slides.`);
                     
                     break;
@@ -155,7 +157,7 @@ exports.generateContent = onCall({
     }
 });
 
-exports.processFileForRAG = onCall({ region: "europe-west1", timeoutSeconds: 540 }, async (request: CallableRequest) => {
+exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 }, async (request: CallableRequest) => {
     if (!request.auth || request.auth.token.role !== 'professor') {
         throw new HttpsError('unauthenticated', 'This action requires professor privileges.');
     }
@@ -254,7 +256,7 @@ exports.processFileForRAG = onCall({ region: "europe-west1", timeoutSeconds: 540
 });
 
 exports.getAiAssistantResponse = onCall({
-    region: "europe-west1",
+    region: DEPLOY_REGION,
     timeoutSeconds: 300 // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
 }, async (request: CallableRequest) => {
     const { lessonId, userQuestion } = request.data;
@@ -282,7 +284,7 @@ exports.getAiAssistantResponse = onCall({
     }
 });
 
-exports.sendMessageFromStudent = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
+exports.sendMessageFromStudent = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
     }
@@ -320,7 +322,7 @@ exports.sendMessageFromStudent = onCall({ region: "europe-west1" }, async (reque
     }
 });
 
-exports.sendMessageToStudent = onCall({ region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, async (request: CallableRequest) => {
+exports.sendMessageToStudent = onCall({ region: DEPLOY_REGION, secrets: ["TELEGRAM_BOT_TOKEN"] }, async (request: CallableRequest) => {
     const { studentId, text } = request.data;
     if (!studentId || !text) {
         throw new HttpsError("invalid-argument", "Chybí ID studenta nebo text zprávy.");
@@ -359,7 +361,7 @@ exports.sendMessageToStudent = onCall({ region: "europe-west1", secrets: ["TELEG
 // =================== ZAČIATOK ÚPRAVY PRE ANALÝZU =====================
 // ==================================================================
 
-exports.getGlobalAnalytics = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
+exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     try {
         // ... (kód zostáva nezmenený) ...
         // 1. Získať počet študentov
@@ -427,7 +429,7 @@ exports.getGlobalAnalytics = onCall({ region: "europe-west1" }, async (request: 
 
 // UPRAVENÁ FUNKCIA: AI Analýza študenta
 exports.getAiStudentSummary = onCall({
-    region: "europe-west1",
+    region: DEPLOY_REGION,
     timeoutSeconds: 300 // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
 }, async (request: CallableRequest) => {
     const { studentId } = request.data;
@@ -536,7 +538,7 @@ ${promptContext}
 // ==================================================================
 
 
-exports.telegramBotWebhook = onRequest({ region: "europe-west1", secrets: ["TELEGRAM_BOT_TOKEN"] }, (req: Request, res: any) => {
+exports.telegramBotWebhook = onRequest({ region: DEPLOY_REGION, secrets: ["TELEGRAM_BOT_TOKEN"] }, (req: Request, res: any) => {
     corsHandler(req, res, async () => {
         // ... (kód zostáva nezmenený, ale s opravami) ...
         if (req.method !== 'POST') {
@@ -668,7 +670,7 @@ exports.telegramBotWebhook = onRequest({ region: "europe-west1", secrets: ["TELE
 });
 
 // --- FUNKCIA PRE UKLADANIE VÝSLEDKOV KVÍZU ---
-exports.submitQuizResults = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
+exports.submitQuizResults = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     // ... (kód zostáva nezmenený) ...
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
@@ -704,7 +706,7 @@ exports.submitQuizResults = onCall({ region: "europe-west1" }, async (request: C
 });
 
 // --- ODDELENÁ FUNKCIA PRE UKLADANIE VÝSLEDKOV TESTU ---
-exports.submitTestResults = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
+exports.submitTestResults = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     // ... (kód zostáva nezmenený) ...
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
@@ -739,7 +741,7 @@ exports.submitTestResults = onCall({ region: "europe-west1" }, async (request: C
     }
 });
 
-exports.joinClass = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
+exports.joinClass = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen, abyste se mohl(a) zapsat do třídy.");
     }
@@ -794,7 +796,7 @@ exports.joinClass = onCall({ region: "europe-west1" }, async (request: CallableR
     }
 });
 
-exports.registerUserWithRole = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
+exports.registerUserWithRole = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     const { email, password, role } = request.data;
 
     // Validate role
@@ -850,7 +852,7 @@ exports.registerUserWithRole = onCall({ region: "europe-west1" }, async (request
     }
 });
 
-exports.admin_setUserRole = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
+exports.admin_setUserRole = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     // 1. Verify caller is the admin
     if (request.auth?.token.email !== 'profesor@profesor.cz') {
         logger.warn(`Unauthorized role change attempt by ${request.auth?.token.email}`);
@@ -885,7 +887,7 @@ exports.admin_setUserRole = onCall({ region: "europe-west1" }, async (request: C
     }
 });
 
-exports.onUserCreate = onDocumentCreated("users/{userId}", async (event: FirestoreEvent<QueryDocumentSnapshot | undefined>) => {
+exports.onUserCreate = onDocumentCreated({document: "users/{userId}", region: DEPLOY_REGION }, async (event: FirestoreEvent<QueryDocumentSnapshot | undefined>) => {
     const snapshot = event.data;
     if (!snapshot) {
         logger.log("No data associated with the event");
@@ -904,7 +906,7 @@ exports.onUserCreate = onDocumentCreated("users/{userId}", async (event: Firesto
 });
 
 // 1. NOVÁ FUNKCIA: Pripraví nahrávanie a vráti Signed URL
-exports.getSecureUploadUrl = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
+exports.getSecureUploadUrl = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
 // 1. AUTORIZÁCIA: Povolíme iba profesorom
 if (!request.auth || request.auth.token.role !== 'professor') {
 throw new HttpsError('unauthenticated', 'Na túto akciu musíte mať rolu profesora.');
@@ -965,7 +967,7 @@ throw new HttpsError("internal", "Nepodarilo sa vygenerovať URL na nahrávanie.
 });
 
 // 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí (S DETAILNÝM LOGOVANÍM)
-exports.finalizeUpload = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
+exports.finalizeUpload = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'Musíte byť prihlásený.');
     }
@@ -1036,7 +1038,7 @@ exports.finalizeUpload = onCall({ region: "europe-west1" }, async (request: Call
 // ==================================================================
 // =================== DATA MIGRATION FUNCTION ======================
 // ==================================================================
-exports.admin_migrateFileMetadata = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
+exports.admin_migrateFileMetadata = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     // 1. Authorize: Only the admin can run this
     if (request.auth?.token.email !== 'profesor@profesor.cz') {
         throw new HttpsError('unauthenticated', 'This action requires administrator privileges.');
@@ -1107,7 +1109,7 @@ exports.admin_migrateFileMetadata = onCall({ region: "europe-west1" }, async (re
 // ==================================================================
 // =================== EMERGENCY ROLE RESTORE =======================
 // ==================================================================
-exports.emergency_restoreProfessors = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
+exports.emergency_restoreProfessors = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     // 1. Authorize: Bypass role check, use email for the admin
     if (request.auth?.token.email !== 'profesor@profesor.cz') {
         logger.warn(`Unauthorized emergency role restore attempt by ${request.auth?.token.email}`);
@@ -1168,7 +1170,7 @@ exports.emergency_restoreProfessors = onCall({ region: "europe-west1" }, async (
 // ==================================================================
 // =================== STUDENT ROLE MIGRATION =======================
 // ==================================================================
-exports.admin_migrateStudentRoles = onCall({ region: "europe-west1" }, async (request: CallableRequest) => {
+exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     // 1. Authorize: Only the admin can run this
     if (request.auth?.token.email !== 'profesor@profesor.cz') {
         logger.warn(`Unauthorized role migration attempt by ${request.auth?.token.email}`);
