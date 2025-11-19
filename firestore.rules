@@ -87,13 +87,11 @@ service cloud.firestore {
     // Kvízy a testy
     match /quiz_submissions/{submissionId} {
       allow create: if isOwner(request.resource.data.studentId);
-      allow read: if (isOwner(resource.data.studentId)) ||
-                  (isProfessor() && get(/databases/$(database)/documents/lessons/$(resource.data.lessonId)).data.ownerId == request.auth.uid) ||
-                  (isProfessorRole() && get(/databases/$(database)/documents/lessons/$(resource.data.lessonId)).data.ownerId == request.auth.uid);
+      allow read: if isOwner(resource.data.studentId) || isProfessor() || isProfessorRole();
     }
     match /test_submissions/{submissionId} {
        allow create: if isOwner(request.resource.data.studentId);
-       allow read: if isProfessor() || isOwner(resource.data.studentId);
+       allow read: if isProfessor() || isProfessorRole() || isOwner(resource.data.studentId);
     }
 
     // Kolekcia pre metadáta súborov (index pre Storage)
