@@ -4,20 +4,25 @@ const logger = require("firebase-functions/logger");
 const { HttpsError } = require("firebase-functions/v2/https");
 
 // --- KONFIGURACE MODELU ---
-const GCLOUD_PROJECT = process.env.GCLOUD_PROJECT;
-if (!GCLOUD_PROJECT) {
-    throw new Error("GCLOUD_PROJECT environment variable not set.");
-}
 const LOCATION = "europe-west1";
+const STORAGE_BUCKET = "ai-sensei-czu-pilot.firebasestorage.app"; // Fallback bucket
 
 // Lazy loading global variables
 let vertex_ai: any = null;
 let model: any = null;
 
+function getGcloudProject() {
+    const project = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+    if (!project) {
+        throw new Error("GCLOUD_PROJECT environment variable not set.");
+    }
+    return project;
+}
+
 function getGenerativeModel() {
     if (!model) {
         const { VertexAI, HarmCategory, HarmBlockThreshold } = require("@google-cloud/vertexai");
-        vertex_ai = new VertexAI({ project: GCLOUD_PROJECT, location: LOCATION });
+        vertex_ai = new VertexAI({ project: getGcloudProject(), location: LOCATION });
         model = vertex_ai.getGenerativeModel({
             model: "gemini-1.5-pro-preview-0409",
             safetySettings: [
@@ -48,7 +53,8 @@ async function getEmbeddings(text: string): Promise<number[]> {
     };
     const client = new PredictionServiceClient(clientOptions);
     const instances = [helpers.toValue({ content: text, task_type: "RETRIEVAL_DOCUMENT" })];
-    const endpoint = `projects/${GCLOUD_PROJECT}/locations/${LOCATION}/publishers/google/models/text-embedding-004`;
+    const projectId = getGcloudProject();
+    const endpoint = `projects/${projectId}/locations/${LOCATION}/publishers/google/models/text-embedding-004`;
     const request = {
         endpoint,
         instances,
@@ -158,7 +164,7 @@ async function generateJsonFromPrompt(prompt: string): Promise<any> {
 }
 exports.generateJsonFromPrompt = generateJsonFromPrompt;
 async function generateTextFromDocuments(filePaths: string[], prompt: string): Promise<string> {
-    const bucket = getStorage().bucket();
+    const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
     for (const filePath of filePaths) {
         const file = bucket.file(filePath);
@@ -180,7 +186,7 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
 exports.generateTextFromDocuments = generateTextFromDocuments;
 // --- NOVÁ FUNKCIA PRE GENERAVANIE JSON Z DOKUMENTOV ---
 async function generateJsonFromDocuments(filePaths: string[], prompt: string): Promise<any> {
-    const bucket = getStorage().bucket();
+    const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
     for (const filePath of filePaths) {
         const file = bucket.file(filePath);
