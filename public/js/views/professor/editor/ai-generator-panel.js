@@ -10,7 +10,8 @@ import { callGenerateContent } from '../../../gemini-api.js';
 
 const btnBase = "px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
 const btnPrimary = `${btnBase} bg-green-700 text-white hover:bg-green-800`;
-const btnGenerate = `${btnBase} bg-amber-600 text-white hover:bg-amber-700 ai-glow`;
+// === REDESIGNED AI BUTTON ===
+const btnGenerate = `px-6 py-3 rounded-full font-bold bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all flex items-center ai-glow border border-white/20`;
 const btnSecondary = `${btnBase} bg-slate-200 text-slate-700 hover:bg-slate-300`;
 const btnDestructive = `${btnBase} bg-red-100 text-red-700 hover:bg-red-200`;
 
@@ -321,7 +322,12 @@ export class AiGeneratorPanel extends LitElement {
                     <div class="mt-6 pt-6 border-t border-slate-100">
                         <slot name="ai-inputs"></slot>
                         ${this.contentType === 'presentation' ? html`<label class="block font-medium text-slate-600">Téma prezentace</label><input id="prompt-input-topic" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1 mb-4" placeholder=${this.promptPlaceholder}>`:html`<textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder=${this.promptPlaceholder}></textarea>`}
-                        <div class="flex items-center justify-end mt-4"><button @click=${this._handleGeneration} ?disabled=${this._isLoading||this._isSaving || this._isUploading} class="${btnGenerate}">${this._isLoading?html`<div class="spinner"></div> Generuji...`:html`✨ Generovat`}</button></div>
+                        <div class="flex items-center justify-end mt-4">
+                            <!-- Updated Button -->
+                            <button @click=${this._handleGeneration} ?disabled=${this._isLoading||this._isSaving || this._isUploading} class="${btnGenerate}">
+                                ${this._isLoading ? html`<div class="spinner mr-2"></div> Generuji...` : html`<span class="text-xl mr-2">✨</span> Vygenerovat pomocí AI`}
+                            </button>
+                        </div>
                     </div>
                     <div id="generation-output" class="mt-6 border-t pt-6 text-slate-700 prose max-w-none">${this._isLoading?html`<div class="p-8 text-center pulse-loader text-slate-500">🤖 AI přemýšlí...</div>`:''}${this._generationOutput?this._renderStaticContent(this.contentType, this._generationOutput):(!this._isLoading?html`<div class="text-center p-8 text-slate-400">Obsah se vygeneruje zde...</div>`:'')}</div>
                     ${(this._generationOutput&&!this._generationOutput.error)?html`<div class="text-right mt-4"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?'Ukládám...':'Uložit do lekce'}</button></div>`:nothing}

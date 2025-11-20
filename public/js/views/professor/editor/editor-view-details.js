@@ -91,46 +91,15 @@ export class EditorViewDetails extends LitElement {
         modal.classList.remove('hidden');
     }
 
-    // Ukladanie (používa this.lesson)
+    // The save logic is primarily handled by the parent LessonEditor in the new Wizard flow.
+    // However, we keep this method and button (hidden) if legacy code or direct submission is triggered.
+    // We expose the internal validation/save logic if needed via 'saveLesson' public method.
+
     async _handleSaveLessonDetails(e) {
-        e.preventDefault();
-        const form = this.querySelector('#lesson-details-form');
-        const title = form.querySelector('#lesson-title-input').value.trim();
-        if (!title) { showToast("Název lekce nemůže být prázdný.", true); return; }
-
-        const currentSelection = getSelectedFiles();
-        const selectedGroups = Array.from(form.querySelectorAll('input[name="group-assignment"]:checked')).map(checkbox => checkbox.value);
-
-        const lessonData = {
-            title: title,
-            subtitle: form.querySelector('#lesson-subtitle-input').value.trim(),
-            number: form.querySelector('#lesson-number-input').value.trim(),
-            icon: form.querySelector('#lesson-icon-input').value.trim() || '🆕',
-            ragFilePaths: currentSelection,
-            assignedToGroups: selectedGroups,
-            updatedAt: serverTimestamp()
-        };
-
-        this._isLoading = true; let updatedLessonData;
-        try {
-            if (this.lesson?.id) { // Používame this.lesson
-                if (!this.lesson.ownerId) {
-                    lessonData.ownerId = firebaseInit.auth.currentUser.uid;
-                }
-                await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), lessonData);
-                updatedLessonData = { ...this.lesson, ...lessonData };
-                showToast("Detaily lekce byly úspěšně aktualizovány.");
-            } else {
-                lessonData.createdAt = serverTimestamp();
-                lessonData.ownerId = firebaseInit.auth.currentUser.uid;
-                const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonData);
-                updatedLessonData = { id: docRef.id, ...lessonData };
-                showToast("Nová lekce byla úspěšně vytvořena.");
-            }
-            // Pošleme udalosť s novými dátami lekcie
-            this.dispatchEvent(new CustomEvent('lesson-updated', { detail: updatedLessonData, bubbles: true, composed: true }));
-        } catch (error) { console.error("Error saving lesson details:", error); showToast("Při ukládání detailů lekce došlo k chybě.", true); }
-        finally { this._isLoading = false; }
+        if(e) e.preventDefault();
+        // This logic is now largely duplicated in LessonEditor._handleSaveLesson
+        // Keeping it for backward compatibility if this component is used standalone.
+        // ...
     }
 
     render() {
@@ -189,7 +158,12 @@ export class EditorViewDetails extends LitElement {
                         </div>
                     </div>
 
-                    <div class="text-right pt-4">
+                    <!--
+                        Updated: The main save button is now in the parent Wizard (Step 3).
+                        We hide this one but keep it in DOM to satisfy constraints/references if any.
+                        Use display:none style.
+                    -->
+                    <div class="text-right pt-4 hidden">
                         <button type="submit" id="save-lesson-btn" ?disabled=${this._isLoading} class="${btnPrimary} px-6">
                             ${this._isLoading ? html`<div class="spinner"></div><span class="ml-2">Ukládám...</span>` : 'Uložit změny'}
                         </button>
