@@ -196,7 +196,9 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 
         logger.log(`[RAG] Downloaded ${storagePath} (${(fileBuffer.length / 1024).toFixed(2)} KB)`);
 
         // 2. Extract text from PDF
+        logger.log("[RAG] Initializing pdf-parse...");
         const pdf = require("pdf-parse");
+        logger.log("[RAG] Parsing PDF content...");
         const pdfData = await pdf(fileBuffer);
         const text = pdfData.text;
         logger.log(`[RAG] Extracted ${text.length} characters of text from PDF.`);
@@ -216,21 +218,30 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 
 
         // 4. Embedding Loop and Save to Firestore
         const batchSize = 5; // Process in smaller batches to avoid overwhelming the embedding API
+        logger.log("[RAG] Initializing GeminiAPI...");
         const GeminiAPI = require("./gemini-api.js");
+
         let chunksProcessed = 0;
         for (let i = 0; i < chunks.length; i += batchSize) {
             const batchChunks = chunks.slice(i, i + batchSize);
+            logger.log(`[RAG] Processing batch ${i / batchSize + 1}, size: ${batchChunks.length}`);
+
             const embeddingPromises = batchChunks.map(async (chunkText, index) => {
-                const embedding = await GeminiAPI.getEmbeddings(chunkText);
-                const chunkId = `${fileId}_${i + index}`;
-                const chunkRef = fileMetadataRef.collection("chunks").doc(chunkId);
-                return chunkRef.set({
-                    text: chunkText,
-                    embedding: embedding,
-                    fileId: fileId,
-                    chunkIndex: i + index,
-                    createdAt: FieldValue.serverTimestamp(),
-                });
+                try {
+                    const embedding = await GeminiAPI.getEmbeddings(chunkText);
+                    const chunkId = `${fileId}_${i + index}`;
+                    const chunkRef = fileMetadataRef.collection("chunks").doc(chunkId);
+                    return chunkRef.set({
+                        text: chunkText,
+                        embedding: embedding,
+                        fileId: fileId,
+                        chunkIndex: i + index,
+                        createdAt: FieldValue.serverTimestamp(),
+                    });
+                } catch (embError) {
+                     logger.error(`[RAG] Error embedding chunk ${i + index}:`, embError);
+                     throw embError; // Re-throw to stop process or handle appropriately
+                }
             });
 
             await Promise.all(embeddingPromises);
