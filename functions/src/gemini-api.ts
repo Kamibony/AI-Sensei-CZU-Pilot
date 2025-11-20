@@ -66,7 +66,7 @@ async function getEmbeddings(text: string): Promise<number[]> {
 
     const client = new PredictionServiceClient(clientOptions);
     const instances = [helpers.toValue({ content: text, task_type: "RETRIEVAL_DOCUMENT" })];
-    const endpoint = `projects/${GCLOUD_PROJECT}/locations/${LOCATION}/publishers/google/models/text-embedding-004`;
+    const endpoint = `projects/${getGcloudProject()}/locations/${LOCATION}/publishers/google/models/text-embedding-004`;
     const request = {
         endpoint,
         instances,
@@ -135,9 +135,12 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
         }
         return `This is a mock response from the emulator for a text prompt.`;
     }
+
+    const generativeModel = initVertexAI(); // Ensure initialized
+
     try {
         console.log(`[gemini-api:${functionName}] Sending request to Vertex AI with model 'gemini-1.5-pro-preview-0409' in '${LOCATION}'...`);
-        const streamResult = await model.generateContentStream(requestBody);
+        const streamResult = await generativeModel.generateContentStream(requestBody);
         let fullText = "";
         for await (const item of streamResult.stream) {
             if (item.candidates && item.candidates[0].content.parts[0].text) {
