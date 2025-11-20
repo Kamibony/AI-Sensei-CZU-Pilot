@@ -975,6 +975,8 @@ throw new HttpsError("internal", "Nepodarilo sa pripraviť nahrávanie.");
 const storage = getStorage();
 // Použijeme predvolený bucket projektu
 const bucket = storage.bucket();
+logger.log(`[getSecureUploadUrl] Using bucket: ${bucket.name}`);
+
 const file = bucket.file(filePath);
 
 const options = {
@@ -992,9 +994,13 @@ try {
 const [url] = await file.getSignedUrl(options);
 // Vrátime klientovi všetko, čo potrebuje
 return { signedUrl: url, docId: docId, filePath: filePath };
-} catch (error) {
+} catch (error: any) {
 logger.error("Chyba pri generovaní Signed URL:", error);
-throw new HttpsError("internal", "Nepodarilo sa vygenerovať URL na nahrávanie.");
+// Log specific error details for debugging 500 Internal Server Error
+if (error.code === 403 || error.message?.includes("Service Account Token Creator")) {
+    logger.error("CRITICAL IAM ERROR: Service account likely missing 'Service Account Token Creator' role.");
+}
+throw new HttpsError("internal", `Nepodarilo sa vygenerovať URL na nahrávanie: ${error.message}`);
 }
 });
 
