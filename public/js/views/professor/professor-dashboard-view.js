@@ -127,35 +127,84 @@ export class ProfessorDashboardView extends LitElement {
             return html`<div class="flex justify-center items-center h-full"><p class="text-xl text-slate-500">Načítám dashboard...</p></div>`;
         }
 
+        const userName = firebaseInit.auth.currentUser?.displayName || 'Profesore';
+
         return html`
             <div class="h-full bg-slate-50 overflow-y-auto">
                 <!-- Header -->
-                <header class="bg-white p-6 border-b border-slate-200">
-                    <h1 class="text-3xl font-extrabold text-slate-800">Command Center</h1>
-                    <p class="text-slate-500 mt-1">Spravujte své třídy a studenty z jednoho místa.</p>
+                <header class="bg-white p-8 border-b border-slate-200">
+                    <div class="max-w-7xl mx-auto">
+                        <h1 class="text-3xl font-extrabold text-slate-800">Vítejte zpět, ${userName}</h1>
+                        <p class="text-slate-500 mt-2">Přehled vaší výuky a rychlé akce.</p>
+                    </div>
                 </header>
 
-                <!-- Stats Bar -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 p-6">
-                    ${this._renderStatCard("Total Students", this._stats.totalStudents, "users")}
-                    ${this._renderStatCard("Active Lessons", this._stats.activeLessons, "book-open")}
-                    ${this._renderStatCard("Total Classes", this._stats.totalClasses, "briefcase")}
-                </div>
+                <div class="max-w-7xl mx-auto p-8 space-y-8">
 
-                <!-- Class Grid -->
-                <div class="px-6 pb-6">
-                    <h2 class="text-2xl font-bold text-slate-700 mb-4">Vaše Třídy</h2>
-                    ${this._classes.length === 0 ? this._renderEmptyState() : this._renderClassGrid()}
-                </div>
+                    <!-- Primary Action Grid (Top) -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Nová Lekce -->
+                        <div @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', lesson: null }, bubbles: true, composed: true }))}
+                             class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 cursor-pointer group flex flex-col items-start justify-between h-48">
+                            <div class="bg-green-50 p-3 rounded-lg group-hover:bg-green-100 transition-colors">
+                                <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-slate-800 group-hover:text-green-700 transition-colors">Nová Lekce</h3>
+                                <p class="text-slate-500 mt-1 text-sm">Vytvořit novou lekci v editoru</p>
+                            </div>
+                        </div>
 
-                <!-- FAB Quick Actions -->
-                <div class="fixed bottom-8 right-8 flex flex-col items-center space-y-4">
-                     <button @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'media' }, bubbles: true, composed: true }))} class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-3 rounded-full shadow-lg transition transform hover:scale-110">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                    </button>
-                    <button @click=${this._handleCreateClass} class="bg-green-700 hover:bg-green-800 text-white font-bold py-4 px-4 rounded-full shadow-lg transition transform hover:scale-110">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                    </button>
+                        <!-- Moje Třídy -->
+                        <div @click=${() => {
+                                const el = this.querySelector('#classes-section');
+                                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                             }}
+                             class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 cursor-pointer group flex flex-col items-start justify-between h-48">
+                            <div class="bg-blue-50 p-3 rounded-lg group-hover:bg-blue-100 transition-colors">
+                                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-slate-800 group-hover:text-blue-700 transition-colors">Moje Třídy</h3>
+                                <p class="text-slate-500 mt-1 text-sm">Přejít na seznam tříd</p>
+                            </div>
+                        </div>
+
+                        <!-- Knihovna Medií -->
+                        <div @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'media' }, bubbles: true, composed: true }))}
+                             class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 cursor-pointer group flex flex-col items-start justify-between h-48">
+                            <div class="bg-purple-50 p-3 rounded-lg group-hover:bg-purple-100 transition-colors">
+                                <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-slate-800 group-hover:text-purple-700 transition-colors">Knihovna Medií</h3>
+                                <p class="text-slate-500 mt-1 text-sm">Správa souborů a materiálů</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Secondary Section (Stats) -->
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800 mb-4">Rychlý přehled</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            ${this._renderStatCard("Počet studentů", this._stats.totalStudents, "users")}
+                            ${this._renderStatCard("Aktivní lekce", this._stats.activeLessons, "book-open")}
+                            ${this._renderStatCard("Celkem tříd", this._stats.totalClasses, "briefcase")}
+                        </div>
+                    </div>
+
+                    <!-- Class Grid (Preserved Functionality) -->
+                    <div id="classes-section" class="pt-4">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-2xl font-bold text-slate-800">Vaše Třídy</h2>
+                            <button @click=${this._handleCreateClass} class="bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2 shadow-sm transition-colors flex items-center gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                Nová třída
+                            </button>
+                        </div>
+                        ${this._classes.length === 0 ? this._renderEmptyState() : this._renderClassGrid()}
+                    </div>
+
                 </div>
             </div>
         `;
@@ -174,13 +223,13 @@ export class ProfessorDashboardView extends LitElement {
         const displayValue = (value !== undefined && value !== null) ? value : 0;
 
         return html`
-            <div class="bg-white p-6 rounded-2xl shadow-lg flex items-center space-x-4">
-                <div class="bg-green-100 p-3 rounded-full">
-                    <svg class="w-6 h-6 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${d}"></path></svg>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center space-x-4">
+                <div class="bg-slate-50 p-3 rounded-full">
+                    <svg class="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${d}"></path></svg>
                 </div>
                 <div>
                     <p class="text-slate-500 text-sm font-medium">${title}</p>
-                    <p class="text-3xl font-bold text-slate-800">${displayValue}</p>
+                    <p class="text-2xl font-bold text-slate-800">${displayValue}</p>
                 </div>
             </div>
         `;
@@ -201,22 +250,22 @@ export class ProfessorDashboardView extends LitElement {
 
         return html`
             <div @click=${() => this._navigateToClassDetail(cls.id)}
-                 class="bg-white p-6 rounded-2xl shadow-lg hover:shadow-2xl transition-shadow cursor-pointer flex flex-col justify-between">
+                 class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between border border-slate-100">
                 <div>
                     <h3 class="text-xl font-bold text-slate-800 truncate">${name}</h3>
-                    <div class="mt-4 flex items-center justify-between">
-                        <span class="text-sm text-slate-500">Kód pro připojení:</span>
+                    <div class="mt-4 flex items-center justify-between bg-slate-50 p-2 rounded-lg">
+                        <span class="text-sm text-slate-500 pl-2">Kód:</span>
                         <div class="flex items-center">
-                            <strong class="text-lg font-mono bg-slate-100 text-slate-700 px-3 py-1 rounded-md">${joinCode}</strong>
-                            <button @click=${(e) => this._copyJoinCode(e, joinCode)} class="ml-2 p-2 rounded-full hover:bg-slate-200">
-                               <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            <strong class="text-lg font-mono text-slate-700 px-2">${joinCode}</strong>
+                            <button @click=${(e) => this._copyJoinCode(e, joinCode)} class="p-1.5 rounded-md hover:bg-slate-200 transition-colors" title="Zkopírovat kód">
+                               <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                             </button>
                         </div>
                     </div>
                 </div>
                 <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-start space-x-2">
                     <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                    <span class="text-slate-600 font-semibold">${studentCount} ${studentCount === 1 ? 'Student' : 'Studentů'}</span>
+                    <span class="text-slate-600 font-medium">${studentCount} ${studentCount === 1 ? 'Student' : 'Studentů'}</span>
                 </div>
             </div>
         `;
@@ -224,9 +273,15 @@ export class ProfessorDashboardView extends LitElement {
 
     _renderEmptyState() {
         return html`
-            <div class="text-center p-12 bg-white rounded-2xl shadow-lg">
+            <div class="text-center p-12 bg-white rounded-xl shadow-sm border border-slate-100 border-dashed">
+                <div class="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                </div>
                 <h3 class="text-xl font-semibold text-slate-700">Zatím nemáte žádné třídy</h3>
-                <p class="text-slate-500 mt-2">Klikněte na zelené tlačítko pro vytvoření vaší první třídy a začněte přidávat studenty.</p>
+                <p class="text-slate-500 mt-2 max-w-sm mx-auto">Vytvořte svou první třídu pro správu studentů a lekcí.</p>
+                <button @click=${this._handleCreateClass} class="mt-6 bg-green-600 hover:bg-green-700 text-white rounded-lg px-6 py-2 shadow-sm transition-colors">
+                    Vytvořit první třídu
+                </button>
             </div>
         `;
     }
