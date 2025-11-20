@@ -163,10 +163,13 @@ exports.generateContent = onCall({
     }
 });
 
-exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 }, async (request: CallableRequest) => {
+exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540, memory: '1GiB' }, async (request: CallableRequest) => {
     if (!request.auth || request.auth.token.role !== 'professor') {
         throw new HttpsError('unauthenticated', 'This action requires professor privileges.');
     }
+
+    // Debug Log for Environment Variables
+    logger.log(`[RAG] Environment Check - GCLOUD_PROJECT: ${process.env.GCLOUD_PROJECT}, GCP_PROJECT: ${process.env.GCP_PROJECT}, STORAGE_BUCKET: ${STORAGE_BUCKET}`);
 
     const { fileId } = request.data;
     if (!fileId) {
@@ -195,10 +198,27 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 
         const [fileBuffer] = await file.download();
         logger.log(`[RAG] Downloaded ${storagePath} (${(fileBuffer.length / 1024).toFixed(2)} KB)`);
 
+        if (!fileBuffer || fileBuffer.length === 0) {
+            throw new HttpsError('failed-precondition', 'File is empty.');
+        }
+
         // 2. Extract text from PDF
+        logger.log("[RAG] Initializing pdf-parse...");
         const pdf = require("pdf-parse");
-        const pdfData = await pdf(fileBuffer);
-        const text = pdfData.text;
+        logger.log("[RAG] Parsing PDF content...");
+        let text = "";
+        try {
+            const pdfData = await pdf(fileBuffer);
+            text = pdfData.text;
+        } catch (pdfError: any) {
+            logger.error("[RAG] PDF parsing failed:", pdfError);
+            throw new HttpsError('invalid-argument', `Failed to parse PDF file: ${pdfError.message || 'Unknown PDF error'}`);
+        }
+
+        if (!text || text.trim().length === 0) {
+            logger.warn("[RAG] PDF extracted text is empty.");
+             throw new HttpsError('invalid-argument', 'PDF file contains no extractable text.');
+        }
         logger.log(`[RAG] Extracted ${text.length} characters of text from PDF.`);
 
 
@@ -216,21 +236,30 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 
 
         // 4. Embedding Loop and Save to Firestore
         const batchSize = 5; // Process in smaller batches to avoid overwhelming the embedding API
+        logger.log("[RAG] Initializing GeminiAPI...");
         const GeminiAPI = require("./gemini-api.js");
+
         let chunksProcessed = 0;
         for (let i = 0; i < chunks.length; i += batchSize) {
             const batchChunks = chunks.slice(i, i + batchSize);
+            logger.log(`[RAG] Processing batch ${i / batchSize + 1}, size: ${batchChunks.length}`);
+
             const embeddingPromises = batchChunks.map(async (chunkText, index) => {
-                const embedding = await GeminiAPI.getEmbeddings(chunkText);
-                const chunkId = `${fileId}_${i + index}`;
-                const chunkRef = fileMetadataRef.collection("chunks").doc(chunkId);
-                return chunkRef.set({
-                    text: chunkText,
-                    embedding: embedding,
-                    fileId: fileId,
-                    chunkIndex: i + index,
-                    createdAt: FieldValue.serverTimestamp(),
-                });
+                try {
+                    const embedding = await GeminiAPI.getEmbeddings(chunkText);
+                    const chunkId = `${fileId}_${i + index}`;
+                    const chunkRef = fileMetadataRef.collection("chunks").doc(chunkId);
+                    return chunkRef.set({
+                        text: chunkText,
+                        embedding: embedding,
+                        fileId: fileId,
+                        chunkIndex: i + index,
+                        createdAt: FieldValue.serverTimestamp(),
+                    });
+                } catch (embError) {
+                     logger.error(`[RAG] Error embedding chunk ${i + index}:`, embError);
+                     throw embError; // Re-throw to stop process or handle appropriately
+                }
             });
 
             await Promise.all(embeddingPromises);
@@ -243,23 +272,31 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 
         logger.log(`[RAG] Successfully processed and stored chunks for fileId: ${fileId}`);
         return { success: true, message: `Successfully processed file into ${chunks.length} chunks.` };
 
-    } catch (error) {
+    } catch (error: any) {
         logger.error(`[RAG] Error processing file ${fileId}:`, error);
         // Attempt to mark the file as failed in Firestore
         try {
-            if (error instanceof Error) {
-                await db.collection("fileMetadata").doc(fileId).update({ ragStatus: 'failed', error: error.message });
-            }
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            await db.collection("fileMetadata").doc(fileId).update({ ragStatus: 'failed', error: errorMessage });
         } catch (updateError) {
             logger.error(`[RAG] Failed to update file metadata with error status for ${fileId}:`, updateError);
         }
+
+        // Always throw a new HttpsError to ensure the message is propagated to the client
+        // We prefix with [RAG_ERROR] to make it clear it came from this block
+        let message = "An unknown error occurred.";
+        let code = "internal";
+
         if (error instanceof HttpsError) {
-            throw error;
+            code = error.code as string;
+            message = error.message;
+        } else if (error instanceof Error) {
+            message = error.message;
+        } else {
+            message = String(error);
         }
-        if (error instanceof Error) {
-            throw new HttpsError("internal", `Failed to process file for RAG: ${error.message}`);
-        }
-        throw new HttpsError("internal", "An unknown error occurred while processing the file for RAG.");
+
+        throw new HttpsError(code as any, `[RAG_ERROR] ${message}`);
     }
 });
 
