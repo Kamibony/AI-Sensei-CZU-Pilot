@@ -1,40 +1,73 @@
 import type { GenerateContentRequest, Part } from "@google-cloud/vertexai";
-const { VertexAI, HarmCategory, HarmBlockThreshold } = require("@google-cloud/vertexai");
-const aiplatform = require("@google-cloud/aiplatform");
 const { getStorage } = require("firebase-admin/storage");
 const logger = require("firebase-functions/logger");
 const { HttpsError } = require("firebase-functions/v2/https");
 
-// --- KONFIGURACE MODELU ---
-const GCLOUD_PROJECT = process.env.GCLOUD_PROJECT;
-if (!GCLOUD_PROJECT) {
-    throw new Error("GCLOUD_PROJECT environment variable not set.");
-}
+// Lazy loaded variables
+let VertexAI: any;
+let HarmCategory: any;
+let HarmBlockThreshold: any;
+let vertex_ai: any;
+let model: any;
+let aiplatform: any;
+
 const LOCATION = "europe-west1";
-const vertex_ai = new VertexAI({ project: GCLOUD_PROJECT, location: LOCATION });
-const model = vertex_ai.getGenerativeModel({
-    model: "gemini-1.5-pro-preview-0409",
-    safetySettings: [
-        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    ],
-});
-const { PredictionServiceClient } = aiplatform.v1;
-const { helpers } = aiplatform;
+
+function getGcloudProject() {
+    const GCLOUD_PROJECT = process.env.GCLOUD_PROJECT;
+    if (!GCLOUD_PROJECT) {
+        throw new Error("GCLOUD_PROJECT environment variable not set.");
+    }
+    return GCLOUD_PROJECT;
+}
+
+function initVertexAI() {
+    if (!vertex_ai) {
+        try {
+            const vertexModule = require("@google-cloud/vertexai");
+            VertexAI = vertexModule.VertexAI;
+            HarmCategory = vertexModule.HarmCategory;
+            HarmBlockThreshold = vertexModule.HarmBlockThreshold;
+
+            vertex_ai = new VertexAI({ project: getGcloudProject(), location: LOCATION });
+            model = vertex_ai.getGenerativeModel({
+                model: "gemini-1.5-pro-preview-0409",
+                safetySettings: [
+                    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+                    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+                    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+                    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+                ],
+            });
+            console.log("[GeminiAPI] Vertex AI initialized lazily.");
+        } catch (e) {
+            logger.error("[GeminiAPI] Failed to initialize Vertex AI:", e);
+            throw new HttpsError("internal", "Failed to initialize AI services.");
+        }
+    }
+    return model;
+}
+
 async function getEmbeddings(text: string): Promise<number[]> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
         console.log("EMULATOR_MOCK for getEmbeddings: Returning a mock vector.");
-        // Return a fixed-size vector of non-zero values for emulator testing
         return Array(768).fill(0).map((_, i) => Math.sin(i));
     }
+
+    // Lazy load aiplatform
+    if (!aiplatform) {
+        aiplatform = require("@google-cloud/aiplatform");
+    }
+
+    const { PredictionServiceClient } = aiplatform.v1;
+    const { helpers } = aiplatform;
+
     const clientOptions = {
         apiEndpoint: `${LOCATION}-aiplatform.googleapis.com`,
     };
     const client = new PredictionServiceClient(clientOptions);
     const instances = [helpers.toValue({ content: text, task_type: "RETRIEVAL_DOCUMENT" })];
-    const endpoint = `projects/${GCLOUD_PROJECT}/locations/${LOCATION}/publishers/google/models/text-embedding-004`;
+    const endpoint = `projects/${getGcloudProject()}/locations/${LOCATION}/publishers/google/models/text-embedding-004`;
     const request = {
         endpoint,
         instances,
@@ -64,6 +97,7 @@ async function getEmbeddings(text: string): Promise<number[]> {
     }
 }
 exports.getEmbeddings = getEmbeddings;
+
 function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
     if (vecA.length !== vecB.length) {
         throw new Error("Vectors must be of the same length to calculate similarity.");
@@ -79,15 +113,17 @@ function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
     magA = Math.sqrt(magA);
     magB = Math.sqrt(magB);
     if (magA === 0 || magB === 0) {
-        return 0; // Or throw an error, depending on desired behavior for zero vectors
+        return 0;
     }
     return dotProduct / (magA * magB);
 }
 exports.calculateCosineSimilarity = calculateCosineSimilarity;
+
 async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
     const functionName = requestBody.generationConfig?.responseMimeType === "application/json"
         ? "generateJson"
         : "generateText";
+
     if (process.env.FUNCTIONS_EMULATOR === "true") {
         console.log(`EMULATOR_MOCK for ${functionName}: Bypassing real API call.`);
         if (functionName === "generateJson") {
@@ -95,9 +131,12 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
         }
         return `This is a mock response from the emulator for a text prompt.`;
     }
+
+    const generativeModel = initVertexAI(); // Ensure initialized
+
     try {
         console.log(`[gemini-api:${functionName}] Sending request to Vertex AI with model 'gemini-1.5-pro-preview-0409' in '${LOCATION}'...`);
-        const streamResult = await model.generateContentStream(requestBody);
+        const streamResult = await generativeModel.generateContentStream(requestBody);
         let fullText = "";
         for await (const item of streamResult.stream) {
             if (item.candidates && item.candidates[0].content.parts[0].text) {
@@ -115,6 +154,7 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
         throw new Error("An unknown error occurred while communicating with the Vertex AI API.");
     }
 }
+
 async function generateTextFromPrompt(prompt: string): Promise<string> {
     const request: GenerateContentRequest = {
         contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -122,6 +162,7 @@ async function generateTextFromPrompt(prompt: string): Promise<string> {
     return await streamGeminiResponse(request);
 }
 exports.generateTextFromPrompt = generateTextFromPrompt;
+
 async function generateJsonFromPrompt(prompt: string): Promise<any> {
     const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
     const request: GenerateContentRequest = {
@@ -135,13 +176,13 @@ async function generateJsonFromPrompt(prompt: string): Promise<any> {
         const parsedJson = JSON.parse(rawJsonText);
         return parsedJson;
     }
-    catch (e) { // <--- ZMENENÉ
-        logger.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText, e); // <--- ZMENENÉ
-        // Hádzanie HttpsError namiesto new Error(), aby sa zabránilo 500 Internal Server Error
-        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText }); // <--- ZMENENÉ
+    catch (e) {
+        logger.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText, e);
+        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText });
     }
 }
 exports.generateJsonFromPrompt = generateJsonFromPrompt;
+
 async function generateTextFromDocuments(filePaths: string[], prompt: string): Promise<string> {
     const bucket = getStorage().bucket();
     const parts: Part[] = [];
@@ -163,7 +204,7 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
     return await streamGeminiResponse(request);
 }
 exports.generateTextFromDocuments = generateTextFromDocuments;
-// --- NOVÁ FUNKCIA PRE GENERAVANIE JSON Z DOKUMENTOV ---
+
 async function generateJsonFromDocuments(filePaths: string[], prompt: string): Promise<any> {
     const bucket = getStorage().bucket();
     const parts: Part[] = [];
@@ -191,10 +232,9 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
         const parsedJson = JSON.parse(rawJsonText);
         return parsedJson;
     }
-    catch (e) { // <--- ZMENENÉ
-        logger.error("[gemini-api:generateJsonFromDocuments] Failed to parse JSON from Gemini response:", rawJsonText, e); // <--- ZMENENÉ
-        // Hádzanie HttpsError namiesto new Error(), aby sa zabránilo 500 Internal Server Error
-        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText }); // <--- ZMENENÉ
+    catch (e) {
+        logger.error("[gemini-api:generateJsonFromDocuments] Failed to parse JSON from Gemini response:", rawJsonText, e);
+        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText });
     }
 }
 exports.generateJsonFromDocuments = generateJsonFromDocuments;

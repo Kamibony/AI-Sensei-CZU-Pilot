@@ -113,9 +113,11 @@ export class ProfessorMediaView extends LitElement {
             const fileRef = ref(storage, file.fullPath);
             await deleteObject(fileRef);
         } catch (error) {
-            // Ak súbor neexistuje, je to v poriadku. Vypíšeme varovanie a pokračujeme.
+            // Ak súbor neexistuje alebo nemáme právo (chýbajúce metadata), ignorujeme chybu v UI
             if (error.code === 'storage/object-not-found') {
                 console.warn(`File not found in Storage, proceeding to delete Firestore record: ${file.fullPath}`);
+            } else if (error.code === 'storage/unauthorized') {
+                console.warn(`Permission denied for Storage file (likely missing metadata), proceeding to delete Firestore record: ${file.fullPath}`);
             } else {
                 // Iné chyby pri mazaní zo Storage tiež neblokujú ďalší postup, ale mali by sme ich zaznamenať.
                 console.error("Error deleting file from Storage (will still attempt to delete Firestore record):", error);
