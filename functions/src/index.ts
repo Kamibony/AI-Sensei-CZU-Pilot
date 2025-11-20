@@ -10,15 +10,34 @@ const { onRequest } = require("firebase-functions/v2/https");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 const GeminiAPI = require("./gemini-api.js");
-const cors = require("cors");
-const fetch = require("node-fetch");
-const pdf = require("pdf-parse");
+
+// LAZY LOADED DEPENDENCIES to prevent container crash on startup if missing
+// const cors = require("cors"); // Moved to lazy load
+// const fetch = require("node-fetch"); // Moved to lazy load
+// const pdf = require("pdf-parse"); // Moved to lazy load
 
 const DEPLOY_REGION = "europe-west1";
 
 initializeApp();
 const db = getFirestore();
-const corsHandler = cors({ origin: true });
+
+// Helper for CORS (Lazy initialization)
+let corsHandler: any;
+function getCorsHandler() {
+    if (!corsHandler) {
+        try {
+            const cors = require("cors");
+            corsHandler = cors({ origin: true });
+        } catch (e) {
+            logger.error("Failed to initialize CORS middleware:", e);
+            // Fallback or rethrow? If CORS fails, onRequest functions won't work for cross-origin.
+            // But we don't want to crash everything.
+             corsHandler = (req: any, res: any, next: any) => next(); // Dummy middleware
+        }
+    }
+    return corsHandler;
+}
+
 
 async function sendTelegramMessage(chatId: number, text: string) {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -28,6 +47,8 @@ async function sendTelegramMessage(chatId: number, text: string) {
     }
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
     try {
+        // Lazy load node-fetch
+        const fetch = require("node-fetch");
         await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -165,6 +186,15 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 
     const { fileId } = request.data;
     if (!fileId) {
         throw new HttpsError('invalid-argument', 'Missing fileId.');
+    }
+
+    // LAZY LOAD PDF PARSE
+    let pdf;
+    try {
+        pdf = require("pdf-parse");
+    } catch (e) {
+        logger.error("Failed to load pdf-parse library:", e);
+        throw new HttpsError("internal", "Backend configuration error: pdf-parse library missing.");
     }
 
     try {
@@ -539,7 +569,9 @@ ${promptContext}
 
 
 exports.telegramBotWebhook = onRequest({ region: DEPLOY_REGION, secrets: ["TELEGRAM_BOT_TOKEN"] }, (req: Request, res: any) => {
-    corsHandler(req, res, async () => {
+    // Lazy initialize CORS handler
+    const handler = getCorsHandler();
+    handler(req, res, async () => {
         // ... (kód zostáva nezmenený, ale s opravami) ...
         if (req.method !== 'POST') {
             res.status(405).send('Method Not Allowed');

@@ -128,10 +128,10 @@ export class ProfessorClassDetailView extends LitElement {
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                             Zpět na Dashboard
                         </button>
-                        <h1 class="text-3xl font-extrabold text-slate-800">${this._group.name}</h1>
+                        <h1 class="text-3xl font-extrabold text-slate-800">${this._group.name || 'Bezejmenná třída'}</h1>
                         <div class="flex items-center mt-2">
                              <span class="text-sm text-slate-500 mr-2">Kód pro připojení:</span>
-                             <strong class="text-lg font-mono bg-slate-100 text-slate-700 px-3 py-1 rounded-md">${this._group.joinCode}</strong>
+                             <strong class="text-lg font-mono bg-slate-100 text-slate-700 px-3 py-1 rounded-md">${this._group.joinCode || '---'}</strong>
                         </div>
                     </div>
                     <button @click=${() => this._navigateTo('class-settings', { groupId: this.groupId })}
@@ -169,10 +169,11 @@ export class ProfessorClassDetailView extends LitElement {
 
     _renderLessonToggle(lesson) {
         const isAssigned = lesson.assignedToGroups && lesson.assignedToGroups.includes(this.groupId);
+        const title = lesson.title || 'Lekce bez názvu';
         return html`
             <div class="flex items-center justify-between p-4">
                 <div>
-                    <p class="font-semibold text-slate-800">${lesson.title}</p>
+                    <p class="font-semibold text-slate-800">${title}</p>
                     <p class="text-sm text-slate-500">${lesson.status || 'Neznámý status'}</p>
                 </div>
                 <div class="flex items-center">
@@ -205,7 +206,7 @@ export class ProfessorClassDetailView extends LitElement {
             <div class="flex items-center justify-between p-4">
                 <div>
                     <p class="font-semibold text-slate-800">${student.name || 'Jméno neuvedeno'}</p>
-                    <p class="text-sm text-slate-500">${student.email}</p>
+                    <p class="text-sm text-slate-500">${student.email || 'Email neuveden'}</p>
                 </div>
                 <button @click=${() => this._navigateTo('chat', { studentId: student.id })}
                         class="bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold py-2 px-4 rounded-lg text-sm">
