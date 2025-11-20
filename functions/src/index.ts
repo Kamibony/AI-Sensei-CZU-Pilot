@@ -10,6 +10,7 @@ const { onRequest } = require("firebase-functions/v2/https");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 const GeminiAPI = require("./gemini-api.js");
+const functionsV1 = require("firebase-functions");
 
 // LAZY LOADED DEPENDENCIES to prevent container crash on startup if missing
 // const cors = require("cors"); // Moved to lazy load
@@ -919,15 +920,11 @@ exports.admin_setUserRole = onCall({ region: DEPLOY_REGION }, async (request: Ca
     }
 });
 
-exports.onUserCreate = onDocumentCreated({document: "users/{userId}", region: DEPLOY_REGION }, async (event: FirestoreEvent<QueryDocumentSnapshot | undefined>) => {
-    const snapshot = event.data;
-    if (!snapshot) {
-        logger.log("No data associated with the event");
-        return;
-    }
+// Downgraded to v1 to avoid Eventarc service identity generation errors during deployment
+exports.onUserCreate = functionsV1.region(DEPLOY_REGION).firestore.document("users/{userId}").onCreate(async (snapshot: any, context: any) => {
     const data = snapshot.data();
     const role = data.role || 'student'; // Default to 'student' if role is not set
-    const userId = event.params.userId;
+    const userId = context.params.userId;
 
     try {
         await getAuth().setCustomUserClaims(userId, { role: role });
@@ -975,6 +972,8 @@ throw new HttpsError("internal", "Nepodarilo sa pripraviť nahrávanie.");
 const storage = getStorage();
 // Použijeme predvolený bucket projektu
 const bucket = storage.bucket();
+logger.log(`[getSecureUploadUrl] Using bucket: ${bucket.name}`);
+
 const file = bucket.file(filePath);
 
 const options = {
@@ -992,9 +991,13 @@ try {
 const [url] = await file.getSignedUrl(options);
 // Vrátime klientovi všetko, čo potrebuje
 return { signedUrl: url, docId: docId, filePath: filePath };
-} catch (error) {
+} catch (error: any) {
 logger.error("Chyba pri generovaní Signed URL:", error);
-throw new HttpsError("internal", "Nepodarilo sa vygenerovať URL na nahrávanie.");
+// Log specific error details for debugging 500 Internal Server Error
+if (error.code === 403 || error.message?.includes("Service Account Token Creator")) {
+    logger.error("CRITICAL IAM ERROR: Service account likely missing 'Service Account Token Creator' role.");
+}
+throw new HttpsError("internal", `Nepodarilo sa vygenerovať URL na nahrávanie: ${error.message}`);
 }
 });
 
