@@ -106,7 +106,7 @@ async function uploadSingleFile(file, courseId, user, progressContainer) {
         progressBar.style.width = '95%';
         percentageText.textContent = 'Zpracování AI...';
         try {
-            await processFileForRAG({ docId: docId, filePath: filePath });
+            await processFileForRAG({ fileId: docId });
         } catch (ragError) {
             console.error(`RAG spracovanie pre ${file.name} zlyhalo:`, ragError);
             showToast(`Soubor ${file.name} byl nahrán, ale AI analýza selhala.`, true);
