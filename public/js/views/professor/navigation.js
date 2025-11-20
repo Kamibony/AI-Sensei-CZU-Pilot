@@ -6,113 +6,93 @@ export function setupProfessorNav(showProfessorContent) {
     const user = auth.currentUser;
 
     if (nav && user) {
-        // === ZAČIATOK ÚPRAVY HTML ===
+        // Apply sidebar styling to the container
+        nav.className = 'fixed top-0 left-0 h-full w-64 bg-white border-r border-slate-200 z-50 flex flex-col';
+
         nav.innerHTML = `
-            <div class="flex flex-col h-full">
-                <div class="flex-grow space-y-4">
-                    
-                    <li>
-                        <button data-view="timeline" class="nav-item w-full p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white group bg-green-700 text-white" title="Plán výuky">
-                            <div class="h-10 w-10 rounded-md flex items-center justify-center bg-green-600 group-hover:bg-green-500 transition-colors duration-200">
-                                <span class="text-2xl">🗓️</span>
-                            </div>
-                        </button>
-                    </li>
+            <div id="nav-logo" class="p-6 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors">
+                <h1 class="text-2xl font-bold text-green-700 flex items-center gap-2">
+                    <span>🎓</span> AI Sensei
+                </h1>
+            </div>
 
-                    <li>
-                        <button data-view="classes" class="nav-item w-full p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white group" title="Třídy">
-                            <div class="h-10 w-10 rounded-md flex items-center justify-center bg-green-900 group-hover:bg-green-600 transition-colors duration-200">
-                                <span class="text-2xl">🏫</span>
-                            </div>
-                        </button>
-                    </li>
-                    
-                    <li>
-                        <button data-view="students" class="nav-item w-full p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white group" title="Studenti">
-                            <div class="h-10 w-10 rounded-md flex items-center justify-center bg-green-900 group-hover:bg-green-600 transition-colors duration-200">
-                                <span class="text-2xl">👥</span>
-                            </div>
-                        </button>
-                    </li>
+            <div class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+                <button data-view="timeline" class="nav-item w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 text-slate-600 hover:bg-green-50 hover:text-green-700 text-left group">
+                    <span class="text-xl group-hover:scale-110 transition-transform">🗓️</span>
+                    <span class="font-medium">Plán výuky</span>
+                </button>
 
-                    <li>
-                        <button data-view="interactions" class="nav-item w-full p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white group" title="Interakce">
-                             <div class="h-10 w-10 rounded-md flex items-center justify-center bg-green-900 group-hover:bg-green-600 transition-colors duration-200">
-                                <span class="text-2xl">💬</span>
-                            </div>
-                        </button>
-                    </li>
+                <button data-view="classes" class="nav-item w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 text-slate-600 hover:bg-green-50 hover:text-green-700 text-left group">
+                    <span class="text-xl group-hover:scale-110 transition-transform">🏫</span>
+                    <span class="font-medium">Třídy</span>
+                </button>
 
-                    <li>
-                        <button data-view="analytics" class="nav-item w-full p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white group" title="Analýza kurzu">
-                            <div class="h-10 w-10 rounded-md flex items-center justify-center bg-green-900 group-hover:bg-green-600 transition-colors duration-200">
-                                <span class="text-2xl">📊</span>
-                            </div>
-                        </button>
-                    </li>
+                <button data-view="students" class="nav-item w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 text-slate-600 hover:bg-green-50 hover:text-green-700 text-left group">
+                    <span class="text-xl group-hover:scale-110 transition-transform">👥</span>
+                    <span class="font-medium">Studenti</span>
+                </button>
 
-                    <li>
-                        <button data-view="media" class="nav-item w-full p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-green-700 hover:text-white group" title="Knihovna médií">
-                            <div class="h-10 w-10 rounded-md flex items-center justify-center bg-green-900 group-hover:bg-green-600 transition-colors duration-200">
-                                <span class="text-2xl">📁</span>
-                            </div>
-                        </button>
-                    </li>
+                <button data-view="interactions" class="nav-item w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 text-slate-600 hover:bg-green-50 hover:text-green-700 text-left group">
+                    <span class="text-xl group-hover:scale-110 transition-transform">💬</span>
+                    <span class="font-medium">Interakce</span>
+                </button>
 
-                </div>
-                
-                <!-- === OPRAVA KOMENTÁRA === -->
-                <div class="mt-auto"> <!-- Posunie logout na spodok -->
-                     ${user.email === 'profesor@profesor.cz' ? `
-                    <li class="border-t border-green-700 my-4"></li>
-                    <li>
-                        <button data-view="admin" class="nav-item w-full p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-yellow-700 hover:text-white group" title="Admin">
-                            <div class="h-10 w-10 rounded-md flex items-center justify-center bg-green-900 group-hover:bg-yellow-600 transition-colors duration-200">
-                                <span class="text-2xl">⚙️</span>
-                            </div>
-                        </button>
-                    </li>
-                    ` : ''}
+                <button data-view="analytics" class="nav-item w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 text-slate-600 hover:bg-green-50 hover:text-green-700 text-left group">
+                    <span class="text-xl group-hover:scale-110 transition-transform">📊</span>
+                    <span class="font-medium">Analýza</span>
+                </button>
 
-                    <li>
-                        <button id="logout-btn-nav" class="nav-item w-full p-3 rounded-lg flex items-center justify-center text-green-200 hover:bg-red-700 hover:text-white group" title="Odhlásit se">
-                            <div class="h-10 w-10 rounded-md flex items-center justify-center bg-green-900 group-hover:bg-red-600 transition-colors duration-200">
-                                <span class="text-2xl">🚪</span>
-                            </div>
-                        </button>
-                    </li>
-                </div>
-                <!-- === KONIEC OPRAVY === -->
+                <button data-view="media" class="nav-item w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 text-slate-600 hover:bg-green-50 hover:text-green-700 text-left group">
+                    <span class="text-xl group-hover:scale-110 transition-transform">📁</span>
+                    <span class="font-medium">Knihovna</span>
+                </button>
+            </div>
+
+            <div class="p-4 border-t border-slate-100">
+                 ${user.email === 'profesor@profesor.cz' ? `
+                <button data-view="admin" class="nav-item w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 text-slate-600 hover:bg-yellow-50 hover:text-yellow-700 text-left mb-2 group">
+                    <span class="text-xl group-hover:scale-110 transition-transform">⚙️</span>
+                    <span class="font-medium">Admin</span>
+                </button>
+                ` : ''}
+
+                <button id="logout-btn-nav" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 text-slate-600 hover:bg-red-50 hover:text-red-700 text-left group">
+                    <span class="text-xl group-hover:scale-110 transition-transform">🚪</span>
+                    <span class="font-medium">Odhlásit se</span>
+                </button>
             </div>
         `;
-        // === KONIEC ÚPRAVY HTML ===
 
+        // Setup Click Listeners
         nav.querySelectorAll('button[data-view]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const view = e.currentTarget.dataset.view;
                 nav.querySelectorAll('button[data-view]').forEach(b => {
-                    b.classList.remove('bg-green-700', 'text-white');
-                    b.classList.add('text-green-200');
-                    // Zmena pozadia štvorca ikony
-                    b.querySelector('div').classList.remove('bg-green-600');
-                    b.querySelector('div').classList.add('bg-green-900');
+                    b.classList.remove('bg-green-50', 'text-green-700', 'bg-yellow-50', 'text-yellow-700');
+                    b.classList.add('text-slate-600');
                 });
-                e.currentTarget.classList.add('bg-green-700', 'text-white');
-                 // Zmena pozadia štvorca ikony pre aktívnu položku
-                e.currentTarget.querySelector('div').classList.remove('bg-green-900');
-                e.currentTarget.querySelector('div').classList.add('bg-green-600');
+
+                const activeBg = view === 'admin' ? 'bg-yellow-50' : 'bg-green-50';
+                const activeText = view === 'admin' ? 'text-yellow-700' : 'text-green-700';
+
+                e.currentTarget.classList.remove('text-slate-600');
+                e.currentTarget.classList.add(activeBg, activeText);
+
                 showProfessorContent(view);
             });
         });
 
-        // Správne nastavenie hover efektu pre logout
-         const logoutBtn = nav.querySelector('#logout-btn-nav');
-         if (logoutBtn) {
-             const iconDiv = logoutBtn.querySelector('div');
-             logoutBtn.addEventListener('mouseenter', () => iconDiv.classList.replace('bg-green-900', 'bg-red-600'));
-             logoutBtn.addEventListener('mouseleave', () => iconDiv.classList.replace('bg-red-600', 'bg-green-900'));
-         }
+        // Logo Click to Dashboard
+        const logo = nav.querySelector('#nav-logo');
+        if (logo) {
+            logo.addEventListener('click', () => {
+                nav.querySelectorAll('button[data-view]').forEach(b => {
+                    b.classList.remove('bg-green-50', 'text-green-700', 'bg-yellow-50', 'text-yellow-700');
+                    b.classList.add('text-slate-600');
+                });
+                showProfessorContent('dashboard');
+            });
+        }
 
     }
 }
-
