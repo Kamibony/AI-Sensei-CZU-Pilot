@@ -163,10 +163,13 @@ exports.generateContent = onCall({
     }
 });
 
-exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 }, async (request: CallableRequest) => {
+exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540, memory: '1GiB' }, async (request: CallableRequest) => {
     if (!request.auth || request.auth.token.role !== 'professor') {
         throw new HttpsError('unauthenticated', 'This action requires professor privileges.');
     }
+
+    // Debug Log for Environment Variables
+    logger.log(`[RAG] Environment Check - GCLOUD_PROJECT: ${process.env.GCLOUD_PROJECT}, GCP_PROJECT: ${process.env.GCP_PROJECT}, STORAGE_BUCKET: ${STORAGE_BUCKET}`);
 
     const { fileId } = request.data;
     if (!fileId) {
