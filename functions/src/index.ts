@@ -15,6 +15,7 @@ const fetch = require("node-fetch");
 const pdf = require("pdf-parse");
 
 const DEPLOY_REGION = "europe-west1";
+const STORAGE_BUCKET = "ai-sensei-czu-pilot.firebasestorage.app";
 
 initializeApp();
 const db = getFirestore();
@@ -184,7 +185,7 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 
         }
 
         // 1. Download file from Storage
-        const bucket = getStorage().bucket();
+        const bucket = getStorage().bucket(STORAGE_BUCKET);
         const file = bucket.file(storagePath);
         const [fileBuffer] = await file.download();
         logger.log(`[RAG] Downloaded ${storagePath} (${(fileBuffer.length / 1024).toFixed(2)} KB)`);
@@ -942,7 +943,7 @@ throw new HttpsError("internal", "Nepodarilo sa pripraviť nahrávanie.");
 // 3. Generovanie Signed URL
 const storage = getStorage();
 // Použijeme predvolený bucket projektu
-const bucket = storage.bucket();
+const bucket = storage.bucket(STORAGE_BUCKET);
 const file = bucket.file(filePath);
 
 const options = {
@@ -1000,7 +1001,7 @@ exports.finalizeUpload = onCall({ region: DEPLOY_REGION }, async (request: Calla
         }
 
         const storage = getStorage();
-        const bucket = storage.bucket();
+        const bucket = storage.bucket(STORAGE_BUCKET);
         const file = bucket.file(filePath);
 
         try {
@@ -1047,7 +1048,7 @@ exports.admin_migrateFileMetadata = onCall({ region: DEPLOY_REGION }, async (req
     logger.log("Starting metadata migration process...");
     const fileMetadataCollection = db.collection("fileMetadata");
     const storage = getStorage();
-    const bucket = storage.bucket();
+    const bucket = storage.bucket(STORAGE_BUCKET);
 
     let processedCount = 0;
     let errorCount = 0;
