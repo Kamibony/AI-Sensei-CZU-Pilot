@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Dashboard</title>
+    <script type="module">
+        import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+    </script>
+    <script type="module" src="/js/views/professor/professor-dashboard-view.js"></script>
+    <script type="module">
+        // Wait for element to upgrade
+        customElements.whenDefined('professor-dashboard-view').then(() => {
+            const el = document.querySelector('professor-dashboard-view');
+            // Force stop loading and provide some dummy data to trigger render
+            // We need to access the private properties or just set them if the component allows.
+            // LitElement properties are accessible.
+            setTimeout(() => {
+                el._isLoading = false;
+                el._classes = [];
+                el._students = [];
+                el._lessons = [];
+                el.requestUpdate();
+            }, 1000);
+        });
+    </script>
+</head>
+<body>
+    <professor-dashboard-view></professor-dashboard-view>
+</body>
+</html>

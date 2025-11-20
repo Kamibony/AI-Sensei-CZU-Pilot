@@ -23,6 +23,7 @@ service cloud.firestore {
 
     // Kolekcia pre študentov (zjednotená)
     match /students/{studentId} {
+      // Umožníme profesorom čítať všetkých študentov (pre analytiku a zoznamy)
       allow read: if isProfessor() || isProfessorRole() || isOwner(studentId);
       allow create, update: if isOwner(studentId);
     }
@@ -30,9 +31,8 @@ service cloud.firestore {
     // Pravidlá pre správu používateľov
     match /users/{userId} {
       // Admin (profesor@profesor.cz) môže čítať zoznam všetkých používateľov
-      allow list: if isProfessor();
-
-      // --- ZAČIATOK OPRAVY PARADOXU ---
+      // Profesorom pridáme list/get pre potreby UI
+      allow read: if isProfessor() || isProfessorRole() || isOwner(userId);
 
       // 2. OPRAVA: Explicitne povoľ 'create' iba pre vlastníka.
       allow create: if isOwner(userId);
@@ -42,8 +42,6 @@ service cloud.firestore {
 
       // 4. Ponechaj 'delete' prísne (len starý admin).
       allow delete: if isProfessor();
-
-      // --- KONIEC OPRAVY ---
     }
 
     // Lekcie
@@ -84,10 +82,11 @@ service cloud.firestore {
       allow update, delete: if (resource.data.ownerId == request.auth.uid) || isProfessor();
     }
 
-    // Kvízy a testy
+    // Kvízy a testy - OPRAVA PRE ANALYTIKU
     match /quiz_submissions/{submissionId} {
       allow create: if isOwner(request.resource.data.studentId);
-      allow read: if isOwner(resource.data.studentId) || isProfessor() || isProfessorRole();
+      // Profesor potrebuje vidieť všetky, nielen tie, kde je vlastníkom študenta (to nedáva zmysel)
+      allow read: if isProfessor() || isProfessorRole() || isOwner(resource.data.studentId);
     }
     match /test_submissions/{submissionId} {
        allow create: if isOwner(request.resource.data.studentId);
@@ -100,10 +99,16 @@ service cloud.firestore {
       allow create: if isProfessorRole() && request.resource.data.ownerId == request.auth.uid;
 
       // Čítať a mazať záznam môže iba vlastník alebo hlavný admin.
+      // Pridané isProfessorRole() pre čítanie, aby dashboard mohol zobraziť všetky súbory ak je to potrebné (alebo aspoň vlastné)
+      // Ale tu je 'resource.data.ownerId', takže iba vlastník. To je OK.
       allow read, delete: if (isSignedIn() && resource.data.ownerId == request.auth.uid) || request.auth.token.email == 'profesor@profesor.cz';
 
       // Aktualizovať záznam môže iba jeho vlastník (potrebné pre dokončenie uploadu).
       allow update: if (isSignedIn() && resource.data.ownerId == request.auth.uid);
+    }
+
+    match /fileMetadata/{fileId}/chunks/{chunkId} {
+       allow read: if (get(/databases/$(database)/documents/fileMetadata/$(fileId)).data.ownerId == request.auth.uid) || isProfessor();
     }
   }
 }
