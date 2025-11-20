@@ -1,6 +1,4 @@
 import type { GenerateContentRequest, Part } from "@google-cloud/vertexai";
-const { VertexAI, HarmCategory, HarmBlockThreshold } = require("@google-cloud/vertexai");
-const aiplatform = require("@google-cloud/aiplatform");
 const { getStorage } = require("firebase-admin/storage");
 const logger = require("firebase-functions/logger");
 const { HttpsError } = require("firebase-functions/v2/https");
@@ -11,24 +9,40 @@ if (!GCLOUD_PROJECT) {
     throw new Error("GCLOUD_PROJECT environment variable not set.");
 }
 const LOCATION = "europe-west1";
-const vertex_ai = new VertexAI({ project: GCLOUD_PROJECT, location: LOCATION });
-const model = vertex_ai.getGenerativeModel({
-    model: "gemini-1.5-pro-preview-0409",
-    safetySettings: [
-        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    ],
-});
-const { PredictionServiceClient } = aiplatform.v1;
-const { helpers } = aiplatform;
+
+// Lazy loading global variables
+let vertex_ai: any = null;
+let model: any = null;
+
+function getGenerativeModel() {
+    if (!model) {
+        const { VertexAI, HarmCategory, HarmBlockThreshold } = require("@google-cloud/vertexai");
+        vertex_ai = new VertexAI({ project: GCLOUD_PROJECT, location: LOCATION });
+        model = vertex_ai.getGenerativeModel({
+            model: "gemini-1.5-pro-preview-0409",
+            safetySettings: [
+                { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+                { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+                { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+                { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+            ],
+        });
+    }
+    return model;
+}
+
 async function getEmbeddings(text: string): Promise<number[]> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
         console.log("EMULATOR_MOCK for getEmbeddings: Returning a mock vector.");
         // Return a fixed-size vector of non-zero values for emulator testing
         return Array(768).fill(0).map((_, i) => Math.sin(i));
     }
+
+    // Lazy load aiplatform
+    const aiplatform = require("@google-cloud/aiplatform");
+    const { PredictionServiceClient } = aiplatform.v1;
+    const { helpers } = aiplatform;
+
     const clientOptions = {
         apiEndpoint: `${LOCATION}-aiplatform.googleapis.com`,
     };
@@ -97,7 +111,8 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
     }
     try {
         console.log(`[gemini-api:${functionName}] Sending request to Vertex AI with model 'gemini-1.5-pro-preview-0409' in '${LOCATION}'...`);
-        const streamResult = await model.generateContentStream(requestBody);
+        const modelInstance = getGenerativeModel();
+        const streamResult = await modelInstance.generateContentStream(requestBody);
         let fullText = "";
         for await (const item of streamResult.stream) {
             if (item.candidates && item.candidates[0].content.parts[0].text) {
