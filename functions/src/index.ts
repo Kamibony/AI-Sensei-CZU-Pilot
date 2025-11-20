@@ -9,12 +9,15 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onRequest } = require("firebase-functions/v2/https");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
-const GeminiAPI = require("./gemini-api.js");
 const cors = require("cors");
 const fetch = require("node-fetch");
-const pdf = require("pdf-parse");
+
+// Lazy load heavy dependencies
+// const GeminiAPI = require("./gemini-api.js");
+// const pdf = require("pdf-parse");
 
 const DEPLOY_REGION = "europe-west1";
+const STORAGE_BUCKET = "ai-sensei-czu-pilot.firebasestorage.app";
 
 initializeApp();
 const db = getFirestore();
@@ -93,6 +96,8 @@ exports.generateContent = onCall({
             // RAG-based response
             logger.log(`[RAG] Starting RAG process for prompt: "${finalPrompt}" with ${filePaths.length} files.`);
 
+            const GeminiAPI = require("./gemini-api.js");
+
             // 1. Generate embedding for the user's prompt
             const promptEmbedding = await GeminiAPI.getEmbeddings(finalPrompt);
 
@@ -141,6 +146,7 @@ exports.generateContent = onCall({
 
         } else {
             // Standard non-RAG response
+            const GeminiAPI = require("./gemini-api.js");
             return isJson
                 ? await GeminiAPI.generateJsonFromPrompt(finalPrompt)
                 : { text: await GeminiAPI.generateTextFromPrompt(finalPrompt) };
@@ -184,12 +190,13 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 
         }
 
         // 1. Download file from Storage
-        const bucket = getStorage().bucket();
+        const bucket = getStorage().bucket(STORAGE_BUCKET);
         const file = bucket.file(storagePath);
         const [fileBuffer] = await file.download();
         logger.log(`[RAG] Downloaded ${storagePath} (${(fileBuffer.length / 1024).toFixed(2)} KB)`);
 
         // 2. Extract text from PDF
+        const pdf = require("pdf-parse");
         const pdfData = await pdf(fileBuffer);
         const text = pdfData.text;
         logger.log(`[RAG] Extracted ${text.length} characters of text from PDF.`);
@@ -209,6 +216,7 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 
 
         // 4. Embedding Loop and Save to Firestore
         const batchSize = 5; // Process in smaller batches to avoid overwhelming the embedding API
+        const GeminiAPI = require("./gemini-api.js");
         let chunksProcessed = 0;
         for (let i = 0; i < chunks.length; i += batchSize) {
             const batchChunks = chunks.slice(i, i + batchSize);
@@ -271,6 +279,8 @@ exports.getAiAssistantResponse = onCall({
         }
         const lessonData = lessonDoc.data();
         const prompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${userQuestion}"`;
+
+        const GeminiAPI = require("./gemini-api.js");
         const answer = await GeminiAPI.generateTextFromPrompt(prompt);
         return { answer };
     } catch (error) {
@@ -502,6 +512,7 @@ ${promptContext}
 `;
         
         // 7. Zavolať Gemini
+        const GeminiAPI = require("./gemini-api.js");
         const summary = await GeminiAPI.generateTextFromPrompt(finalPrompt);
 
         // ===== NOVÝ KROK: Uloženie analýzy do profilu študenta =====
@@ -635,6 +646,7 @@ exports.telegramBotWebhook = onRequest({ region: DEPLOY_REGION, secrets: ["TELEG
                 }
             }
             
+            const GeminiAPI = require("./gemini-api.js");
             const answer = await GeminiAPI.generateTextFromPrompt(lessonContextPrompt);
 
             // Uloženie konverzácie z Telegramu do DB
@@ -942,7 +954,7 @@ throw new HttpsError("internal", "Nepodarilo sa pripraviť nahrávanie.");
 // 3. Generovanie Signed URL
 const storage = getStorage();
 // Použijeme predvolený bucket projektu
-const bucket = storage.bucket();
+const bucket = storage.bucket(STORAGE_BUCKET);
 const file = bucket.file(filePath);
 
 const options = {
@@ -1000,7 +1012,7 @@ exports.finalizeUpload = onCall({ region: DEPLOY_REGION }, async (request: Calla
         }
 
         const storage = getStorage();
-        const bucket = storage.bucket();
+        const bucket = storage.bucket(STORAGE_BUCKET);
         const file = bucket.file(filePath);
 
         try {
@@ -1047,7 +1059,7 @@ exports.admin_migrateFileMetadata = onCall({ region: DEPLOY_REGION }, async (req
     logger.log("Starting metadata migration process...");
     const fileMetadataCollection = db.collection("fileMetadata");
     const storage = getStorage();
-    const bucket = storage.bucket();
+    const bucket = storage.bucket(STORAGE_BUCKET);
 
     let processedCount = 0;
     let errorCount = 0;
