@@ -27,7 +27,8 @@ service firebase.storage {
       allow create: if false;
 
       // DELETE is allowed for the owner or the legacy admin
-      allow delete: if (isProfessor() && isOwner(resource))
+      // Also allow professors to delete "orphaned" files (missing metadata/ownerId) to clean up broken uploads
+      allow delete: if (isProfessor() && (isOwner(resource) || resource.metadata == null || !('ownerId' in resource.metadata)))
                     || request.auth.token.email == 'profesor@profesor.cz';
     }
 
