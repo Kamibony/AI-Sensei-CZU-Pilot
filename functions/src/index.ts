@@ -195,12 +195,27 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 
         const [fileBuffer] = await file.download();
         logger.log(`[RAG] Downloaded ${storagePath} (${(fileBuffer.length / 1024).toFixed(2)} KB)`);
 
+        if (!fileBuffer || fileBuffer.length === 0) {
+            throw new HttpsError('failed-precondition', 'File is empty.');
+        }
+
         // 2. Extract text from PDF
         logger.log("[RAG] Initializing pdf-parse...");
         const pdf = require("pdf-parse");
         logger.log("[RAG] Parsing PDF content...");
-        const pdfData = await pdf(fileBuffer);
-        const text = pdfData.text;
+        let text = "";
+        try {
+            const pdfData = await pdf(fileBuffer);
+            text = pdfData.text;
+        } catch (pdfError: any) {
+            logger.error("[RAG] PDF parsing failed:", pdfError);
+            throw new HttpsError('invalid-argument', `Failed to parse PDF file: ${pdfError.message || 'Unknown PDF error'}`);
+        }
+
+        if (!text || text.trim().length === 0) {
+            logger.warn("[RAG] PDF extracted text is empty.");
+             throw new HttpsError('invalid-argument', 'PDF file contains no extractable text.');
+        }
         logger.log(`[RAG] Extracted ${text.length} characters of text from PDF.`);
 
 
@@ -254,23 +269,31 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540 
         logger.log(`[RAG] Successfully processed and stored chunks for fileId: ${fileId}`);
         return { success: true, message: `Successfully processed file into ${chunks.length} chunks.` };
 
-    } catch (error) {
+    } catch (error: any) {
         logger.error(`[RAG] Error processing file ${fileId}:`, error);
         // Attempt to mark the file as failed in Firestore
         try {
-            if (error instanceof Error) {
-                await db.collection("fileMetadata").doc(fileId).update({ ragStatus: 'failed', error: error.message });
-            }
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            await db.collection("fileMetadata").doc(fileId).update({ ragStatus: 'failed', error: errorMessage });
         } catch (updateError) {
             logger.error(`[RAG] Failed to update file metadata with error status for ${fileId}:`, updateError);
         }
+
+        // Always throw a new HttpsError to ensure the message is propagated to the client
+        // We prefix with [RAG_ERROR] to make it clear it came from this block
+        let message = "An unknown error occurred.";
+        let code = "internal";
+
         if (error instanceof HttpsError) {
-            throw error;
+            code = error.code as string;
+            message = error.message;
+        } else if (error instanceof Error) {
+            message = error.message;
+        } else {
+            message = String(error);
         }
-        if (error instanceof Error) {
-            throw new HttpsError("internal", `Failed to process file for RAG: ${error.message}`);
-        }
-        throw new HttpsError("internal", "An unknown error occurred while processing the file for RAG.");
+
+        throw new HttpsError(code as any, `[RAG_ERROR] ${message}`);
     }
 });
 
