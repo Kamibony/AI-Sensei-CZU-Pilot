@@ -24,7 +24,7 @@ function getGenerativeModel() {
         const { VertexAI, HarmCategory, HarmBlockThreshold } = require("@google-cloud/vertexai");
         vertex_ai = new VertexAI({ project: getGcloudProject(), location: LOCATION });
         model = vertex_ai.getGenerativeModel({
-            model: "gemini-1.5-pro-preview-0409",
+            model: process.env.GEMINI_MODEL || "gemini-1.5-pro",
             safetySettings: [
                 { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
                 { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
