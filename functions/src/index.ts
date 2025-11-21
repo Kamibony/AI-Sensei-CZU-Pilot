@@ -44,7 +44,8 @@ async function sendTelegramMessage(chatId: number, text: string) {
 // ZJEDNOTENÁ FUNKCIA PRE VŠETKY AI OPERÁCIE
 exports.generateContent = onCall({
     region: DEPLOY_REGION,
-    timeoutSeconds: 300 // <-- ZMENENÉ (5 minút)
+    timeoutSeconds: 300, // <-- ZMENENÉ (5 minút)
+    memory: '1GiB'
 }, async (request: CallableRequest) => {
     const { contentType, promptData, filePaths } = request.data;
     if (!contentType || !promptData) {
@@ -302,7 +303,8 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
 
 exports.getAiAssistantResponse = onCall({
     region: DEPLOY_REGION,
-    timeoutSeconds: 300 // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
+    timeoutSeconds: 300, // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
+    memory: '1GiB'
 }, async (request: CallableRequest) => {
     const { lessonId, userQuestion } = request.data;
     if (!lessonId || !userQuestion) {
