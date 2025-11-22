@@ -150,94 +150,74 @@ export class ProfessorDashboardView extends LitElement {
                     </div>
                 </header>
 
-                <div class="max-w-7xl mx-auto p-8 space-y-10">
+                <div class="max-w-7xl mx-auto p-8">
 
-                    <!-- Bento Grid Layout for Actions -->
-                    <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                    <!-- Main Grid Layout: Management (Left) vs Creative (Right) -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-                        <!-- Large Action Card: Nová Lekce (Span 6) -->
-                         <div @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', lesson: null }, bubbles: true, composed: true }))}
-                             class="md:col-span-6 relative overflow-hidden bg-slate-900 rounded-3xl shadow-xl cursor-pointer group transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
-                            <div class="absolute top-0 right-0 w-64 h-64 bg-green-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-                            <div class="absolute -bottom-8 -left-8 w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+                        <!-- LEFT COLUMN: Management Overview (2/3 width) -->
+                        <div class="lg:col-span-2 space-y-10">
 
-                            <div class="relative p-8 h-full flex flex-col justify-between z-10">
-                                <div>
-                                    <div class="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mb-4 border border-white/10">
-                                         <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                                    </div>
-                                    <h3 class="text-2xl font-bold text-white">Vytvořit Novou Lekci</h3>
-                                    <p class="text-slate-400 mt-2">Použijte editor pro vytvoření interaktivního obsahu pro studenty.</p>
-                                </div>
-                                <div class="flex justify-end">
-                                     <span class="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white group-hover:scale-110 transition-transform shadow-lg shadow-green-500/30">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                                     </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Medium Action: Moje Třídy (Span 3) -->
-                        <div @click=${() => {
-                                const el = this.querySelector('#classes-section');
-                                if (el) el.scrollIntoView({ behavior: 'smooth' });
-                             }}
-                             class="md:col-span-3 bg-white rounded-3xl shadow-sm border border-slate-100 p-6 cursor-pointer group hover:border-blue-200 hover:shadow-md transition-all">
-                             <div class="h-full flex flex-col justify-between">
-                                <div>
-                                    <div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
-                                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                                    </div>
-                                    <h3 class="text-lg font-bold text-slate-800">Moje Třídy</h3>
-                                </div>
-                                <div class="mt-4">
-                                    <span class="text-sm font-semibold text-blue-600 group-hover:underline">Spravovat třídy &rarr;</span>
-                                </div>
-                             </div>
-                        </div>
-
-                        <!-- Medium Action: Knihovna (Span 3) -->
-                        <div @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'media' }, bubbles: true, composed: true }))}
-                             class="md:col-span-3 bg-white rounded-3xl shadow-sm border border-slate-100 p-6 cursor-pointer group hover:border-purple-200 hover:shadow-md transition-all">
-                             <div class="h-full flex flex-col justify-between">
-                                <div>
-                                    <div class="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-purple-100 transition-colors">
-                                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                                    </div>
-                                    <h3 class="text-lg font-bold text-slate-800">Knihovna</h3>
-                                </div>
-                                <div class="mt-4">
-                                    <span class="text-sm font-semibold text-purple-600 group-hover:underline">Otevřít soubory &rarr;</span>
-                                </div>
-                             </div>
-                        </div>
-                    </div>
-
-                    <!-- Stats Section - Minimalist -->
-                    <div>
-                        <h2 class="text-lg font-bold text-slate-400 uppercase tracking-wider mb-4 ml-1">Statistiky</h2>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            ${this._renderStatCard("Počet studentů", this._stats.totalStudents, "users")}
-                            ${this._renderStatCard("Aktivní lekce", this._stats.activeLessons, "book-open")}
-                            ${this._renderStatCard("Celkem tříd", this._stats.totalClasses, "briefcase")}
-                        </div>
-                    </div>
-
-                    <!-- Class Grid (Preserved Functionality) -->
-                    <div id="classes-section" class="pt-8 border-t border-slate-100">
-                        <div class="flex items-center justify-between mb-8">
+                            <!-- Management Stats -->
                             <div>
-                                <h2 class="text-2xl font-bold text-slate-900">Vaše Třídy</h2>
-                                <p class="text-slate-500 text-sm mt-1">Spravujte studenty a obsah pro jednotlivé skupiny.</p>
+                                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Management Overview</h2>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    ${this._renderStatCard("Počet studentů", this._stats.totalStudents, "users")}
+                                    ${this._renderStatCard("Celkem tříd", this._stats.totalClasses, "briefcase")}
+                                </div>
                             </div>
-                            <button @click=${this._handleCreateClass} class="bg-slate-900 hover:bg-slate-800 text-white rounded-xl px-5 py-3 shadow-lg shadow-slate-200 transition-all flex items-center gap-2 transform hover:-translate-y-0.5">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                                <span class="font-semibold">Nová třída</span>
-                            </button>
-                        </div>
-                        ${this._classes.length === 0 ? this._renderEmptyState() : this._renderClassGrid()}
-                    </div>
 
+                            <!-- My Classes Section -->
+                            <div id="classes-section">
+                                <div class="flex items-center justify-between mb-6">
+                                    <div>
+                                        <h2 class="text-xl font-bold text-slate-900">Vaše Třídy</h2>
+                                        <p class="text-slate-500 text-sm mt-1">Spravujte studenty a skupiny.</p>
+                                    </div>
+                                    <button @click=${this._handleCreateClass} class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg px-4 py-2 shadow-sm transition-all flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                        <span class="font-semibold text-sm">Nová třída</span>
+                                    </button>
+                                </div>
+                                ${this._classes.length === 0 ? this._renderEmptyState() : this._renderClassGrid()}
+                            </div>
+                        </div>
+
+
+                        <!-- RIGHT COLUMN: Creative Studio (1/3 width) -->
+                        <div class="lg:col-span-1 space-y-8">
+                             <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Creative Studio</h2>
+
+                            <!-- Hero Card: New Lesson -->
+                            <div @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', lesson: null }, bubbles: true, composed: true }))}
+                                 class="relative overflow-hidden bg-gradient-to-br from-indigo-600 to-purple-700 rounded-3xl shadow-xl cursor-pointer group transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
+
+                                <!-- Decorative Background Elements -->
+                                <div class="absolute top-0 right-0 w-32 h-32 bg-white rounded-full mix-blend-overlay filter blur-3xl opacity-20"></div>
+                                <div class="absolute -bottom-8 -left-8 w-32 h-32 bg-purple-400 rounded-full mix-blend-overlay filter blur-3xl opacity-20"></div>
+
+                                <div class="relative p-8 h-full flex flex-col justify-between min-h-[300px]">
+                                    <div>
+                                        <div class="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-6 border border-white/10 shadow-inner">
+                                             <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                        </div>
+                                        <h3 class="text-2xl font-bold text-white leading-tight">Vytvořit novou lekci s AI</h3>
+                                        <p class="text-indigo-100 mt-4 text-sm leading-relaxed">Spustit průvodce tvorbou obsahu a generovat materiály během sekund.</p>
+                                    </div>
+
+                                    <div class="mt-8 flex items-center text-white font-semibold group-hover:translate-x-2 transition-transform">
+                                        <span>Spustit Editor</span>
+                                        <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+                                    </div>
+                                </div>
+                            </div>
+
+                             <!-- Stats: Active Lessons (Moved here for context) -->
+                             ${this._renderStatCard("Aktivní lekce", this._stats.activeLessons, "book-open")}
+
+                        </div>
+
+                    </div>
                 </div>
             </div>
         `;

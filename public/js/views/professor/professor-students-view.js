@@ -126,23 +126,35 @@ export class ProfessorStudentsView extends LitElement {
         const avatarBgColor = this._getAvatarColor(student.id);
 
         return html`
-            <div class="student-card bg-white rounded-xl shadow-md overflow-hidden transition-shadow duration-200 hover:shadow-lg cursor-pointer border border-slate-200"
+            <div class="group relative bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer border border-slate-100 p-6 flex items-start space-x-4"
                  @click=${() => this._navigateToProfile(student.id)}>
-                <div class="p-5 flex items-center space-x-4">
-                    <div class="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg ${avatarBgColor}">
-                        ${initials}
-                    </div>
-                    <div class="flex-grow min-w-0">
-                         <p class="text-lg font-semibold text-slate-800 truncate" title="${student.name || 'Jméno neuvedeno'}">${student.name || 'Jméno neuvedeno'}</p>
-                         <p class="text-sm text-slate-500 truncate" title="${student.email}">${student.email}</p>
-                    </div>
-                     <div class="flex-shrink-0">
-                          <span class="text-xs font-medium px-2.5 py-1 rounded-full ${student.telegramChatId ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-500'}">
-                              ${student.telegramChatId ? 'Telegram ✓' : 'Telegram ✕'}
-                          </span>
+
+                <!-- Status Badge (Absolute Positioned) -->
+                <div class="absolute top-4 right-4">
+                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${student.telegramChatId ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-700/10' : 'bg-slate-50 text-slate-500 ring-1 ring-slate-500/10'}">
+                        ${student.telegramChatId ? 'Telegram' : 'Bez spojení'}
+                    </span>
+                </div>
+
+                <!-- Avatar -->
+                <div class="flex-shrink-0 w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-sm ${avatarBgColor}">
+                    ${initials}
+                </div>
+
+                <!-- Info -->
+                <div class="flex-grow pt-1 min-w-0">
+                     <h3 class="text-lg font-bold text-slate-900 truncate group-hover:text-indigo-600 transition-colors" title="${student.name || 'Jméno neuvedeno'}">
+                        ${student.name || 'Jméno neuvedeno'}
+                    </h3>
+                     <p class="text-sm text-slate-500 truncate mt-1" title="${student.email}">${student.email}</p>
+
+                     <div class="mt-4 flex items-center text-xs text-slate-400 font-medium">
+                        <span class="flex items-center hover:text-slate-600 transition-colors">
+                            Zobrazit profil &rarr;
+                        </span>
                      </div>
                 </div>
-                 </div>
+            </div>
         `;
     }
 
@@ -168,7 +180,7 @@ export class ProfessorStudentsView extends LitElement {
              content = html`<p class="text-center p-8 text-slate-500">Nebyly nalezeny žádné odpovídající studenti.</p>`;
         } else {
             content = html`
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     ${filteredStudents.map(student => this.renderStudentCard(student))}
                 </div>`;
         }

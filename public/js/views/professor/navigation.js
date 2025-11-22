@@ -24,15 +24,16 @@ export function setupProfessorNav(showProfessorContent) {
             <!-- Navigation Items -->
             <div class="flex-1 overflow-y-auto py-6 px-3 space-y-2">
 
-                <div class="px-4 mb-2 hidden lg:block">
-                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Menu</p>
-                </div>
-
-                <button data-view="timeline" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-slate-800 hover:text-white group relative overflow-hidden">
+                <button data-view="dashboard" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-slate-800 hover:text-white group relative overflow-hidden">
                     <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-green-500 rounded-r-full opacity-0 transition-opacity duration-200"></div>
-                    <span class="text-xl group-hover:scale-110 transition-transform relative z-10">🗓️</span>
-                    <span class="ml-3 font-medium hidden lg:block relative z-10">Plán výuky</span>
+                    <span class="text-xl group-hover:scale-110 transition-transform relative z-10">🏠</span>
+                    <span class="ml-3 font-medium hidden lg:block relative z-10">Dashboard</span>
                 </button>
+
+                <!-- ORGANIZACE VÝUKY -->
+                <div class="px-4 mt-6 mb-2 hidden lg:block">
+                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">ORGANIZACE VÝUKY</p>
+                </div>
 
                 <button data-view="classes" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-slate-800 hover:text-white group relative overflow-hidden">
                     <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-green-500 rounded-r-full opacity-0 transition-opacity duration-200"></div>
@@ -46,16 +47,34 @@ export function setupProfessorNav(showProfessorContent) {
                     <span class="ml-3 font-medium hidden lg:block relative z-10">Studenti</span>
                 </button>
 
+                <button data-view="analytics" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-slate-800 hover:text-white group relative overflow-hidden">
+                    <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-green-500 rounded-r-full opacity-0 transition-opacity duration-200"></div>
+                    <span class="text-xl group-hover:scale-110 transition-transform relative z-10">📊</span>
+                    <span class="ml-3 font-medium hidden lg:block relative z-10">Analýza</span>
+                </button>
+
                 <button data-view="interactions" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-slate-800 hover:text-white group relative overflow-hidden">
                     <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-green-500 rounded-r-full opacity-0 transition-opacity duration-200"></div>
                     <span class="text-xl group-hover:scale-110 transition-transform relative z-10">💬</span>
                     <span class="ml-3 font-medium hidden lg:block relative z-10">Interakce</span>
                 </button>
 
-                <button data-view="analytics" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-slate-800 hover:text-white group relative overflow-hidden">
+
+                <!-- TVORBA OBSAHU -->
+                <div class="px-4 mt-6 mb-2 hidden lg:block">
+                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">TVORBA OBSAHU</p>
+                </div>
+
+                <button data-view="editor" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-indigo-400 hover:bg-indigo-900/20 hover:text-indigo-300 group relative overflow-hidden bg-slate-800/50">
+                    <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-indigo-500 rounded-r-full opacity-0 transition-opacity duration-200"></div>
+                    <span class="text-xl group-hover:scale-110 transition-transform relative z-10">✨</span>
+                    <span class="ml-3 font-bold hidden lg:block relative z-10">AI Editor</span>
+                </button>
+
+                <button data-view="timeline" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-slate-800 hover:text-white group relative overflow-hidden">
                     <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-green-500 rounded-r-full opacity-0 transition-opacity duration-200"></div>
-                    <span class="text-xl group-hover:scale-110 transition-transform relative z-10">📊</span>
-                    <span class="ml-3 font-medium hidden lg:block relative z-10">Analýza</span>
+                    <span class="text-xl group-hover:scale-110 transition-transform relative z-10">🗓️</span>
+                    <span class="ml-3 font-medium hidden lg:block relative z-10">Plán výuky</span>
                 </button>
 
                 <button data-view="media" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-slate-800 hover:text-white group relative overflow-hidden">
