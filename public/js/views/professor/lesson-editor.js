@@ -246,27 +246,47 @@ export class LessonEditor extends LitElement {
                     <!-- Step 2: Obsah -->
                     <div id="step-2-container" class="${this._currentStep === 2 ? 'block' : 'hidden'} h-full">
                          ${!this._selectedContentType ? html`
-                            <!-- Content Type Selector Grid -->
-                            <div class="text-center mb-8">
-                                <h3 class="text-xl font-semibold text-slate-700 mb-2">Jaký obsah chcete vytvořit?</h3>
-                                <p class="text-slate-500">Vyberte typ obsahu, který chcete přidat nebo upravit.</p>
+                            <!-- Content Type Selector - App Store Style -->
+                            <div class="text-center mb-10">
+                                <h3 class="text-2xl font-bold text-slate-800 mb-3">Co budeme dnes tvořit?</h3>
+                                <p class="text-slate-500 max-w-md mx-auto">Vyberte modul, který chcete přidat do této lekce. Můžete kombinovat více typů obsahu.</p>
                             </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4">
                                 ${this.contentTypes.map(type => {
                                      // Check content existence simply
                                      const hasContent = this.lesson && ((type.id === 'text' && this.lesson.text_content) || (this.lesson[type.id]));
 
                                      return html`
                                     <button @click=${() => this._selectContentType(type.id)}
-                                            class="flex flex-col items-center p-6 rounded-xl border-2 transition-all duration-200
-                                                   ${hasContent ? 'border-green-200 bg-green-50 hover:border-green-400' : 'border-slate-100 bg-white hover:border-indigo-200 hover:shadow-md'}">
-                                        <div class="w-12 h-12 rounded-full flex items-center justify-center text-2xl mb-3
-                                                    ${hasContent ? 'bg-green-100 text-green-600' : 'bg-indigo-50 text-indigo-600'}">
+                                            class="w-full text-left group relative bg-white rounded-3xl p-6 cursor-pointer transition-all duration-300 border-2
+                                                   ${hasContent ? 'border-green-500 ring-4 ring-green-50 shadow-lg' : 'border-slate-100 hover:border-slate-200 hover:shadow-xl hover:-translate-y-1'}">
+
+                                        <!-- Selection Indicator/Badge -->
+                                        ${hasContent ? html`
+                                            <div class="absolute top-4 right-4 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white shadow-lg animate-bounce-in">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                                            </div>
+                                        ` : ''}
+
+                                        <!-- App Icon -->
+                                        <div class="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center text-4xl mb-6 shadow-inner transform group-hover:scale-110 transition-transform duration-300
+                                                    ${hasContent ? 'bg-green-100' : 'bg-slate-50'}">
                                             ${type.icon}
                                         </div>
-                                        <span class="font-semibold text-slate-800">${type.label}</span>
-                                        <span class="text-xs text-slate-500 mt-1 text-center">${type.description}</span>
-                                        ${hasContent ? html`<span class="mt-2 text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">Hotovo</span>` : ''}
+
+                                        <!-- Content -->
+                                        <div class="text-center">
+                                            <h4 class="text-lg font-bold text-slate-800 mb-2 group-hover:text-green-700 transition-colors">${type.label}</h4>
+                                            <p class="text-sm text-slate-500 leading-relaxed">${type.description}</p>
+                                        </div>
+
+                                        <!-- Action Button (Visual only) -->
+                                        <div class="mt-6 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
+                                            <span class="px-4 py-1.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-full uppercase tracking-wide hover:bg-slate-200">
+                                                ${hasContent ? 'Upravit' : 'Přidat'}
+                                            </span>
+                                        </div>
                                     </button>
                                 `})}
                             </div>
