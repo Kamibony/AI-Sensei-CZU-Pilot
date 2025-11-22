@@ -218,25 +218,36 @@ export class LessonEditor extends LitElement {
 
     render() {
         return html`
-            <div class="p-4 sm:p-6 md:p-8 overflow-y-auto h-full bg-slate-50">
-                <!-- Header with Back Link -->
-                <header class="mb-6">
-                    <button @click=${this._handleBackClick} class="flex items-center text-sm text-green-700 hover:underline mb-2">
-                         &larr; Zpět na plán výuky
-                    </button>
-                    <h1 class="text-2xl md:text-3xl font-bold text-slate-800">
-                        ${this.lesson?.title || 'Nová lekce'}
-                    </h1>
-                </header>
+            <div class="p-4 sm:p-6 md:p-8 overflow-y-auto h-full bg-slate-50 flex justify-center">
+                <div class="w-full max-w-4xl">
+                    <!-- Focus Mode Header -->
+                    <header class="mb-12 flex items-center justify-between">
+                        <div>
+                             <button @click=${this._handleBackClick} class="flex items-center text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors mb-3">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                                Zpět na Dashboard
+                            </button>
+                            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">
+                                ${this.lesson?.title || 'Tvůrce Lekcí'}
+                            </h1>
+                        </div>
+                        <div class="hidden md:block">
+                             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 uppercase tracking-wide">
+                                Focus Mode
+                            </span>
+                        </div>
+                    </header>
 
-                <!-- Stepper Indicator -->
-                ${renderStepper(this._currentStep, this.steps)}
+                    <!-- Stepper Indicator (Enhanced) -->
+                    <div class="mb-12">
+                         ${renderStepper(this._currentStep, this.steps)}
+                    </div>
 
-                <!-- Main Wizard Card -->
-                <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-4 md:p-8 min-h-[500px] flex flex-col relative">
+                    <!-- Main Wizard Card -->
+                    <div class="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 p-8 md:p-12 min-h-[600px] flex flex-col relative transition-all">
 
-                    <!-- Step 1: Informace -->
-                    <div id="step-1-container" class="${this._currentStep === 1 ? 'block' : 'hidden'}">
+                        <!-- Step 1: Informace -->
+                        <div id="step-1-container" class="${this._currentStep === 1 ? 'block' : 'hidden'} space-y-6">
                         <editor-view-details
                             .lesson=${this.lesson}
                             @lesson-updated=${this._handleLessonUpdate}>
@@ -354,6 +365,7 @@ export class LessonEditor extends LitElement {
                         ` : nothing}
                     </div>
 
+                </div>
                 </div>
             </div>
         `;
