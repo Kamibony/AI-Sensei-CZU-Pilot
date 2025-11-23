@@ -267,6 +267,9 @@ export class LessonEditor extends LitElement {
             showToast("Magie dokončena! Zkontrolujte vygenerovaný obsah.");
             this._nextStep(); // Go to content step
 
+            // Trigger Tour
+            setTimeout(() => this._startPostMagicTour(), 500);
+
         } catch (e) {
             console.error("Magic generation fatal error:", e);
             showToast("Chyba při generování: " + e.message, true);
@@ -274,6 +277,43 @@ export class LessonEditor extends LitElement {
             this._isLoading = false;
             this._magicProgress = '';
         }
+    }
+
+    _startPostMagicTour() {
+        if (!window.driver) {
+             console.warn("Driver.js not loaded");
+             return;
+        }
+
+        const driver = window.driver.js.driver;
+        const driverObj = driver({
+            showProgress: true,
+            steps: [
+                {
+                    element: '#editor-tabs-container',
+                    popover: {
+                        title: 'Obsah je vygenerován! 🧙‍♂️',
+                        description: 'Zde přepínejte mezi částmi lekce (Text, Kvíz, Prezentace) a zkontrolujte je.'
+                    }
+                },
+                {
+                    element: '#active-editor-content',
+                    popover: {
+                        title: 'Editační zóna',
+                        description: 'AI návrh můžete libovolně upravovat. Nezapomeňte změny v každé sekci uložit.'
+                    }
+                },
+                {
+                    element: '#step2-finish-btn',
+                    popover: {
+                        title: 'Finále',
+                        description: 'Až budete s úpravami spokojeni, klikněte zde pro uložení a publikaci celé lekce.'
+                    }
+                }
+            ]
+        });
+
+        driverObj.drive();
     }
 
     _handleBackClick() {
@@ -425,7 +465,7 @@ export class LessonEditor extends LitElement {
                         <div class="${this._currentStep === 2 ? 'block' : 'hidden'} h-full animate-fade-in flex flex-col">
 
                             <!-- Tab Bar -->
-                            <div class="flex space-x-1 bg-slate-100 p-1 rounded-xl mb-6 overflow-x-auto no-scrollbar">
+                            <div id="editor-tabs-container" class="flex space-x-1 bg-slate-100 p-1 rounded-xl mb-6 overflow-x-auto no-scrollbar">
                                 ${this.contentTypes.map(type => {
                                     const isActive = this._selectedContentType === type.id;
                                     const hasContent = this.lesson && ((type.id === 'text' && this.lesson.text_content) || (this.lesson[type.id]));
@@ -435,14 +475,14 @@ export class LessonEditor extends LitElement {
                                             ${isActive ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}">
                                             <span class="mr-2 ${isActive ? '' : 'filter grayscale'}">${type.icon}</span>
                                             ${type.label}
-                                            ${hasContent ? html`<span class="ml-2 w-1.5 h-1.5 bg-green-500 rounded-full"></span>` : ''}
+                                            ${hasContent ? html`<span class="ml-2 text-green-500">✓</span>` : ''}
                                         </button>
                                     `;
                                 })}
                             </div>
 
                             <!-- Active Editor Content -->
-                            <div class="flex-grow bg-white rounded-2xl border border-slate-100 shadow-sm p-1 overflow-y-auto">
+                            <div id="active-editor-content" class="flex-grow bg-white rounded-2xl border border-slate-100 shadow-sm p-1 overflow-y-auto">
                                 ${this.renderEditorContent(this._selectedContentType)}
                             </div>
                         </div>
@@ -471,16 +511,24 @@ export class LessonEditor extends LitElement {
 
                     <!-- Footer Navigation -->
                     <div class="mt-12 pt-6 border-t border-slate-50 flex justify-between items-center">
-                         <button @click=${this._prevStep}
+                         ${this._currentStep === 2 ? html`
+                            <button @click=${this._prevStep}
+                                class="px-6 py-2 text-sm font-medium text-slate-400 hover:text-slate-900 transition-colors">
+                                ← Zpět na detaily
+                            </button>
+                         ` : html`
+                            <button @click=${this._prevStep}
                                 class="px-6 py-2 text-sm font-medium text-slate-400 hover:text-slate-900 transition-colors ${this._currentStep === 1 ? 'invisible' : ''}">
-                            Zpět
-                        </button>
+                                Zpět
+                            </button>
+                         `}
 
                         ${this._currentStep < 3 ? html`
-                            <button @click=${this._nextStep}
+                            <button id="${this._currentStep === 2 ? 'step2-finish-btn' : ''}"
+                                    @click=${this._nextStep}
                                     class="group flex items-center px-6 py-2 bg-slate-900 text-white rounded-full text-sm font-bold hover:bg-black transition-all hover:shadow-lg">
-                                Pokračovat
-                                <svg class="w-4 h-4 ml-2 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                ${this._currentStep === 2 ? '🚀 Dokončit a Publikovat' : 'Pokračovat'}
+                                ${this._currentStep !== 2 ? html`<svg class="w-4 h-4 ml-2 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>` : ''}
                             </button>
                         ` : nothing}
                     </div>

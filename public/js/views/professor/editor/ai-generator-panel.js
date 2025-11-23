@@ -29,7 +29,8 @@ export class AiGeneratorPanel extends LitElement {
         _isUploading: { state: true, type: Boolean },
         _uploadProgress: { state: true, type: Number },
         _uploadStatusMsg: { state: true, type: String },
-        _uploadStatusType: { state: true, type: String }
+        _uploadStatusType: { state: true, type: String },
+        _showBanner: { state: true, type: Boolean }
     };
 
     constructor() {
@@ -38,6 +39,7 @@ export class AiGeneratorPanel extends LitElement {
         this.description = "Popis chybí."; this._generationOutput = null;
         this._isLoading = false; this._isSaving = false;
         this._isUploading = false; this._uploadProgress = 0; this._uploadStatusMsg = ''; this._uploadStatusType = '';
+        this._showBanner = true;
     }
 
     createRenderRoot() { return this; }
@@ -263,9 +265,14 @@ export class AiGeneratorPanel extends LitElement {
         const hasContent = this.lesson && this.lesson[this.fieldToUpdate];
         const isText = this.contentType === 'text';
         return html`
+            ${this._showBanner ? html`
+            <div class="bg-blue-50 border-l-4 border-blue-500 text-blue-700 p-4 mb-4 rounded shadow-sm relative">
+                <button @click=${() => this._showBanner = false} class="absolute top-2 right-2 text-blue-400 hover:text-blue-700 text-lg font-bold">&times;</button>
+                <p><strong>💡 Tip od AI Sensei:</strong> Toto je návrh vygenerovaný umělou inteligencí. Můžete jej upravit. Změny v této sekci uložte tlačítkem vpravo dole.</p>
+            </div>` : nothing}
             <div class="flex justify-between items-start mb-6"><h2 class="text-3xl font-extrabold text-slate-800">${this.viewTitle}</h2>${hasContent ? html`<button @click=${this._handleDeleteGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnDestructive} px-4 py-2 text-sm">${this._isLoading?'...':'🗑️ Smazat'} ${!isText?'a nové':''}</button>`:nothing}</div>
             <div class="bg-white p-6 rounded-2xl shadow-lg">
-                ${hasContent ? html`${this._renderEditableContent(this.contentType, this.lesson[this.fieldToUpdate])}${isText?html`<div class="text-right mt-4"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?'Ukládám...':'Uložit změny'}</button></div>`:nothing}`
+                ${hasContent ? html`${this._renderEditableContent(this.contentType, this.lesson[this.fieldToUpdate])}${isText?html`<div class="text-right mt-4"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?'Ukládám...':'💾 Uložit změny'}</button></div>`:nothing}`
                 : html`
                     <p class="text-slate-500 mb-6">${this.description}</p>
                     ${this._createDocumentSelectorUI()}
@@ -280,7 +287,7 @@ export class AiGeneratorPanel extends LitElement {
                         </div>
                     </div>
                     <div id="generation-output" class="mt-6 border-t pt-6 text-slate-700 prose max-w-none">${this._isLoading?html`<div class="p-8 text-center pulse-loader text-slate-500">🤖 AI přemýšlí...</div>`:''}${this._generationOutput?this._renderStaticContent(this.contentType, this._generationOutput):(!this._isLoading?html`<div class="text-center p-8 text-slate-400">Obsah se vygeneruje zde...</div>`:'')}</div>
-                    ${(this._generationOutput&&!this._generationOutput.error)?html`<div class="text-right mt-4"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?'Ukládám...':'Uložit do lekce'}</button></div>`:nothing}
+                    ${(this._generationOutput&&!this._generationOutput.error)?html`<div class="text-right mt-4"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?'Ukládám...':'💾 Uložit změny'}</button></div>`:nothing}
                 `}
             </div>`;
     }
