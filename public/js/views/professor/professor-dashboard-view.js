@@ -161,22 +161,68 @@ export class ProfessorDashboardView extends LitElement {
                             </div>
                         </div>
 
-                        <!-- Section: Classes List -->
-                        <div id="classes-section">
-                             <div class="flex items-center justify-between mb-4 pl-1">
-                                <h2 class="text-lg font-bold text-slate-900">Vaše Třídy</h2>
-                                <button @click=${this._handleCreateClass} class="text-sm font-semibold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors flex items-center">
-                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                                    Nová třída
-                                </button>
-                            </div>
+                         <!-- Section: Lesson Workflow Visualization (Moved here) -->
+                        <div>
+                            <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 pl-1">Tvůrčí Proces</h2>
 
-                            <div class="bg-white border border-slate-100 rounded-2xl shadow-sm shadow-slate-200/50 overflow-hidden">
-                                ${this._classes.length === 0 ? this._renderEmptyState() : html`
-                                    <div class="divide-y divide-slate-50">
-                                        ${this._classes.map(cls => this._renderClassRow(cls))}
+                            <div @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', lesson: null }, bubbles: true, composed: true }))}
+                                 class="group relative overflow-hidden bg-white rounded-3xl shadow-xl shadow-indigo-200/50 cursor-pointer transition-all duration-300 hover:shadow-indigo-300/60 hover:-translate-y-1 min-h-[300px] flex flex-col p-0 border border-indigo-100">
+
+                                <!-- Header -->
+                                <div class="p-6 pb-2 relative z-10">
+                                    <h3 class="text-xl font-bold text-slate-900 tracking-tight flex items-center">
+                                        <span class="text-2xl mr-2">✨</span> Nová Lekce
+                                    </h3>
+                                    <p class="text-slate-500 text-sm mt-1">Automatizovaná tvorba</p>
+                                </div>
+
+                                <!-- Workflow Visualization -->
+                                <div class="flex-grow flex flex-col justify-center px-6 relative z-10 space-y-3">
+                                    <!-- Step 1 -->
+                                    <div class="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-100 transition-colors group-hover:bg-indigo-50 group-hover:border-indigo-100">
+                                        <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm">📄</div>
+                                        <div class="ml-3">
+                                            <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">Vstup</div>
+                                            <div class="font-bold text-slate-800">PDF Dokumenty</div>
+                                        </div>
                                     </div>
-                                `}
+
+                                    <!-- Arrow -->
+                                    <div class="flex justify-center -my-1">
+                                        <svg class="w-5 h-5 text-slate-300 group-hover:text-indigo-400 transition-colors animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                                    </div>
+
+                                    <!-- Step 2 -->
+                                    <div class="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-100 transition-colors group-hover:bg-indigo-50 group-hover:border-indigo-100">
+                                        <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm">⚡</div>
+                                        <div class="ml-3">
+                                            <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">Proces</div>
+                                            <div class="font-bold text-slate-800">AI Generování</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Arrow -->
+                                    <div class="flex justify-center -my-1">
+                                        <svg class="w-5 h-5 text-slate-300 group-hover:text-indigo-400 transition-colors animate-pulse" style="animation-delay: 0.1s" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                                    </div>
+
+                                    <!-- Step 3 -->
+                                    <div class="flex items-center p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-100">
+                                        <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm text-emerald-600">🎓</div>
+                                        <div class="ml-3">
+                                            <div class="text-xs font-bold text-emerald-600 uppercase tracking-wide">Výsledek</div>
+                                            <div class="font-bold text-emerald-900">Hotová Lekce</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- CTA Footer -->
+                                <div class="p-6 pt-4 bg-slate-50 border-t border-slate-100 relative z-10 group-hover:bg-indigo-50/50 transition-colors">
+                                    <div class="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-center shadow-lg shadow-indigo-500/30 group-hover:shadow-indigo-500/50 transition-all group-hover:scale-[1.02]">
+                                        Spustit Magii
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
 
@@ -186,67 +232,6 @@ export class ProfessorDashboardView extends LitElement {
                     <div class="lg:col-span-4 space-y-6">
 
                         <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">Creative Studio</h2>
-
-                        <!-- Action Card: Lesson Workflow Visualization -->
-                        <div @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', lesson: null }, bubbles: true, composed: true }))}
-                             class="group relative overflow-hidden bg-white rounded-3xl shadow-xl shadow-indigo-200/50 cursor-pointer transition-all duration-300 hover:shadow-indigo-300/60 hover:-translate-y-1 min-h-[300px] flex flex-col p-0 border border-indigo-100">
-
-                            <!-- Header -->
-                            <div class="p-6 pb-2 relative z-10">
-                                <h3 class="text-xl font-bold text-slate-900 tracking-tight flex items-center">
-                                    <span class="text-2xl mr-2">✨</span> Nová Lekce
-                                </h3>
-                                <p class="text-slate-500 text-sm mt-1">Automatizovaná tvorba</p>
-                            </div>
-
-                            <!-- Workflow Visualization -->
-                            <div class="flex-grow flex flex-col justify-center px-6 relative z-10 space-y-3">
-                                <!-- Step 1 -->
-                                <div class="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-100 transition-colors group-hover:bg-indigo-50 group-hover:border-indigo-100">
-                                    <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm">📄</div>
-                                    <div class="ml-3">
-                                        <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">Vstup</div>
-                                        <div class="font-bold text-slate-800">PDF Dokumenty</div>
-                                    </div>
-                                </div>
-
-                                <!-- Arrow -->
-                                <div class="flex justify-center -my-1">
-                                    <svg class="w-5 h-5 text-slate-300 group-hover:text-indigo-400 transition-colors animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
-                                </div>
-
-                                <!-- Step 2 -->
-                                <div class="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-100 transition-colors group-hover:bg-indigo-50 group-hover:border-indigo-100">
-                                    <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm">⚡</div>
-                                    <div class="ml-3">
-                                        <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">Proces</div>
-                                        <div class="font-bold text-slate-800">AI Generování</div>
-                                    </div>
-                                </div>
-
-                                <!-- Arrow -->
-                                <div class="flex justify-center -my-1">
-                                    <svg class="w-5 h-5 text-slate-300 group-hover:text-indigo-400 transition-colors animate-pulse" style="animation-delay: 0.1s" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
-                                </div>
-
-                                <!-- Step 3 -->
-                                <div class="flex items-center p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-100">
-                                    <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm text-emerald-600">🎓</div>
-                                    <div class="ml-3">
-                                        <div class="text-xs font-bold text-emerald-600 uppercase tracking-wide">Výsledek</div>
-                                        <div class="font-bold text-emerald-900">Hotová Lekce</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- CTA Footer -->
-                            <div class="p-6 pt-4 bg-slate-50 border-t border-slate-100 relative z-10 group-hover:bg-indigo-50/50 transition-colors">
-                                <div class="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-center shadow-lg shadow-indigo-500/30 group-hover:shadow-indigo-500/50 transition-all group-hover:scale-[1.02]">
-                                    Spustit Magii
-                                </div>
-                            </div>
-
-                        </div>
 
                         <!-- Stat: Active Lessons (Preserved logic, visual update if needed, but keeping simple for now) -->
                          <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm shadow-slate-200/50 flex items-center justify-between">

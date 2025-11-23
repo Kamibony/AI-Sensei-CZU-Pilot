@@ -140,17 +140,7 @@ export class EditorViewDetails extends LitElement {
                             <input type="text" id="lesson-icon-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" .value="${this.lesson?.icon || '🆕'}" placeholder="🆕">
                         </div>
                     </div>
-                    <div class="mb-4">
-                        <label class="block font-medium text-slate-600 mb-2">Vyberte kontextové dokumenty (RAG):</label>
-                        <div class="space-y-2 border rounded-lg p-3 bg-slate-50">
-                             <ul id="selected-files-list-rag-details" class="text-xs text-slate-600 mb-2 list-disc list-inside">
-                                <li>Žádné soubory nevybrány.</li>
-                            </ul>
-                            <button @click=${this._openRagModal} type="button" class="text-sm ${btnSecondary} px-2 py-1"> Vybrat soubory z knihovny
-                            </button>
-                        </div>
-                        <p class="text-xs text-slate-400 mt-1">Vybrané dokumenty budou uloženy spolu s lekcí.</p>
-                    </div>
+                    <!-- RAG File selection moved to Lesson Editor Step 1 -->
 
                     <div class="mb-4">
                         <label class="block font-medium text-slate-600 mb-2">Přiřadit do tříd:</label>
