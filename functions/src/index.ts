@@ -848,6 +848,7 @@ exports.joinClass = onCall({ region: DEPLOY_REGION }, async (request: CallableRe
 });
 
 exports.registerUserWithRole = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+    logger.log("registerUserWithRole called", { data: request.data });
     const { email, password, role } = request.data;
 
     // Validate role
@@ -899,7 +900,8 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION }, async (request:
             throw new HttpsError('invalid-argument', error.message, { errorCode: error.code });
         }
         // Generic error for other issues
-        throw new HttpsError('internal', 'An unexpected error occurred during registration.');
+        // Using 'aborted' instead of 'internal' to ensure the message is visible on the client side during debugging
+        throw new HttpsError('aborted', `DEBUG ERROR: ${error.message} (Code: ${error.code})`);
     }
 });
 
