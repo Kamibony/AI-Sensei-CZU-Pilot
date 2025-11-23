@@ -95,40 +95,22 @@ export class AiGeneratorPanel extends LitElement {
     }
 
     _createDocumentSelectorUI() {
+        // Read-only list, management moved to LessonEditor Step 1
         const listId = `selected-files-list-rag-${this.contentType}`;
         return html`
             <div class="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <h3 class="font-semibold text-slate-700 mb-3">Kontext pro AI (RAG)</h3>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-slate-600 mb-2">Vybrané dokumenty:</label>
-                    <ul id="${listId}" class="text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-200 min-h-[50px]">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-semibold text-slate-700">Kontext pro AI (RAG)</h3>
+                    <span class="text-xs text-slate-400 bg-white px-2 py-1 rounded border border-slate-200">Read-Only</span>
+                </div>
+                <div class="mb-1">
+                     <ul id="${listId}" class="text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-200 min-h-[50px]">
                         <li>Žádné soubory nevybrány.</li>
                     </ul>
                 </div>
-                <div class="flex flex-wrap gap-3 items-center">
-                    <button @click=${this._openRagModal} class="text-sm ${btnSecondary} px-3 py-2">
-                        📂 Vybrat z knihovny
-                    </button>
-                    <span class="text-slate-400 text-sm">nebo</span>
-                    <label class="text-sm ${btnSecondary} px-3 py-2 cursor-pointer">
-                        📤 Nahrát nový soubor
-                        <input type="file" class="hidden" @change=${this._handleInlineUpload}>
-                    </label>
-                </div>
-                ${this._isUploading ? html`
-                    <div class="mt-3">
-                        <div class="w-full bg-slate-200 rounded-full h-2.5">
-                            <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: ${this._uploadProgress}%"></div>
-                        </div>
-                        <p class="text-xs text-slate-500 mt-1 text-right">${Math.round(this._uploadProgress)}%</p>
-                    </div>
-                ` : nothing}
-                ${this._uploadStatusMsg ? html`
-                    <div class="mt-3 text-sm font-medium ${this._uploadStatusType === 'success' ? 'text-green-600' : (this._uploadStatusType === 'error' ? 'text-red-600' : 'text-slate-600')}">
-                        ${this._uploadStatusType === 'success' ? '✅ ' : (this._uploadStatusType === 'error' ? '⚠️ ' : 'ℹ️ ')}
-                        ${this._uploadStatusMsg}
-                    </div>
-                ` : nothing}
+                <p class="text-xs text-slate-400 mt-2">
+                    ℹ️ Soubory spravujete v kroku 1 "Základy".
+                </p>
             </div>`;
      }
 

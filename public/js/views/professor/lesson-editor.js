@@ -1,7 +1,8 @@
 // public/js/views/professor/lesson-editor.js
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast } from '../../utils.js';
-import { loadSelectedFiles } from '../../upload-handler.js';
+import { loadSelectedFiles, renderSelectedFiles, initializeCourseMediaUpload, getSelectedFiles } from '../../upload-handler.js';
+import { callGenerateContent } from '../../gemini-api.js';
 import { doc, updateDoc, serverTimestamp, addDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import './editor/editor-view-details.js';
@@ -18,6 +19,7 @@ export class LessonEditor extends LitElement {
         _currentStep: { state: true, type: Number },
         _selectedContentType: { state: true, type: String },
         _isLoading: { state: true, type: Boolean },
+        _magicProgress: { state: true, type: String },
     };
 
     constructor() {
@@ -26,6 +28,7 @@ export class LessonEditor extends LitElement {
         this._currentStep = 1;
         this._selectedContentType = null;
         this._isLoading = false;
+        this._magicProgress = '';
 
         this.steps = [
             { label: 'Základy', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
@@ -50,7 +53,7 @@ export class LessonEditor extends LitElement {
              if (!this.lesson || (changedProperties.get('lesson') && changedProperties.get('lesson')?.id !== this.lesson?.id)) {
                  loadSelectedFiles(this.lesson?.ragFilePaths || []);
                  this._currentStep = 1;
-                 this._selectedContentType = null;
+                 this._selectedContentType = 'text'; // Default to first tab
             }
         }
     }
@@ -58,6 +61,20 @@ export class LessonEditor extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         loadSelectedFiles(this.lesson?.ragFilePaths || []);
+    }
+
+    updated(changedProperties) {
+        // Only re-initialize upload if we specifically switched TO Step 1
+        if (changedProperties.has('_currentStep') && this._currentStep === 1) {
+            setTimeout(() => {
+                initializeCourseMediaUpload('main-course', () => {
+                     const currentFiles = getSelectedFiles();
+                     this.lesson = { ...this.lesson, ragFilePaths: currentFiles };
+                     renderSelectedFiles('uploaded-files-list-step1');
+                }, this.renderRoot);
+                renderSelectedFiles('uploaded-files-list-step1');
+            }, 0);
+        }
     }
 
     _handleLessonUpdate(e) {
@@ -78,11 +95,16 @@ export class LessonEditor extends LitElement {
                      if(titleInput) titleInput.focus();
                      return;
                  }
+                 // Save basic info to local state
+                 this.lesson = { ...this.lesson, ...detailsComponent.getDetails() };
              }
         }
         if (this._currentStep < 3) {
             this._currentStep++;
             this.requestUpdate();
+            if (this._currentStep === 2 && !this._selectedContentType) {
+                this._selectedContentType = 'text';
+            }
         }
     }
 
@@ -102,45 +124,55 @@ export class LessonEditor extends LitElement {
     }
 
     async _handleSaveLesson() {
+        // Collect data from Step 1 (which might be hidden now, so we rely on this.lesson being updated)
+        // If we are on Step 3, detailsComponent might not be in DOM if hidden by CSS
+        // However, we updated this.lesson on _nextStep.
+
+        // Re-read from component if available (safe check)
         const detailsComponent = this.querySelector('editor-view-details');
-        if (!detailsComponent) return;
+        let detailsData = {};
+        if (detailsComponent && detailsComponent.getDetails) {
+            detailsData = detailsComponent.getDetails();
+        }
 
-        const form = detailsComponent.querySelector('#lesson-details-form');
-        if (!form) return;
+        // Merge current lesson state with any fresh details
+        const finalLessonData = { ...this.lesson, ...detailsData };
 
-        const title = form.querySelector('#lesson-title-input').value.trim();
-        if (!title) { showToast("Název lekce nemůže být prázdný.", true); return; }
-
-        const subtitle = form.querySelector('#lesson-subtitle-input').value.trim();
-        const number = form.querySelector('#lesson-number-input').value.trim();
-        const icon = form.querySelector('#lesson-icon-input').value.trim() || '🆕';
-
-        const selectedGroups = Array.from(form.querySelectorAll('input[name="group-assignment"]:checked')).map(cb => cb.value);
+        if (!finalLessonData.title) { showToast("Název lekce nemůže být prázdný.", true); return; }
 
         const { getSelectedFiles } = await import('../../upload-handler.js');
         const currentSelection = getSelectedFiles();
 
-        const lessonData = {
-            title, subtitle, number, icon,
+        const lessonPayload = {
+            title: finalLessonData.title,
+            subtitle: finalLessonData.subtitle || '',
+            number: finalLessonData.number || '',
+            icon: finalLessonData.icon || '🆕',
             ragFilePaths: currentSelection,
-            assignedToGroups: selectedGroups,
-            updatedAt: serverTimestamp()
+            assignedToGroups: finalLessonData.assignedToGroups || [],
+            updatedAt: serverTimestamp(),
+            // Save generated content fields
+            text_content: finalLessonData.text_content || null,
+            presentation: finalLessonData.presentation || null,
+            quiz: finalLessonData.quiz || null,
+            test: finalLessonData.test || null,
+            post: finalLessonData.post || null,
         };
 
         this._isLoading = true;
         try {
             if (this.lesson?.id) {
-                if (!this.lesson.ownerId) lessonData.ownerId = firebaseInit.auth.currentUser.uid;
-                await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), lessonData);
-                const updatedLesson = { ...this.lesson, ...lessonData };
+                if (!this.lesson.ownerId) lessonPayload.ownerId = firebaseInit.auth.currentUser.uid;
+                await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), lessonPayload);
+                const updatedLesson = { ...this.lesson, ...lessonPayload };
                 this._handleLessonUpdate({ detail: updatedLesson });
                 showToast("Lekce uložena.");
             } else {
-                lessonData.createdAt = serverTimestamp();
-                lessonData.ownerId = firebaseInit.auth.currentUser.uid;
-                lessonData.status = 'Naplánováno';
-                const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonData);
-                const newLesson = { id: docRef.id, ...lessonData };
+                lessonPayload.createdAt = serverTimestamp();
+                lessonPayload.ownerId = firebaseInit.auth.currentUser.uid;
+                lessonPayload.status = 'Naplánováno';
+                const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonPayload);
+                const newLesson = { id: docRef.id, ...lessonPayload };
                 this._handleLessonUpdate({ detail: newLesson });
                 showToast("Lekce vytvořena.");
             }
@@ -149,6 +181,63 @@ export class LessonEditor extends LitElement {
             showToast("Chyba při ukládání.", true);
         } finally {
             this._isLoading = false;
+        }
+    }
+
+    async _handleMagicGeneration() {
+        const detailsComponent = this.querySelector('editor-view-details');
+        if (!detailsComponent) return;
+
+        // Validation
+        const title = detailsComponent.querySelector('#lesson-title-input').value.trim();
+        if (!title) { showToast("Nejdříve zadejte název lekce.", true); return; }
+
+        // Save Basic Info First locally
+        this.lesson = { ...this.lesson, ...detailsComponent.getDetails() };
+
+        // Get Files
+        const currentFiles = getSelectedFiles();
+        if (currentFiles.length === 0) {
+            if (!confirm("Generujete bez nahraných souborů. AI bude vařit z vody (pouze z názvu). Chcete pokračovat?")) return;
+        }
+
+        const filePaths = currentFiles.map(f => f.fullPath);
+        this._isLoading = true;
+
+        const typesToGenerate = ['text', 'presentation', 'quiz', 'test', 'post'];
+
+        try {
+            for (const type of typesToGenerate) {
+                this._magicProgress = `Generuji ${this.contentTypes.find(t=>t.id===type).label}...`;
+                this.requestUpdate();
+
+                // Build Prompt Data
+                const promptData = {
+                    userPrompt: `Téma lekce: ${this.lesson.title}. ${this.lesson.subtitle || ''}`,
+                    slide_count: 5 // Default for magic
+                };
+
+                const result = await callGenerateContent({ contentType: type, promptData, filePaths });
+
+                if (result && !result.error) {
+                    const dataKey = type === 'text' ? 'text_content' : type;
+                    const dataValue = (type === 'text' && result.text) ? result.text : result;
+                    this.lesson = { ...this.lesson, [dataKey]: dataValue };
+                } else {
+                    console.warn(`Magic generation failed for ${type}:`, result?.error);
+                }
+            }
+
+            this._magicProgress = '';
+            showToast("Magie dokončena! Zkontrolujte vygenerovaný obsah.");
+            this._nextStep(); // Go to content step
+
+        } catch (e) {
+            console.error("Magic generation fatal error:", e);
+            showToast("Chyba při generování: " + e.message, true);
+        } finally {
+            this._isLoading = false;
+            this._magicProgress = '';
         }
     }
 
@@ -215,60 +304,68 @@ export class LessonEditor extends LitElement {
 
                     <div class="flex-grow relative">
 
-                        <!-- Step 1: Details (Zen Inputs) -->
-                        <div class="${this._currentStep === 1 ? 'block' : 'hidden'} animate-fade-in">
+                        <!-- Step 1: Details (Zen Inputs + Magic) -->
+                        <div class="${this._currentStep === 1 ? 'block' : 'hidden'} animate-fade-in space-y-8">
                              <editor-view-details
                                 .lesson=${this.lesson}
                                 @lesson-updated=${this._handleLessonUpdate}>
                             </editor-view-details>
+
+                            <!-- File Upload Zone (Replaces old Step 2 grid logic for upload) -->
+                            <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center transition-all hover:border-indigo-300 hover:bg-indigo-50/30 group" id="course-media-upload-area">
+                                <div class="mb-4">
+                                    <span class="text-4xl group-hover:scale-110 transition-transform inline-block">📄</span>
+                                </div>
+                                <h3 class="text-lg font-bold text-slate-700">Podklady pro AI</h3>
+                                <p class="text-sm text-slate-500 mb-6">Nahrajte PDF skripta, prezentace nebo texty. AI z nich vytvoří lekci.</p>
+
+                                <input type="file" id="course-media-file-input" class="hidden" multiple accept=".pdf,.txt,.docx,.pptx">
+                                <button class="pointer-events-none bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm group-hover:text-indigo-600 group-hover:border-indigo-200">
+                                    Vybrat soubory
+                                </button>
+
+                                <div id="upload-progress-container" class="hidden mt-4 max-w-md mx-auto"></div>
+                                <ul id="uploaded-files-list-step1" class="mt-4 text-left max-w-md mx-auto space-y-2"></ul>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="flex flex-col sm:flex-row gap-4 justify-center pt-8">
+                                <button @click=${this._handleMagicGeneration} ?disabled=${this._isLoading}
+                                    class="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center text-lg">
+                                    ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> ${this._magicProgress}` : html`<span class="mr-2">✨</span> Magicky Vygenerovat Vše`}
+                                </button>
+
+                                <button @click=${this._nextStep} ?disabled=${this._isLoading}
+                                    class="flex-1 py-4 px-6 rounded-xl bg-white border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-center text-lg">
+                                    Manuální Tvorba <span class="ml-2">→</span>
+                                </button>
+                            </div>
                         </div>
 
-                        <!-- Step 2: Content Selection (Grid of Big Buttons) -->
-                        <div class="${this._currentStep === 2 ? 'block' : 'hidden'} h-full animate-fade-in">
-                            ${!this._selectedContentType ? html`
-                                <div class="text-center mb-12">
-                                    <h2 class="text-4xl font-bold text-slate-900 mb-4 tracking-tight">Co vytvoříme?</h2>
-                                    <p class="text-slate-500 text-lg">Vyberte formát pro tuto lekci.</p>
-                                </div>
+                        <!-- Step 2: Content Selection (Tabbed Navigation) -->
+                        <div class="${this._currentStep === 2 ? 'block' : 'hidden'} h-full animate-fade-in flex flex-col">
 
-                                <div class="grid grid-cols-2 md:grid-cols-3 gap-6">
-                                    ${this.contentTypes.map(type => {
-                                        const hasContent = this.lesson && ((type.id === 'text' && this.lesson.text_content) || (this.lesson[type.id]));
-                                        return html`
-                                            <button @click=${() => this._selectContentType(type.id)}
-                                                    class="group relative bg-white p-8 rounded-3xl text-left transition-all duration-300 border border-slate-100 hover:border-transparent hover:shadow-2xl hover:shadow-slate-200/50 hover:-translate-y-1">
-
-                                                ${hasContent ? html`
-                                                    <div class="absolute top-4 right-4 w-2 h-2 bg-green-500 rounded-full"></div>
-                                                ` : ''}
-
-                                                <div class="text-5xl mb-6 filter grayscale group-hover:grayscale-0 transition-all duration-500 transform group-hover:scale-110 origin-left">
-                                                    ${type.icon}
-                                                </div>
-
-                                                <h3 class="text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">${type.label}</h3>
-                                                <p class="text-xs text-slate-400 mt-2 font-medium">${type.description}</p>
-                                            </button>
-                                        `;
-                                    })}
-                                </div>
-                            ` : html`
-                                <!-- Active Editor Mode -->
-                                <div class="flex flex-col h-full">
-                                    <div class="flex items-center justify-between mb-6 pb-6 border-b border-slate-50">
-                                        <div class="flex items-center">
-                                            <span class="text-2xl mr-3">${this.contentTypes.find(t => t.id === this._selectedContentType)?.icon}</span>
-                                            <h3 class="text-xl font-bold text-slate-900">${this.contentTypes.find(t => t.id === this._selectedContentType)?.label}</h3>
-                                        </div>
-                                        <button @click=${this._backToTypeSelection} class="text-sm font-medium text-slate-400 hover:text-indigo-600 transition-colors">
-                                            Změnit výběr
+                            <!-- Tab Bar -->
+                            <div class="flex space-x-1 bg-slate-100 p-1 rounded-xl mb-6 overflow-x-auto no-scrollbar">
+                                ${this.contentTypes.map(type => {
+                                    const isActive = this._selectedContentType === type.id;
+                                    const hasContent = this.lesson && ((type.id === 'text' && this.lesson.text_content) || (this.lesson[type.id]));
+                                    return html`
+                                        <button @click=${() => this._selectContentType(type.id)}
+                                            class="flex items-center px-4 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap
+                                            ${isActive ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}">
+                                            <span class="mr-2 ${isActive ? '' : 'filter grayscale'}">${type.icon}</span>
+                                            ${type.label}
+                                            ${hasContent ? html`<span class="ml-2 w-1.5 h-1.5 bg-green-500 rounded-full"></span>` : ''}
                                         </button>
-                                    </div>
-                                    <div class="flex-grow">
-                                        ${this.renderEditorContent(this._selectedContentType)}
-                                    </div>
-                                </div>
-                            `}
+                                    `;
+                                })}
+                            </div>
+
+                            <!-- Active Editor Content -->
+                            <div class="flex-grow bg-white rounded-2xl border border-slate-100 shadow-sm p-1 overflow-y-auto">
+                                ${this.renderEditorContent(this._selectedContentType)}
+                            </div>
                         </div>
 
                         <!-- Step 3: Completion -->
