@@ -48,13 +48,9 @@ service cloud.firestore {
 
     // Lekcie
     match /lessons/{lessonId} {
-      // OPRAVA: Prechod na isStudentRole pre podporu realtime listenerov.
-      // Pôvodná kontrola isStudentInGroup(resource.data) bránila načítaniu zoznamu,
-      // pretože funkcia get() nie je v pravidlách pre "list queries" povolená.
       allow read: if (resource.data.ownerId == request.auth.uid) || 
                      isProfessor() || 
-                     isProfessorRole() || // Pridané pre konzistenciu
-                     isStudentRole();     // <-- KĽÚČOVÁ ZMENA: Povolí študentom načítať zoznam lekcií
+                     (isStudentRole() && resource.data.assignedToGroups.hasAny(get(/databases/$(database)/documents/students/$(request.auth.uid)).data.memberOfGroups));
       
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if (resource.data.ownerId == request.auth.uid) || isProfessor();
@@ -64,10 +60,7 @@ service cloud.firestore {
     match /groups/{groupId} {
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       
-      // ZMENA: Povolíme čítanie (read) pre všetkých prihlásených.
-      // Je to potrebné pre správne fungovanie klientskych zoznamov.
-      // Zápis (update/delete) ostáva prísne len pre vlastníka.
-      allow read: if isSignedIn();
+      allow read: if (resource.data.ownerId == request.auth.uid) || (request.auth.uid in resource.data.studentIds);
       
       allow update, delete: if isSignedIn() && request.auth.uid == resource.data.ownerId;
     }

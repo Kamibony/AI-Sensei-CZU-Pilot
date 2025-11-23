@@ -1,6 +1,6 @@
 // Súbor: public/js/student/student-lesson-list.js
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { doc, onSnapshot, collection, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, onSnapshot, collection, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../firebase-init.js';
 
 export class StudentLessonList extends LitElement {
@@ -66,11 +66,17 @@ export class StudentLessonList extends LitElement {
             }
 
             this.isNotInAnyGroup = false;
-            const myGroups = studentSnap.data().memberOfGroups;
+            let myGroups = studentSnap.data().memberOfGroups;
+
+            // Firestore limits 'array-contains-any' to 30 elements
+            if (myGroups.length > 30) {
+                myGroups = myGroups.slice(0, 30);
+            }
 
             const lessonsQuery = query(
                 collection(firebaseInit.db, "lessons"),
-                where("assignedToGroups", "array-contains-any", myGroups)
+                where("assignedToGroups", "array-contains-any", myGroups),
+                orderBy("createdAt", "desc")
             );
 
             this.lessonsUnsubscribe = onSnapshot(lessonsQuery, (querySnapshot) => {
