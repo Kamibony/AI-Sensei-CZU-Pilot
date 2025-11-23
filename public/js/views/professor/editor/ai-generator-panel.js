@@ -52,40 +52,8 @@ export class AiGeneratorPanel extends LitElement {
     }
 
     _handleInlineUpload(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        if (!this.lesson?.id) {
-            this._setUploadStatus("Nejprve uložte lekci.", 'error');
-            return;
-        }
-
-        this._isUploading = true;
-        this._uploadProgress = 0;
-        this._setUploadStatus("Nahrávám...", 'info');
-
-        const userId = firebaseInit.auth.currentUser?.uid;
-        if (!userId) {
-             this._setUploadStatus("Nejste přihlášen.", 'error');
-             this._isUploading = false;
-             return;
-        }
-
-        processAndStoreFile(file, this.lesson.id, userId,
-            (progress) => { this._uploadProgress = progress; },
-            (error) => {
-                console.error(error);
-                this._isUploading = false;
-                this._setUploadStatus("Chyba při nahrávání.", 'error');
-            },
-            (downloadURL, storagePath) => {
-                this._isUploading = false;
-                addSelectedFile({ name: file.name, fullPath: storagePath, downloadURL });
-                renderSelectedFiles(`selected-files-list-rag-${this.contentType}`);
-                this._setUploadStatus("Soubor úspěšně nahrán.", 'success');
-                e.target.value = '';
-                setTimeout(() => this._setUploadStatus('', ''), 3000);
-            }
-        );
+        // Disabled inline upload in this panel
+        console.warn("Inline upload is disabled here. Use Lesson Settings.");
     }
 
     _setUploadStatus(msg, type) {

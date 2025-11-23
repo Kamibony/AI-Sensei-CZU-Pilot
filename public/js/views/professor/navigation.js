@@ -7,17 +7,17 @@ export function setupProfessorNav(showProfessorContent) {
 
     if (nav && user) {
         // Modern Sidebar Container: White/Glass, floating feel, border-r
-        nav.className = 'hidden md:flex fixed top-0 left-0 h-full w-20 lg:w-64 bg-white/90 backdrop-blur-xl border-r border-slate-100 z-50 flex-col justify-between transition-all duration-300';
+        nav.className = 'hidden md:flex fixed top-0 left-0 h-full w-64 bg-white/90 backdrop-blur-xl border-r border-slate-100 z-50 flex-col justify-between transition-all duration-300';
 
         nav.innerHTML = `
             <!-- Top Section: Logo & Management -->
             <div class="flex flex-col w-full">
                 <!-- Minimalist Logo -->
-                <div id="nav-logo" class="h-20 flex items-center justify-center lg:justify-start lg:px-6 cursor-pointer group">
+                <div id="nav-logo" class="h-20 flex items-center justify-start px-6 cursor-pointer group">
                     <div class="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center shadow-md shadow-indigo-200 font-bold text-lg flex-shrink-0 group-hover:scale-105 transition-transform">
                         A
                     </div>
-                    <span class="ml-3 font-bold text-slate-800 text-lg hidden lg:block tracking-tight group-hover:text-indigo-600 transition-colors">
+                    <span class="ml-3 font-bold text-slate-800 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">
                         AI Sensei
                     </span>
                 </div>
@@ -26,7 +26,7 @@ export function setupProfessorNav(showProfessorContent) {
                 <div class="mt-4 space-y-1 px-3">
 
                     <!-- GROUP: ORGANIZACE -->
-                    <div class="hidden lg:block px-4 mt-2 mb-2">
+                    <div class="px-4 mt-2 mb-2">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Organizace</span>
                     </div>
 
@@ -34,35 +34,21 @@ export function setupProfessorNav(showProfessorContent) {
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">🏠</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium hidden lg:block">Dashboard</span>
+                        <span class="ml-2 text-sm font-medium">Dashboard</span>
                     </button>
 
                     <button data-view="classes" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">🏫</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium hidden lg:block">Moje Třídy</span>
+                        <span class="ml-2 text-sm font-medium">Moje Třídy</span>
                     </button>
 
                     <button data-view="students" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">👥</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium hidden lg:block">Studenti</span>
-                    </button>
-
-                    <button data-view="analytics" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
-                        <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
-                            <span class="text-xl transition-transform group-hover:scale-110">📊</span>
-                        </div>
-                        <span class="ml-2 text-sm font-medium hidden lg:block">Analýza</span>
-                    </button>
-
-                     <button data-view="interactions" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
-                        <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
-                            <span class="text-xl transition-transform group-hover:scale-110">💬</span>
-                        </div>
-                        <span class="ml-2 text-sm font-medium hidden lg:block">Interakce</span>
+                        <span class="ml-2 text-sm font-medium">Studenti</span>
                     </button>
                 </div>
 
@@ -71,7 +57,7 @@ export function setupProfessorNav(showProfessorContent) {
 
                 <!-- GROUP: TVŮRČÍ STUDIO -->
                 <div class="space-y-1 px-3">
-                    <div class="hidden lg:block px-4 mb-2">
+                    <div class="px-4 mb-2">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tvůrčí Studio</span>
                     </div>
 
@@ -79,22 +65,14 @@ export function setupProfessorNav(showProfessorContent) {
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">📚</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium hidden lg:block">Knihovna Lekcí</span>
+                        <span class="ml-2 text-sm font-medium">Knihovna Lekcí</span>
                     </button>
 
                     <button data-view="media" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">📁</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium hidden lg:block">Média & Soubory</span>
-                    </button>
-
-                    <button data-view="editor" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-indigo-600 bg-indigo-50/50 hover:bg-indigo-50 hover:text-indigo-700 group border-l-4 border-transparent mt-2">
-                        <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0 relative">
-                             <span class="absolute inset-0 bg-indigo-200 opacity-20 rounded-full blur-sm"></span>
-                            <span class="text-xl transition-transform group-hover:scale-110 relative z-10">✨</span>
-                        </div>
-                        <span class="ml-2 text-sm font-bold hidden lg:block text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">AI Editor</span>
+                        <span class="ml-2 text-sm font-medium">Média & Soubory</span>
                     </button>
                 </div>
             </div>
@@ -106,7 +84,7 @@ export function setupProfessorNav(showProfessorContent) {
                      <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                         <span class="text-xl group-hover:rotate-90 transition-transform duration-500">⚙️</span>
                     </div>
-                    <span class="ml-2 text-sm font-medium hidden lg:block">Admin</span>
+                    <span class="ml-2 text-sm font-medium">Admin</span>
                 </button>
                 ` : ''}
 
@@ -114,7 +92,7 @@ export function setupProfessorNav(showProfessorContent) {
                     <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                         <span class="text-xl group-hover:translate-x-1 transition-transform">🚪</span>
                     </div>
-                    <span class="ml-2 text-sm font-medium hidden lg:block">Odhlásit se</span>
+                    <span class="ml-2 text-sm font-medium">Odhlásit se</span>
                 </button>
             </div>
         `;

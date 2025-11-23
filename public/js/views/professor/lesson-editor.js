@@ -103,7 +103,7 @@ export class LessonEditor extends LitElement {
             this._currentStep++;
             this.requestUpdate();
             if (this._currentStep === 2 && !this._selectedContentType) {
-                this._selectedContentType = 'text';
+                this._selectedContentType = 'text'; // Default to first tab
             }
         }
     }
@@ -204,6 +204,33 @@ export class LessonEditor extends LitElement {
         const filePaths = currentFiles.map(f => f.fullPath);
         this._isLoading = true;
 
+        // Save initial structure to DB to ensure we have an ID
+        try {
+            if (!this.lesson.id) {
+                const lessonPayload = {
+                    title: this.lesson.title,
+                    subtitle: this.lesson.subtitle || '',
+                    number: this.lesson.number || '',
+                    icon: this.lesson.icon || '🆕',
+                    ragFilePaths: currentFiles,
+                    assignedToGroups: this.lesson.assignedToGroups || [],
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                    ownerId: firebaseInit.auth.currentUser.uid,
+                    status: 'Naplánováno'
+                };
+                const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonPayload);
+                this.lesson = { ...this.lesson, id: docRef.id, ...lessonPayload };
+                this.requestUpdate();
+                this._handleLessonUpdate({ detail: this.lesson }); // Sync
+            }
+        } catch (e) {
+            console.error("Failed to create initial lesson doc:", e);
+            showToast("Chyba při inicializaci lekce: " + e.message, true);
+            this._isLoading = false;
+            return;
+        }
+
         const typesToGenerate = ['text', 'presentation', 'quiz', 'test', 'post'];
 
         try {
@@ -222,7 +249,16 @@ export class LessonEditor extends LitElement {
                 if (result && !result.error) {
                     const dataKey = type === 'text' ? 'text_content' : type;
                     const dataValue = (type === 'text' && result.text) ? result.text : result;
+
+                    // Update Local State
                     this.lesson = { ...this.lesson, [dataKey]: dataValue };
+
+                    // CRITICAL: Autosave to Firestore immediately
+                    await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
+                         [dataKey]: dataValue,
+                         updatedAt: serverTimestamp()
+                    });
+
                 } else {
                     console.warn(`Magic generation failed for ${type}:`, result?.error);
                 }
