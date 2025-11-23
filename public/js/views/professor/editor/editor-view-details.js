@@ -95,6 +95,19 @@ export class EditorViewDetails extends LitElement {
     // However, we keep this method and button (hidden) if legacy code or direct submission is triggered.
     // We expose the internal validation/save logic if needed via 'saveLesson' public method.
 
+    getDetails() {
+        const form = this.querySelector('#lesson-details-form');
+        if (!form) return {};
+
+        const title = form.querySelector('#lesson-title-input')?.value.trim() || '';
+        const subtitle = form.querySelector('#lesson-subtitle-input')?.value.trim() || '';
+        const number = form.querySelector('#lesson-number-input')?.value.trim() || '';
+        const icon = form.querySelector('#lesson-icon-input')?.value.trim() || '🆕';
+        const assignedToGroups = Array.from(form.querySelectorAll('input[name="group-assignment"]:checked')).map(cb => cb.value);
+
+        return { title, subtitle, number, icon, assignedToGroups };
+    }
+
     async _handleSaveLessonDetails(e) {
         if(e) e.preventDefault();
         // This logic is now largely duplicated in LessonEditor._handleSaveLesson

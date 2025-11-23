@@ -25,9 +25,9 @@ export function setupProfessorNav(showProfessorContent) {
                 <!-- Navigation Groups -->
                 <div class="mt-4 space-y-1 px-3">
 
-                    <!-- GROUP: MANAGEMENT -->
+                    <!-- GROUP: ORGANIZACE -->
                     <div class="hidden lg:block px-4 mt-2 mb-2">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Management</span>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Organizace</span>
                     </div>
 
                     <button data-view="dashboard" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
@@ -41,7 +41,7 @@ export function setupProfessorNav(showProfessorContent) {
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">🏫</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium hidden lg:block">Třídy</span>
+                        <span class="ml-2 text-sm font-medium hidden lg:block">Moje Třídy</span>
                     </button>
 
                     <button data-view="students" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
@@ -69,24 +69,24 @@ export function setupProfessorNav(showProfessorContent) {
                 <!-- Spacer / Divider -->
                 <div class="my-6 border-t border-slate-100 mx-6"></div>
 
-                <!-- GROUP: STUDIO -->
+                <!-- GROUP: TVŮRČÍ STUDIO -->
                 <div class="space-y-1 px-3">
                     <div class="hidden lg:block px-4 mb-2">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Studio</span>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tvůrčí Studio</span>
                     </div>
+
+                     <button data-view="timeline" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
+                        <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
+                            <span class="text-xl transition-transform group-hover:scale-110">📚</span>
+                        </div>
+                        <span class="ml-2 text-sm font-medium hidden lg:block">Knihovna Lekcí</span>
+                    </button>
 
                     <button data-view="media" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">📁</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium hidden lg:block">Knihovna</span>
-                    </button>
-
-                     <button data-view="timeline" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
-                        <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
-                            <span class="text-xl transition-transform group-hover:scale-110">🗓️</span>
-                        </div>
-                        <span class="ml-2 text-sm font-medium hidden lg:block">Plán</span>
+                        <span class="ml-2 text-sm font-medium hidden lg:block">Média & Soubory</span>
                     </button>
 
                     <button data-view="editor" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-indigo-600 bg-indigo-50/50 hover:bg-indigo-50 hover:text-indigo-700 group border-l-4 border-transparent mt-2">
