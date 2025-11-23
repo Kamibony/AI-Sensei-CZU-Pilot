@@ -1,7 +1,6 @@
-// public/js/views/professor/lesson-editor.js
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast } from '../../utils.js';
-import { loadSelectedFiles, renderSelectedFiles, initializeCourseMediaUpload, getSelectedFiles } from '../../upload-handler.js';
+import { loadSelectedFiles, renderSelectedFiles, initializeCourseMediaUpload, getSelectedFiles, renderMediaLibraryFiles } from '../../upload-handler.js';
 import { callGenerateContent } from '../../gemini-api.js';
 import { doc, updateDoc, serverTimestamp, addDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
@@ -70,9 +69,9 @@ export class LessonEditor extends LitElement {
                 initializeCourseMediaUpload('main-course', () => {
                      const currentFiles = getSelectedFiles();
                      this.lesson = { ...this.lesson, ragFilePaths: currentFiles };
-                     renderSelectedFiles('uploaded-files-list-step1');
+                     renderSelectedFiles('course-media-list-container');
                 }, this.renderRoot);
-                renderSelectedFiles('uploaded-files-list-step1');
+                renderSelectedFiles('course-media-list-container');
             }, 0);
         }
     }
@@ -281,6 +280,47 @@ export class LessonEditor extends LitElement {
         this.dispatchEvent(new CustomEvent('editor-exit', { bubbles: true, composed: true }));
     }
 
+    _openRagModal(e) {
+        if (e) e.preventDefault();
+        const modal = document.getElementById('media-library-modal');
+        const modalConfirm = document.getElementById('modal-confirm-btn');
+        const modalCancel = document.getElementById('modal-cancel-btn');
+        const modalClose = document.getElementById('modal-close-btn');
+
+        if (!modal || !modalConfirm || !modalCancel || !modalClose) {
+             console.error("Chybějící elementy pro modální okno.");
+             showToast("Chyba: Nepodařilo se načíst komponentu pro výběr souborů.", true);
+             return;
+        }
+
+        // Load current files for THIS lesson to global state
+        loadSelectedFiles(this.lesson?.ragFilePaths || []);
+
+        const handleConfirm = () => {
+             // Re-render the list in the editor (Step 1)
+             renderSelectedFiles('course-media-list-container');
+             closeModal();
+        };
+
+        const handleCancel = () => closeModal();
+
+        const closeModal = () => {
+            modal.classList.add('hidden');
+            modalConfirm.removeEventListener('click', handleConfirm);
+            modalCancel.removeEventListener('click', handleCancel);
+            modalClose.removeEventListener('click', handleCancel);
+        };
+
+        // Render library files
+        renderMediaLibraryFiles('main-course', 'modal-media-list');
+
+        modalConfirm.addEventListener('click', handleConfirm);
+        modalCancel.addEventListener('click', handleCancel);
+        modalClose.addEventListener('click', handleCancel);
+
+        modal.classList.remove('hidden');
+    }
+
     renderEditorContent(typeId) {
         switch(typeId) {
             case 'text': return html`<editor-view-text .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-text>`;
@@ -359,9 +399,12 @@ export class LessonEditor extends LitElement {
                                 <button class="pointer-events-none bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm group-hover:text-indigo-600 group-hover:border-indigo-200">
                                     Vybrat soubory
                                 </button>
+                                <button @click=${this._openRagModal} class="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm hover:text-indigo-600 hover:border-indigo-200 hover:bg-slate-50 transition-all ml-4">
+                                    📂 Vybrat z knihovny
+                                </button>
 
                                 <div id="upload-progress-container" class="hidden mt-4 max-w-md mx-auto"></div>
-                                <ul id="uploaded-files-list-step1" class="mt-4 text-left max-w-md mx-auto space-y-2"></ul>
+                                <ul id="course-media-list-container" class="mt-4 text-left max-w-md mx-auto space-y-2"></ul>
                             </div>
 
                             <!-- Action Buttons -->
