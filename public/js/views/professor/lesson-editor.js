@@ -29,7 +29,7 @@ export class LessonEditor extends LitElement {
         this._selectedContentType = null;
         this._isLoading = false;
         this._magicProgress = '';
-        this._viewMode = 'hub';
+        this._viewMode = 'settings'; // Default to settings (creation mode) for new lessons
 
         this.steps = [
             { label: 'Základy', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
@@ -54,7 +54,14 @@ export class LessonEditor extends LitElement {
              if (!this.lesson || (changedProperties.get('lesson') && changedProperties.get('lesson')?.id !== this.lesson?.id)) {
                  loadSelectedFiles(this.lesson?.ragFilePaths || []);
                  this._currentStep = 1;
-                 this._selectedContentType = 'text'; // Default to first tab
+                 // Hub Logic: New Lesson -> Settings (Step 1), Existing -> Hub
+                 if (this.lesson?.id) {
+                     this._viewMode = 'hub';
+                     this._selectedContentType = null;
+                 } else {
+                     this._viewMode = 'settings';
+                     this._selectedContentType = 'text';
+                 }
             }
         }
     }
@@ -86,12 +93,14 @@ export class LessonEditor extends LitElement {
         }));
     }
 
-    _nextStep() {
-        if (this._currentStep === 1) {
+    _switchToHub() {
+         // Validate Step 1 if coming from settings
+         if (this._viewMode === 'settings') {
              const detailsComponent = this.querySelector('editor-view-details');
              if (detailsComponent) {
                  const titleInput = detailsComponent.querySelector('#lesson-title-input');
-                 if (!titleInput || !titleInput.value.trim()) {
+                 // Only block if trying to leave empty title on NEW lesson
+                 if ((!titleInput || !titleInput.value.trim()) && !this.lesson?.title) {
                      showToast("Vyplňte prosím název lekce.", true);
                      if(titleInput) titleInput.focus();
                      return;
@@ -99,14 +108,13 @@ export class LessonEditor extends LitElement {
                  // Save basic info to local state
                  this.lesson = { ...this.lesson, ...detailsComponent.getDetails() };
              }
-        }
-        if (this._currentStep < 3) {
-            this._currentStep++;
-            this.requestUpdate();
-            if (this._currentStep === 2 && !this._selectedContentType) {
-                this._selectedContentType = 'text'; // Default to first tab
-            }
-        }
+         }
+         this._viewMode = 'hub';
+         this._selectedContentType = null;
+    }
+
+    _switchToSettings() {
+        this._viewMode = 'settings';
     }
 
     _prevStep() {
@@ -295,11 +303,6 @@ export class LessonEditor extends LitElement {
         this._viewMode = 'editor';
     }
 
-    _backToHub() {
-        this._viewMode = 'hub';
-        this._selectedContentType = null;
-    }
-
     _openRagModal(e) {
         if (e) e.preventDefault();
         const modal = document.getElementById('media-library-modal');
@@ -353,37 +356,11 @@ export class LessonEditor extends LitElement {
         }
     }
 
-    // Minimalist Stepper
-    _renderStepper() {
-        return html`
-            <div class="flex items-center justify-center space-x-4 mb-12">
-                ${this.steps.map((step, index) => {
-                    const isActive = this._currentStep === index + 1;
-                    const isCompleted = this._currentStep > index + 1;
-
-                    return html`
-                        <div class="flex items-center group">
-                            <div class="flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold transition-all duration-300
-                                ${isActive ? 'bg-slate-900 text-white scale-110' :
-                                  isCompleted ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'}">
-                                ${isCompleted ? '✓' : index + 1}
-                            </div>
-                             ${isActive ? html`<span class="ml-2 text-sm font-bold text-slate-900">${step.label}</span>` : ''}
-                             ${index < this.steps.length - 1 ? html`
-                                <div class="w-12 h-[2px] mx-2 ${isCompleted ? 'bg-green-500' : 'bg-slate-100'}"></div>
-                             ` : ''}
-                        </div>
-                    `;
-                })}
-            </div>
-        `;
-    }
-
     render() {
         return html`
             <div class="h-full bg-white overflow-y-auto">
                 <!-- Zen Mode Container -->
-                <div class="max-w-3xl mx-auto px-6 py-12 flex flex-col h-full">
+                <div class="max-w-6xl mx-auto px-6 py-12 flex flex-col h-full">
 
                     <!-- Simple Header -->
                     <header class="flex items-center justify-between mb-8">
@@ -391,23 +368,22 @@ export class LessonEditor extends LitElement {
                             <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center mr-2 group-hover:bg-slate-100 transition-colors">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                             </div>
-                            Zpět
+                            Zavřít
                         </button>
                         ${this.lesson?.id ? html`<span class="text-xs font-mono text-slate-300 uppercase tracking-widest">ID: ${this.lesson.id.substring(0,6)}</span>` : ''}
                     </header>
 
-                    ${this._renderStepper()}
-
                     <div class="flex-grow relative">
 
-                        <!-- Step 1: Details (Zen Inputs + Magic) -->
-                        <div class="${this._currentStep === 1 ? 'block' : 'hidden'} animate-fade-in space-y-8">
+                        <!-- === SETTINGS VIEW (Old Step 1) === -->
+                        <div class="${this._viewMode === 'settings' ? 'block' : 'hidden'} animate-fade-in space-y-8 max-w-3xl mx-auto">
+                             <h2 class="text-3xl font-bold text-slate-900">Nastavení Lekce</h2>
                              <editor-view-details
                                 .lesson=${this.lesson}
                                 @lesson-updated=${this._handleLessonUpdate}>
                             </editor-view-details>
 
-                            <!-- File Upload Zone (Replaces old Step 2 grid logic for upload) -->
+                            <!-- File Upload Zone -->
                             <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center transition-all hover:border-indigo-300 hover:bg-indigo-50/30 group" id="course-media-upload-area">
                                 <div class="mb-4">
                                     <span class="text-4xl group-hover:scale-110 transition-transform inline-block">📄</span>
@@ -434,150 +410,108 @@ export class LessonEditor extends LitElement {
                                     ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> ${this._magicProgress}` : html`<span class="mr-2">✨</span> Magicky Vygenerovat Vše`}
                                 </button>
 
-                                <button @click=${this._nextStep} ?disabled=${this._isLoading}
+                                <button @click=${this._switchToHub} ?disabled=${this._isLoading}
                                     class="flex-1 py-4 px-6 rounded-xl bg-white border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-center text-lg">
-                                    Manuální Tvorba <span class="ml-2">→</span>
+                                    Pokračovat na obsah <span class="ml-2">→</span>
                                 </button>
                             </div>
                         </div>
 
-                        <!-- Step 2: Hub or Editor -->
-                        <div class="${this._currentStep === 2 ? 'block' : 'hidden'} h-full animate-fade-in flex flex-col">
+                        <!-- === HUB VIEW (New Main Menu) === -->
+                        <div class="${this._viewMode === 'hub' ? 'block' : 'hidden'} animate-fade-in flex flex-col h-full">
 
-                            ${this._viewMode === 'hub' ? html`
-                                <!-- HUB VIEW -->
-                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    ${this.contentTypes.map(type => {
-                                        // Check if content exists
-                                        const hasContent = this.lesson && ((type.id === 'text' && this.lesson.text_content) || (type.id !== 'text' && this.lesson[type.id]));
+                            <!-- Hub Header -->
+                            <div class="text-center mb-10">
+                                <h1 class="text-3xl font-bold text-slate-900 mb-2">${this.lesson?.title || 'Nová lekce'}</h1>
+                                <button @click=${this._switchToSettings} class="text-sm font-bold text-slate-400 hover:text-indigo-600 flex items-center justify-center mx-auto">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                    Upravit detaily a soubory
+                                </button>
+                            </div>
 
-                                        return html`
-                                            <div @click=${() => this._switchToEditor(type.id)}
-                                                 class="group cursor-pointer bg-white rounded-2xl border-2 border-slate-100 p-6 transition-all duration-300 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-100/50 hover:-translate-y-1 relative overflow-hidden">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto w-full">
+                                ${this.contentTypes.map(type => {
+                                    // Check if content exists
+                                    const hasContent = this.lesson && ((type.id === 'text' && this.lesson.text_content) || (type.id !== 'text' && this.lesson[type.id]));
 
-                                                <div class="absolute top-0 right-0 p-4 opacity-50 group-hover:opacity-100 transition-opacity">
-                                                    <svg class="w-5 h-5 text-indigo-300 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                                                </div>
+                                    return html`
+                                        <div @click=${() => this._switchToEditor(type.id)}
+                                             class="group cursor-pointer bg-white rounded-3xl border border-slate-100 p-8 transition-all duration-300 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-100/50 hover:-translate-y-1 relative overflow-hidden flex flex-col items-center justify-center min-h-[220px]">
 
-                                                <div class="flex flex-col items-center text-center space-y-4">
-                                                    <div class="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-4xl shadow-inner group-hover:scale-110 transition-transform duration-300">
-                                                        ${type.icon}
-                                                    </div>
-
-                                                    <div>
-                                                        <h3 class="font-bold text-slate-900 text-lg group-hover:text-indigo-700 transition-colors">${type.label}</h3>
-                                                        <p class="text-xs text-slate-400 mt-1 line-clamp-2">${type.description}</p>
-                                                    </div>
-
-                                                    <div class="pt-2">
-                                                        ${hasContent ? html`
-                                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                                <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></span>
-                                                                ✅ Hotovo
-                                                            </span>
-                                                        ` : html`
-                                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
-                                                                <span class="w-1.5 h-1.5 bg-slate-400 rounded-full mr-1.5"></span>
-                                                                ⚪ Prázdné
-                                                            </span>
-                                                        `}
-                                                    </div>
-                                                </div>
+                                            <div class="absolute top-0 right-0 p-5 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                                                <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
                                             </div>
-                                        `;
-                                    })}
-                                </div>
 
-                                <div class="mt-12 flex justify-center">
-                                    <button @click=${this._nextStep}
-                                        class="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white transition-all duration-200 bg-indigo-600 rounded-full hover:bg-indigo-700 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-0.5">
-                                        🚀 Dokončit a Publikovat
-                                        <svg class="w-5 h-5 ml-2 -mr-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                                    </button>
-                                </div>
+                                            <div class="w-20 h-20 rounded-2xl bg-slate-50 flex items-center justify-center text-4xl shadow-sm mb-6 group-hover:scale-110 transition-transform duration-300 group-hover:bg-indigo-50">
+                                                ${type.icon}
+                                            </div>
 
-                            ` : html`
-                                <!-- EDITOR DETAIL VIEW -->
-                                <div class="flex flex-col h-full">
-                                    <div class="mb-4 flex items-center justify-between">
-                                        <button @click=${this._backToHub} class="flex items-center text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors px-3 py-2 rounded-lg hover:bg-indigo-50">
-                                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                                            ← Zpět na přehled
-                                        </button>
-                                    </div>
+                                            <div class="text-center">
+                                                <h3 class="font-bold text-slate-900 text-xl group-hover:text-indigo-700 transition-colors mb-1">${type.label}</h3>
+                                                <p class="text-xs text-slate-400 font-medium">${type.description}</p>
+                                            </div>
 
-                                    <!-- Tab Bar (Simplified) -->
-                                    <div id="editor-tabs-container" class="flex space-x-1 bg-slate-100 p-1 rounded-xl mb-4 overflow-x-auto no-scrollbar">
-                                        ${this.contentTypes.map(type => {
-                                            const isActive = this._selectedContentType === type.id;
-                                            const hasContent = this.lesson && ((type.id === 'text' && this.lesson.text_content) || (this.lesson[type.id]));
-                                            return html`
-                                                <button @click=${() => this._selectContentType(type.id)}
-                                                    class="flex items-center px-4 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap
-                                                    ${isActive ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}">
-                                                    <span class="mr-2 ${isActive ? '' : 'filter grayscale'}">${type.icon}</span>
-                                                    ${type.label}
-                                                    ${hasContent ? html`<span class="ml-2 text-green-500">✓</span>` : ''}
-                                                </button>
-                                            `;
-                                        })}
-                                    </div>
-
-                                    <!-- Active Editor Content -->
-                                    <div id="active-editor-content" class="flex-grow bg-white rounded-2xl border border-slate-100 shadow-sm p-1 overflow-y-auto">
-                                        ${this.renderEditorContent(this._selectedContentType)}
-                                    </div>
-
-                                    <!-- Footer inside Editor (just Save Section) -->
-                                    <div class="mt-4 flex justify-end">
-                                        <button @click=${() => this.shadowRoot.querySelector('editor-view-' + this._selectedContentType)?.save()}
-                                            class="text-sm font-bold text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors">
-                                            💾 Uložit tuto sekci
-                                        </button>
-                                    </div>
-                                </div>
-                            `}
-                        </div>
-
-                        <!-- Step 3: Completion -->
-                        <div class="${this._currentStep === 3 ? 'block' : 'hidden'} animate-fade-in text-center pt-12">
-                            <div class="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-8 animate-pulse-slow">
-                                <span class="text-5xl">✨</span>
+                                            <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2">
+                                                ${hasContent ? html`
+                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200">
+                                                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></span>
+                                                        Hotovo
+                                                    </span>
+                                                ` : html`
+                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200">
+                                                        <span class="w-1.5 h-1.5 bg-slate-300 rounded-full mr-1.5"></span>
+                                                        Prázdné
+                                                    </span>
+                                                `}
+                                            </div>
+                                        </div>
+                                    `;
+                                })}
                             </div>
-                            <h2 class="text-3xl font-bold text-slate-900 mb-4">Vše připraveno!</h2>
-                            <p class="text-slate-500 max-w-md mx-auto mb-12">
-                                Vaše lekce "${this.lesson?.title || '...'}" je připravena k uložení.
-                                Po uložení ji najdete v knihovně.
-                            </p>
 
-                            <button id="save-lesson-btn"
-                                    @click=${this._handleSaveLesson}
-                                    ?disabled=${this._isLoading}
-                                    class="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white transition-all duration-200 bg-indigo-600 rounded-full hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-0.5">
-                                ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>` : ''}
-                                <span>Publikovat Lekci</span>
-                                <svg class="w-5 h-5 ml-2 -mr-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Footer Navigation (Hidden in Hub/Editor mode to let custom buttons handle flow, visible in Step 1/3) -->
-                    ${this._currentStep === 2 ? nothing : html`
-                        <div class="mt-12 pt-6 border-t border-slate-50 flex justify-between items-center">
-                            <button @click=${this._prevStep}
-                                class="px-6 py-2 text-sm font-medium text-slate-400 hover:text-slate-900 transition-colors ${this._currentStep === 1 ? 'invisible' : ''}">
-                                Zpět
-                            </button>
-
-                            ${this._currentStep < 3 ? html`
-                                <button @click=${this._nextStep}
-                                        class="group flex items-center px-6 py-2 bg-slate-900 text-white rounded-full text-sm font-bold hover:bg-black transition-all hover:shadow-lg">
-                                    Pokračovat
-                                    <svg class="w-4 h-4 ml-2 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                            <div class="mt-16 flex justify-center pb-8">
+                                <button @click=${this._handleSaveLesson}
+                                    class="group relative inline-flex items-center justify-center px-10 py-5 text-lg font-bold text-white transition-all duration-200 bg-indigo-600 rounded-full hover:bg-indigo-700 shadow-xl shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-1">
+                                    🚀 Publikovat a Zavřít
+                                    <svg class="w-5 h-5 ml-2 -mr-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                                 </button>
-                            ` : nothing}
+                            </div>
                         </div>
-                    `}
+
+                        <!-- === EDITOR VIEW === -->
+                        <div class="${this._viewMode === 'editor' ? 'block' : 'hidden'} h-full animate-fade-in flex flex-col">
+                            <div class="mb-6 flex items-center justify-between max-w-5xl mx-auto w-full">
+                                <button @click=${this._switchToHub} class="flex items-center text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors px-4 py-3 rounded-xl bg-slate-50 hover:bg-indigo-50">
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                                    Zpět na přehled
+                                </button>
+                                <h3 class="font-bold text-slate-800 text-lg flex items-center">
+                                    <span class="mr-2 text-2xl">${this.contentTypes.find(t => t.id === this._selectedContentType)?.icon}</span>
+                                    ${this.contentTypes.find(t => t.id === this._selectedContentType)?.label}
+                                </h3>
+                            </div>
+
+                            <!-- Active Editor Content -->
+                            <div id="active-editor-content" class="flex-grow bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 p-1 overflow-hidden max-w-5xl mx-auto w-full">
+                                <div class="h-full overflow-y-auto custom-scrollbar">
+                                     ${this.renderEditorContent(this._selectedContentType)}
+                                </div>
+                            </div>
+
+                            <!-- Footer inside Editor -->
+                            <div class="mt-6 flex justify-end max-w-5xl mx-auto w-full pb-8">
+                                <button @click=${() => {
+                                    this.shadowRoot.querySelector('editor-view-' + this._selectedContentType)?.save();
+                                    showToast("Sekce uložena");
+                                }}
+                                    class="text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:-translate-y-0.5 flex items-center">
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                                    Uložit změny
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
                 </div>
             </div>
             <style>
@@ -585,11 +519,12 @@ export class LessonEditor extends LitElement {
                 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
                 .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
                 .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 20px; }
 
                 /* --- ZEN MODE OVERRIDES for child component (editor-view-details) --- */
-                /* Remove card styling from child */
                 editor-view-details .bg-white { background: transparent !important; box-shadow: none !important; padding: 0 !important; }
-                /* Hide duplicate header */
                 editor-view-details h2 { display: none !important; }
 
                 /* Invisible Inputs Style */
@@ -637,7 +572,6 @@ export class LessonEditor extends LitElement {
                     margin-bottom: 0.25rem;
                     margin-top: 1rem;
                 }
-
             </style>
         `;
     }

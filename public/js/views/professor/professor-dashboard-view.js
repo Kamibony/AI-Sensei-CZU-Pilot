@@ -33,42 +33,62 @@ export class ProfessorDashboardView extends LitElement {
     }
 
     _fetchDashboardData() {
-        const user = firebaseInit.auth.currentUser;
-        if (!user) return;
+        // Wrap in onAuthStateChanged to ensure we have a user
+        const authUnsub = firebaseInit.auth.onAuthStateChanged(user => {
+            if (!user) {
+                // Not logged in or logged out
+                this._isLoading = false;
+                return;
+            }
 
-        this._isLoading = true;
+            this._isLoading = true;
 
-        // Fetch Classes
-        const classesQuery = query(collection(firebaseInit.db, 'groups'), where("ownerId", "==", user.uid));
-        const classesUnsubscribe = onSnapshot(classesQuery, (snapshot) => {
-            this._classes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        }, err => console.error("Error fetching classes:", err));
-        this.unsubscribes.push(classesUnsubscribe);
+            // Clear old listeners if any
+            this.unsubscribes.forEach(unsub => unsub());
+            this.unsubscribes = [];
 
-        // Fetch Students of this Professor
-        const studentsQuery = query(collection(firebaseInit.db, 'students'), where("ownerId", "==", user.uid));
-        const studentsUnsubscribe = onSnapshot(studentsQuery, (snapshot) => {
-            this._students = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        }, err => console.error("Error fetching students:", err));
-        this.unsubscribes.push(studentsUnsubscribe);
+            // Keep track of this listener to unsubscribe it too if needed,
+            // though typically onAuthStateChanged persists.
+            // But for this component, we just want to trigger the data fetch logic once we have a user.
+            // Actually, we should probably keep this listener active if the user changes?
+            // For now, let's just proceed with data fetching.
 
-        // Fetch Lessons of this Professor
-        const lessonsQuery = query(collection(firebaseInit.db, 'lessons'), where("ownerId", "==", user.uid));
-        const lessonsUnsubscribe = onSnapshot(lessonsQuery, (snapshot) => {
-            this._lessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            this._isLoading = false;
-        }, err => {
-            console.error("Error fetching lessons:", err);
-            this._isLoading = false;
+            // Fetch Classes
+            const classesQuery = query(collection(firebaseInit.db, 'groups'), where("ownerId", "==", user.uid));
+            const classesUnsubscribe = onSnapshot(classesQuery, (snapshot) => {
+                this._classes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            }, err => console.error("Error fetching classes:", err));
+            this.unsubscribes.push(classesUnsubscribe);
+
+            // Fetch Students of this Professor
+            const studentsQuery = query(collection(firebaseInit.db, 'students'), where("ownerId", "==", user.uid));
+            const studentsUnsubscribe = onSnapshot(studentsQuery, (snapshot) => {
+                this._students = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            }, err => console.error("Error fetching students:", err));
+            this.unsubscribes.push(studentsUnsubscribe);
+
+            // Fetch Lessons of this Professor
+            const lessonsQuery = query(collection(firebaseInit.db, 'lessons'), where("ownerId", "==", user.uid));
+            const lessonsUnsubscribe = onSnapshot(lessonsQuery, (snapshot) => {
+                this._lessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                this._isLoading = false;
+            }, err => {
+                console.error("Error fetching lessons:", err);
+                this._isLoading = false;
+            });
+            this.unsubscribes.push(lessonsUnsubscribe);
         });
-        this.unsubscribes.push(lessonsUnsubscribe);
+
+        // Add auth listener to unsubscribes so it gets cleaned up on disconnect
+        this.unsubscribes.push(authUnsub);
     }
 
     get _stats() {
         const totalStudents = new Set(this._classes.flatMap(c => c.studentIds || [])).size;
         const activeLessons = this._lessons.filter(l => l.assignedToGroups && l.assignedToGroups.length > 0).length;
+        const totalLessons = this._lessons.length;
         const totalClasses = this._classes.length;
-        return { totalStudents, activeLessons, totalClasses };
+        return { totalStudents, activeLessons, totalClasses, totalLessons };
     }
 
     _navigateToClassDetail(groupId) {
@@ -155,9 +175,9 @@ export class ProfessorDashboardView extends LitElement {
                         <div>
                             <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 pl-1">Přehled Managementu</h2>
                             <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                                ${this._renderStatCard("Studenti", this._stats.totalStudents, "users")}
-                                ${this._renderStatCard("Třídy", this._stats.totalClasses, "briefcase")}
-                                ${this._renderStatCard("Aktivity", "12", "activity")} <!-- Placeholder for more stats -->
+                                ${this._renderStatCard("Studenti", this._stats.totalStudents, "users", "students")}
+                                ${this._renderStatCard("Třídy", this._stats.totalClasses, "briefcase", "classes")}
+                                ${this._renderStatCard("Knihovna Lekcí", this._stats.totalLessons, "book", "timeline")}
                             </div>
                         </div>
 
@@ -235,20 +255,25 @@ export class ProfessorDashboardView extends LitElement {
     }
 
     // Bento Grid Stat Card
-    _renderStatCard(title, value, iconName) {
+    _renderStatCard(title, value, iconName, targetView) {
         const icons = {
             "users": "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
             "briefcase": "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
-            "activity": "M13 10V3L4 14h7v7l9-11h-7z"
+            "activity": "M13 10V3L4 14h7v7l9-11h-7z",
+            "book": "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
         };
         const d = icons[iconName] || icons["users"];
         const displayValue = (value !== undefined && value !== null) ? value : 0;
 
         return html`
-            <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm shadow-slate-200/50 flex flex-col justify-between h-32 hover:shadow-md transition-shadow">
+            <div @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: targetView }, bubbles: true, composed: true }))}
+                 class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm shadow-slate-200/50 flex flex-col justify-between h-32 hover:shadow-md cursor-pointer hover:scale-105 transition-transform relative group">
                 <div class="flex justify-between items-start">
                     <div class="text-slate-400">
                          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${d}"></path></svg>
+                    </div>
+                    <div class="text-slate-300 group-hover:text-indigo-500 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                     </div>
                 </div>
                 <div>
