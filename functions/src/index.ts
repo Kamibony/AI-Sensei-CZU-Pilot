@@ -45,7 +45,8 @@ async function sendTelegramMessage(chatId: number, text: string) {
 exports.generateContent = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300, // <-- ZMENENÉ (5 minút)
-    memory: '1GiB'
+    memory: '1GiB',
+    cors: true
 }, async (request: CallableRequest) => {
     const { contentType, promptData, filePaths } = request.data;
     if (!contentType || !promptData) {
@@ -88,7 +89,8 @@ exports.generateContent = onCall({
                     finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${promptData.questionCount || 5} otázkami. Obtížnost: ${promptData.difficulty || 'Střední'}. Typy otázek: ${promptData.questionTypes || 'Mix'}. Odpověď musí být JSON objekt s klíčem 'questions', ktorý obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
                     break;
                 case 'post':
-                     finalPrompt = `Vytvoř sérii ${promptData.episodeCount || 3} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string).`;
+                     const epCount = promptData.episode_count || promptData.episodeCount || 3;
+                     finalPrompt = `Vytvoř sérii ${epCount} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string).`;
                      break;
             }
         }
@@ -847,7 +849,7 @@ exports.joinClass = onCall({ region: DEPLOY_REGION }, async (request: CallableRe
     }
 });
 
-exports.registerUserWithRole = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, async (request: CallableRequest) => {
     logger.log("registerUserWithRole called", { data: request.data });
     const { email, password, role } = request.data;
 
