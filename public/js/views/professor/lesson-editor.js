@@ -2,9 +2,9 @@ import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@
 import { showToast } from '../../utils.js';
 import { loadSelectedFiles, renderSelectedFiles, initializeCourseMediaUpload, getSelectedFiles, renderMediaLibraryFiles } from '../../upload-handler.js';
 import { callGenerateContent } from '../../gemini-api.js';
-import { doc, updateDoc, serverTimestamp, addDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, updateDoc, serverTimestamp, addDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
-import './editor/editor-view-details.js';
+import { StudentLessonDetail } from '../../student/student-lesson-detail.js';
 import './editor/editor-view-text.js';
 import './editor/editor-view-presentation.js';
 import './editor/editor-view-video.js';
@@ -20,6 +20,8 @@ export class LessonEditor extends LitElement {
         _isLoading: { state: true, type: Boolean },
         _magicProgress: { state: true, type: String },
         _viewMode: { state: true, type: String },
+        _groups: { state: true, type: Array },
+        _showStudentPreview: { state: true, type: Boolean },
     };
 
     constructor() {
@@ -30,6 +32,8 @@ export class LessonEditor extends LitElement {
         this._isLoading = false;
         this._magicProgress = '';
         this._viewMode = 'settings'; // Default to settings (creation mode) for new lessons
+        this._groups = [];
+        this._showStudentPreview = false;
 
         this.steps = [
             { label: 'Základy', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
@@ -69,6 +73,54 @@ export class LessonEditor extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         loadSelectedFiles(this.lesson?.ragFilePaths || []);
+        this._fetchGroups();
+
+        // Check URL params to restore state
+        const params = new URLSearchParams(window.location.search);
+        const viewMode = params.get('viewMode');
+        const contentType = params.get('contentType');
+
+        if (viewMode) {
+            this._viewMode = viewMode;
+            if (viewMode === 'editor' && contentType) {
+                this._selectedContentType = contentType;
+            } else if (viewMode === 'hub') {
+                this._selectedContentType = null;
+            }
+        }
+    }
+
+    async _fetchGroups() {
+        const currentUser = firebaseInit.auth.currentUser;
+        if (!currentUser) return;
+
+        try {
+            const groupsQuery = query(
+                collection(firebaseInit.db, "groups"),
+                where("ownerId", "==", currentUser.uid)
+            );
+            const querySnapshot = await getDocs(groupsQuery);
+            this._groups = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+            console.error("Error fetching groups:", error);
+            showToast("Nepodařilo se načíst skupiny.", true);
+        }
+    }
+
+    _updateUrlParams() {
+        const url = new URL(window.location);
+        url.searchParams.set('viewMode', this._viewMode);
+
+        if (this._selectedContentType) {
+            url.searchParams.set('contentType', this._selectedContentType);
+        } else {
+            url.searchParams.delete('contentType');
+        }
+
+        // Only push if changed
+        if (window.location.search !== url.search) {
+            window.history.pushState({}, '', url);
+        }
     }
 
     updated(changedProperties) {
@@ -96,25 +148,24 @@ export class LessonEditor extends LitElement {
     _switchToHub() {
          // Validate Step 1 if coming from settings
          if (this._viewMode === 'settings') {
-             const detailsComponent = this.querySelector('editor-view-details');
-             if (detailsComponent) {
-                 const titleInput = detailsComponent.querySelector('#lesson-title-input');
-                 // Only block if trying to leave empty title on NEW lesson
-                 if ((!titleInput || !titleInput.value.trim()) && !this.lesson?.title) {
-                     showToast("Vyplňte prosím název lekce.", true);
-                     if(titleInput) titleInput.focus();
-                     return;
-                 }
-                 // Save basic info to local state
-                 this.lesson = { ...this.lesson, ...detailsComponent.getDetails() };
+             const titleInput = this.renderRoot.querySelector('#lesson-title-input');
+             // Only block if trying to leave empty title on NEW lesson
+             if ((!titleInput || !titleInput.value.trim()) && !this.lesson?.title) {
+                 showToast("Vyplňte prosím název lekce.", true);
+                 if(titleInput) titleInput.focus();
+                 return;
              }
+             // Save basic info to local state
+             this.lesson = { ...this.lesson, ...this._getDetails() };
          }
          this._viewMode = 'hub';
          this._selectedContentType = null;
+         this._updateUrlParams();
     }
 
     _switchToSettings() {
         this._viewMode = 'settings';
+        this._updateUrlParams();
     }
 
     _prevStep() {
@@ -132,17 +183,17 @@ export class LessonEditor extends LitElement {
         this._selectedContentType = null;
     }
 
-    async _handleSaveLesson() {
-        // Collect data from Step 1 (which might be hidden now, so we rely on this.lesson being updated)
-        // If we are on Step 3, detailsComponent might not be in DOM if hidden by CSS
-        // However, we updated this.lesson on _nextStep.
+    _getDetails() {
+        const title = this.renderRoot.querySelector('#lesson-title-input')?.value.trim() || '';
+        const subtitle = this.renderRoot.querySelector('#lesson-subtitle-input')?.value.trim() || '';
+        const assignedToGroups = Array.from(this.renderRoot.querySelectorAll('input[name="group-assignment"]:checked')).map(cb => cb.value);
 
-        // Re-read from component if available (safe check)
-        const detailsComponent = this.querySelector('editor-view-details');
-        let detailsData = {};
-        if (detailsComponent && detailsComponent.getDetails) {
-            detailsData = detailsComponent.getDetails();
-        }
+        return { title, subtitle, assignedToGroups };
+    }
+
+    async _handleSaveLesson() {
+        // Collect data from Step 1
+        const detailsData = this._getDetails();
 
         // Merge current lesson state with any fresh details
         const finalLessonData = { ...this.lesson, ...detailsData };
@@ -194,15 +245,12 @@ export class LessonEditor extends LitElement {
     }
 
     async _handleMagicGeneration() {
-        const detailsComponent = this.querySelector('editor-view-details');
-        if (!detailsComponent) return;
-
         // Validation
-        const title = detailsComponent.querySelector('#lesson-title-input').value.trim();
-        if (!title) { showToast("Nejdříve zadejte název lekce.", true); return; }
+        const titleInput = this.renderRoot.querySelector('#lesson-title-input');
+        if (!titleInput || !titleInput.value.trim()) { showToast("Nejdříve zadejte název lekce.", true); return; }
 
         // Save Basic Info First locally
-        this.lesson = { ...this.lesson, ...detailsComponent.getDetails() };
+        this.lesson = { ...this.lesson, ...this._getDetails() };
 
         // Get Files
         const currentFiles = getSelectedFiles();
@@ -301,6 +349,15 @@ export class LessonEditor extends LitElement {
     _switchToEditor(typeId) {
         this._selectedContentType = typeId;
         this._viewMode = 'editor';
+        this._updateUrlParams();
+    }
+
+    _openStudentPreview() {
+        this._showStudentPreview = true;
+    }
+
+    _closeStudentPreview() {
+        this._showStudentPreview = false;
     }
 
     _openRagModal(e) {
@@ -378,10 +435,51 @@ export class LessonEditor extends LitElement {
                         <!-- === SETTINGS VIEW (Old Step 1) === -->
                         <div class="${this._viewMode === 'settings' ? 'block' : 'hidden'} animate-fade-in space-y-8 max-w-3xl mx-auto">
                              <h2 class="text-3xl font-bold text-slate-900">Nastavení Lekce</h2>
-                             <editor-view-details
-                                .lesson=${this.lesson}
-                                @lesson-updated=${this._handleLessonUpdate}>
-                            </editor-view-details>
+
+                             <!-- INLINED SETTINGS FORM WITH FLOATING LABELS -->
+                             <div class="space-y-6 bg-white p-1 rounded-2xl">
+                                <div class="relative">
+                                    <input type="text" id="lesson-title-input"
+                                        class="block px-2.5 pb-2.5 pt-4 w-full text-4xl font-extrabold text-slate-900 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
+                                        placeholder=" "
+                                        .value="${this.lesson?.title || ''}" />
+                                    <label for="lesson-title-input"
+                                        class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
+                                        Název lekce
+                                    </label>
+                                </div>
+
+                                <div class="relative mt-4">
+                                    <input type="text" id="lesson-subtitle-input"
+                                        class="block px-2.5 pb-2.5 pt-4 w-full text-xl text-slate-600 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
+                                        placeholder=" "
+                                        .value="${this.lesson?.subtitle || ''}" />
+                                    <label for="lesson-subtitle-input"
+                                        class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
+                                        Podtitulek / Téma
+                                    </label>
+                                    <p class="text-xs text-slate-400 mt-1 pl-3">💡 Tip: Krátký popis tématu pomůže AI lépe zaměřit generovaný obsah.</p>
+                                </div>
+
+                                <div class="pt-4">
+                                    <label class="block font-medium text-slate-600 mb-2">Přiřadit do tříd:</label>
+                                    <div class="space-y-2 border rounded-lg p-3 bg-slate-50 max-h-40 overflow-y-auto">
+                                        ${this._groups.length > 0 ? this._groups.map(group => html`
+                                            <div class="flex items-center">
+                                                <input type="checkbox"
+                                                    id="group-${group.id}"
+                                                    name="group-assignment"
+                                                    value="${group.id}"
+                                                    .checked=${this.lesson?.assignedToGroups?.includes(group.id) || false}
+                                                    class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                                <label for="group-${group.id}" class="ml-3 text-sm text-gray-700">${group.name}</label>
+                                            </div>
+                                        `) : html`
+                                            <p class="text-xs text-slate-500">Zatím nemáte vytvořené žádné třídy.</p>
+                                        `}
+                                    </div>
+                                </div>
+                             </div>
 
                             <!-- File Upload Zone -->
                             <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center transition-all hover:border-indigo-300 hover:bg-indigo-50/30 group" id="course-media-upload-area">
@@ -421,11 +519,15 @@ export class LessonEditor extends LitElement {
                         <div class="${this._viewMode === 'hub' ? 'block' : 'hidden'} animate-fade-in flex flex-col h-full">
 
                             <!-- Hub Header -->
-                            <div class="text-center mb-10">
+                            <div class="text-center mb-10 relative">
                                 <h1 class="text-3xl font-bold text-slate-900 mb-2">${this.lesson?.title || 'Nová lekce'}</h1>
-                                <button @click=${this._switchToSettings} class="text-sm font-bold text-slate-400 hover:text-indigo-600 flex items-center justify-center mx-auto">
+                                <button @click=${this._switchToSettings} class="text-sm font-bold text-slate-400 hover:text-indigo-600 flex items-center justify-center mx-auto mb-4">
                                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                                     Upravit detaily a soubory
+                                </button>
+
+                                <button @click=${this._openStudentPreview} class="inline-flex items-center px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-sm font-bold hover:bg-indigo-100 transition-colors shadow-sm border border-indigo-100">
+                                    👁️ Náhled studenta
                                 </button>
                             </div>
 
@@ -501,7 +603,7 @@ export class LessonEditor extends LitElement {
                             <!-- Footer inside Editor -->
                             <div class="mt-6 flex justify-end max-w-5xl mx-auto w-full pb-8">
                                 <button @click=${() => {
-                                    this.shadowRoot.querySelector('editor-view-' + this._selectedContentType)?.save();
+                                    this.renderRoot.querySelector('editor-view-' + this._selectedContentType)?.save();
                                     showToast("Sekce uložena");
                                 }}
                                     class="text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:-translate-y-0.5 flex items-center">
@@ -510,9 +612,45 @@ export class LessonEditor extends LitElement {
                                 </button>
                             </div>
                         </div>
-
                     </div>
                 </div>
+
+                <!-- STUDENT PREVIEW MODAL -->
+                ${this._showStudentPreview ? html`
+                    <div class="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div class="relative w-full h-full max-w-sm max-h-[85vh] flex flex-col">
+                             <button @click=${this._closeStudentPreview} class="absolute -top-12 right-0 text-white hover:text-slate-200 font-bold flex items-center">
+                                Zavřít náhled <span class="text-2xl ml-2">×</span>
+                            </button>
+
+                            <!-- Mobile Frame -->
+                            <div class="w-full h-full bg-white border-8 border-slate-900 rounded-[3rem] overflow-hidden shadow-2xl relative flex flex-col">
+                                <!-- Mobile Status Bar Simulation -->
+                                <div class="h-7 bg-slate-900 w-full flex justify-between items-center px-6">
+                                    <span class="text-[10px] text-white font-mono">9:41</span>
+                                    <div class="flex space-x-1">
+                                        <div class="w-3 h-3 bg-slate-800 rounded-full"></div>
+                                        <div class="w-3 h-3 bg-slate-800 rounded-full"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Content -->
+                                <div class="flex-grow overflow-y-auto bg-slate-50 custom-scrollbar">
+                                    <student-lesson-detail
+                                        .lesson=${this.lesson}
+                                        .previewMode=${true}>
+                                    </student-lesson-detail>
+                                </div>
+
+                                <!-- Mobile Home Indicator -->
+                                <div class="h-1 bg-slate-900 w-full flex justify-center items-end pb-2">
+                                     <div class="w-1/3 h-1 bg-slate-200 rounded-full opacity-20"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+
             </div>
             <style>
                 /* Custom Animations for Zen Feel */
@@ -523,55 +661,6 @@ export class LessonEditor extends LitElement {
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 20px; }
 
-                /* --- ZEN MODE OVERRIDES for child component (editor-view-details) --- */
-                editor-view-details .bg-white { background: transparent !important; box-shadow: none !important; padding: 0 !important; }
-                editor-view-details h2 { display: none !important; }
-
-                /* Invisible Inputs Style */
-                editor-view-details input[type="text"] {
-                    background: transparent !important;
-                    border: none !important;
-                    border-bottom: 1px solid #e2e8f0 !important; /* slate-200 */
-                    border-radius: 0 !important;
-                    padding: 0.75rem 0 !important;
-                    box-shadow: none !important;
-                    transition: all 0.3s ease !important;
-                }
-                editor-view-details input[type="text"]:focus {
-                    border-bottom: 2px solid #4f46e5 !important; /* indigo-600 */
-                    ring: 0 !important;
-                    outline: none !important;
-                }
-
-                /* Make Title HUGE */
-                editor-view-details #lesson-title-input {
-                    font-size: 2.25rem !important; /* text-4xl */
-                    line-height: 2.5rem !important;
-                    font-weight: 800 !important;
-                    color: #0f172a !important; /* slate-900 */
-                    margin-bottom: 1rem !important;
-                }
-                editor-view-details #lesson-title-input::placeholder {
-                    color: #cbd5e1 !important; /* slate-300 */
-                }
-
-                /* Make Subtitle Large */
-                editor-view-details #lesson-subtitle-input {
-                    font-size: 1.25rem !important; /* text-xl */
-                    color: #64748b !important; /* slate-500 */
-                }
-
-                /* Hide labels for Title/Subtitle as placeholders are enough in Zen Mode */
-                editor-view-details label {
-                    display: block;
-                    font-size: 0.75rem;
-                    font-weight: 600;
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                    color: #94a3b8; /* slate-400 */
-                    margin-bottom: 0.25rem;
-                    margin-top: 1rem;
-                }
             </style>
         `;
     }
