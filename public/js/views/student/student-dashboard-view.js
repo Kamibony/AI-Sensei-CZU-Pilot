@@ -1,5 +1,5 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
 
@@ -9,6 +9,9 @@ export class StudentDashboardView extends LitElement {
         _recentLesson: { type: Object, state: true },
         _groups: { type: Array, state: true },
         _isLoading: { type: Boolean, state: true },
+        _showJoinModal: { type: Boolean, state: true },
+        _joinCodeInput: { type: String, state: true },
+        _joining: { type: Boolean, state: true },
     };
 
     constructor() {
@@ -18,6 +21,9 @@ export class StudentDashboardView extends LitElement {
         this._groups = [];
         this._isLoading = true;
         this._studentUnsubscribe = null;
+        this._showJoinModal = false;
+        this._joinCodeInput = '';
+        this._joining = false;
     }
 
     createRenderRoot() {
@@ -128,6 +134,59 @@ export class StudentDashboardView extends LitElement {
         }));
     }
 
+    async _handleJoinClass() {
+        const code = this._joinCodeInput.trim();
+        if (!code) {
+            showToast("Zadejte kód třídy", true);
+            return;
+        }
+
+        this._joining = true;
+        try {
+            // 1. Find group by code
+            const q = query(collection(firebaseInit.db, "groups"), where("joinCode", "==", code));
+            const querySnapshot = await getDocs(q);
+
+            if (querySnapshot.empty) {
+                showToast("Třída s tímto kódem neexistuje", true);
+                this._joining = false;
+                return;
+            }
+
+            const groupDoc = querySnapshot.docs[0];
+            const groupId = groupDoc.id;
+
+            // 2. Add student to group (update student doc)
+            const user = firebaseInit.auth.currentUser;
+            await updateDoc(doc(firebaseInit.db, "students", user.uid), {
+                memberOfGroups: arrayUnion(groupId)
+            });
+
+            // 3. Add student to group's student list (update group doc)
+            // Note: This dual-write ideally happens in a transaction or Cloud Function 'joinClass',
+            // but we follow the instruction to use updateDoc on student here.
+            // We do best effort on the group doc too.
+            try {
+                await updateDoc(doc(firebaseInit.db, "groups", groupId), {
+                    studentIds: arrayUnion(user.uid)
+                });
+            } catch (e) {
+                console.warn("Could not update group list directly (likely permissions).", e);
+            }
+
+            showToast("Úspěšně připojeno k třídě!");
+            this._showJoinModal = false;
+            this._joinCodeInput = '';
+            // Data will refresh automatically via listener
+
+        } catch (error) {
+            console.error("Error joining class:", error);
+            showToast("Chyba při připojování: " + error.message, true);
+        } finally {
+            this._joining = false;
+        }
+    }
+
     render() {
         if (this._isLoading) {
              return html`
@@ -160,14 +219,18 @@ export class StudentDashboardView extends LitElement {
                                 </div>
                                 <span class="text-xs font-medium text-slate-700 mt-2 max-w-[4rem] truncate text-center">${group.name}</span>
                             </div>
-                        `) : html`
-                            <div class="flex flex-col items-center flex-shrink-0">
-                                <div class="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center">
-                                    <span class="text-2xl text-slate-400">+</span>
+                        `) : nothing}
+
+                        <!-- Always show Add button if groups are empty, or just append it? -->
+                        <!-- Requirement: If _groups.length === 0, render highlighted Add circle. -->
+                        ${this._groups.length === 0 ? html`
+                            <div @click=${() => this._showJoinModal = true} class="flex flex-col items-center flex-shrink-0 cursor-pointer group">
+                                <div class="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-300 transform group-hover:scale-110 transition-all duration-300">
+                                    <span class="text-2xl text-white font-bold">+</span>
                                 </div>
-                                <span class="text-xs font-medium text-slate-500 mt-2">Žádné třídy</span>
+                                <span class="text-xs font-bold text-indigo-700 mt-2">Připojit se</span>
                             </div>
-                        `}
+                        ` : nothing}
                     </div>
                 </div>
 
@@ -236,6 +299,37 @@ export class StudentDashboardView extends LitElement {
                 </div>
 
             </div>
+
+            <!-- Join Class Modal -->
+            ${this._showJoinModal ? html`
+                <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+                    <div class="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl relative animate-fade-in">
+                        <button @click=${() => this._showJoinModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+
+                        <div class="text-center mb-6">
+                            <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">🔑</div>
+                            <h3 class="text-xl font-bold text-slate-900">Připojit se ke třídě</h3>
+                            <p class="text-slate-500 text-sm mt-1">Zadejte kód, který vám poslal učitel.</p>
+                        </div>
+
+                        <div class="space-y-4">
+                            <input type="text"
+                                .value=${this._joinCodeInput}
+                                @input=${e => this._joinCodeInput = e.target.value.toUpperCase()}
+                                placeholder="Např. A1B2C"
+                                class="w-full text-center text-2xl font-mono font-bold tracking-widest border-2 border-slate-200 rounded-xl py-4 uppercase focus:border-indigo-500 focus:ring-0 text-slate-800 placeholder-slate-300 transition-colors"
+                            />
+
+                            <button @click=${this._handleJoinClass} ?disabled=${this._joining}
+                                class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transform active:scale-95 transition-all flex items-center justify-center">
+                                ${this._joining ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span> Připojuji...` : 'Vstoupit do třídy'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ` : nothing}
         `;
     }
 }
