@@ -295,16 +295,22 @@ export class LessonEditor extends LitElement {
                 this._magicProgress = `Generuji ${this.contentTypes.find(t=>t.id===type).label}...`;
                 this.requestUpdate();
 
+                let specificPrompt = `Téma lekce: ${this.lesson.title}. ${this.lesson.subtitle || ''}`;
+                let episodeCount = undefined;
+
+                if (type === 'post') {
+                    // Force 1 episode for Magic flow by sending explicit count to backend
+                    // Keep prompt simple (Topic) so backend wrapper works correctly
+                    specificPrompt = `${this.lesson.title}. ${this.lesson.subtitle || ''}. Formát: Rozhovor moderátora a experta. Délka cca 5 minut. Detailní scénář.`;
+                    episodeCount = 1;
+                }
+
                 // Build Prompt Data
                 const promptData = {
-                    userPrompt: `Téma lekce: ${this.lesson.title}. ${this.lesson.subtitle || ''}`,
-                    slide_count: 5 // Default for magic
+                    userPrompt: specificPrompt,
+                    slide_count: 5, // Default for magic
+                    episode_count: episodeCount
                 };
-
-                // Customize prompt for Podcast to ensure generation
-                if (type === 'post') {
-                    promptData.userPrompt = `Vytvoř poutavý scénář pro vzdělávací podcast na téma: ${this.lesson.title}.`;
-                }
 
                 const result = await callGenerateContent({ contentType: type, promptData, filePaths });
 
