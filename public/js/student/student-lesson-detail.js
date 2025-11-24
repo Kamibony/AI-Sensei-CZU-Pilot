@@ -33,6 +33,7 @@ export class StudentLessonDetail extends LitElement {
             availableTabs: { type: Array, state: true },
             activeTabId: { type: String, state: true },
             isLoading: { type: Boolean, state: true },
+            _viewMode: { type: String, state: true } // 'hub' or 'content'
         };
     }
 
@@ -44,6 +45,7 @@ export class StudentLessonDetail extends LitElement {
         this.availableTabs = [];
         this.activeTabId = null;
         this.isLoading = true;
+        this._viewMode = 'hub';
     }
 
     createRenderRoot() {
@@ -59,6 +61,7 @@ export class StudentLessonDetail extends LitElement {
     async _fetchLessonDetail() {
         this.isLoading = true;
         this.lessonData = null;
+        this._viewMode = 'hub'; // Reset to hub on new lesson
         try {
             const docRef = doc(firebaseInit.db, "lessons", this.lessonId);
             const docSnap = await getDoc(docRef);
@@ -66,9 +69,6 @@ export class StudentLessonDetail extends LitElement {
             if (docSnap.exists()) {
                 this.lessonData = normalizeLessonData(docSnap.data());
                 this._buildAvailableTabs();
-                if (this.availableTabs.length > 0) {
-                    this.activeTabId = this.availableTabs[0].id;
-                }
             } else {
                 console.error("Lekce nenalezena!");
             }
@@ -80,75 +80,147 @@ export class StudentLessonDetail extends LitElement {
     }
 
     _buildAvailableTabs() {
-        // Pôvodná logika z `renderLessonTabs`
+        // Build tab list with metadata for the Hub
         const tabs = [];
-        if (this.lessonData.text_content) tabs.push({ id: 'text', name: 'Text' });
-        if (this.lessonData.youtube_link) tabs.push({ id: 'video', name: 'Video' });
-        if (this.lessonData.presentation) tabs.push({ id: 'presentation', name: 'Prezentace' });
-        if (this.lessonData.quiz) tabs.push({ id: 'quiz', name: 'Kvíz' });
-        if (this.lessonData.test) tabs.push({ id: 'test', name: 'Test' });
-        if (this.lessonData.podcast_script) tabs.push({ id: 'podcast', name: 'Podcast' });
-        tabs.push({ id: 'ai-assistant', name: 'AI Asistent' });
-        tabs.push({ id: 'professor-chat', name: 'Konzultace' });
+
+        // Helper to add tabs
+        const addTab = (id, name, icon, description, colorClass) => {
+            tabs.push({ id, name, icon, description, colorClass });
+        };
+
+        if (this.lessonData.text_content)
+            addTab('text', 'Studijní Text', '📝', 'Přečtěte si látku k lekci', 'bg-blue-50 text-blue-600');
+
+        if (this.lessonData.youtube_link)
+            addTab('video', 'Video', '🎬', 'Sledujte video výklad', 'bg-red-50 text-red-600');
+
+        if (this.lessonData.presentation)
+            addTab('presentation', 'Prezentace', '📊', 'Prohlédněte si slidy', 'bg-orange-50 text-orange-600');
+
+        if (this.lessonData.podcast_script)
+            addTab('podcast', 'Podcast', '🎙️', 'Poslechněte si audio verzi', 'bg-purple-50 text-purple-600');
+
+        if (this.lessonData.quiz)
+            addTab('quiz', 'Kvíz', '❓', 'Otestujte své znalosti', 'bg-green-50 text-green-600');
+
+        if (this.lessonData.test)
+            addTab('test', 'Test', '📝', 'Závěrečný test lekce', 'bg-emerald-50 text-emerald-600');
+
+        // Always available tools
+        addTab('ai-assistant', 'AI Asistent', '🤖', 'Zeptejte se umělé inteligence', 'bg-indigo-50 text-indigo-600');
+        addTab('professor-chat', 'Konzultace', '💬', 'Napište profesorovi', 'bg-slate-50 text-slate-600');
         
         this.availableTabs = tabs;
     }
 
-    _handleBackClick() {
-        // Vypálime udalosť, že sa chceme vrátiť späť
+    _handleBackToList() {
         const event = new CustomEvent('back-to-list', { bubbles: true, composed: true });
         this.dispatchEvent(event);
     }
 
-    _handleTabClick(tabId) {
-        // Zastavíme podcast, ak beží
+    _handleHubItemClick(tabId) {
+        this.activeTabId = tabId;
+        this._viewMode = 'content';
+        window.scrollTo(0, 0);
+    }
+
+    _handleBackToHub() {
+        // Stop podcast if playing
         if (window.speechSynthesis && window.speechSynthesis.speaking) {
             window.speechSynthesis.cancel();
         }
-        this.activeTabId = tabId;
+        this._viewMode = 'hub';
+        this.activeTabId = null;
     }
 
     render() {
         if (this.isLoading) {
-            return html`<div class="text-center text-slate-500">Načítání lekce...</div>`;
+            return html`
+                <div class="flex justify-center items-center h-full pt-20">
+                     <div class="spinner w-12 h-12 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                </div>`;
         }
 
         if (!this.lessonData) {
-            return html`<p class="text-red-500">Nepodařilo se načíst lekci.</p>`;
+            return html`<div class="p-8 text-center text-red-500">Nepodařilo se načíst lekci.</div>`;
         }
 
+        if (this._viewMode === 'hub') {
+            return this._renderHub();
+        } else {
+            return this._renderContentMode();
+        }
+    }
+
+    _renderHub() {
         return html`
-            <div class="mb-6">
-                <button @click=${this._handleBackClick} class="text-green-700 hover:underline flex items-center">
-                    &larr; Zpět na přehled lekcí
-                </button>
-            </div>
-            <div class="bg-white p-4 md:p-8 rounded-2xl shadow-lg mb-6">
-                <h2 class="text-2xl md:text-3xl font-bold mb-4">${this.lessonData.title}</h2>
-                
-                <div id="lesson-tabs" class="mb-4 md:mb-6 flex flex-wrap gap-2">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <!-- Header -->
+                <div class="mb-8">
+                    <button @click=${this._handleBackToList} class="mb-4 text-slate-500 hover:text-indigo-600 flex items-center transition-colors">
+                        <span class="mr-2">←</span> Zpět do knihovny
+                    </button>
+                    <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-2">${this.lessonData.title}</h1>
+                    ${this.lessonData.subtitle ? html`<p class="text-lg text-slate-500 max-w-3xl">${this.lessonData.subtitle}</p>` : ''}
+                </div>
+
+                <!-- Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     ${this.availableTabs.map(tab => html`
-                        <button 
-                            id="${tab.id}-tab"
-                            class="px-4 py-2 md:px-5 md:py-2.5 font-semibold transition-all rounded-full text-sm md:text-base flex-shrink-0 
-                                ${this.activeTabId === tab.id 
-                                    ? 'bg-green-700 text-white shadow-md' 
-                                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}"
-                            @click=${() => this._handleTabClick(tab.id)}>
-                            ${tab.name}
-                        </button>
+                        <div @click=${() => this._handleHubItemClick(tab.id)}
+                             class="group bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl border border-slate-100 cursor-pointer transition-all duration-300 transform hover:-translate-y-1">
+
+                            <div class="flex items-start justify-between mb-6">
+                                <div class="w-16 h-16 rounded-2xl ${tab.colorClass} flex items-center justify-center text-3xl shadow-sm group-hover:scale-110 transition-transform duration-300">
+                                    ${tab.icon}
+                                </div>
+                                <div class="bg-slate-50 text-slate-400 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                                    ✨ Začít
+                                </div>
+                            </div>
+
+                            <h3 class="text-xl font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors">${tab.name}</h3>
+                            <p class="text-slate-500 text-sm leading-relaxed">${tab.description}</p>
+                        </div>
                     `)}
                 </div>
-                
-                <div id="lesson-tab-content" class="mt-4">
-                    ${this._renderTabContent()}
+            </div>
+        `;
+    }
+
+    _renderContentMode() {
+        const activeTab = this.availableTabs.find(t => t.id === this.activeTabId);
+
+        return html`
+            <div class="flex flex-col min-h-screen bg-slate-50">
+                <!-- Sticky Header -->
+                <div class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
+                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                        <button @click=${this._handleBackToHub} class="flex items-center text-slate-600 hover:text-indigo-600 font-medium transition-colors">
+                            <span class="mr-2 text-xl">←</span>
+                            <span class="hidden sm:inline">Zpět na přehled lekce</span>
+                            <span class="sm:hidden">Zpět</span>
+                        </button>
+
+                        <div class="font-bold text-slate-800 text-lg truncate px-4">
+                            ${activeTab ? activeTab.name : ''}
+                        </div>
+
+                        <div class="w-8"></div> <!-- Spacer for centering -->
+                    </div>
+                </div>
+
+                <!-- Content Area -->
+                <div class="flex-grow max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 md:p-8 min-h-[500px]">
+                        ${this._renderTabContent()}
+                    </div>
                 </div>
             </div>
         `;
     }
 
     _renderTabContent() {
-        // Pôvodná logika z `switchTab`
         // `renderPresentation` je špeciálny prípad, lebo manipuluje s DOM, musíme mu dať kontajner
         if (this.activeTabId === 'presentation') {
             // Počkáme, kým sa tento div vyrenderuje, a potom doň vložíme prezentáciu
@@ -165,23 +237,22 @@ export class StudentLessonDetail extends LitElement {
         switch (this.activeTabId) {
             case 'text':
                 // ==== ZMENA: Použijeme marked.parse() na prevod Markdown na HTML ====
-                // Skontrolujeme, či `marked` existuje (načítal sa zo scriptu v index.html)
                 if (typeof marked === 'undefined') {
                     console.error("Knižnica marked.js nie je načítaná!");
                     return html`<p class="text-red-500">Chyba: Nepodarilo sa spracovať formátovanie textu.</p>`;
                 }
                 const textContentDiv = document.createElement('div');
-                textContentDiv.className = "prose max-w-none"; // 'prose' je dôležité pre Tailwind
-                // Prevedieme Markdown na HTML a vložíme ho
-                // marked.parse() automaticky spracuje aj \n (väčšinou)
+                textContentDiv.className = "prose prose-indigo max-w-none prose-lg"; // Added prose-indigo and prose-lg
                 textContentDiv.innerHTML = marked.parse(this.lessonData.text_content || ''); 
                 return html`${textContentDiv}`;
-                // ====================================================================
                 
             case 'video':
                 const videoIdMatch = this.lessonData.youtube_link ? this.lessonData.youtube_link.match(/(?:v=|\/embed\/|\.be\/)([\w-]{11})/) : null;
                 if (videoIdMatch && videoIdMatch[1]) {
-                    return html`<iframe class="w-full aspect-video rounded-lg" src="https://www.youtube.com/embed/${videoIdMatch[1]}" frameborder="0" allowfullscreen></iframe>`;
+                    return html`
+                        <div class="aspect-video w-full rounded-2xl overflow-hidden shadow-lg">
+                            <iframe class="w-full h-full" src="https://www.youtube.com/embed/${videoIdMatch[1]}" frameborder="0" allowfullscreen></iframe>
+                        </div>`;
                 } else {
                     return html`<p class="text-red-500">Neplatný nebo chybějící YouTube odkaz.</p>`;
                 }

@@ -10,7 +10,7 @@ import { handleLogout } from './auth.js';
 // Importujeme hlavné komponenty zobrazenia
 import './student/student-lesson-list.js';
 import './student/student-lesson-detail.js';
-import './student/chat-panel.js'; // Ensure this path is correct based on list_files
+import './student/chat-panel.js';
 import './views/student/student-dashboard-view.js';
 
 // Globálny stav pre študentskú sekciu
@@ -149,25 +149,38 @@ function renderStudentLayout() {
 }
 
 function renderDesktopNavigation() {
+    // Apply Professor styling: bg-white/90, backdrop-blur-xl, border-r
+    mainNav.className = 'hidden md:flex fixed top-0 left-0 h-full w-64 bg-white/90 backdrop-blur-xl border-r border-slate-100 z-50 flex-col justify-between transition-all duration-300';
+
     mainNav.innerHTML = `
-        <div class="flex flex-col items-center w-full h-full pt-6">
-             <div class="mb-8 p-2 rounded-xl bg-green-900/50">
-                <span class="text-2xl">🎓</span>
+        <!-- Top Section: Logo & Menu -->
+        <div class="flex flex-col w-full">
+            <!-- Logo -->
+            <div id="nav-logo" class="h-20 flex items-center justify-start px-6 cursor-pointer group">
+                 <div class="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center shadow-md shadow-indigo-200 font-bold text-lg flex-shrink-0 group-hover:scale-105 transition-transform">
+                    A
+                </div>
+                <span class="ml-3 font-bold text-slate-800 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">
+                    AI Sensei
+                </span>
             </div>
 
-            <div class="flex flex-col w-full space-y-2 px-2">
+            <div class="mt-4 space-y-1 px-3">
                 ${renderDesktopNavItem('home', 'Domů', '🏠')}
                 ${renderDesktopNavItem('courses', 'Knihovna', '📚')}
                 ${renderDesktopNavItem('chat', 'Chat', '💬')}
                 ${renderDesktopNavItem('profile', 'Profil', '👤')}
             </div>
+        </div>
 
-             <div class="mt-auto pb-6 w-full px-2">
-                <button id="desktop-logout-btn" class="flex items-center w-full p-3 rounded-xl text-green-100 hover:bg-green-700 transition-colors">
-                    <span class="mr-3 text-xl">🚪</span>
-                    <span class="font-medium hidden lg:inline">Odhlásit</span>
-                </button>
-            </div>
+        <!-- Bottom Section: Logout -->
+        <div class="p-4 border-t border-slate-100 space-y-1">
+             <button id="desktop-logout-btn" class="w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-400 hover:bg-red-50 hover:text-red-600 group">
+                <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
+                    <span class="text-xl group-hover:translate-x-1 transition-transform">🚪</span>
+                </div>
+                <span class="ml-2 text-sm font-medium">Odhlásit</span>
+            </button>
         </div>
     `;
 
@@ -181,24 +194,37 @@ function renderDesktopNavigation() {
     });
 
     document.getElementById('desktop-logout-btn').addEventListener('click', handleLogout);
+
+    // Logo Click to Dashboard
+    const logo = mainNav.querySelector('#nav-logo');
+    if (logo) {
+        logo.addEventListener('click', () => {
+             currentView = 'home';
+             renderAppContent();
+             updateNavigationState();
+        });
+    }
 }
 
 function renderDesktopNavItem(viewName, label, icon) {
+    // Style: nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent
     return `
-        <button id="nav-desktop-${viewName}" class="nav-item flex items-center w-full p-3 rounded-xl text-green-100 hover:bg-green-700 transition-all duration-200 group">
-            <span class="mr-3 text-xl group-hover:scale-110 transition-transform">${icon}</span>
-            <span class="font-medium hidden lg:inline">${label}</span>
+        <button id="nav-desktop-${viewName}" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
+            <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
+                <span class="text-xl transition-transform group-hover:scale-110">${icon}</span>
+            </div>
+            <span class="ml-2 text-sm font-medium">${label}</span>
         </button>
     `;
 }
 
 function renderMobileNavigation() {
-    // Style: Fixed bottom, bg-white/90, backdrop-blur, border-t, pb-safe
+    // Style: fixed bottom-0 w-full bg-white/95 backdrop-blur border-t border-slate-200 flex justify-around p-3 z-50
     mobileBottomNav.className = "md:hidden fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-md border-t border-slate-200 pb-safe z-50 flex justify-around items-center px-2 py-2 safe-area-pb";
 
     mobileBottomNav.innerHTML = `
         ${renderMobileNavItem('home', 'Domů', '🏠')}
-        ${renderMobileNavItem('courses', 'Kurzy', '📚')}
+        ${renderMobileNavItem('courses', 'Knihovna', '📚')}
         ${renderMobileNavItem('chat', 'Chat', '💬')}
         ${renderMobileNavItem('profile', 'Profil', '👤')}
     `;
@@ -215,8 +241,8 @@ function renderMobileNavigation() {
 
 function renderMobileNavItem(viewName, label, icon) {
     return `
-        <button id="nav-mobile-${viewName}" class="nav-item flex flex-col items-center justify-center w-full py-1 text-slate-400 hover:text-slate-600 transition-colors">
-            <span class="text-2xl mb-0.5 transform transition-transform duration-200 nav-icon">${icon}</span>
+        <button id="nav-mobile-${viewName}" class="nav-item flex flex-col items-center justify-center w-full py-2 text-slate-400 hover:text-slate-600 transition-colors">
+            <span class="text-2xl mb-1 transform transition-transform duration-200 nav-icon">${icon}</span>
             <span class="text-[10px] font-medium tracking-wide nav-label">${label}</span>
         </button>
     `;
@@ -230,18 +256,19 @@ function updateNavigationState() {
 
     // Desktop
     document.querySelectorAll('#main-nav .nav-item').forEach(el => {
-        el.classList.remove('bg-green-700', 'text-white', 'shadow-lg');
-        el.classList.add('text-green-100');
+        // Reset classes
+        el.className = 'nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent';
     });
+
     const activeDesktop = document.getElementById(`nav-desktop-${activeTab}`);
     if (activeDesktop) {
-        activeDesktop.classList.add('bg-green-700', 'text-white', 'shadow-lg');
-        activeDesktop.classList.remove('text-green-100');
+        // Active Style: bg-slate-50 text-indigo-600 font-semibold group border-l-4 border-indigo-500 shadow-sm
+        activeDesktop.className = 'nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 bg-slate-50 text-indigo-600 font-semibold group border-l-4 border-indigo-500 shadow-sm';
     }
 
     // Mobile
     document.querySelectorAll('#mobile-bottom-nav .nav-item').forEach(el => {
-        el.classList.remove('text-green-600');
+        el.classList.remove('text-indigo-600');
         el.classList.add('text-slate-400');
 
         const icon = el.querySelector('.nav-icon');
@@ -251,7 +278,7 @@ function updateNavigationState() {
     const activeMobile = document.getElementById(`nav-mobile-${activeTab}`);
     if (activeMobile) {
         activeMobile.classList.remove('text-slate-400');
-        activeMobile.classList.add('text-green-600');
+        activeMobile.classList.add('text-indigo-600');
 
         const icon = activeMobile.querySelector('.nav-icon');
         if (icon) icon.classList.add('scale-110');
@@ -262,8 +289,8 @@ function renderAppContent() {
     const container = document.getElementById('role-content-wrapper');
     if (!container) return;
 
-    // Ensure padding for bottom nav on mobile
-    container.className = "flex-grow flex flex-col overflow-y-auto bg-slate-50 pb-24 md:pb-0";
+    // Added md:pl-64 to account for fixed sidebar
+    container.className = "flex-grow flex flex-col overflow-y-auto bg-slate-50 pb-24 md:pb-0 md:pl-64 transition-all duration-300";
 
     switch (currentView) {
         case 'promptForName':
@@ -299,7 +326,7 @@ function renderAppContent() {
         default:
             container.innerHTML = `
                 <div class="flex justify-center items-center h-full">
-                     <div class="spinner w-12 h-12 border-4 border-slate-200 border-t-green-600 rounded-full animate-spin"></div>
+                     <div class="spinner w-12 h-12 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin"></div>
                 </div>`;
             break;
     }

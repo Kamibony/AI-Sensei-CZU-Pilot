@@ -110,24 +110,23 @@ export class StudentLessonList extends LitElement {
         }));
     }
 
-    // Pomocná metóda pre renderovanie obsahu, aby sme predišli chybám v syntaxi
     _renderContent() {
         if (this.isLoading) {
             return html`
                 <div class="flex justify-center items-center h-64">
-                     <div class="spinner w-12 h-12 border-4 border-slate-200 border-t-green-600 rounded-full animate-spin"></div>
+                     <div class="spinner w-12 h-12 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin"></div>
                 </div>`;
         }
 
         if (this.error) {
-            return html`<div class="bg-red-50 p-4 text-red-700 rounded-lg flex items-center"><span class="mr-2">⚠️</span> ${this.error}</div>`;
+            return html`<div class="bg-red-50 p-4 text-red-700 rounded-2xl flex items-center shadow-sm"><span class="mr-2">⚠️</span> ${this.error}</div>`;
         }
 
         if (this.isNotInAnyGroup) {
             return html`
                 <div class="text-center py-16 bg-white rounded-3xl border border-slate-100 shadow-sm">
                     <div class="text-5xl mb-4">🚪</div>
-                    <h3 class="text-lg font-medium text-slate-900">Zatím nejste v žádné třídě</h3>
+                    <h3 class="text-xl font-bold text-slate-800">Zatím nejste v žádné třídě</h3>
                     <p class="text-slate-500 mt-2">Připojte se prosím do třídy pomocí kódu od vašeho profesora.</p>
                 </div>`;
         }
@@ -136,7 +135,7 @@ export class StudentLessonList extends LitElement {
             return html`
                 <div class="text-center py-16 bg-white rounded-3xl border border-slate-100 shadow-sm">
                     <div class="text-5xl mb-4">📭</div>
-                    <h3 class="text-lg font-medium text-slate-900">Žádné lekce</h3>
+                    <h3 class="text-xl font-bold text-slate-800">Žádné lekce</h3>
                     <p class="text-slate-500 mt-2">Zatím vám nebyly přiřazeny žádné lekce.</p>
                 </div>`;
         }
@@ -145,23 +144,30 @@ export class StudentLessonList extends LitElement {
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 ${this.lessons.map(lesson => html`
                     <div @click=${() => this._handleLessonClick(lesson.id)}
-                         class="group bg-white rounded-2xl shadow-sm hover:shadow-xl border border-slate-200 overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 flex flex-col h-full min-h-[220px]">
+                         class="group bg-white rounded-2xl shadow-sm hover:shadow-xl hover:shadow-indigo-100/50 overflow-hidden cursor-pointer transition-all duration-300 transform hover:-translate-y-1 flex flex-col h-full min-h-[260px] border border-slate-100">
                         
-                        <div class="h-3 bg-gradient-to-r from-green-500 to-emerald-600"></div>
+                        <!-- Colorful Gradient Header Strip -->
+                        <div class="h-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
                         
                         <div class="p-6 flex flex-col flex-grow justify-between">
                             <div>
-                                <h3 class="text-xl font-bold text-slate-800 leading-tight group-hover:text-green-700 transition-colors line-clamp-2 mb-3">
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
+                                        Lekce
+                                    </span>
+                                    <span class="text-xs text-slate-400">
+                                        ${lesson.createdAt ? new Date(lesson.createdAt).toLocaleDateString('cs-CZ') : ''}
+                                    </span>
+                                </div>
+
+                                <h3 class="text-2xl font-bold text-slate-800 leading-tight group-hover:text-indigo-600 transition-colors line-clamp-2 mb-3">
                                     ${lesson.title}
                                 </h3>
-                                ${lesson.subtitle ? html`<p class="text-sm text-slate-600 line-clamp-3">${lesson.subtitle}</p>` : nothing}
+                                ${lesson.subtitle ? html`<p class="text-sm text-slate-500 line-clamp-3 leading-relaxed">${lesson.subtitle}</p>` : nothing}
                             </div>
                             
-                            <div class="flex items-center justify-between mt-6 pt-4 border-t border-slate-50">
-                                <span class="text-xs text-slate-400">
-                                    ${lesson.createdAt ? new Date(lesson.createdAt).toLocaleDateString('cs-CZ') : ''}
-                                </span>
-                                <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-green-50 text-green-700 group-hover:bg-green-600 group-hover:text-white transition-colors">
+                            <div class="mt-8 pt-4 border-t border-slate-50 flex items-center justify-end">
+                                <span class="inline-flex items-center px-6 py-2 rounded-full text-sm font-bold bg-slate-900 text-white shadow-lg group-hover:bg-indigo-600 group-hover:shadow-indigo-200 transition-all duration-300">
                                     Otevřít
                                 </span>
                             </div>
@@ -176,12 +182,11 @@ export class StudentLessonList extends LitElement {
         return html`
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div class="flex items-center justify-between mb-8">
-                    <h2 class="text-3xl font-extrabold text-slate-900 tracking-tight">Knihovna Kurzů</h2>
-                    <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
-                            <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.28l4.69 4.69a.75.75 0 11-1.06 1.06l-4.69-4.69A8.25 8.25 0 012.25 10.5z" clip-rule="evenodd" />
-                        </svg>
+                    <div>
+                        <h2 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">Knihovna</h2>
+                        <p class="text-slate-500 mt-1">Vaše studijní materiály a lekce</p>
                     </div>
+
                 </div>
                 ${this._renderContent()}
             </div>
