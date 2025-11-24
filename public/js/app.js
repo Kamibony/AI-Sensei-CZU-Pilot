@@ -66,6 +66,7 @@ async function main() {
                 if (typeof cleanupStudentDashboard === 'function') {
                     cleanupStudentDashboard();
                 }
+                renderMainLayout();
                 initStudentApp();
             } else {
                 // Ak rola stále chýba, odhlásime ho s chybou

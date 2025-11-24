@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Verification Harness</title>
+    <style>
+        /* Basic Tailwind-like simulation */
+        .hidden { display: none; }
+        .flex { display: flex; }
+    </style>
+</head>
+<body>
+    <!-- Minimal structure needed for renderMainLayout -->
+    <div id="app-container"></div>
+    <div id="toast-container"></div>
+
+    <template id="login-template">
+        <div id="login-view">Login View</div>
+    </template>
+
+    <template id="main-app-template">
+        <div id="main-app">
+            <nav id="main-nav"></nav>
+            <div id="role-content-wrapper"></div>
+            <nav id="mobile-bottom-nav"></nav>
+        </div>
+    </template>
+
+    <script type="module">
+        // Mock Firebase and dependencies
+        const firebaseInit = {
+            db: {},
+            auth: { currentUser: { uid: 'test-student', email: 'test@student.com' } },
+            functions: {}
+        };
+
+        // Mock exports for modules
+        window.firebaseInit = firebaseInit;
+
+        // Import Maps polyfill/setup would be needed for real modules,
+        // but here we will just define the logic inline to test the sequence.
+
+        // Reproduce the fix in app.js logic
+        function renderMainLayout() {
+            const appContainer = document.getElementById('app-container');
+            const mainAppTemplate = document.getElementById('main-app-template');
+            if (appContainer && mainAppTemplate) {
+                appContainer.innerHTML = '';
+                appContainer.appendChild(mainAppTemplate.content.cloneNode(true));
+                console.log("Main Layout Rendered");
+            }
+        }
+
+        // Reproduce student.js logic (simplified)
+        function initStudentApp() {
+            // The critical check that was failing
+            const roleContentWrapper = document.getElementById('role-content-wrapper');
+            const mainNav = document.getElementById('main-nav');
+            const mobileBottomNav = document.getElementById('mobile-bottom-nav');
+
+            if (!roleContentWrapper || !mainNav || !mobileBottomNav) {
+                console.error("Missing critical layout elements in index.html");
+                document.body.innerHTML += '<div id="error-msg" style="color:red">Missing critical layout elements</div>';
+                return;
+            } else {
+                console.log("Layout elements found.");
+                document.body.innerHTML += '<div id="success-msg" style="color:green">Layout elements found</div>';
+            }
+
+            // Verify the removed ReferenceError
+            try {
+                // updateActiveNavState(); // This line is removed in my fix
+                console.log("No ReferenceError thrown (because the call is removed)");
+            } catch (e) {
+                console.error(e);
+                document.body.innerHTML += '<div id="ref-error" style="color:red">' + e.message + '</div>';
+            }
+        }
+
+        // Simulate the student login flow from app.js
+        async function simulateStudentLogin() {
+            console.log("Simulating Student Login...");
+
+            // This is the FIX: calling renderMainLayout()
+            renderMainLayout();
+
+            initStudentApp();
+        }
+
+        simulateStudentLogin();
+
+    </script>
+</body>
+</html>

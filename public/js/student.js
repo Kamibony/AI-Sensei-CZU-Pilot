@@ -60,7 +60,6 @@ export function initStudentApp() {
 
             // Render current view
             renderAppContent();
-            updateActiveNavState();
 
         } else {
             console.warn(`Profil pre študenta s UID ${user.uid} nebol nájdený. Vytváram nový...`);
