@@ -1,7 +1,8 @@
 // public/js/views/professor/professor-student-profile-view.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { getDoc, doc, collection, query, where, getDocs, orderBy, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getDoc, doc, collection, query, where, getDocs, orderBy, Timestamp, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from "../../utils.js";
 
@@ -15,6 +16,8 @@ export class ProfessorStudentProfileView extends LitElement {
         _activeTab: { state: true, type: String },
         _isLoading: { state: true, type: Boolean },
         _isGeneratingAiSummary: { state: true, type: Boolean },
+        _chatMessages: { state: true, type: Array },
+        _tabs: { state: true, type: Array }
     };
 
     constructor() {
@@ -25,6 +28,15 @@ export class ProfessorStudentProfileView extends LitElement {
         this._activeTab = 'overview';
         this._isLoading = true;
         this._isGeneratingAiSummary = false;
+        this._chatMessages = [];
+        this._chatUnsubscribe = null;
+
+        this._tabs = [
+            {id: 'overview', label: 'Přehled'},
+            {id: 'activity', label: 'Aktivita'},
+            {id: 'grades', label: 'Známky'},
+            {id: 'chat', label: '💬 Chat'}
+        ];
 
         if (!_getAiStudentSummaryCallable) {
             if (!firebaseInit.functions) {
@@ -42,11 +54,15 @@ export class ProfessorStudentProfileView extends LitElement {
         if (this.studentId) {
             this._loadStudentData();
         } else {
-            this._isLoading = false; // Ak nemáme ID, nesnažíme sa načítať
+            this._isLoading = false;
         }
     }
     
-    // Načítame dáta, keď sa zmení `studentId` property
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        this._unsubscribeFromChat();
+    }
+
     willUpdate(changedProperties) {
         if (changedProperties.has('studentId') && this.studentId) {
             this._loadStudentData();
@@ -57,7 +73,8 @@ export class ProfessorStudentProfileView extends LitElement {
         this._isLoading = true;
         this._studentData = null;
         this._submissions = [];
-        this._activeTab = 'overview'; // Vždy začneme prehľadom
+        this._activeTab = 'overview';
+        this._unsubscribeFromChat(); // Ensure old chat listener is cleared
 
         try {
             const studentDocRef = doc(firebaseInit.db, 'students', this.studentId);
@@ -68,7 +85,6 @@ export class ProfessorStudentProfileView extends LitElement {
                 this._studentData = { error: `Student s ID ${this.studentId} nebyl nalezen.` };
             } else {
                 this._studentData = { id: studentDoc.id, ...studentDoc.data() };
-                // Načítame výsledky hneď po načítaní študenta
                 await this._loadSubmissions();
             }
         } catch (error) {
@@ -113,12 +129,70 @@ export class ProfessorStudentProfileView extends LitElement {
         } catch (error) {
             console.error("Error fetching submissions:", error);
             showToast("Chyba při načítání výsledků studenta.", true);
-            this._submissions = []; // Resetujeme v prípade chyby
+            this._submissions = [];
         }
     }
 
     _switchTab(tabId) {
         this._activeTab = tabId;
+        if (tabId === 'chat') {
+            this._subscribeToChat();
+        } else {
+            this._unsubscribeFromChat();
+        }
+    }
+
+    _subscribeToChat() {
+        if (this._chatUnsubscribe) return; // Already subscribed
+
+        const q = query(
+            collection(firebaseInit.db, 'conversations', this.studentId, 'messages'),
+            orderBy('timestamp')
+        );
+
+        this._chatUnsubscribe = onSnapshot(q, (snapshot) => {
+            this._chatMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            this.requestUpdate();
+            // Scroll to bottom after update
+            setTimeout(() => {
+                const container = this.querySelector('#chat-messages-container');
+                if (container) container.scrollTop = container.scrollHeight;
+            }, 0);
+        });
+    }
+
+    _unsubscribeFromChat() {
+        if (this._chatUnsubscribe) {
+            this._chatUnsubscribe();
+            this._chatUnsubscribe = null;
+        }
+    }
+
+    async _sendMessage() {
+        const input = this.querySelector('#chat-input');
+        const text = input.value.trim();
+        if (!text) return;
+
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+
+        if (!currentUser) {
+            showToast("Nejste přihlášen.", true);
+            return;
+        }
+
+        try {
+            await addDoc(collection(firebaseInit.db, 'conversations', this.studentId, 'messages'), {
+                text: text,
+                senderId: currentUser.uid,
+                senderName: 'Profesor',
+                timestamp: serverTimestamp()
+            });
+            input.value = '';
+        } catch (error) {
+            console.error("Error sending message:", error);
+            showToast("Nepodařilo se odeslat zprávu.", true);
+        }
     }
 
     _goBack() {
@@ -136,12 +210,11 @@ export class ProfessorStudentProfileView extends LitElement {
             const result = await _getAiStudentSummaryCallable({ studentId: this._studentData.id });
             const newSummaryText = result.data.summary;
             
-            // Aktualizujeme _studentData, aby sa to prejavilo v UI
             this._studentData = {
                 ...this._studentData,
                 aiSummary: {
                     text: newSummaryText,
-                    generatedAt: new Date() // Použijeme Date object, konverzia z Timestamp nie je nutná
+                    generatedAt: new Date()
                 }
             };
             showToast("AI analýza byla úspěšně aktualizována.");
@@ -156,15 +229,15 @@ export class ProfessorStudentProfileView extends LitElement {
 
     // --- Renderovacie Metódy ---
 
-    renderTabButton(tabId, label) {
-        const isActive = this._activeTab === tabId;
+    renderTabButton(tab) {
+        const isActive = this._activeTab === tab.id;
         const classes = isActive 
             ? 'border-green-500 text-green-600' 
             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
         return html`
-            <button @click=${() => this._switchTab(tabId)}
+            <button @click=${() => this._switchTab(tab.id)}
                     class="student-tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${classes}">
-                ${label}
+                ${tab.label}
             </button>
         `;
     }
@@ -178,7 +251,6 @@ export class ProfessorStudentProfileView extends LitElement {
                           ? aiSummary.generatedAt.toDate().toLocaleString('cs-CZ') 
                           : (aiSummary.generatedAt ? new Date(aiSummary.generatedAt).toLocaleString('cs-CZ') : 'Neznámé datum');
             
-            // Jednoduché formátovanie pre HTML
             let formattedText = aiSummary.text
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\*(.*?)\*/g, '<em>$1</em>')
@@ -186,8 +258,6 @@ export class ProfessorStudentProfileView extends LitElement {
                 .replace(/\n\d+\. /g, (match) => `<br>${match.trim()} `)
                 .replace(/\n/g, '<br>');
 
-            // Použijeme ${unsafeHTML(formattedText)} alebo inú bezpečnú metódu
-            // Pre jednoduchosť zatiaľ len vložíme ako text
             summaryHtml = html`
                 <h3 class="text-lg font-semibold text-green-800 mb-3">AI Postřehy</h3>
                 <p class="text-xs text-slate-500 mb-3">Poslední generování: ${date}</p>
@@ -280,11 +350,89 @@ export class ProfessorStudentProfileView extends LitElement {
         `;
     }
 
+    _renderChatTab() {
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+
+        return html`
+            <div class="bg-white rounded-lg shadow h-[600px] flex flex-col">
+                <!-- Chat Header -->
+                <div class="p-4 border-b flex justify-between items-center bg-slate-50 rounded-t-lg">
+                    <h3 class="font-semibold text-lg">Chat se studentem</h3>
+                    <div class="text-xs text-gray-500">Real-time</div>
+                </div>
+
+                <!-- Messages Area -->
+                <div id="chat-messages-container" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
+                    ${this._chatMessages.length === 0 ? html`
+                        <div class="text-center text-gray-400 mt-10">
+                            <p>Zatím žádné zprávy.</p>
+                            <p class="text-sm">Začněte konverzaci napsáním zprávy.</p>
+                        </div>
+                    ` : this._chatMessages.map(msg => {
+                        const isMe = msg.senderId === currentUser?.uid;
+                        const bubbleClass = isMe
+                            ? 'bg-green-100 text-green-900 ml-auto rounded-br-none'
+                            : 'bg-white text-gray-800 border mr-auto rounded-bl-none';
+                        const alignClass = isMe ? 'justify-end' : 'justify-start';
+
+                        const time = msg.timestamp ? (msg.timestamp.toDate ? msg.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Teď') : '...';
+
+                        return html`
+                            <div class="flex ${alignClass}">
+                                <div class="max-w-[70%] rounded-2xl p-3 shadow-sm ${bubbleClass}">
+                                    <div class="text-sm">${msg.text}</div>
+                                    <div class="text-[10px] opacity-70 mt-1 text-right">${time}</div>
+                                </div>
+                            </div>
+                        `;
+                    })}
+                </div>
+
+                <!-- Input Area -->
+                <div class="p-4 border-t bg-white rounded-b-lg">
+                    <div class="flex gap-2">
+                        <textarea
+                            id="chat-input"
+                            class="flex-1 border rounded-lg p-2 focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+                            rows="2"
+                            placeholder="Napište zprávu..."
+                            @keydown=${(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this._sendMessage(); } }}
+                        ></textarea>
+                        <button
+                            @click=${this._sendMessage}
+                            class="bg-green-600 text-white px-6 rounded-lg hover:bg-green-700 font-medium transition-colors flex items-center gap-2">
+                            <span>Odeslat</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderActivityContent() {
+        return html`
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">Aktivita studenta</h2>
+                <p class="text-gray-500">Detailní přehled aktivity studenta se připravuje.</p>
+            </div>
+        `;
+    }
+
     renderTabContent() {
         switch (this._activeTab) {
             case 'overview':
                 return this.renderOverviewContent();
-            case 'results':
+            case 'activity':
+                return this.renderActivityContent();
+            case 'grades': // User requested ID 'grades', map to results content or rename method. I will use renderResultsContent for now.
+                return this.renderResultsContent();
+            case 'chat':
+                return this._renderChatTab();
+            case 'results': // Fallback for backward compatibility if needed, though buttons are updated
                 return this.renderResultsContent();
             default:
                 return html`<p>Neznámý tab.</p>`;
@@ -316,8 +464,7 @@ export class ProfessorStudentProfileView extends LitElement {
 
                 <div class="border-b border-gray-200">
                     <nav class="-mb-px flex space-x-8" aria-label="Tabs">
-                        ${this.renderTabButton('overview', 'Přehled')}
-                        ${this.renderTabButton('results', 'Výsledky')}
+                        ${this._tabs.map(tab => this.renderTabButton(tab))}
                     </nav>
                 </div>
 

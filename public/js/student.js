@@ -18,6 +18,7 @@ let studentDataUnsubscribe = null;
 let currentUserData = null;
 let currentView = 'loading'; // 'loading', 'promptForName', 'home', 'courses', 'chat', 'profile', 'lessonDetail'
 let selectedLessonId = null;
+let previousView = 'home'; // For back navigation from detail
 
 let mainContentElement = null; // Odkaz na hlavný kontajner
 let roleContentWrapper = null;
@@ -59,6 +60,7 @@ export function initStudentApp() {
 
             // Render current view
             renderAppContent();
+            updateActiveNavState();
 
         } else {
             console.warn(`Profil pre študenta s UID ${user.uid} nebol nájdený. Vytváram nový...`);
@@ -132,6 +134,7 @@ function renderStudentLayout() {
     // Global Event Listeners for Navigation
     document.addEventListener('lesson-selected', (e) => {
         selectedLessonId = e.detail.lessonId;
+        previousView = currentView === 'lessonDetail' ? previousView : currentView;
         currentView = 'lessonDetail';
         renderAppContent();
         // We don't update nav state here as 'lessonDetail' isn't a top-level nav item,
@@ -345,7 +348,6 @@ function promptForStudentName(userId, container) {
         try {
             await updateDoc(doc(firebaseInit.db, 'students', userId), { name: name });
             showToast('Jméno úspěšně uloženo!');
-            // onSnapshot sa postará o prekreslenie
         } catch (error) {
             showToast('Nepodařilo se uložit jméno.', true);
         }
