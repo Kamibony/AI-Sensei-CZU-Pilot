@@ -10,7 +10,7 @@ import { handleLogout } from './auth.js';
 // Importujeme hlavné komponenty zobrazenia
 import './student/student-lesson-list.js';
 import './student/student-lesson-detail.js';
-import './student/chat-panel.js';
+import './student/chat-panel.js'; // Ensure this path is correct based on list_files
 import './views/student/student-dashboard-view.js';
 
 // Globálny stav pre študentskú sekciu
@@ -21,6 +21,9 @@ let selectedLessonId = null;
 let previousView = 'home'; // For back navigation from detail
 
 let mainContentElement = null; // Odkaz na hlavný kontajner
+let roleContentWrapper = null;
+let mainNav = null;
+let mobileBottomNav = null;
 
 // --- JEDINÁ ZMENA: PREMENOVANIE FUNKCIE ---
 export function initStudentApp() {
@@ -43,22 +46,19 @@ export function initStudentApp() {
             if (!currentUserData.name || currentUserData.name.trim() === '') {
                 currentView = 'promptForName';
             } else {
-                // Ak sme práve uložili meno, prepneme na home
-                if (currentView === 'promptForName') {
-                    currentView = 'home';
-                }
-                // Ak sme prišli prvýkrát, nastavíme home
-                if (currentView === 'loading') {
+                // Initial state logic
+                if (currentView === 'loading' || currentView === 'promptForName') {
                     currentView = 'home';
                 }
             }
             
-            // Renderujeme hlavný panel, ak ešte neexistuje
-            if (!mainContentElement) {
-                renderStudentPanel();
-            }
+            // Render basic layout if needed
+            renderStudentLayout();
             
-            // Vždy prekreslíme obsah na základe aktuálneho stavu
+            // Update Navigation UI state
+            updateNavigationState();
+
+            // Render current view
             renderAppContent();
             updateActiveNavState();
 
@@ -93,280 +93,251 @@ export function cleanupStudentDashboard() {
         window.speechSynthesis.cancel();
         console.log("Speech synthesis cancelled on cleanup.");
     }
-    mainContentElement = null; // Zabudneme na element pri odhlásení
+
+    // Cleanup DOM references
+    mainContentElement = null;
+    roleContentWrapper = null;
+    mainNav = null;
+    mobileBottomNav = null;
+
     currentView = 'loading';
     selectedLessonId = null;
 }
 
-// Nová funkcia pre renderovanie panelu (natvrdo, bez template závislosti)
-function renderStudentPanel() {
-    const appContainer = document.getElementById('app-container');
+function renderStudentLayout() {
+    // Only render if we haven't already set up the layout
+    if (document.getElementById('student-layout-initialized')) return;
 
-    // Construct the layout manually to avoid missing template issues
-    appContainer.innerHTML = `
-        <div id="main-app" class="flex flex-col md:flex-row h-screen bg-slate-100">
-            <nav id="main-nav" class="bg-green-800 p-2 md:flex flex-col items-center hidden md:w-20 lg:w-64 transition-all duration-300"></nav>
-            <div id="role-content-wrapper" class="flex-grow flex flex-col overflow-y-auto pb-20 md:pb-0"></div>
-            <nav id="mobile-bottom-nav" class="md:hidden w-full bg-white border-t border-slate-200 flex justify-around p-2 fixed bottom-0 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"></nav>
-        </div>
-    `;
+    // Use existing template elements from index.html
+    roleContentWrapper = document.getElementById('role-content-wrapper');
+    mainNav = document.getElementById('main-nav');
+    mobileBottomNav = document.getElementById('mobile-bottom-nav');
 
-    mainContentElement = document.getElementById('role-content-wrapper');
+    if (!roleContentWrapper || !mainNav || !mobileBottomNav) {
+        console.error("Missing critical layout elements in index.html");
+        return;
+    }
     
-    renderNavigation();
+    // Mark as initialized to prevent re-rendering layout on every snapshot update
+    roleContentWrapper.setAttribute('id', 'role-content-wrapper'); // Keep ID
+    const flag = document.createElement('div');
+    flag.id = 'student-layout-initialized';
+    flag.style.display = 'none';
+    document.body.appendChild(flag);
 
-    // Listenery pre udalosti z komponentov
-    mainContentElement.addEventListener('lesson-selected', (e) => {
+    // 1. Render Desktop Navigation (Side Bar)
+    renderDesktopNavigation();
+
+    // 2. Render Mobile Bottom Navigation
+    renderMobileNavigation();
+    
+    // Global Event Listeners for Navigation
+    document.addEventListener('lesson-selected', (e) => {
         selectedLessonId = e.detail.lessonId;
         previousView = currentView === 'lessonDetail' ? previousView : currentView;
         currentView = 'lessonDetail';
         renderAppContent();
-        updateActiveNavState();
+        // We don't update nav state here as 'lessonDetail' isn't a top-level nav item,
+        // or we could map it to 'courses'.
     });
 
-    mainContentElement.addEventListener('back-to-list', (e) => {
+    document.addEventListener('back-to-list', (e) => {
         selectedLessonId = null;
-        currentView = previousView || 'courses';
+        currentView = 'courses';
         renderAppContent();
-        updateActiveNavState();
+        updateNavigationState();
     });
 }
 
-function renderNavigation() {
-    const mobileNav = document.getElementById('mobile-bottom-nav');
-    const desktopNav = document.getElementById('main-nav');
+function renderDesktopNavigation() {
+    mainNav.innerHTML = `
+        <div class="flex flex-col items-center w-full h-full pt-6">
+             <div class="mb-8 p-2 rounded-xl bg-green-900/50">
+                <span class="text-2xl">🎓</span>
+            </div>
 
-    // Mobile Bottom Nav
-    if (mobileNav) {
-        mobileNav.innerHTML = `
-            <button data-nav="home" class="flex flex-col items-center justify-center w-full h-full text-slate-400 transition-all duration-200 group">
-                <span class="text-2xl mb-1 transform group-active:scale-95 transition-transform">🏠</span>
-                <span class="text-[10px] font-bold">Domů</span>
-            </button>
-            <button data-nav="courses" class="flex flex-col items-center justify-center w-full h-full text-slate-400 transition-all duration-200 group">
-                <span class="text-2xl mb-1 transform group-active:scale-95 transition-transform">📚</span>
-                <span class="text-[10px] font-bold">Kurzy</span>
-            </button>
-            <button data-nav="chat" class="flex flex-col items-center justify-center w-full h-full text-slate-400 transition-all duration-200 group">
-                <span class="text-2xl mb-1 transform group-active:scale-95 transition-transform">💬</span>
-                <span class="text-[10px] font-bold">Chat</span>
-            </button>
-            <button data-nav="profile" class="flex flex-col items-center justify-center w-full h-full text-slate-400 transition-all duration-200 group">
-                <span class="text-2xl mb-1 transform group-active:scale-95 transition-transform">👤</span>
-                <span class="text-[10px] font-bold">Profil</span>
-            </button>
-        `;
-    }
+            <div class="flex flex-col w-full space-y-2 px-2">
+                ${renderDesktopNavItem('home', 'Domů', '🏠')}
+                ${renderDesktopNavItem('courses', 'Knihovna', '📚')}
+                ${renderDesktopNavItem('chat', 'Chat', '💬')}
+                ${renderDesktopNavItem('profile', 'Profil', '👤')}
+            </div>
 
-    // Desktop Side Nav
-    if (desktopNav) {
-        desktopNav.innerHTML = `
-            <div class="flex flex-col items-center w-full pt-8 space-y-8">
-                <div class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mb-4 border border-white/20 shadow-lg">
-                    <span class="text-2xl">🎓</span>
-                </div>
-
-                <button data-nav="home" class="w-12 h-12 rounded-xl flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200 group relative" title="Domů">
-                    <span class="text-xl">🏠</span>
-                </button>
-                <button data-nav="courses" class="w-12 h-12 rounded-xl flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200 group relative" title="Knihovna">
-                    <span class="text-xl">📚</span>
-                </button>
-                <button data-nav="chat" class="w-12 h-12 rounded-xl flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200 group relative" title="Chat">
-                    <span class="text-xl">💬</span>
-                </button>
-
-                <div class="flex-grow"></div>
-
-                <button data-nav="profile" class="w-12 h-12 rounded-xl flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200 mb-8 group relative" title="Profil">
-                    <span class="text-xl">👤</span>
+             <div class="mt-auto pb-6 w-full px-2">
+                <button id="desktop-logout-btn" class="flex items-center w-full p-3 rounded-xl text-green-100 hover:bg-green-700 transition-colors">
+                    <span class="mr-3 text-xl">🚪</span>
+                    <span class="font-medium hidden lg:inline">Odhlásit</span>
                 </button>
             </div>
-        `;
-    }
+        </div>
+    `;
 
-    const buttons = document.querySelectorAll('[data-nav]');
-    buttons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const target = e.currentTarget.dataset.nav;
-            switchView(target);
+    // Add click listeners
+    ['home', 'courses', 'chat', 'profile'].forEach(view => {
+        document.getElementById(`nav-desktop-${view}`).addEventListener('click', () => {
+            currentView = view;
+            renderAppContent();
+            updateNavigationState();
+        });
+    });
+
+    document.getElementById('desktop-logout-btn').addEventListener('click', handleLogout);
+}
+
+function renderDesktopNavItem(viewName, label, icon) {
+    return `
+        <button id="nav-desktop-${viewName}" class="nav-item flex items-center w-full p-3 rounded-xl text-green-100 hover:bg-green-700 transition-all duration-200 group">
+            <span class="mr-3 text-xl group-hover:scale-110 transition-transform">${icon}</span>
+            <span class="font-medium hidden lg:inline">${label}</span>
+        </button>
+    `;
+}
+
+function renderMobileNavigation() {
+    // Style: Fixed bottom, bg-white/90, backdrop-blur, border-t, pb-safe
+    mobileBottomNav.className = "md:hidden fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-md border-t border-slate-200 pb-safe z-50 flex justify-around items-center px-2 py-2 safe-area-pb";
+
+    mobileBottomNav.innerHTML = `
+        ${renderMobileNavItem('home', 'Domů', '🏠')}
+        ${renderMobileNavItem('courses', 'Kurzy', '📚')}
+        ${renderMobileNavItem('chat', 'Chat', '💬')}
+        ${renderMobileNavItem('profile', 'Profil', '👤')}
+    `;
+
+    // Add click listeners
+    ['home', 'courses', 'chat', 'profile'].forEach(view => {
+        document.getElementById(`nav-mobile-${view}`).addEventListener('click', () => {
+            currentView = view;
+            renderAppContent();
+            updateNavigationState();
         });
     });
 }
 
-function switchView(viewName) {
-    currentView = viewName;
-    renderAppContent();
-    updateActiveNavState();
+function renderMobileNavItem(viewName, label, icon) {
+    return `
+        <button id="nav-mobile-${viewName}" class="nav-item flex flex-col items-center justify-center w-full py-1 text-slate-400 hover:text-slate-600 transition-colors">
+            <span class="text-2xl mb-0.5 transform transition-transform duration-200 nav-icon">${icon}</span>
+            <span class="text-[10px] font-medium tracking-wide nav-label">${label}</span>
+        </button>
+    `;
 }
 
-function updateActiveNavState() {
-    const activeTarget = currentView === 'lessonDetail' ? 'courses' : currentView;
+function updateNavigationState() {
+    // Determine active tab (map lessonDetail to courses if desired, or keep separate)
+    let activeTab = currentView;
+    if (activeTab === 'lessonDetail') activeTab = 'courses';
+    if (activeTab === 'promptForName' || activeTab === 'loading') activeTab = 'home';
 
-    document.querySelectorAll('[data-nav]').forEach(btn => {
-        const target = btn.dataset.nav;
-        const isMobile = btn.parentElement.id === 'mobile-bottom-nav';
-
-        if (target === activeTarget) {
-            if (isMobile) {
-                 btn.classList.remove('text-slate-400');
-                 btn.classList.add('text-green-600', 'scale-110');
-            } else {
-                 btn.classList.remove('text-white/60');
-                 btn.classList.add('bg-white/20', 'text-white', 'shadow-md');
-            }
-        } else {
-            if (isMobile) {
-                 btn.classList.add('text-slate-400');
-                 btn.classList.remove('text-green-600', 'scale-110');
-            } else {
-                 btn.classList.add('text-white/60');
-                 btn.classList.remove('bg-white/20', 'text-white', 'shadow-md');
-            }
-        }
+    // Desktop
+    document.querySelectorAll('#main-nav .nav-item').forEach(el => {
+        el.classList.remove('bg-green-700', 'text-white', 'shadow-lg');
+        el.classList.add('text-green-100');
     });
+    const activeDesktop = document.getElementById(`nav-desktop-${activeTab}`);
+    if (activeDesktop) {
+        activeDesktop.classList.add('bg-green-700', 'text-white', 'shadow-lg');
+        activeDesktop.classList.remove('text-green-100');
+    }
+
+    // Mobile
+    document.querySelectorAll('#mobile-bottom-nav .nav-item').forEach(el => {
+        el.classList.remove('text-green-600');
+        el.classList.add('text-slate-400');
+
+        const icon = el.querySelector('.nav-icon');
+        if (icon) icon.classList.remove('scale-110');
+    });
+
+    const activeMobile = document.getElementById(`nav-mobile-${activeTab}`);
+    if (activeMobile) {
+        activeMobile.classList.remove('text-slate-400');
+        activeMobile.classList.add('text-green-600');
+
+        const icon = activeMobile.querySelector('.nav-icon');
+        if (icon) icon.classList.add('scale-110');
+    }
 }
 
-// Táto funkcia rozhoduje, ktorý komponent sa má zobraziť
 function renderAppContent() {
-    if (!mainContentElement || !currentUserData) return;
+    const container = document.getElementById('role-content-wrapper');
+    if (!container) return;
+
+    // Ensure padding for bottom nav on mobile
+    container.className = "flex-grow flex flex-col overflow-y-auto bg-slate-50 pb-24 md:pb-0";
 
     switch (currentView) {
         case 'promptForName':
-            mainContentElement.innerHTML = '';
-            promptForStudentName(currentUserData.id);
-            break;
-            
-        case 'home':
-            mainContentElement.innerHTML = '<student-dashboard-view class="block p-4 md:p-8"></student-dashboard-view>';
+            container.innerHTML = '';
+            promptForStudentName(currentUserData.id, container);
             break;
 
+        case 'home':
+            container.innerHTML = '<student-dashboard-view></student-dashboard-view>';
+            break;
+            
         case 'courses':
-        case 'lessonList': // Legacy fallback
-            mainContentElement.innerHTML = '<student-lesson-list class="block p-4 md:p-8"></student-lesson-list>';
+            container.innerHTML = '<student-lesson-list></student-lesson-list>';
             break;
 
         case 'chat':
-            // If we have a selectedLessonId and came from chat context (not implemented yet), show chat panel.
-            // But generic chat view should list available chats.
-            // Since we don't have a 'StudentChatListView', we will reuse 'student-lesson-list' wrapped in a way that
-            // clicking a lesson opens the chat panel instead of lesson detail.
-
-            // Alternatively, we can instantiate `student-lesson-list` and listen for `lesson-selected` event,
-            // then hijack it to open chat.
-            // But `student-lesson-list` dispatches bubbling event. We can catch it here if we modify `renderAppContent`.
-
-            // Let's create a wrapper div that renders student-lesson-list but we add a specific class or attribute
-            // to indicate intent? No, component doesn't support it.
-
-            // Solution: Render a custom "Chat Selection" view here inline or new component.
-            // Inline for simplicity as per plan.
-            mainContentElement.innerHTML = `
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                     <h2 class="text-3xl font-extrabold mb-8 text-slate-800 tracking-tight">Chat a AI Asistent</h2>
-                     <p class="text-slate-600 mb-6">Vyberte kurz pro zahájení chatu s AI nebo profesorem.</p>
-                     <student-lesson-list id="chat-course-selector"></student-lesson-list>
-                </div>
-            `;
-
-            // Add listener specifically for this list to open chat
-            const chatSelector = mainContentElement.querySelector('#chat-course-selector');
-            // We need to stop propagation of 'lesson-selected' from this specific element
-            // and instead switch to chat view for that lesson.
-            if(chatSelector) {
-                chatSelector.addEventListener('lesson-selected', (e) => {
-                    e.stopPropagation(); // Stop main listener from switching to lessonDetail
-                    selectedLessonId = e.detail.lessonId;
-                    openChatForLesson(selectedLessonId);
-                });
-            }
+            container.innerHTML = '<student-chat-panel></student-chat-panel>';
             break;
 
-        case 'chat-detail': // New internal state for active chat
-             mainContentElement.innerHTML = '';
-             const chatPanel = document.createElement('chat-panel');
-             chatPanel.type = 'ai'; // Default to AI, user can switch in UI if implemented
-             chatPanel.lessonId = selectedLessonId;
-             chatPanel.currentUserData = currentUserData;
-             chatPanel.className = "block h-full p-4 md:p-8";
-
-             // Add a back button header
-             const header = document.createElement('div');
-             header.className = "flex items-center p-4 md:px-8 bg-white border-b mb-4 sticky top-0 z-10";
-             header.innerHTML = `
-                <button id="back-to-chats" class="mr-4 text-slate-500 hover:text-slate-800">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
-                </button>
-                <h2 class="text-xl font-bold">Chat</h2>
-             `;
-             header.querySelector('#back-to-chats').onclick = () => {
-                 currentView = 'chat';
-                 renderAppContent();
-             };
-
-             mainContentElement.appendChild(header);
-             mainContentElement.appendChild(chatPanel);
-             break;
-
         case 'profile':
-            mainContentElement.innerHTML = `
-                <div class="max-w-md mx-auto p-8 bg-white rounded-3xl shadow-sm border border-slate-100 mt-8">
-                    <div class="flex flex-col items-center mb-8">
-                        <div class="w-24 h-24 bg-slate-200 rounded-full flex items-center justify-center text-4xl mb-4">👤</div>
-                        <h2 class="text-2xl font-bold text-slate-900">${currentUserData.name}</h2>
-                        <p class="text-slate-500">${currentUserData.email}</p>
-                    </div>
-
-                    <div class="space-y-4">
-                         <button id="join-class-btn-profile" class="w-full bg-blue-50 text-blue-700 font-bold py-3 px-4 rounded-xl hover:bg-blue-100 transition-colors text-left flex items-center">
-                            <span class="mr-3">🏫</span> Připojit se k třídě
-                        </button>
-                        <button id="student-logout-btn-profile" class="w-full bg-red-50 text-red-700 font-bold py-3 px-4 rounded-xl hover:bg-red-100 transition-colors text-left flex items-center">
-                            <span class="mr-3">🚪</span> Odhlásit se
-                        </button>
-                    </div>
-                </div>
-            `;
-            document.getElementById('student-logout-btn-profile').addEventListener('click', handleLogout);
-            document.getElementById('join-class-btn-profile').addEventListener('click', handleJoinClass);
+            renderProfilePlaceholder(container);
             break;
             
         case 'lessonDetail':
-            mainContentElement.innerHTML = '';
+            container.innerHTML = '';
             const detailEl = document.createElement('student-lesson-detail');
             detailEl.lessonId = selectedLessonId;
             detailEl.currentUserData = currentUserData;
-            // Detail view handles its own padding/layout usually, but let's ensure it fills
-            detailEl.className = "block min-h-full";
-            mainContentElement.appendChild(detailEl);
+            container.appendChild(detailEl);
             break;
             
         case 'loading':
         default:
-            mainContentElement.innerHTML = '<p class="text-center text-slate-500 p-8">Načítání...</p>';
+            container.innerHTML = `
+                <div class="flex justify-center items-center h-full">
+                     <div class="spinner w-12 h-12 border-4 border-slate-200 border-t-green-600 rounded-full animate-spin"></div>
+                </div>`;
             break;
     }
 }
 
-function openChatForLesson(lessonId) {
-    selectedLessonId = lessonId;
-    currentView = 'chat-detail';
-    renderAppContent();
+function renderProfilePlaceholder(container) {
+    container.innerHTML = `
+        <div class="max-w-md mx-auto mt-10 p-6 bg-white rounded-3xl shadow-sm text-center">
+            <div class="w-24 h-24 mx-auto bg-slate-100 rounded-full flex items-center justify-center mb-4 text-4xl">
+                👤
+            </div>
+            <h2 class="text-2xl font-bold text-slate-800">${currentUserData?.name || 'Student'}</h2>
+            <p class="text-slate-500 mb-6">${currentUserData?.email}</p>
+
+            <button id="profile-join-class" class="w-full mb-3 bg-indigo-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl hover:bg-indigo-700 transition-all">
+                Připojit se k třídě
+            </button>
+
+            <button id="profile-logout-btn" class="w-full bg-red-50 text-red-600 font-bold py-3 px-4 rounded-xl hover:bg-red-100 transition-all">
+                Odhlásit se
+            </button>
+        </div>
+    `;
+    
+    document.getElementById('profile-logout-btn').addEventListener('click', handleLogout);
+    document.getElementById('profile-join-class').addEventListener('click', handleJoinClass);
 }
 
-// Funkcia pre zadanie mena (zostáva ako innerHTML pre jednoduchosť)
-function promptForStudentName(userId) {
-    const container = mainContentElement || document.getElementById('app-container');
-    
+// Funkcia pre zadanie mena
+function promptForStudentName(userId, container) {
     container.innerHTML = `
         <div class="flex items-center justify-center min-h-full p-4">
-            <div class="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md text-center">
+            <div class="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md text-center">
                 <h1 class="text-2xl font-bold text-slate-800 mb-4">Vítejte v AI Sensei!</h1>
                 <p class="text-slate-600 mb-6">Prosím, zadejte své jméno, abychom věděli, jak vás oslovovat.</p>
-                <input type="text" id="student-name-input" placeholder="Vaše jméno a příjmení" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                <button id="save-name-btn" class="w-full mt-4 bg-green-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-800 transition-colors">Uložit a pokračovat</button>
+                <input type="text" id="student-name-input" placeholder="Vaše jméno a příjmení" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4">
+                <button id="save-name-btn" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 shadow-lg transition-all">Uložit a pokračovat</button>
             </div>
         </div>`;
 
@@ -386,7 +357,7 @@ function promptForStudentName(userId) {
 async function handleJoinClass() {
     const joinCode = window.prompt("Zadejte kód pro připojení do třídy:");
     if (!joinCode || joinCode.trim() === "") {
-        return; // User cancelled or entered empty code
+        return;
     }
 
     showToast("Připojuji se k třídě...", false);
