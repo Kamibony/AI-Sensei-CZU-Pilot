@@ -148,7 +148,7 @@ export class LessonEditor extends LitElement {
     _switchToHub() {
          // Validate Step 1 if coming from settings
          if (this._viewMode === 'settings') {
-             const titleInput = this.shadowRoot.querySelector('#lesson-title-input');
+             const titleInput = this.renderRoot.querySelector('#lesson-title-input');
              // Only block if trying to leave empty title on NEW lesson
              if ((!titleInput || !titleInput.value.trim()) && !this.lesson?.title) {
                  showToast("Vyplňte prosím název lekce.", true);
@@ -184,9 +184,9 @@ export class LessonEditor extends LitElement {
     }
 
     _getDetails() {
-        const title = this.shadowRoot.querySelector('#lesson-title-input')?.value.trim() || '';
-        const subtitle = this.shadowRoot.querySelector('#lesson-subtitle-input')?.value.trim() || '';
-        const assignedToGroups = Array.from(this.shadowRoot.querySelectorAll('input[name="group-assignment"]:checked')).map(cb => cb.value);
+        const title = this.renderRoot.querySelector('#lesson-title-input')?.value.trim() || '';
+        const subtitle = this.renderRoot.querySelector('#lesson-subtitle-input')?.value.trim() || '';
+        const assignedToGroups = Array.from(this.renderRoot.querySelectorAll('input[name="group-assignment"]:checked')).map(cb => cb.value);
 
         return { title, subtitle, assignedToGroups };
     }
@@ -246,7 +246,7 @@ export class LessonEditor extends LitElement {
 
     async _handleMagicGeneration() {
         // Validation
-        const titleInput = this.shadowRoot.querySelector('#lesson-title-input');
+        const titleInput = this.renderRoot.querySelector('#lesson-title-input');
         if (!titleInput || !titleInput.value.trim()) { showToast("Nejdříve zadejte název lekce.", true); return; }
 
         // Save Basic Info First locally
@@ -603,7 +603,7 @@ export class LessonEditor extends LitElement {
                             <!-- Footer inside Editor -->
                             <div class="mt-6 flex justify-end max-w-5xl mx-auto w-full pb-8">
                                 <button @click=${() => {
-                                    this.shadowRoot.querySelector('editor-view-' + this._selectedContentType)?.save();
+                                    this.renderRoot.querySelector('editor-view-' + this._selectedContentType)?.save();
                                     showToast("Sekce uložena");
                                 }}
                                     class="text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:-translate-y-0.5 flex items-center">
