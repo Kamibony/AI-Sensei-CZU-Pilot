@@ -50,6 +50,20 @@ export function setupProfessorNav(showProfessorContent) {
                         </div>
                         <span class="ml-2 text-sm font-medium">Studenti</span>
                     </button>
+
+                    <button data-view="interactions" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
+                        <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
+                            <span class="text-xl transition-transform group-hover:scale-110">💬</span>
+                        </div>
+                        <span class="ml-2 text-sm font-medium">Interakce</span>
+                    </button>
+
+                    <button data-view="analytics" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
+                        <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
+                            <span class="text-xl transition-transform group-hover:scale-110">📊</span>
+                        </div>
+                        <span class="ml-2 text-sm font-medium">Analýza</span>
+                    </button>
                 </div>
 
                 <!-- Spacer / Divider -->
@@ -74,6 +88,13 @@ export function setupProfessorNav(showProfessorContent) {
                         </div>
                         <span class="ml-2 text-sm font-medium">Média & Soubory</span>
                     </button>
+
+                    <button data-view="editor" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
+                        <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
+                            <span class="text-xl transition-transform group-hover:scale-110">✨</span>
+                        </div>
+                        <span class="ml-2 text-sm font-medium">AI Editor</span>
+                    </button>
                 </div>
             </div>
 
@@ -97,36 +118,27 @@ export function setupProfessorNav(showProfessorContent) {
             </div>
         `;
 
-        // Setup Click Listeners (Preserving logic)
+        // Setup Click Listeners
         nav.querySelectorAll('button[data-view]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const view = e.currentTarget.dataset.view;
 
                 // Reset all buttons
                 nav.querySelectorAll('button[data-view]').forEach(b => {
-                    // Reset classes to default inactive state
                     b.className = 'nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent';
-
-                    // Re-apply special styling for AI Editor if it's not active
-                    if (b.dataset.view === 'editor') {
-                         b.className = 'nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-indigo-600 bg-indigo-50/50 hover:bg-indigo-50 hover:text-indigo-700 group border-l-4 border-transparent mt-2';
-                    }
                 });
 
                 // Activate clicked button
                 const activeBtn = e.currentTarget;
-
-                // Base Active Class
                 let activeClass = 'nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 bg-slate-50 text-indigo-600 font-semibold group border-l-4 border-indigo-500 shadow-sm';
 
                 if (view === 'admin') {
                      activeClass = 'nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 bg-yellow-50 text-yellow-700 font-semibold group border-l-4 border-yellow-500 shadow-sm';
                 } else if (view === 'editor') {
-                    activeClass = 'nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 bg-indigo-50 text-indigo-700 font-bold group border-l-4 border-indigo-600 shadow-sm mt-2';
+                     activeClass = 'nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 bg-indigo-50 text-indigo-700 font-bold group border-l-4 border-indigo-600 shadow-sm';
                 }
 
                 activeBtn.className = activeClass;
-
                 showProfessorContent(view);
             });
         });
@@ -135,20 +147,13 @@ export function setupProfessorNav(showProfessorContent) {
         const logo = nav.querySelector('#nav-logo');
         if (logo) {
             logo.addEventListener('click', () => {
-                 // Reset navigation state visually
                 nav.querySelectorAll('button[data-view]').forEach(b => {
                      b.className = 'nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent';
-                      if (b.dataset.view === 'editor') {
-                         b.className = 'nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-indigo-600 bg-indigo-50/50 hover:bg-indigo-50 hover:text-indigo-700 group border-l-4 border-transparent mt-2';
-                    }
                 });
-
-                // Activate Dashboard Button
                 const dashBtn = nav.querySelector('button[data-view="dashboard"]');
                 if(dashBtn) {
                     dashBtn.className = 'nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 bg-slate-50 text-indigo-600 font-semibold group border-l-4 border-indigo-500 shadow-sm';
                 }
-
                 showProfessorContent('dashboard');
             });
         }
