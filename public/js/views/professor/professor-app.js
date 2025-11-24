@@ -17,6 +17,7 @@ import './admin-user-management-view.js';
 // New Class-Centric Views
 import './professor-dashboard-view.js';
 import './professor-class-detail-view.js';
+import './professor-classes-view.js';
 
 
 import { setupProfessorNav } from './navigation.js';
@@ -159,6 +160,7 @@ export class ProfessorApp extends LitElement {
         switch (this._currentView) {
             case 'dashboard': return html`<professor-dashboard-view class="h-full flex flex-col"></professor-dashboard-view>`;
             case 'class-detail': return html`<professor-class-detail-view class="h-full flex flex-col" .groupId=${this._currentData.groupId}></professor-class-detail-view>`;
+            case 'classes': return html`<professor-classes-view class="h-full flex flex-col"></professor-classes-view>`;
             case 'timeline': return html`<professor-timeline-view class="h-full flex flex-col" .lessonsData=${this._lessonsData}></professor-timeline-view>`;
             case 'media': return html`<professor-media-view class="h-full flex flex-col"></professor-media-view>`;
             case 'editor': return html`<lesson-editor class="h-full flex flex-col" .lesson=${this._currentData} @lesson-updated=${this._onLessonCreatedOrUpdated} @editor-exit=${this._onEditorExit}></lesson-editor>`;

@@ -1,4 +1,3 @@
-// public/js/views/professor/professor-classes-view.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
@@ -33,7 +32,10 @@ export class ProfessorClassesView extends LitElement {
 
     _fetchClasses() {
         const user = firebaseInit.auth.currentUser;
-        if (!user) return;
+        if (!user) {
+            this._isLoading = false;
+            return;
+        }
 
         const q = query(collection(firebaseInit.db, 'groups'), where("ownerId", "==", user.uid));
         this.classesUnsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -56,7 +58,7 @@ export class ProfessorClassesView extends LitElement {
     }
 
     async _handleCreateClass() {
-        const className = prompt("Zadejte název nové třídy:", "Např. Matematika 1.A");
+        const className = prompt("Zadejte název nové třídy:", "");
         if (className && className.trim() !== "") {
             const user = firebaseInit.auth.currentUser;
             if (!user) {
@@ -69,6 +71,7 @@ export class ProfessorClassesView extends LitElement {
                     name: className.trim(),
                     ownerId: user.uid,
                     joinCode: this._generateJoinCode(),
+                    studentIds: [],
                     createdAt: serverTimestamp()
                 });
                 showToast("Třída byla úspěšně vytvořena.");
@@ -79,54 +82,96 @@ export class ProfessorClassesView extends LitElement {
         }
     }
 
+    _navigateToClass(groupId) {
+        this.dispatchEvent(new CustomEvent('navigate', {
+            detail: { view: 'class-detail', groupId: groupId },
+            bubbles: true,
+            composed: true
+        }));
+    }
+
+    _copyJoinCode(e, code) {
+        e.stopPropagation();
+        navigator.clipboard.writeText(code).then(() => {
+            showToast("Kód zkopírován do schránky.");
+        }, () => {
+            showToast("Kód se nepodařilo zkopírovat.", true);
+        });
+    }
+
     render() {
         return html`
-            <header class="text-center p-6 border-b border-slate-200 bg-white">
-                <h1 class="text-3xl font-extrabold text-slate-800">Správa Tříd</h1>
-                <p class="text-slate-500 mt-1">Vytvářejte a spravujte své třídy pro studenty.</p>
-            </header>
-            <div class="flex-grow overflow-y-auto p-4 md:p-6">
-                <div class="max-w-4xl mx-auto">
-                    <div class="bg-white p-6 rounded-2xl shadow-lg mb-6">
-                        <div class="flex justify-between items-center">
-                            <h2 class="text-xl font-bold text-slate-700">Vaše Třídy</h2>
-                            <button @click=${this._handleCreateClass} class="bg-green-700 hover:bg-green-800 text-white font-semibold py-2 px-4 rounded-lg transition transform hover:scale-105">
-                                Vytvořit novou třídu
-                            </button>
-                        </div>
+            <div class="h-full flex flex-col bg-slate-50">
+                <header class="bg-white p-6 border-b border-slate-200 flex items-center justify-between">
+                    <div>
+                        <h1 class="text-3xl font-extrabold text-slate-800">Správa Tříd</h1>
+                        <p class="text-slate-500 mt-1">Spravujte své třídy, studenty a jejich výuku.</p>
                     </div>
+                    <button @click=${this._handleCreateClass} class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center shadow-lg shadow-indigo-200 transition-all">
+                        <span class="mr-2">➕</span> Vytvořit novou třídu
+                    </button>
+                </header>
 
-                    <div id="classes-list-container" class="bg-white p-6 rounded-2xl shadow-lg">
-                        ${this._isLoading ? html`<p class="text-center p-8 text-slate-400">Načítám třídy...</p>` : this._renderClassesList()}
+                <div class="flex-grow overflow-y-auto p-6">
+                    <div class="max-w-7xl mx-auto">
+                        ${this._isLoading
+                            ? html`<p class="text-center p-8 text-slate-400">Načítám třídy...</p>`
+                            : this._renderClassesGrid()}
                     </div>
                 </div>
             </div>
         `;
     }
 
-    _renderClassesList() {
+    _renderClassesGrid() {
         if (this._classes.length === 0) {
             return html`
-                <div class="text-center p-8">
-                    <p class="text-slate-500 mb-4">Zatím jste nevytvořili žádnou třídu.</p>
-                    <p class="text-slate-400">Klikněte na tlačítko "Vytvořit novou třídu" pro přidání vaší první třídy.</p>
+                <div class="text-center p-12 bg-white rounded-3xl shadow-sm border border-slate-100">
+                    <div class="inline-block p-4 bg-slate-50 rounded-full mb-4">
+                        <span class="text-4xl">🏫</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">Zatím nemáte žádné třídy</h3>
+                    <p class="text-slate-500 mb-6">Vytvořte svou první třídu a začněte přidávat studenty.</p>
+                    <button @click=${this._handleCreateClass} class="text-indigo-600 font-medium hover:text-indigo-800 hover:underline">
+                        Vytvořit třídu nyní
+                    </button>
                 </div>
             `;
         }
 
         return html`
-            <div class="divide-y divide-slate-100">
-                ${this._classes.map(cls => html`
-                    <div class="class-row flex items-center justify-between p-4">
-                        <div>
-                            <p class="text-slate-800 font-semibold">${cls.name}</p>
-                        </div>
-                        <div class="flex items-center space-x-4">
-                            <span class="text-sm text-slate-500">Kód pro připojení:</span>
-                            <strong class="text-lg font-mono bg-slate-100 text-slate-700 px-3 py-1 rounded-md">${cls.joinCode}</strong>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                ${this._classes.map(cls => this._renderClassCard(cls))}
+            </div>
+        `;
+    }
+
+    _renderClassCard(cls) {
+        const studentCount = (cls.studentIds || []).length;
+        return html`
+            <div @click=${() => this._navigateToClass(cls.id)}
+                 class="bg-white p-6 rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-100 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
+                <div class="flex justify-between items-start mb-4">
+                    <h3 class="text-xl font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">${cls.name}</h3>
+                    <div class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide">
+                        ${studentCount} Studenti
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between mt-6 pt-4 border-t border-slate-50">
+                    <div class="flex flex-col">
+                        <span class="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">Kód pro připojení</span>
+                        <div class="flex items-center space-x-2">
+                            <code class="font-mono text-lg font-bold text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">${cls.joinCode}</code>
+                            <button @click=${(e) => this._copyJoinCode(e, cls.joinCode)} class="text-slate-400 hover:text-indigo-600 p-1 rounded-full hover:bg-slate-100 transition-colors" title="Kopírovat kód">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            </button>
                         </div>
                     </div>
-                `)}
+                    <div class="text-slate-300 group-hover:text-indigo-600 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </div>
+                </div>
             </div>
         `;
     }
