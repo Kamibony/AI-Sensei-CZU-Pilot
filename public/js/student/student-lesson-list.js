@@ -175,7 +175,7 @@ export class StudentLessonList extends LitElement {
     render() {
         return html`
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <h2 class="text-3xl font-extrabold mb-8 text-slate-800 tracking-tight">Moje dostupné lekce</h2>
+                <h2 class="text-3xl font-extrabold mb-8 text-slate-800 tracking-tight">Knihovna Kurzů</h2>
                 ${this._renderContent()}
             </div>
         `;
