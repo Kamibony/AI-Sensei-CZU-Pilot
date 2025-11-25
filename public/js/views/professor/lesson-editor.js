@@ -11,6 +11,7 @@ import './editor/editor-view-video.js';
 import './editor/editor-view-quiz.js';
 import './editor/editor-view-test.js';
 import './editor/editor-view-post.js';
+import './editor/editor-view-comic.js';
 
 export class LessonEditor extends LitElement {
     static properties = {
@@ -48,6 +49,7 @@ export class LessonEditor extends LitElement {
             { id: 'quiz', label: 'Kvíz', icon: '❓', description: 'Rychlé ověření' },
             { id: 'test', label: 'Test', icon: '✅', description: 'Hodnocený test' },
             { id: 'post', label: 'Audio', icon: '🎙️', description: 'Podcast skript' },
+            { id: 'comic', label: 'Komiks', icon: '🎨', description: 'Humorný komiks k lekci' },
         ];
     }
 
@@ -217,6 +219,7 @@ export class LessonEditor extends LitElement {
             quiz: finalLessonData.quiz || null,
             test: finalLessonData.test || null,
             post: finalLessonData.post || null,
+            comic: finalLessonData.comic || null,
         };
 
         this._isLoading = true;
@@ -288,7 +291,7 @@ export class LessonEditor extends LitElement {
             return;
         }
 
-        const typesToGenerate = ['text', 'presentation', 'quiz', 'test', 'post'];
+        const typesToGenerate = ['text', 'presentation', 'quiz', 'test', 'post', 'comic'];
 
         try {
             for (const type of typesToGenerate) {
@@ -303,6 +306,11 @@ export class LessonEditor extends LitElement {
                     // Keep prompt simple (Topic) so backend wrapper works correctly
                     specificPrompt = `${this.lesson.title}. ${this.lesson.subtitle || ''}. Formát: Rozhovor moderátora a experta. Délka cca 5 minut. Detailní scénář.`;
                     episodeCount = 1;
+                }
+
+                if (type === 'comic') {
+                    // Ask for a script, NOT images yet. Images are expensive/slow, so we generate them manually later.
+                    specificPrompt = `Vytvoř vtipný scénář pro 4-panelový komiks vysvětlující téma: ${this.lesson.title}. Výstup musí být JSON pole: [{ panel: 1, description: 'vizuální popis', dialogue: 'text' }, ...]`;
                 }
 
                 // Build Prompt Data
@@ -415,6 +423,7 @@ export class LessonEditor extends LitElement {
             case 'quiz': return html`<editor-view-quiz .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-quiz>`;
             case 'test': return html`<editor-view-test .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-test>`;
             case 'post': return html`<editor-view-post .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-post>`;
+            case 'comic': return html`<editor-view-comic .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-comic>`;
             default: return html`<p class="text-red-500">Neznámý typ obsahu</p>`;
         }
     }

@@ -220,3 +220,70 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
     }
 }
 exports.generateJsonFromDocuments = generateJsonFromDocuments;
+
+async function generateImageFromPrompt(prompt: string): Promise<string> {
+    if (process.env.FUNCTIONS_EMULATOR === "true") {
+        console.log("EMULATOR_MOCK for generateImageFromPrompt: Returning a mock base64 image.");
+        // Simple 1024x1024 blue square SVG as a placeholder, to be returned as base64 but NOT wrapped in data:image
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><rect width="1024" height="1024" fill="#60A5FA" /><text x="50%" y="50%" font-size="60" text-anchor="middle" dy=".3em" fill="white" font-family="sans-serif">EMULATOR</text></svg>`;
+        const base64Svg = Buffer.from(svg).toString("base64");
+        return base64Svg;
+    }
+
+    // Lazy load aiplatform, PredictionServiceClient, and helpers
+    const aiplatform = require("@google-cloud/aiplatform");
+    const { PredictionServiceClient } = aiplatform.v1;
+    const { helpers } = aiplatform;
+
+    const clientOptions = {
+        apiEndpoint: `${LOCATION}-aiplatform.googleapis.com`,
+    };
+
+    const client = new PredictionServiceClient(clientOptions);
+    const projectId = getGcloudProject();
+    // Note: 'imagen-3.0-generate-001' is a potential future model. Using a stable version for now.
+    const endpoint = `projects/${projectId}/locations/${LOCATION}/publishers/google/models/imagegeneration@006`;
+
+    const instances = [
+        helpers.toValue({
+            prompt: prompt,
+        }),
+    ];
+
+    const parameters = helpers.toValue({
+        sampleCount: 1,
+        aspectRatio: "1:1",
+    });
+
+    const request = {
+        endpoint,
+        instances,
+        parameters,
+    };
+
+    try {
+        console.log(`[gemini-api:generateImageFromPrompt] Sending request to Imagen model '${endpoint}'...`);
+        const [response] = await client.predict(request);
+
+        if (!response || !response.predictions || response.predictions.length === 0) {
+            throw new HttpsError("internal", "Received an invalid response from the Imagen model.");
+        }
+
+        const prediction = response.predictions[0];
+        const imageBase64 = prediction.structValue?.fields?.bytesBase64Encoded?.stringValue;
+
+        if (!imageBase64) {
+            throw new HttpsError("internal", "Could not find image data in the Imagen response.");
+        }
+        console.log(`[gemini-api:generateImageFromPrompt] Successfully received image from Imagen.`);
+        return imageBase64;
+
+    } catch (error) {
+        logger.error("[gemini-api:generateImageFromPrompt] Error generating image:", error);
+        if (error instanceof Error) {
+            throw new HttpsError("internal", `Imagen call failed: ${error.message}`);
+        }
+        throw new HttpsError("internal", "An unknown error occurred while generating the image.");
+    }
+}
+exports.generateImageFromPrompt = generateImageFromPrompt;

@@ -166,6 +166,38 @@ exports.generateContent = onCall({
     }
 });
 
+exports.generateImage = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: '1GiB',
+    cors: true
+}, async (request: CallableRequest) => {
+    const { prompt } = request.data;
+    if (!prompt) {
+        throw new HttpsError("invalid-argument", "Missing prompt.");
+    }
+
+    if (!request.auth || request.auth.token.role !== 'professor') {
+        throw new HttpsError('unauthenticated', 'This action requires professor privileges.');
+    }
+
+    try {
+        const GeminiAPI = require("./gemini-api.js");
+        const imageBase64 = await GeminiAPI.generateImageFromPrompt(prompt);
+        return { imageBase64 };
+    } catch (error) {
+        logger.error(`Error in generateImage:`, error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        let message = "An unknown error occurred while generating the image.";
+        if (error instanceof Error) {
+            message = error.message;
+        }
+        throw new HttpsError("internal", `Failed to generate image: ${message}`);
+    }
+});
+
 exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540, memory: '1GiB' }, async (request: CallableRequest) => {
     if (!request.auth || request.auth.token.role !== 'professor') {
         throw new HttpsError('unauthenticated', 'This action requires professor privileges.');
