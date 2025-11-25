@@ -331,10 +331,11 @@ export class LessonEditor extends LitElement {
                     if (type === 'comic') {
                         dataKey = 'comic_script';
                         try {
-                            if (typeof dataValue === 'string') {
-                                // AI might wrap the JSON in markdown, so we clean it.
-                                const cleanedString = dataValue.replace(/```json\n|```/g, '').trim();
-                                dataValue = JSON.parse(cleanedString);
+                            const jsonMatch = dataValue.match(/\{[\s\S]*\}/);
+                            if (jsonMatch) {
+                                dataValue = JSON.parse(jsonMatch[0]);
+                            } else {
+                                throw new Error("AI nevrátila validní JSON.");
                             }
                         } catch (e) {
                             console.error("Failed to parse comic script JSON:", e, dataValue);
