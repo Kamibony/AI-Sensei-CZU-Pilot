@@ -5,6 +5,7 @@ import * as firebaseInit from './firebase-init.js';
 // --- ZMENA: Premenné na ukladanie callable funkcií, inicializované na null ---
 let _generateContentFunction = null;
 let _getAiAssistantResponseFunction = null;
+let _generateImageFunction = null;
 
 // --- ZMENA: Funkcia na získanie (alebo vytvorenie) callable funkcie ---
 function getGenerateContentCallable() {
@@ -36,6 +37,18 @@ function getAiAssistantResponseCallable() {
     return _getAiAssistantResponseFunction;
 }
 
+function getGenerateImageCallable() {
+    if (!_generateImageFunction) {
+        console.log("Lazy initializing generateImage callable. Current functions object:", firebaseInit.functions);
+        if (!firebaseInit.functions) {
+            console.error("CRITICAL: Firebase Functions object is still not available when trying to create generateImage callable!");
+            throw new Error("Firebase Functions not initialized.");
+        }
+        _generateImageFunction = httpsCallable(firebaseInit.functions, 'generateImage');
+    }
+    return _generateImageFunction;
+}
+
 
 /**
  * Univerzálna funkcia na volanie AI na backende pre generovanie obsahu (pre profesora).
@@ -48,6 +61,21 @@ export async function callGenerateContent(data) {
         return result.data;
     } catch (error) {
         console.error("Error calling 'generateContent' function:", error);
+        return { error: `Backend Error: ${error.message}` };
+    }
+}
+
+/**
+ * Function to call the AI image generation on the backend.
+ */
+export async function callGenerateImage(prompt) {
+    try {
+        const callableFunc = getGenerateImageCallable();
+        const result = await callableFunc({ prompt });
+        // The backend function is expected to return { imageBase64: '...' }
+        return result.data;
+    } catch (error) {
+        console.error("Error calling 'generateImage' function:", error);
         return { error: `Backend Error: ${error.message}` };
     }
 }
