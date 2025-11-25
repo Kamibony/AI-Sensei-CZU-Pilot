@@ -29,22 +29,21 @@ export async function initializeFirebase() {
         }
 
     } catch (e) {
-        console.warn("Could not load auto-config. Using hardcoded production config.", e);
+        console.warn("Could not load auto-config. Using hardcoded local config for ai-sensei-czu-pilot.", e);
         
-        // 2. Záložná (hardcoded) produkčná konfigurácia
-        const prodConfig = {
-            apiKey: "AIzaSyDaGUJ1tCneK9EA7pCi-0fWEJkFvyhc-6I",
-            authDomain: "via-academy-prod-3f4e1.firebaseapp.com",
-            projectId: "via-academy-prod-3f4e1",
-            storageBucket: "via-academy-prod-3f4e1.firebasestorage.app",
-            messagingSenderId: "812602866730",
-            appId: "1:812602866730:web:efde142d2becc4b66b9753",
-            measurementId: "G-F34BQ7LKKC"
+        // 2. Fallback (hardcoded) local configuration
+        const localConfig = {
+            projectId: "ai-sensei-czu-pilot",
+            appId: "1:812602866730:web:efde142d2becc4b66b9753", // Can be dummy
+            storageBucket: "ai-sensei-czu-pilot.appspot.com",
+            apiKey: "dummy-key",
+            authDomain: "ai-sensei-czu-pilot.firebaseapp.com",
+            messagingSenderId: "dummy-sender-id",
         };
 
         if (getApps().length === 0) {
-             app = initializeApp(prodConfig);
-             console.log("Firebase initialized from hardcoded prod config.");
+             app = initializeApp(localConfig);
+             console.log("Firebase initialized from hardcoded local config.");
         } else {
             app = getApp();
         }
