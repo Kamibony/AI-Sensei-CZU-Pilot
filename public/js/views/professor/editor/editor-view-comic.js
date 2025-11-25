@@ -1,5 +1,5 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { callGenerateImage } from '../../../gemini-api.js';
+import { callGenerateContent, callGenerateImage } from '../../../gemini-api.js';
 import { showToast } from '../../../utils.js';
 
 export class EditorViewComic extends LitElement {
@@ -7,6 +7,7 @@ export class EditorViewComic extends LitElement {
         lesson: { type: Object },
         _panels: { state: true, type: Array },
         _isGeneratingImage: { state: true, type: Number }, // Store index of generating panel
+        _isGeneratingScript: { state: true, type: Boolean },
     };
 
     constructor() {
@@ -14,6 +15,7 @@ export class EditorViewComic extends LitElement {
         this.lesson = null;
         this._panels = [];
         this._isGeneratingImage = -1; // -1 means no panel is generating
+        this._isGeneratingScript = false;
     }
 
     createRenderRoot() {
@@ -82,10 +84,59 @@ export class EditorViewComic extends LitElement {
         }
     }
 
+    async _generateScript() {
+        this._isGeneratingScript = true;
+        try {
+            const prompt = `Vytvoř vtipný scénář pro 4-panelový vzdělávací komiks k tématu: ${this.lesson.title}. Výstup musí být POUZE validní JSON v tomto formátu: { "panels": [ { "panel_number": 1, "visual_description": "...", "dialogue": "..." }, ... ] }`;
+            const result = await callGenerateContent({
+                contentType: 'comic',
+                promptData: { userPrompt: prompt },
+                filePaths: []
+            });
+
+            if (result && result.text && !result.error) {
+                const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const parsed = JSON.parse(jsonMatch[0]);
+                    if (parsed.panels) {
+                        this._panels = parsed.panels.map(p => ({
+                            panel: p.panel_number,
+                            description: p.visual_description,
+                            dialogue: p.dialogue,
+                            imageBase64: null
+                        }));
+                        this.requestUpdate('_panels');
+                        this.save(); // Autosave
+                        showToast("Scénář byl úspěšně vygenerován.");
+                    } else {
+                        throw new Error("JSON from AI is missing 'panels' array.");
+                    }
+                } else {
+                    throw new Error("AI did not return a valid JSON object.");
+                }
+            } else {
+                throw new Error(result.error || "No valid response from AI.");
+            }
+        } catch (error) {
+            console.error("Error generating comic script:", error);
+            showToast(`Chyba při generování scénáře: ${error.message}`, true);
+        } finally {
+            this._isGeneratingScript = false;
+        }
+    }
+
     save() {
         const updatedLesson = {
             ...this.lesson,
-            comic: this._panels
+            comic: this._panels,
+            // Also save the script itself for future reference
+            comic_script: {
+                panels: this._panels.map(p => ({
+                    panel_number: p.panel,
+                    visual_description: p.description,
+                    dialogue: p.dialogue
+                }))
+            }
         };
 
         this.dispatchEvent(new CustomEvent('lesson-updated', {
@@ -96,59 +147,79 @@ export class EditorViewComic extends LitElement {
     }
 
     render() {
+        const hasScript = this._panels && this._panels.length > 0 && this._panels.some(p => p.description || p.dialogue);
+
         return html`
             <div class="p-8">
                 <h2 class="text-2xl font-bold text-slate-800 mb-6 text-center">Komiksový Editor</h2>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    ${this._panels.map((panel, index) => html`
-                        <div class="bg-slate-50 rounded-2xl border border-slate-200 p-6 flex flex-col space-y-4">
-                            <h3 class="font-bold text-slate-700">Panel ${index + 1}</h3>
+                ${!hasScript ? html`
+                    <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
+                        <span class="text-5xl mb-4">📝</span>
+                        <h3 class="text-xl font-bold text-slate-700">Zatím zde není žádný scénář.</h3>
+                        <p class="text-slate-500 mb-6">Nechte AI, aby vám pomohla s kreativním procesem.</p>
+                        <button
+                            @click=${this._generateScript}
+                            ?disabled=${this._isGeneratingScript}
+                            class="py-3 px-6 rounded-lg bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all hover:-translate-y-0.5 disabled:bg-slate-400 disabled:cursor-not-allowed flex items-center justify-center"
+                        >
+                            ${this._isGeneratingScript
+                                ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> Generuji...`
+                                : html`✨ Vygenerovat scénář pomocí AI`
+                            }
+                        </button>
+                    </div>
+                ` : html`
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        ${this._panels.map((panel, index) => html`
+                            <div class="bg-slate-50 rounded-2xl border border-slate-200 p-6 flex flex-col space-y-4">
+                                <h3 class="font-bold text-slate-700">Panel ${index + 1}</h3>
 
-                            <!-- Visual Description -->
-                            <div>
-                                <label class="text-sm font-medium text-slate-600">Vizuální popis</label>
-                                <textarea
-                                    class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                    rows="3"
-                                    .value=${panel.description || ''}
-                                    @input=${e => this._handleInputChange(e, index, 'description')}
-                                ></textarea>
+                                <!-- Visual Description -->
+                                <div>
+                                    <label class="text-sm font-medium text-slate-600">Vizuální popis</label>
+                                    <textarea
+                                        class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                        rows="3"
+                                        .value=${panel.description || ''}
+                                        @input=${e => this._handleInputChange(e, index, 'description')}
+                                    ></textarea>
+                                </div>
+
+                                <!-- Dialogue -->
+                                <div>
+                                    <label class="text-sm font-medium text-slate-600">Dialog</label>
+                                    <textarea
+                                        class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                        rows="2"
+                                        .value=${panel.dialogue || ''}
+                                        @input=${e => this._handleInputChange(e, index, 'dialogue')}
+                                    ></textarea>
+                                </div>
+
+                                <!-- Image Preview -->
+                                <div class="aspect-square bg-slate-200 rounded-lg flex items-center justify-center overflow-hidden">
+                                    ${panel.imageBase64
+                                        ? html`<img src="data:image/png;base64,${panel.imageBase64}" alt="Panel ${index + 1}" class="object-cover w-full h-full">`
+                                        : html`<span class="text-slate-500 text-2xl">🖼️ Žádný obrázek</span>`
+                                    }
+                                </div>
+
+                                <!-- Action Button -->
+                                <button
+                                    @click=${() => this._generatePanelImage(index)}
+                                    ?disabled=${this._isGeneratingImage !== -1}
+                                    class="w-full py-2 px-4 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-colors disabled:bg-slate-400 disabled:cursor-not-allowed flex items-center justify-center"
+                                >
+                                    ${this._isGeneratingImage === index
+                                        ? html`<span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span> Generuji...`
+                                        : html`🎨 Vygenerovat obrázek`
+                                    }
+                                </button>
                             </div>
-
-                            <!-- Dialogue -->
-                            <div>
-                                <label class="text-sm font-medium text-slate-600">Dialog</label>
-                                <textarea
-                                    class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                    rows="2"
-                                    .value=${panel.dialogue || ''}
-                                    @input=${e => this._handleInputChange(e, index, 'dialogue')}
-                                ></textarea>
-                            </div>
-
-                            <!-- Image Preview -->
-                            <div class="aspect-square bg-slate-200 rounded-lg flex items-center justify-center overflow-hidden">
-                                ${panel.imageBase64
-                                    ? html`<img src="data:image/png;base64,${panel.imageBase64}" alt="Panel ${index + 1}" class="object-cover w-full h-full">`
-                                    : html`<span class="text-slate-500 text-2xl">🖼️ Žádný obrázek</span>`
-                                }
-                            </div>
-
-                            <!-- Action Button -->
-                            <button
-                                @click=${() => this._generatePanelImage(index)}
-                                ?disabled=${this._isGeneratingImage !== -1}
-                                class="w-full py-2 px-4 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-colors disabled:bg-slate-400 disabled:cursor-not-allowed flex items-center justify-center"
-                            >
-                                ${this._isGeneratingImage === index
-                                    ? html`<span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span> Generuji...`
-                                    : html`🎨 Vygenerovat obrázek`
-                                }
-                            </button>
-                        </div>
-                    `)}
-                </div>
+                        `)}
+                    </div>
+                `}
 
                 <div class="mt-8 flex justify-end">
                      <button @click=${this.save} class="text-sm font-bold text-white bg-green-600 hover:bg-green-700 px-6 py-3 rounded-xl transition-all shadow-lg shadow-green-500/20 hover:shadow-green-500/40 hover:-translate-y-0.5 flex items-center">
