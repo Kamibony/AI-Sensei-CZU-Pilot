@@ -29,7 +29,7 @@ export class StudentLessonDetail extends LitElement {
         return {
             lessonId: { type: String },
             currentUserData: { type: Object },
-            lessonData: { type: Object, state: true },
+            lessonData: { type: Object },
             availableTabs: { type: Array, state: true },
             activeTabId: { type: String, state: true },
             isLoading: { type: Boolean, state: true },
@@ -53,7 +53,15 @@ export class StudentLessonDetail extends LitElement {
     }
 
     willUpdate(changedProperties) {
-        if (changedProperties.has('lessonId') && this.lessonId) {
+        // If lessonData is passed as a property, use it directly for live preview.
+        if (changedProperties.has('lessonData') && this.lessonData) {
+            this.lessonData = normalizeLessonData(this.lessonData);
+            this._buildAvailableTabs();
+            this.isLoading = false;
+            this._viewMode = 'hub';
+        }
+        // Otherwise, if lessonId is passed, fetch from Firestore as usual.
+        else if (changedProperties.has('lessonId') && this.lessonId && !this.lessonData) {
             this._fetchLessonDetail();
         }
     }

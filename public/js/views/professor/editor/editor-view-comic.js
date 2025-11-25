@@ -1,6 +1,5 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import * as firebaseInit from '../../../firebase-init.js';
+import { callGenerateImage } from '../../../gemini-api.js';
 import { showToast } from '../../../utils.js';
 
 export class EditorViewComic extends LitElement {
@@ -23,8 +22,16 @@ export class EditorViewComic extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
-        // Initialize panels from lesson data or create a default structure
-        if (this.lesson && this.lesson.comic && Array.isArray(this.lesson.comic)) {
+        if (this.lesson && this.lesson.comic_script && Array.isArray(this.lesson.comic_script.panels)) {
+            // If a script exists, use it as the base
+            this._panels = this.lesson.comic_script.panels.map(p => ({
+                panel: p.panel_number,
+                description: p.visual_description,
+                dialogue: p.dialogue,
+                imageBase64: null // Image is initially null
+            }));
+        } else if (this.lesson && this.lesson.comic && Array.isArray(this.lesson.comic)) {
+            // Fallback to existing comic data if no script is present
             this._panels = this.lesson.comic;
         } else {
             // Default to 4 empty panels if no data exists
@@ -51,26 +58,25 @@ export class EditorViewComic extends LitElement {
 
         const panel = this._panels[index];
         if (!panel.description) {
-            showToast("Popis scény nemůže být prázdný.", true);
+            showToast("Vizuální popis nemůže být prázdný.", true);
             return;
         }
 
         this._isGeneratingImage = index;
 
         try {
-            const generateImage = httpsCallable(firebaseInit.functions, 'generateImage');
-            const result = await generateImage({ prompt: panel.description });
+            const result = await callGenerateImage(panel.description);
 
-            if (result.data && result.data.imageBase64) {
-                this._panels[index].imageBase64 = result.data.imageBase64;
-                this.requestUpdate('_panels');
+            if (result && result.imageBase64) {
+                this._panels[index].imageBase64 = result.imageBase64;
+                this.requestUpdate('_panels'); // This triggers a re-render
                 showToast(`Obrázek pro panel ${index + 1} byl vygenerován.`);
             } else {
-                throw new Error("No image data received from function.");
+                 throw new Error(result.error || "No image data received from function.");
             }
         } catch (error) {
             console.error("Error generating image:", error);
-            showToast("Chyba při generování obrázku.", true);
+            showToast(`Chyba při generování obrázku: ${error.message}`, true);
         } finally {
             this._isGeneratingImage = -1;
         }
@@ -137,7 +143,7 @@ export class EditorViewComic extends LitElement {
                             >
                                 ${this._isGeneratingImage === index
                                     ? html`<span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span> Generuji...`
-                                    : html`🎨 Generovat tento panel`
+                                    : html`🎨 Vygenerovat obrázek`
                                 }
                             </button>
                         </div>

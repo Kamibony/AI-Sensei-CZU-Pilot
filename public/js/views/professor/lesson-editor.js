@@ -220,6 +220,7 @@ export class LessonEditor extends LitElement {
             test: finalLessonData.test || null,
             post: finalLessonData.post || null,
             comic: finalLessonData.comic || null,
+            comic_script: finalLessonData.comic_script || null,
         };
 
         this._isLoading = true;
@@ -309,8 +310,9 @@ export class LessonEditor extends LitElement {
                 }
 
                 if (type === 'comic') {
+                    const title = this.lesson.title;
                     // Ask for a script, NOT images yet. Images are expensive/slow, so we generate them manually later.
-                    specificPrompt = `Vytvoř vtipný scénář pro 4-panelový komiks vysvětlující téma: ${this.lesson.title}. Výstup musí být JSON pole: [{ panel: 1, description: 'vizuální popis', dialogue: 'text' }, ...]`;
+                    specificPrompt = `Vytvoř scénář pro 4-panelový vzdělávací komiks k tématu: ${title}. Výstup musí být POUZE validní JSON v tomto formátu: { "panels": [ { "panel_number": 1, "visual_description": "...", "dialogue": "..." }, ... ] }`;
                 }
 
                 // Build Prompt Data
@@ -323,8 +325,23 @@ export class LessonEditor extends LitElement {
                 const result = await callGenerateContent({ contentType: type, promptData, filePaths });
 
                 if (result && !result.error) {
-                    const dataKey = type === 'text' ? 'text_content' : type;
-                    const dataValue = (type === 'text' && result.text) ? result.text : result;
+                    let dataKey = type === 'text' ? 'text_content' : type;
+                    let dataValue = (type === 'text' && result.text) ? result.text : result;
+
+                    if (type === 'comic') {
+                        dataKey = 'comic_script';
+                        try {
+                            if (typeof dataValue === 'string') {
+                                // AI might wrap the JSON in markdown, so we clean it.
+                                const cleanedString = dataValue.replace(/```json\n|```/g, '').trim();
+                                dataValue = JSON.parse(cleanedString);
+                            }
+                        } catch (e) {
+                            console.error("Failed to parse comic script JSON:", e, dataValue);
+                            // Avoid saving malformed data by skipping this type
+                            continue;
+                        }
+                    }
 
                     // Update Local State
                     this.lesson = { ...this.lesson, [dataKey]: dataValue };
@@ -652,8 +669,7 @@ export class LessonEditor extends LitElement {
                                 <!-- Content -->
                                 <div class="flex-grow overflow-y-auto bg-slate-50 custom-scrollbar">
                                     <student-lesson-detail
-                                        .lesson=${this.lesson}
-                                        .previewMode=${true}>
+                                        .lessonData=${this.lesson}>
                                     </student-lesson-detail>
                                 </div>
 
