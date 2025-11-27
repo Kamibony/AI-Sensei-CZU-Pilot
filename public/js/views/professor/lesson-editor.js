@@ -386,11 +386,11 @@ export class LessonEditor extends LitElement {
                     if (type === 'comic') {
                         dataKey = 'comic_script';
                         try {
-                            const jsonMatch = dataValue.match(/\{[\s\S]*\}/);
-                            if (jsonMatch) {
-                                dataValue = JSON.parse(jsonMatch[0]);
-                            } else {
-                                throw new Error("AI nevrátila validní JSON.");
+                            if (typeof dataValue === 'string') {
+                                const jsonMatch = dataValue.match(/\{[\s\S]*\}/);
+                                if (jsonMatch) {
+                                    dataValue = JSON.parse(jsonMatch[0]);
+                                }
                             }
                         } catch (e) {
                             console.error("Failed to parse comic script JSON:", e, dataValue);
@@ -401,8 +401,12 @@ export class LessonEditor extends LitElement {
 
                     if (type === 'flashcards') {
                         try {
-                             let jsonStr = dataValue.replace(/```json/g, '').replace(/```/g, '').trim();
-                             dataValue = JSON.parse(jsonStr);
+                            if (typeof dataValue === 'string') {
+                                const jsonMatch = dataValue.match(/\[[\s\S]*\]/);
+                                if (jsonMatch) {
+                                    dataValue = JSON.parse(jsonMatch[0]);
+                                }
+                            }
                         } catch (e) {
                             console.error("Failed to parse flashcards JSON:", e, dataValue);
                             continue;
@@ -410,8 +414,13 @@ export class LessonEditor extends LitElement {
                     }
 
                     if (type === 'mindmap') {
-                        // Cleanup mermaid code
-                        dataValue = dataValue.replace(/```mermaid/g, '').replace(/```/g, '').trim();
+                        if (typeof dataValue === 'object') {
+                            dataValue = dataValue.code || JSON.stringify(dataValue);
+                        }
+                        if (typeof dataValue === 'string') {
+                            // Cleanup mermaid code
+                            dataValue = dataValue.replace(/```mermaid/g, '').replace(/```/g, '').trim();
+                        }
                     }
 
                     // Update Local State
@@ -481,7 +490,8 @@ export class LessonEditor extends LitElement {
 
             // Go to Hub view
             this._viewMode = 'hub';
-            // this._nextStep(); // Removed obsolete call
+            this._currentStep = 2; // Force UI to render the Hub/Step 2 container
+            this.requestUpdate();
 
         } catch (e) {
             console.error("Magic generation fatal error:", e);
