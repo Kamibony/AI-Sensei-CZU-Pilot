@@ -1,24 +1,48 @@
 {
-  "nav": { "dashboard": "Dashboard", "classes": "Moje Třídy", "students": "Studenti", "library": "Knihovna Lekcí", "media": "Média & Soubory", "editor": "AI Editor", "logout": "Odhlásit se" },
+  "nav": {
+    "dashboard": "Dashboard",
+    "classes": "Moje Třídy",
+    "students": "Studenti",
+    "library": "Knihovna Lekcí",
+    "media": "Média & Soubory",
+    "editor": "AI Editor",
+    "logout": "Odhlásit se",
+    "organization": "Organizace",
+    "creative_studio": "Tvůrčí Studio",
+    "interactions": "Interakce",
+    "analytics": "Analýza",
+    "admin": "Admin"
+  },
   "common": {
     "loading": "Načítám...",
+    "saved": "Uloženo",
     "save": "Uložit",
     "back": "Zpět",
     "close": "Zavřít",
     "files_select": "Vybrat soubory",
     "files_library": "Vybrat z knihovny",
     "files_rag_title": "Podklady pro AI",
-    "files_rag_help": "Nahrajte PDF skripta nebo texty. AI z nich vytvoří lekci."
+    "files_rag_help": "Nahrajte PDF skripta nebo texty. AI z nich vytvoří lekci.",
+    "students_count": "studentů",
+    "nameless_class": "Bezejmenná třída",
+    "code_copied": "Kód zkopírován do schránky!",
+    "copy_failed": "Nepodařilo se zkopírovat kód.",
+    "no_code": "Kód není k dispozici."
   },
   "dashboard": {
     "greeting": "Dobré ráno",
     "subtitle": "Zde je přehled vašich aktivit",
     "management_overview": "Přehled Managementu",
     "creative_studio": "Tvůrčí Studio",
-    "start_new": "Start New Lesson",
+    "start_new": "Nová Lekce",
     "ai_desc": "Využijte AI k vytvoření interaktivních materiálů.",
     "published_lessons": "Publikované Lekce",
-    "active_lessons": "Aktivní lekce"
+    "active_lessons": "Aktivní lekce",
+    "no_classes_title": "Zatím žádné třídy",
+    "no_classes_desc": "Začněte vytvořením své první třídy pro správu studentů.",
+    "create_first_class": "Vytvořit první třídu",
+    "enter_class_name": "Zadejte název nové třídy:",
+    "class_name_placeholder": "Např. Pokročilá Analýza Dat"
   },
   "lesson": {
     "new": "Nová lekce",
@@ -106,6 +130,8 @@
     "all_caught_up": "Vše hotovo! 🎉"
   },
   "professor": {
+    "header_title": "Učitelský panel",
+    "profile_image_alt": "Profilový obrázek",
     "stats_students": "Studenti",
     "stats_classes": "Třídy",
     "stats_lessons": "Lekce",
@@ -124,6 +150,7 @@
     "workflow_process": "Proces",
     "workflow_ai": "AI Generování",
     "workflow_result": "Výsledek",
-    "workflow_final": "Hotová Lekce"
+    "workflow_final": "Hotová Lekce",
+    "automated_creation": "Automatizovaná tvorba"
   }
 }
