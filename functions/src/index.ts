@@ -54,7 +54,13 @@ exports.generateContent = onCall({
     }
     try {
         let finalPrompt = promptData.userPrompt;
-        const isJson = ['presentation', 'quiz', 'test', 'post'].includes(contentType);
+        const language = promptData.language || 'cs';
+        const isJson = ['presentation', 'quiz', 'test', 'post', 'comic', 'flashcards'].includes(contentType);
+
+        // Add language instruction
+        const langInstruction = language === 'pt-br' ? 'Responda em Português do Brasil.' : 'Odpovídej v češtině.';
+        finalPrompt += `\n\n${langInstruction}`;
+
         if (isJson) {
             switch(contentType) {
                 case 'presentation':
@@ -76,22 +82,28 @@ exports.generateContent = onCall({
                     }
                     
                     // 3. Ak je všetko v poriadku, použijeme finálne číslo v prompte
-                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${requestedCount} slidy. Odpověď musí být JSON objekt s klíčem 'slides', ktorý obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů).`;
+                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${requestedCount} slidy. Odpověď musí být JSON objekt s klíčem 'slides', ktorý obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů). ${langInstruction}`;
                     logger.log(`Final prompt will use ${requestedCount} slides.`);
                     
                     break;
                     // ===== KONIEC ZMENY =====
 
                 case 'quiz':
-                    finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
+                    finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number). ${langInstruction}`;
                     break;
                 case 'test':
-                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${promptData.questionCount || 5} otázkami. Obtížnost: ${promptData.difficulty || 'Střední'}. Typy otázek: ${promptData.questionTypes || 'Mix'}. Odpověď musí být JSON objekt s klíčem 'questions', ktorý obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number).`;
+                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${promptData.questionCount || 5} otázkami. Obtížnost: ${promptData.difficulty || 'Střední'}. Typy otázek: ${promptData.questionTypes || 'Mix'}. Odpověď musí být JSON objekt s klíčem 'questions', ktorý obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number). ${langInstruction}`;
                     break;
                 case 'post':
                      const epCount = promptData.episode_count || promptData.episodeCount || 3;
-                     finalPrompt = `Vytvoř sérii ${epCount} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string).`;
+                     finalPrompt = `Vytvoř sérii ${epCount} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string). ${langInstruction}`;
                      break;
+                 case 'comic':
+                    // Just rely on global append
+                    break;
+                case 'flashcards':
+                    // Just rely on global append
+                    break;
             }
         }
         // RAG Pipeline Logic

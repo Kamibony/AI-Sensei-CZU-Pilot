@@ -1,0 +1,6 @@
+{
+  "nav": { "dashboard": "Painel", "classes": "Minhas Turmas", "students": "Alunos", "library": "Biblioteca de Aulas", "media": "Mídia e Arquivos", "editor": "Editor IA", "logout": "Sair" },
+  "dashboard": { "greeting": "Bom dia" },
+  "lesson": { "new": "Nova Aula", "title": "Título da Aula", "subtitle": "Subtítulo / Tema", "language": "Idioma do Conteúdo", "magic_btn": "✨ Gerar Tudo Magicamente" },
+  "languages": { "cs": "Tcheco", "pt_br": "Português (Brasil)" }
+}

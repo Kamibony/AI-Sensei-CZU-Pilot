@@ -1,9 +1,11 @@
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { translationService } from "../../utils/translation-service.js";
 
 export function setupProfessorNav(showProfessorContent) {
     const nav = document.getElementById('main-nav');
     const auth = getAuth();
     const user = auth.currentUser;
+    const t = (key) => translationService.t(key);
 
     if (nav && user) {
         // Modern Sidebar Container: White/Glass, floating feel, border-r
@@ -35,21 +37,21 @@ export function setupProfessorNav(showProfessorContent) {
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">🏠</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium">Dashboard</span>
+                        <span class="ml-2 text-sm font-medium">${t('nav.dashboard')}</span>
                     </button>
 
                     <button data-view="classes" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">🏫</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium">Moje Třídy</span>
+                        <span class="ml-2 text-sm font-medium">${t('nav.classes')}</span>
                     </button>
 
                     <button data-view="students" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">👥</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium">Studenti</span>
+                        <span class="ml-2 text-sm font-medium">${t('nav.students')}</span>
                     </button>
 
                     <button data-view="interactions" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
@@ -78,27 +80,35 @@ export function setupProfessorNav(showProfessorContent) {
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">📚</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium">Knihovna Lekcí</span>
+                        <span class="ml-2 text-sm font-medium">${t('nav.library')}</span>
                     </button>
 
                     <button data-view="media" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">📁</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium">Média & Soubory</span>
+                        <span class="ml-2 text-sm font-medium">${t('nav.media')}</span>
                     </button>
 
                     <button data-view="editor" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">✨</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium">AI Editor</span>
+                        <span class="ml-2 text-sm font-medium">${t('nav.editor')}</span>
                     </button>
                 </div>
             </div>
 
             <!-- Bottom Section: Profile & Logout -->
-            <div class="flex-shrink-0 p-4 border-t border-slate-700/50 space-y-1">
+            <div class="flex-shrink-0 p-4 border-t border-slate-700/50 space-y-2">
+                <!-- Language Selector -->
+                 <div class="px-2">
+                    <select id="language-selector" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
+                         <option value="cs" ${translationService.currentLanguage === 'cs' ? 'selected' : ''}>${t('languages.cs')}</option>
+                         <option value="pt-br" ${translationService.currentLanguage === 'pt-br' ? 'selected' : ''}>${t('languages.pt_br')}</option>
+                    </select>
+                </div>
+
                  ${user.email === 'profesor@profesor.cz' ? `
                 <button data-view="admin" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-400 hover:bg-yellow-50 hover:text-yellow-600 group border-l-4 border-transparent">
                      <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
@@ -112,7 +122,7 @@ export function setupProfessorNav(showProfessorContent) {
                     <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                         <span class="text-xl group-hover:translate-x-1 transition-transform">🚪</span>
                     </div>
-                    <span class="ml-2 text-sm font-medium">Odhlásit se</span>
+                    <span class="ml-2 text-sm font-medium">${t('nav.logout')}</span>
                 </button>
             </div>
         `;
@@ -141,6 +151,15 @@ export function setupProfessorNav(showProfessorContent) {
                 showProfessorContent(view);
             });
         });
+
+        // Language Selector Listener
+        const langSelector = document.getElementById('language-selector');
+        if (langSelector) {
+            langSelector.addEventListener('change', async (e) => {
+                await translationService.setLanguage(e.target.value);
+                window.location.reload();
+            });
+        }
 
         // Logo Click to Dashboard
         const logo = nav.querySelector('#nav-logo');
