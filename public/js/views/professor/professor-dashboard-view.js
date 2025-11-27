@@ -158,7 +158,6 @@ export class ProfessorDashboardView extends LitElement {
         }
 
         const userName = firebaseInit.auth.currentUser?.displayName || 'Profesore';
-        const t = (key) => translationService.t(key);
 
         return html`
             <div class="h-full bg-slate-50 overflow-y-auto font-['Plus_Jakarta_Sans'] p-4 lg:p-8">
