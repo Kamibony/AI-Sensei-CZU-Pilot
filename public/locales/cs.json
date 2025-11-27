@@ -1,24 +1,48 @@
 {
-  "nav": { "dashboard": "Dashboard", "classes": "Moje Třídy", "students": "Studenti", "library": "Knihovna Lekcí", "media": "Média & Soubory", "editor": "AI Editor", "logout": "Odhlásit se" },
+  "nav": {
+    "dashboard": "Dashboard",
+    "classes": "Moje Třídy",
+    "students": "Studenti",
+    "library": "Knihovna Lekcí",
+    "media": "Média & Soubory",
+    "editor": "AI Editor",
+    "logout": "Odhlásit se",
+    "organization": "Organizace",
+    "creative_studio": "Tvůrčí Studio",
+    "interactions": "Interakce",
+    "analytics": "Analýza",
+    "admin": "Admin"
+  },
   "common": {
     "loading": "Načítám...",
+    "saved": "Uloženo",
     "save": "Uložit",
     "back": "Zpět",
     "close": "Zavřít",
     "files_select": "Vybrat soubory",
     "files_library": "Vybrat z knihovny",
     "files_rag_title": "Podklady pro AI",
-    "files_rag_help": "Nahrajte PDF skripta nebo texty. AI z nich vytvoří lekci."
+    "files_rag_help": "Nahrajte PDF skripta nebo texty. AI z nich vytvoří lekci.",
+    "students_count": "studentů",
+    "nameless_class": "Bezejmenná třída",
+    "code_copied": "Kód zkopírován do schránky!",
+    "copy_failed": "Nepodařilo se zkopírovat kód.",
+    "no_code": "Kód není k dispozici."
   },
   "dashboard": {
     "greeting": "Dobré ráno",
     "subtitle": "Zde je přehled vašich aktivit",
     "management_overview": "Přehled Managementu",
     "creative_studio": "Tvůrčí Studio",
-    "start_new": "Start New Lesson",
+    "start_new": "Nová Lekce",
     "ai_desc": "Využijte AI k vytvoření interaktivních materiálů.",
     "published_lessons": "Publikované Lekce",
-    "active_lessons": "Aktivní lekce"
+    "active_lessons": "Aktivní lekce",
+    "no_classes_title": "Zatím žádné třídy",
+    "no_classes_desc": "Začněte vytvořením své první třídy pro správu studentů.",
+    "create_first_class": "Vytvořit první třídu",
+    "enter_class_name": "Zadejte název nové třídy:",
+    "class_name_placeholder": "Např. Pokročilá Analýza Dat"
   },
   "lesson": {
     "new": "Nová lekce",
@@ -34,7 +58,40 @@
     "section_visible": "Sekce zobrazena studentům.",
     "error_visibility": "Chyba při ukládání viditelnosti.",
     "no_classes": "Zatím nemáte vytvořené žádné třídy.",
-    "magic_preparing": "Připravuji kouzla..."
+    "magic_preparing": "Připravuji kouzla...",
+    "confirm_no_files": "Generujete bez nahraných souborů. AI bude vařit z vody (pouze z názvu). Chcete pokračovat?",
+    "magic_error": "Chyba ❌",
+    "visible_tooltip": "Viditelné pro studenty",
+    "hidden_tooltip": "Skryté pro studenty",
+    "magic_overlay_title": "AI pracuje na lekci...",
+    "magic_overlay_desc": "Vytvářím kompletní vzdělávací materiály na míru.",
+    "stats_slides": "slidů",
+    "stats_questions": "otázek",
+    "stats_episodes": "epizod",
+    "stats_episode_singular": "epizoda",
+    "stats_panels": "panelů",
+    "stats_inserted": "Vloženo",
+    "stats_created": "Vytvořeno",
+    "stats_cards": "kartiček",
+    "unknown_type": "Neznámý typ obsahu",
+    "modal_error_elements": "Chybějící elementy pro modální okno.",
+    "modal_error_load": "Chyba: Nepodařilo se načíst komponentu pro výběr souborů.",
+    "no_files_selected": "Žádné soubory nevybrány.",
+    "upload_preparing": "Příprava...",
+    "upload_uploading": "Nahrávám...",
+    "upload_finalizing": "Finalizace...",
+    "upload_ai_processing": "Zpracování AI...",
+    "upload_ai_error": "AI Chyba",
+    "upload_done": "Hotovo!",
+    "upload_error": "Chyba!",
+    "upload_success_all": "Všechny soubory byly úspěšně nahrány.",
+    "upload_failed_some": "Některé soubory se nepodařilo nahrát.",
+    "upload_login_required": "Nejste přihlášen. Nahrávání bylo zrušeno.",
+    "upload_ai_failed_specific": "Soubor {filename} byl nahrán, ale AI analýza selhala.",
+    "library_loading": "Načítám soubory...",
+    "library_empty": "V knihovně nejsou žádné soubory.",
+    "library_error": "Nepodařilo se načíst soubory.",
+    "library_login_required": "Nejste přihlášen."
   },
   "languages": { "cs": "Čeština", "pt_br": "Português (Brasil)" },
   "editor": {
@@ -106,6 +163,8 @@
     "all_caught_up": "Vše hotovo! 🎉"
   },
   "professor": {
+    "header_title": "Učitelský panel",
+    "profile_image_alt": "Profilový obrázek",
     "stats_students": "Studenti",
     "stats_classes": "Třídy",
     "stats_lessons": "Lekce",
@@ -124,6 +183,7 @@
     "workflow_process": "Proces",
     "workflow_ai": "AI Generování",
     "workflow_result": "Výsledek",
-    "workflow_final": "Hotová Lekce"
+    "workflow_final": "Hotová Lekce",
+    "automated_creation": "Automatizovaná tvorba"
   }
 }
