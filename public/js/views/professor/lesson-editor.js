@@ -22,7 +22,7 @@ export class LessonEditor extends LitElement {
         _currentStep: { state: true, type: Number },
         _selectedContentType: { state: true, type: String },
         _isLoading: { state: true, type: Boolean },
-        _magicProgress: { state: true, type: String },
+        _magicLog: { state: true, type: Array },
         _viewMode: { state: true, type: String },
         _groups: { state: true, type: Array },
         _showStudentPreview: { state: true, type: Boolean },
@@ -34,7 +34,7 @@ export class LessonEditor extends LitElement {
         this._currentStep = 1;
         this._selectedContentType = null;
         this._isLoading = false;
-        this._magicProgress = '';
+        this._magicLog = [];
         this._viewMode = 'settings'; // Default to settings (creation mode) for new lessons
         this._groups = [];
         this._showStudentPreview = false;
@@ -62,17 +62,36 @@ export class LessonEditor extends LitElement {
 
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {
-             if (!this.lesson || (changedProperties.get('lesson') && changedProperties.get('lesson')?.id !== this.lesson?.id)) {
-                 loadSelectedFiles(this.lesson?.ragFilePaths || []);
+            const oldLesson = changedProperties.get('lesson');
+            const newLesson = this.lesson;
+
+            // FIX 1: Stop View Resets
+            // Only reset state if we switched to a COMPLETELY DIFFERENT lesson ID.
+            // Transitions from "Draft" (no ID) to "Saved" (ID) should PRESERVE state to avoid jumping.
+            // Updates to the same lesson ID should PRESERVE state.
+
+            const isFirstLoad = !oldLesson;
+            const isDifferentLessonId = oldLesson?.id && newLesson?.id && oldLesson.id !== newLesson.id;
+            const isNavigationToDraft = oldLesson?.id && !newLesson?.id;
+
+            if (isFirstLoad || isDifferentLessonId || isNavigationToDraft) {
+                 loadSelectedFiles(newLesson?.ragFilePaths || []);
                  this._currentStep = 1;
-                 // Hub Logic: New Lesson -> Settings (Step 1), Existing -> Hub
-                 if (this.lesson?.id) {
+
+                 // Hub Logic: Existing ID -> Hub, No ID -> Settings
+                 if (newLesson?.id) {
                      this._viewMode = 'hub';
                      this._selectedContentType = null;
                  } else {
                      this._viewMode = 'settings';
                      this._selectedContentType = 'text';
                  }
+            } else {
+                // Same lesson or Draft->Saved transition. Preserve View Mode.
+                // But update files if they changed (e.g. upload complete)
+                if (JSON.stringify(oldLesson?.ragFilePaths) !== JSON.stringify(newLesson?.ragFilePaths)) {
+                     loadSelectedFiles(newLesson?.ragFilePaths || []);
+                }
             }
         }
     }
@@ -268,7 +287,11 @@ export class LessonEditor extends LitElement {
         }
 
         const filePaths = currentFiles.map(f => f.fullPath).filter(p => p);
+
+        // FIX 2: Initialize Magic Log
         this._isLoading = true;
+        this._magicLog = [];
+        this.requestUpdate();
 
         // Save initial structure to DB to ensure we have an ID
         try {
@@ -305,7 +328,10 @@ export class LessonEditor extends LitElement {
 
         try {
             for (const type of typesToGenerate) {
-                this._magicProgress = `Generuji ${this.contentTypes.find(t=>t.id===type).label}...`;
+                const typeLabel = this.contentTypes.find(t=>t.id===type)?.label || type;
+
+                // Update Log: Started
+                this._magicLog = [...this._magicLog, `${typeLabel}: Pracuji...`];
                 this.requestUpdate();
 
                 let specificPrompt = `Téma lekce: ${this.lesson.title}. ${this.lesson.subtitle || ''}`;
@@ -392,8 +418,18 @@ export class LessonEditor extends LitElement {
                          updatedAt: serverTimestamp()
                     });
 
+                    // Update Log: Done
+                    // Replace last entry or append new? User wants a list.
+                    // Let's replace "Pracuji..." with "Hotovo"
+                    this._magicLog = this._magicLog.map(item =>
+                        item.includes(`${typeLabel}: Pracuji...`) ? `${typeLabel}: Hotovo ✅` : item
+                    );
+                    this.requestUpdate();
+
                 } else {
                     console.warn(`Magic generation failed for ${type}:`, result?.error);
+                    this._magicLog = [...this._magicLog, `${typeLabel}: Chyba ❌`];
+                    this.requestUpdate();
                 }
             }
 
@@ -430,24 +466,35 @@ export class LessonEditor extends LitElement {
             this.lesson = { ...this.lesson, visible_sections: updatedVisibleSections };
             // -------------------------------
 
-            this._magicProgress = '';
             showToast("Magie dokončena! Zkontrolujte vygenerovaný obsah.");
 
             // Go to Hub view
             this._viewMode = 'hub';
-            this._nextStep(); // Go to content step (Step 2)
+            // this._nextStep(); // Removed obsolete call
 
         } catch (e) {
             console.error("Magic generation fatal error:", e);
             showToast("Chyba při generování: " + e.message, true);
         } finally {
             this._isLoading = false;
-            this._magicProgress = '';
+            this._magicLog = []; // Clear log after finish
         }
     }
 
     _handleBackClick() {
         this.dispatchEvent(new CustomEvent('editor-exit', { bubbles: true, composed: true }));
+    }
+
+    _handleSaveAndBack() {
+        // Find active editor and save it
+        if (this._viewMode === 'editor' && this._selectedContentType) {
+            const editorComponent = this.renderRoot.querySelector('editor-view-' + this._selectedContentType);
+            if (editorComponent && typeof editorComponent.save === 'function') {
+                editorComponent.save();
+                showToast("Uloženo.");
+            }
+        }
+        this._switchToHub();
     }
 
     _switchToEditor(typeId) {
@@ -698,7 +745,7 @@ export class LessonEditor extends LitElement {
                             <div class="flex flex-col sm:flex-row gap-4 justify-center pt-8">
                                 <button @click=${this._handleMagicGeneration} ?disabled=${this._isLoading}
                                     class="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center text-lg">
-                                    ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> ${this._magicProgress}` : html`${t('lesson.magic_btn')}`}
+                                    ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> Pracuji...` : html`${t('lesson.magic_btn')}`}
                                 </button>
 
                                 <button @click=${this._switchToHub} ?disabled=${this._isLoading}
@@ -781,11 +828,12 @@ export class LessonEditor extends LitElement {
                                 })}
                             </div>
 
+                            <!-- FIX 3: Navigation Clarity (Hub Footer) -->
                             <div class="mt-16 flex justify-center pb-8">
-                                <button @click=${this._handleSaveLesson}
-                                    class="group relative inline-flex items-center justify-center px-10 py-5 text-lg font-bold text-white transition-all duration-200 bg-indigo-600 rounded-full hover:bg-indigo-700 shadow-xl shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-1">
-                                    🚀 Publikovat a Zavřít
-                                    <svg class="w-5 h-5 ml-2 -mr-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                <button @click=${this._handleBackClick}
+                                    class="group relative inline-flex items-center justify-center px-10 py-5 text-lg font-bold text-slate-700 transition-all duration-200 bg-white border border-slate-200 rounded-full hover:bg-slate-50 shadow-lg shadow-slate-200/50 hover:shadow-slate-300/50 hover:-translate-y-1">
+                                    Zavřít lekci
+                                    <svg class="w-5 h-5 ml-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                 </button>
                             </div>
                         </div>
@@ -793,9 +841,10 @@ export class LessonEditor extends LitElement {
                         <!-- === EDITOR VIEW === -->
                         <div class="${this._viewMode === 'editor' ? 'block' : 'hidden'} h-full animate-fade-in flex flex-col">
                             <div class="mb-6 flex items-center justify-between max-w-5xl mx-auto w-full">
-                                <button @click=${this._switchToHub} class="flex items-center text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors px-4 py-3 rounded-xl bg-slate-50 hover:bg-indigo-50">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                                    Zpět na přehled
+                                <!-- FIX 3: Navigation Clarity (Editor Header Button) -->
+                                <button @click=${this._handleSaveAndBack} class="flex items-center text-sm font-bold text-white hover:text-indigo-100 transition-colors px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-md">
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                                    💾 Uložit a Zpět
                                 </button>
                                 <h3 class="font-bold text-slate-800 text-lg flex items-center">
                                     <span class="mr-2 text-2xl">${this.contentTypes.find(t => t.id === this._selectedContentType)?.icon}</span>
@@ -810,17 +859,7 @@ export class LessonEditor extends LitElement {
                                 </div>
                             </div>
 
-                            <!-- Footer inside Editor -->
-                            <div class="mt-6 flex justify-end max-w-5xl mx-auto w-full pb-8">
-                                <button @click=${() => {
-                                    this.renderRoot.querySelector('editor-view-' + this._selectedContentType)?.save();
-                                    showToast("Sekce uložena");
-                                }}
-                                    class="text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:-translate-y-0.5 flex items-center">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
-                                    Uložit změny
-                                </button>
-                            </div>
+                            <!-- Footer inside Editor (REMOVED as per FIX 3) -->
                         </div>
                     </div>
                 </div>
@@ -855,6 +894,41 @@ export class LessonEditor extends LitElement {
                                 <div class="h-1 bg-slate-900 w-full flex justify-center items-end pb-2">
                                      <div class="w-1/3 h-1 bg-slate-200 rounded-full opacity-20"></div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+
+                <!-- FIX 2: Magic Progress Overlay -->
+                ${this._isLoading && this._viewMode === 'settings' ? html`
+                    <div class="fixed inset-0 z-[110] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-6 animate-fade-in">
+                        <div class="max-w-md w-full text-center">
+                            <div class="mb-8 relative">
+                                <div class="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto animate-pulse">
+                                    <span class="text-4xl">✨</span>
+                                </div>
+                                <div class="absolute -bottom-2 -right-2">
+                                    <span class="flex h-6 w-6 relative">
+                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                        <span class="relative inline-flex rounded-full h-6 w-6 bg-indigo-500"></span>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <h2 class="text-3xl font-extrabold text-slate-900 mb-2">AI pracuje na lekci...</h2>
+                            <p class="text-slate-500 mb-8">Vytvářím kompletní vzdělávací materiály na míru.</p>
+
+                            <div class="bg-slate-50 rounded-2xl p-6 shadow-inner border border-slate-100 text-left space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
+                                ${this._magicLog.length > 0 ? this._magicLog.map(log => html`
+                                    <div class="flex items-center text-sm font-medium ${log.includes('Hotovo') ? 'text-green-600' : (log.includes('Chyba') ? 'text-red-500' : 'text-slate-600')}">
+                                        <span class="mr-3 text-lg">
+                                            ${log.includes('Hotovo') ? '✅' : (log.includes('Chyba') ? '❌' : '⏳')}
+                                        </span>
+                                        ${log}
+                                    </div>
+                                `) : html`
+                                    <div class="text-center text-slate-400 py-4 italic">Připravuji kouzla...</div>
+                                `}
                             </div>
                         </div>
                     </div>
