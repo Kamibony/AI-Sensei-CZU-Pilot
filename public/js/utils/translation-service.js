@@ -42,6 +42,10 @@ export class TranslationService {
 
     subscribe(callback) {
         this.listeners.push(callback);
+        // Return unsubscribe function
+        return () => {
+            this.listeners = this.listeners.filter(cb => cb !== callback);
+        };
     }
 
     notifyListeners() {

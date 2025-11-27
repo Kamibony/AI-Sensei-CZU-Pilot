@@ -2,6 +2,7 @@ import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/li
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
+import { translationService } from '../../utils/translation-service.js';
 
 export class ProfessorDashboardView extends LitElement {
     static properties = {
@@ -25,11 +26,16 @@ export class ProfessorDashboardView extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._fetchDashboardData();
+        // Subscribe to language changes
+        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         this.unsubscribes.forEach(unsub => unsub());
+        if (this._langUnsubscribe) {
+            this._langUnsubscribe();
+        }
     }
 
     _fetchDashboardData() {
@@ -148,6 +154,7 @@ export class ProfessorDashboardView extends LitElement {
         }
 
         const userName = firebaseInit.auth.currentUser?.displayName || 'Profesore';
+        const t = (key) => translationService.t(key);
 
         return html`
             <div class="h-full bg-slate-50 overflow-y-auto font-['Plus_Jakarta_Sans'] p-4 lg:p-8">
@@ -155,7 +162,7 @@ export class ProfessorDashboardView extends LitElement {
                 <!-- Header Section -->
                 <div class="max-w-[1600px] mx-auto mb-10 flex flex-col md:flex-row md:items-end justify-between">
                      <div>
-                        <h1 class="text-3xl font-bold text-slate-900 tracking-tight mb-1">Dobré ráno, ${userName}</h1>
+                        <h1 class="text-3xl font-bold text-slate-900 tracking-tight mb-1">${t('dashboard.greeting')}, ${userName}</h1>
                         <p class="text-slate-500">Váš přehled výuky je aktuální.</p>
                     </div>
                      <div class="mt-4 md:mt-0">
@@ -175,9 +182,9 @@ export class ProfessorDashboardView extends LitElement {
                         <div>
                             <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 pl-1">Přehled Managementu</h2>
                             <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                                ${this._renderStatCard("Studenti", this._stats.totalStudents, "users", "students")}
-                                ${this._renderStatCard("Třídy", this._stats.totalClasses, "briefcase", "classes")}
-                                ${this._renderStatCard("Knihovna Lekcí", this._stats.totalLessons, "book", "timeline")}
+                                ${this._renderStatCard(t('professor.stats_students'), this._stats.totalStudents, "users", "students")}
+                                ${this._renderStatCard(t('professor.stats_classes'), this._stats.totalClasses, "briefcase", "classes")}
+                                ${this._renderStatCard(t('professor.stats_lessons'), this._stats.totalLessons, "book", "timeline")}
                             </div>
                         </div>
 
@@ -194,7 +201,7 @@ export class ProfessorDashboardView extends LitElement {
                             <!-- Header -->
                             <div class="p-6 pb-2 relative z-10">
                                 <h3 class="text-xl font-bold text-slate-900 tracking-tight flex items-center">
-                                    <span class="text-2xl mr-2">✨</span> Nová Lekce
+                                    <span class="text-2xl mr-2">✨</span> ${t('professor.new_lesson_card')}
                                 </h3>
                                 <p class="text-slate-500 text-sm mt-1">Automatizovaná tvorba</p>
                             </div>

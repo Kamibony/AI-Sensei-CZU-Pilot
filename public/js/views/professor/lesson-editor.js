@@ -60,6 +60,36 @@ export class LessonEditor extends LitElement {
 
     createRenderRoot() { return this; }
 
+    connectedCallback() {
+        super.connectedCallback();
+        // Subscribe to language changes
+        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
+
+        loadSelectedFiles(this.lesson?.ragFilePaths || []);
+        this._fetchGroups();
+
+        // Check URL params to restore state
+        const params = new URLSearchParams(window.location.search);
+        const viewMode = params.get('viewMode');
+        const contentType = params.get('contentType');
+
+        if (viewMode) {
+            this._viewMode = viewMode;
+            if (viewMode === 'editor' && contentType) {
+                this._selectedContentType = contentType;
+            } else if (viewMode === 'hub') {
+                this._selectedContentType = null;
+            }
+        }
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        if (this._langUnsubscribe) {
+            this._langUnsubscribe();
+        }
+    }
+
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {
             const oldLesson = changedProperties.get('lesson');
@@ -96,25 +126,6 @@ export class LessonEditor extends LitElement {
         }
     }
 
-    connectedCallback() {
-        super.connectedCallback();
-        loadSelectedFiles(this.lesson?.ragFilePaths || []);
-        this._fetchGroups();
-
-        // Check URL params to restore state
-        const params = new URLSearchParams(window.location.search);
-        const viewMode = params.get('viewMode');
-        const contentType = params.get('contentType');
-
-        if (viewMode) {
-            this._viewMode = viewMode;
-            if (viewMode === 'editor' && contentType) {
-                this._selectedContentType = contentType;
-            } else if (viewMode === 'hub') {
-                this._selectedContentType = null;
-            }
-        }
-    }
 
     async _fetchGroups() {
         const currentUser = firebaseInit.auth.currentUser;
@@ -696,8 +707,8 @@ export class LessonEditor extends LitElement {
                                 <div class="relative mt-4">
                                     <label class="block text-sm font-medium text-slate-600 mb-2">${t('lesson.language')}</label>
                                     <select id="content-language" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                        <option value="cs" selected>${t('languages.cs')}</option>
-                                        <option value="pt-br">${t('languages.pt_br')}</option>
+                                        <option value="cs" ?selected=${translationService.currentLanguage === 'cs'}>${t('languages.cs')}</option>
+                                        <option value="pt-br" ?selected=${translationService.currentLanguage === 'pt-br'}>${t('languages.pt_br')}</option>
                                     </select>
                                 </div>
 
@@ -760,10 +771,10 @@ export class LessonEditor extends LitElement {
 
                             <!-- Hub Header -->
                             <div class="text-center mb-10 relative">
-                                <h1 class="text-3xl font-bold text-slate-900 mb-2">${this.lesson?.title || 'Nová lekce'}</h1>
+                                <h1 class="text-3xl font-bold text-slate-900 mb-2">${this.lesson?.title || t('professor.new_lesson_card')}</h1>
                                 <button @click=${this._switchToSettings} class="text-sm font-bold text-slate-400 hover:text-indigo-600 flex items-center justify-center mx-auto mb-4">
                                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                                    Upravit detaily a soubory
+                                    ${t('professor.hub_subtitle')}
                                 </button>
 
                                 <button @click=${this._openStudentPreview} class="inline-flex items-center px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-sm font-bold hover:bg-indigo-100 transition-colors shadow-sm border border-indigo-100">
@@ -832,7 +843,7 @@ export class LessonEditor extends LitElement {
                             <div class="mt-16 flex justify-center pb-8">
                                 <button @click=${this._handleBackClick}
                                     class="group relative inline-flex items-center justify-center px-10 py-5 text-lg font-bold text-slate-700 transition-all duration-200 bg-white border border-slate-200 rounded-full hover:bg-slate-50 shadow-lg shadow-slate-200/50 hover:shadow-slate-300/50 hover:-translate-y-1">
-                                    Zavřít lekci
+                                    ${t('professor.back_hub')}
                                     <svg class="w-5 h-5 ml-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                 </button>
                             </div>
@@ -844,7 +855,7 @@ export class LessonEditor extends LitElement {
                                 <!-- FIX 3: Navigation Clarity (Editor Header Button) -->
                                 <button @click=${this._handleSaveAndBack} class="flex items-center text-sm font-bold text-white hover:text-indigo-100 transition-colors px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-md">
                                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
-                                    💾 Uložit a Zpět
+                                    💾 ${t('professor.save_section')}
                                 </button>
                                 <h3 class="font-bold text-slate-800 text-lg flex items-center">
                                     <span class="mr-2 text-2xl">${this.contentTypes.find(t => t.id === this._selectedContentType)?.icon}</span>

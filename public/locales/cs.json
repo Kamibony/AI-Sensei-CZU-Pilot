@@ -2,5 +2,25 @@
   "nav": { "dashboard": "Dashboard", "classes": "Moje Třídy", "students": "Studenti", "library": "Knihovna Lekcí", "media": "Média & Soubory", "editor": "AI Editor", "logout": "Odhlásit se" },
   "dashboard": { "greeting": "Dobré ráno" },
   "lesson": { "new": "Nová lekce", "title": "Název lekce", "subtitle": "Podtitulek / Téma", "language": "Jazyk obsahu", "magic_btn": "✨ Magicky Vygenerovat Vše" },
-  "languages": { "cs": "Čeština", "pt_br": "Português (Brasil)" }
+  "languages": { "cs": "Čeština", "pt_br": "Português (Brasil)" },
+  "student": {
+    "dashboard_title": "Dobré ráno",
+    "streak": "dní v řadě",
+    "classes": "Moje Třídy",
+    "continue": "Pokračovat",
+    "empty_classes": "Zatím v žádné třídě?",
+    "join": "Připojit se",
+    "next_up": "Co tě čeká"
+  },
+  "professor": {
+    "stats_students": "Studenti",
+    "stats_classes": "Třídy",
+    "stats_lessons": "Lekce",
+    "new_lesson_card": "Nová Lekce",
+    "hub_title": "Přehled Lekce",
+    "hub_subtitle": "Vyberte sekci k úpravě",
+    "back_hub": "Zpět na přehled",
+    "finish_publish": "Dokončit a Publikovat",
+    "save_section": "Uložit sekci"
+  }
 }
