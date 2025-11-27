@@ -12,6 +12,8 @@ import './editor/editor-view-quiz.js';
 import './editor/editor-view-test.js';
 import './editor/editor-view-post.js';
 import './editor/editor-view-comic.js';
+import './editor/editor-view-flashcards.js';
+import './editor/editor-view-mindmap.js';
 
 export class LessonEditor extends LitElement {
     static properties = {
@@ -50,6 +52,8 @@ export class LessonEditor extends LitElement {
             { id: 'test', label: 'Test', icon: '✅', description: 'Hodnocený test' },
             { id: 'post', label: 'Audio', icon: '🎙️', description: 'Podcast skript' },
             { id: 'comic', label: 'Komiks', icon: '🎨', description: 'Humorný komiks k lekci' },
+            { id: 'flashcards', label: 'Kartičky', icon: '🗂️', description: 'Opakování pojmů' },
+            { id: 'mindmap', label: 'Mapa', icon: '🧠', description: 'Mentální mapa souvislostí' }
         ];
     }
 
@@ -292,7 +296,7 @@ export class LessonEditor extends LitElement {
             return;
         }
 
-        const typesToGenerate = ['text', 'presentation', 'quiz', 'test', 'post', 'comic'];
+        const typesToGenerate = ['text', 'presentation', 'quiz', 'test', 'post', 'comic', 'flashcards', 'mindmap'];
 
         try {
             for (const type of typesToGenerate) {
@@ -313,6 +317,14 @@ export class LessonEditor extends LitElement {
                     const title = this.lesson.title;
                     // Ask for a script, NOT images yet. Images are expensive/slow, so we generate them manually later.
                     specificPrompt = `Vytvoř scénář pro 4-panelový vzdělávací komiks k tématu: ${title}. Výstup musí být POUZE validní JSON v tomto formátu: { "panels": [ { "panel_number": 1, "visual_description": "...", "dialogue": "..." }, ... ] }`;
+                }
+
+                if (type === 'flashcards') {
+                    specificPrompt = `Vytvoř sadu 10 studijních kartiček (flashcards) k tématu: ${this.lesson.title}. Výstup musí být JSON: [{ "front": "Pojem", "back": "Vysvětlení" }, ...].`;
+                }
+
+                if (type === 'mindmap') {
+                     specificPrompt = `Vytvoř strukturu mentální mapy k tématu: ${this.lesson.title}. Výstup musí být POUZE validní kód pro Mermaid.js (typ graph TD). Nepoužívej markdown bloky, jen čistý text diagramu.`;
                 }
 
                 // Build Prompt Data
@@ -342,6 +354,21 @@ export class LessonEditor extends LitElement {
                             // Avoid saving malformed data by skipping this type
                             continue;
                         }
+                    }
+
+                    if (type === 'flashcards') {
+                        try {
+                             let jsonStr = dataValue.replace(/```json/g, '').replace(/```/g, '').trim();
+                             dataValue = JSON.parse(jsonStr);
+                        } catch (e) {
+                            console.error("Failed to parse flashcards JSON:", e, dataValue);
+                            continue;
+                        }
+                    }
+
+                    if (type === 'mindmap') {
+                        // Cleanup mermaid code
+                        dataValue = dataValue.replace(/```mermaid/g, '').replace(/```/g, '').trim();
                     }
 
                     // Update Local State
@@ -442,6 +469,8 @@ export class LessonEditor extends LitElement {
             case 'test': return html`<editor-view-test .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-test>`;
             case 'post': return html`<editor-view-post .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-post>`;
             case 'comic': return html`<editor-view-comic .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-comic>`;
+            case 'flashcards': return html`<editor-view-flashcards .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-flashcards>`;
+            case 'mindmap': return html`<editor-view-mindmap .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-mindmap>`;
             default: return html`<p class="text-red-500">Neznámý typ obsahu</p>`;
         }
     }
