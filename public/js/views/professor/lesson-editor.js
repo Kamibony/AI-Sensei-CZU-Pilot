@@ -266,7 +266,7 @@ export class LessonEditor extends LitElement {
             if (!confirm("Generujete bez nahraných souborů. AI bude vařit z vody (pouze z názvu). Chcete pokračovat?")) return;
         }
 
-        const filePaths = currentFiles.map(f => f.fullPath);
+        const filePaths = currentFiles.map(f => f.fullPath).filter(p => p);
         this._isLoading = true;
 
         // Save initial structure to DB to ensure we have an ID

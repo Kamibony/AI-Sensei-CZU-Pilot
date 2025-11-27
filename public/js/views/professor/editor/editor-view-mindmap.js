@@ -67,7 +67,7 @@ export class EditorViewMindmap extends LitElement {
             const result = await callGenerateContent({
                 contentType: 'mindmap',
                 promptData: { userPrompt: prompt },
-                filePaths: this.lesson.ragFilePaths ? this.lesson.ragFilePaths.map(f => f.fullPath) : []
+                filePaths: this.lesson.ragFilePaths ? this.lesson.ragFilePaths.map(f => f.fullPath).filter(p => p) : []
             });
 
             if (result.error) {

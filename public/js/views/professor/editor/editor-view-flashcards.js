@@ -54,7 +54,7 @@ export class EditorViewFlashcards extends LitElement {
             const result = await callGenerateContent({
                 contentType: 'flashcards',
                 promptData: { userPrompt: prompt },
-                filePaths: this.lesson.ragFilePaths ? this.lesson.ragFilePaths.map(f => f.fullPath) : []
+                filePaths: this.lesson.ragFilePaths ? this.lesson.ragFilePaths.map(f => f.fullPath).filter(p => p) : []
             });
 
             if (result.error) {
