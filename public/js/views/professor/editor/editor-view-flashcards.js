@@ -51,17 +51,42 @@ export class EditorViewFlashcards extends LitElement {
         try {
             const prompt = `Vytvoř sadu 10 studijních kartiček (flashcards) k tématu: ${title}. Výstup musí být JSON: [{ "front": "Pojem", "back": "Vysvětlení" }, ...]. Žádný markdown.`;
 
-            const result = await callGenerateContent(prompt);
+            const result = await callGenerateContent({
+                contentType: 'flashcards',
+                promptData: { userPrompt: prompt },
+                filePaths: this.lesson.ragFilePaths ? this.lesson.ragFilePaths.map(f => f.fullPath) : []
+            });
+
+            if (result.error) {
+                throw new Error(result.error);
+            }
 
             let cards = [];
-             try {
-                // Cleanup JSON
-                let jsonStr = result.replace(/```json/g, '').replace(/```/g, '').trim();
-                cards = JSON.parse(jsonStr);
-            } catch (e) {
-                console.error('Chyba parsování JSON z AI:', e);
-                showToast('Nepodařilo se zpracovat výstup z AI.', true);
-                return;
+            let jsonStr = result.text || result;
+
+            // Handle object result
+            if (typeof jsonStr === 'object') {
+                if (Array.isArray(jsonStr)) {
+                    cards = jsonStr;
+                } else if (jsonStr.flashcards && Array.isArray(jsonStr.flashcards)) {
+                    cards = jsonStr.flashcards;
+                } else {
+                    jsonStr = JSON.stringify(jsonStr);
+                }
+            }
+
+            if (cards.length === 0 && typeof jsonStr === 'string') {
+                 try {
+                    // Cleanup JSON
+                    jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const parsed = JSON.parse(jsonStr);
+                    if (Array.isArray(parsed)) cards = parsed;
+                    else if (parsed.flashcards && Array.isArray(parsed.flashcards)) cards = parsed.flashcards;
+                } catch (e) {
+                    console.error('Chyba parsování JSON z AI:', e);
+                    showToast('Nepodařilo se zpracovat výstup z AI.', true);
+                    return;
+                }
             }
 
             if (Array.isArray(cards)) {

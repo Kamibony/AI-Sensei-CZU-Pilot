@@ -64,10 +64,24 @@ export class EditorViewMindmap extends LitElement {
         try {
             const prompt = `Vytvoř strukturu mentální mapy k tématu: ${title}. Výstup musí být POUZE validní kód pro Mermaid.js (typ graph TD). Nepoužívej markdown bloky, jen čistý text diagramu.`;
 
-            const result = await callGenerateContent(prompt);
+            const result = await callGenerateContent({
+                contentType: 'mindmap',
+                promptData: { userPrompt: prompt },
+                filePaths: this.lesson.ragFilePaths ? this.lesson.ragFilePaths.map(f => f.fullPath) : []
+            });
+
+            if (result.error) {
+                throw new Error(result.error);
+            }
+
+            let rawText = result.text || result;
+
+            if (typeof rawText !== 'string') {
+                rawText = String(rawText);
+            }
 
             // Cleanup markdown
-            let code = result.replace(/```mermaid/g, '').replace(/```/g, '').trim();
+            let code = rawText.replace(/```mermaid/g, '').replace(/```/g, '').trim();
 
             this._mermaidCode = code;
             this.save();
