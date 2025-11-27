@@ -1,8 +1,65 @@
 {
   "nav": { "dashboard": "Dashboard", "classes": "Moje Třídy", "students": "Studenti", "library": "Knihovna Lekcí", "media": "Média & Soubory", "editor": "AI Editor", "logout": "Odhlásit se" },
-  "dashboard": { "greeting": "Dobré ráno" },
+  "common": {
+    "loading": "Načítám...",
+    "save": "Uložit",
+    "back": "Zpět",
+    "close": "Zavřít",
+    "files_select": "Vybrat soubory",
+    "files_library": "Vybrat z knihovny",
+    "files_rag_title": "Podklady pro AI",
+    "files_rag_help": "Nahrajte PDF skripta nebo texty. AI z nich vytvoří lekci."
+  },
+  "dashboard": {
+    "greeting": "Dobré ráno",
+    "subtitle": "Zde je přehled vašich aktivit",
+    "management_overview": "Přehled Managementu",
+    "creative_studio": "Tvůrčí Studio",
+    "start_new": "Start New Lesson",
+    "ai_desc": "Využijte AI k vytvoření interaktivních materiálů.",
+    "published_lessons": "Publikované Lekce",
+    "active_lessons": "Aktivní lekce"
+  },
   "lesson": { "new": "Nová lekce", "title": "Název lekce", "subtitle": "Podtitulek / Téma", "language": "Jazyk obsahu", "magic_btn": "✨ Magicky Vygenerovat Vše" },
   "languages": { "cs": "Čeština", "pt_br": "Português (Brasil)" },
+  "editor": {
+    "step_basics": "Základy",
+    "step_content": "Obsah",
+    "step_done": "Hotovo",
+    "settings_title": "Nastavení Lekce",
+    "label_title": "Název lekce",
+    "label_subtitle": "Podtitulek / Téma",
+    "label_subtitle_tip": "Tip: Krátký popis tématu pomůže AI lépe zaměřit obsah.",
+    "assign_class": "Přiřadit do tříd",
+    "btn_continue_content": "Pokračovat na obsah",
+    "hub_edit_details": "Upravit detaily a soubory",
+    "hub_student_preview": "Náhled studenta",
+    "status_done": "Hotovo",
+    "status_empty": "Prázdné",
+    "btn_publish": "Publikovat a Zavřít",
+    "btn_back_hub": "Zpět na přehled",
+    "btn_save_changes": "Uložit změny"
+  },
+  "content_types": {
+    "text": "Text",
+    "text_desc": "Studijní text a materiály",
+    "presentation": "Prezentace",
+    "presentation_desc": "AI generované slajdy",
+    "video": "Video",
+    "video_desc": "YouTube nebo odkaz",
+    "quiz": "Kvíz",
+    "quiz_desc": "Rychlé ověření",
+    "test": "Test",
+    "test_desc": "Hodnocený test",
+    "audio": "Audio",
+    "audio_desc": "Podcast skript",
+    "comic": "Komiks",
+    "comic_desc": "Humorný komiks k lekci",
+    "flashcards": "Kartičky",
+    "flashcards_desc": "Opakování pojmů",
+    "mindmap": "Mapa",
+    "mindmap_desc": "Mentální mapa souvislostí"
+  },
   "student": {
     "dashboard_title": "Dobré ráno",
     "streak": "dní v řadě",
@@ -11,6 +68,11 @@
     "empty_classes": "Zatím v žádné třídě?",
     "join": "Připojit se",
     "next_up": "Co tě čeká"
+  },
+  "student_dashboard": {
+    "jump_back": "Pokračovat v lekci",
+    "play": "Spustit",
+    "all_caught_up": "Vše hotovo! 🎉"
   },
   "professor": {
     "stats_students": "Studenti",
@@ -21,6 +83,8 @@
     "hub_subtitle": "Vyberte sekci k úpravě",
     "back_hub": "Zpět na přehled",
     "finish_publish": "Dokončit a Publikovat",
-    "save_section": "Uložit sekci"
+    "save_section": "Uložit sekci",
+    "add_class": "Přidat třídu",
+    "no_classes_yet": "Zatím žádné třídy"
   }
 }
