@@ -266,7 +266,7 @@ export class LessonEditor extends LitElement {
             if (!confirm("Generujete bez nahraných souborů. AI bude vařit z vody (pouze z názvu). Chcete pokračovat?")) return;
         }
 
-        const filePaths = currentFiles.map(f => f.fullPath);
+        const filePaths = currentFiles.map(f => f.fullPath).filter(p => p);
         this._isLoading = true;
 
         // Save initial structure to DB to ensure we have an ID
@@ -375,6 +375,11 @@ export class LessonEditor extends LitElement {
                     this.lesson = { ...this.lesson, [dataKey]: dataValue };
 
                     // CRITICAL: Autosave to Firestore immediately
+                    if (!this.lesson.id) {
+                         console.error("Critical Error: Missing lesson ID before autosave. Breaking loop.");
+                         break;
+                    }
+
                     await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
                          [dataKey]: dataValue,
                          updatedAt: serverTimestamp()

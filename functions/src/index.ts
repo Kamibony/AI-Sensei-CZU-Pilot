@@ -107,6 +107,9 @@ exports.generateContent = onCall({
             // 2. Fetch all chunks from the relevant files
             let allChunks: any[] = [];
             for (const filePath of filePaths) {
+                // Ensure filePath is a valid string
+                if (!filePath || typeof filePath !== 'string') continue;
+
                 // Extract fileId from storage path `courses/{courseId}/media/{fileId}`
                 const fileId = filePath.split('/').pop();
                 if (!fileId) continue;
