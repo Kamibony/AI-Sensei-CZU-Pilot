@@ -1,14 +1,33 @@
 {
-  "nav": { "dashboard": "Painel", "classes": "Minhas Turmas", "students": "Alunos", "library": "Biblioteca de Aulas", "media": "Mídia e Arquivos", "editor": "Editor IA", "logout": "Sair" },
+  "nav": {
+    "dashboard": "Painel",
+    "classes": "Minhas Turmas",
+    "students": "Alunos",
+    "library": "Biblioteca de Aulas",
+    "media": "Mídia e Arquivos",
+    "editor": "Editor IA",
+    "logout": "Sair",
+    "organization": "Organização",
+    "creative_studio": "Estúdio Criativo",
+    "interactions": "Interações",
+    "analytics": "Análise",
+    "admin": "Admin"
+  },
   "common": {
     "loading": "Carregando...",
+    "saved": "Salvo",
     "save": "Salvar",
     "back": "Voltar",
     "close": "Fechar",
     "files_select": "Selecionar arquivos",
     "files_library": "Selecionar da biblioteca",
     "files_rag_title": "Materiais para IA",
-    "files_rag_help": "Carregue scripts PDF ou textos. A IA criará uma lição a partir deles."
+    "files_rag_help": "Carregue scripts PDF ou textos. A IA criará uma lição a partir deles.",
+    "students_count": "alunos",
+    "nameless_class": "Turma sem nome",
+    "code_copied": "Código copiado para a área de transferência!",
+    "copy_failed": "Falha ao copiar código.",
+    "no_code": "Código indisponível."
   },
   "dashboard": {
     "greeting": "Bom dia",
@@ -18,7 +37,12 @@
     "start_new": "Começar Nova Lição",
     "ai_desc": "Use a IA para criar materiais interativos.",
     "published_lessons": "Lições Publicadas",
-    "active_lessons": "Lições Ativas"
+    "active_lessons": "Lições Ativas",
+    "no_classes_title": "Nenhuma turma ainda",
+    "no_classes_desc": "Comece criando sua primeira turma para gerenciar alunos.",
+    "create_first_class": "Criar primeira turma",
+    "enter_class_name": "Digite o nome da nova turma:",
+    "class_name_placeholder": "Ex: Análise de Dados Avançada"
   },
   "lesson": {
     "new": "Nova Aula",
@@ -106,6 +130,8 @@
     "all_caught_up": "Tudo pronto! 🎉"
   },
   "professor": {
+    "header_title": "Painel do Professor",
+    "profile_image_alt": "Imagem de perfil",
     "stats_students": "Alunos",
     "stats_classes": "Turmas",
     "stats_lessons": "Aulas",
@@ -124,6 +150,7 @@
     "workflow_process": "Processo",
     "workflow_ai": "Geração IA",
     "workflow_result": "Resultado",
-    "workflow_final": "Aula Pronta"
+    "workflow_final": "Aula Pronta",
+    "automated_creation": "Criação automatizada"
   }
 }

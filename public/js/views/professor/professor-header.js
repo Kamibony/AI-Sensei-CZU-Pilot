@@ -1,14 +1,29 @@
 // public/js/views/professor/professor-header.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { auth } from '../../firebase-init.js';
+import { translationService } from '../../utils/translation-service.js';
 
 export class ProfessorHeader extends LitElement {
     createRenderRoot() { return this; }
 
+    connectedCallback() {
+        super.connectedCallback();
+        // Subscribe to language changes
+        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        if (this._langUnsubscribe) {
+            this._langUnsubscribe();
+        }
+    }
+
     _renderAvatar() {
+        const t = (key) => translationService.t(key);
         const user = auth.currentUser;
         if (user && user.photoURL) {
-            return html`<img src="${user.photoURL}" alt="Profilový obrázek" class="h-8 w-8 rounded-full">`;
+            return html`<img src="${user.photoURL}" alt="${t('professor.profile_image_alt')}" class="h-8 w-8 rounded-full">`;
         }
         // Fallback to initials or a generic icon
         const name = user ? user.displayName || user.email : '';
@@ -21,15 +36,16 @@ export class ProfessorHeader extends LitElement {
     }
 
     render() {
+        const t = (key) => translationService.t(key);
         const user = auth.currentUser;
-        const displayName = user ? user.displayName || user.email || 'Profesor' : 'Načítání...';
+        const displayName = user ? user.displayName || user.email || 'Profesor' : t('common.loading');
 
         return html`
             <header class="flex-shrink-0 bg-white shadow-md">
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div class="flex items-center justify-between h-16">
                         <div>
-                            <h1 class="text-xl font-bold text-slate-800">Učitelský panel</h1>
+                            <h1 class="text-xl font-bold text-slate-800">${t('professor.header_title')}</h1>
                         </div>
                         <div class="flex items-center space-x-3">
                             ${this._renderAvatar()}
