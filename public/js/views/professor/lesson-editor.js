@@ -377,6 +377,11 @@ export class LessonEditor extends LitElement {
                     generatedTypes.push(type);
 
                     // CRITICAL: Autosave to Firestore immediately
+                    if (!this.lesson.id) {
+                         console.error("Critical Error: Missing lesson ID before autosave. Breaking loop.");
+                         break;
+                    }
+
                     await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
                          [dataKey]: dataValue,
                          updatedAt: serverTimestamp()
