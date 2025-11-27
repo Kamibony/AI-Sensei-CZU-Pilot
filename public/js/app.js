@@ -5,9 +5,11 @@ import { initProfessorApp } from './professor.js';
 import { initStudentApp, cleanupStudentDashboard } from './student.js';
 import { initAuth } from './auth.js';
 import { showToast, showGlobalSpinner, hideGlobalSpinner } from './utils.js';
+import { translationService } from './utils/translation-service.js';
 
 async function main() {
     try {
+        await translationService.init();
         await initializeFirebase();
         console.log("Firebase fully initialized.");
     } catch (error) {

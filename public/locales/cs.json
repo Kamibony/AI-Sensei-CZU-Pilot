@@ -1,0 +1,6 @@
+{
+  "nav": { "dashboard": "Dashboard", "classes": "Moje Třídy", "students": "Studenti", "library": "Knihovna Lekcí", "media": "Média & Soubory", "editor": "AI Editor", "logout": "Odhlásit se" },
+  "dashboard": { "greeting": "Dobré ráno" },
+  "lesson": { "new": "Nová lekce", "title": "Název lekce", "subtitle": "Podtitulek / Téma", "language": "Jazyk obsahu", "magic_btn": "✨ Magicky Vygenerovat Vše" },
+  "languages": { "cs": "Čeština", "pt_br": "Português (Brasil)" }
+}

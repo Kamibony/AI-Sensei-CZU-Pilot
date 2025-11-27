@@ -1,6 +1,7 @@
 // Súbor: public/js/professor.js (KOMPLETNÁ VERZIA S DIAGNOSTIKOU)
 
 import './views/professor/professor-app.js';
+import { translationService } from './utils/translation-service.js';
 
 /**
  * Inicializuje hlavný komponent profesorského dashboardu.
@@ -43,6 +44,8 @@ export async function initProfessorApp(user) {
     }
     // === KONIEC DIAGNOSTICKÉHO BLOKU ===
 
+    // Init translation
+    await translationService.init();
 
     // Pôvodný kód na inicializáciu aplikácie
     roleContentWrapper.innerHTML = `<professor-app></professor-app>`;

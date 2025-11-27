@@ -5,6 +5,7 @@ import { callGenerateContent } from '../../gemini-api.js';
 import { doc, updateDoc, serverTimestamp, addDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { StudentLessonDetail } from '../../student/student-lesson-detail.js';
+import { translationService } from '../../utils/translation-service.js';
 import './editor/editor-view-text.js';
 import './editor/editor-view-presentation.js';
 import './editor/editor-view-video.js';
@@ -299,6 +300,9 @@ export class LessonEditor extends LitElement {
         const typesToGenerate = ['text', 'presentation', 'quiz', 'test', 'post', 'comic', 'flashcards', 'mindmap'];
         let generatedTypes = [];
 
+        // Get content language
+        const contentLang = this.renderRoot.querySelector('#content-language')?.value || 'cs';
+
         try {
             for (const type of typesToGenerate) {
                 this._magicProgress = `Generuji ${this.contentTypes.find(t=>t.id===type).label}...`;
@@ -328,11 +332,12 @@ export class LessonEditor extends LitElement {
                      specificPrompt = `Vytvoř strukturu mentální mapy k tématu: ${this.lesson.title}. Výstup musí být POUZE validní kód pro Mermaid.js (typ graph TD). Nepoužívej markdown bloky, jen čistý text diagramu.`;
                 }
 
-                // Build Prompt Data
+                // Build Prompt Data with Language
                 const promptData = {
                     userPrompt: specificPrompt,
                     slide_count: 5, // Default for magic
-                    episode_count: episodeCount
+                    episode_count: episodeCount,
+                    language: contentLang
                 };
 
                 const result = await callGenerateContent({ contentType: type, promptData, filePaths });
@@ -593,6 +598,7 @@ export class LessonEditor extends LitElement {
     }
 
     render() {
+        const t = (key) => translationService.t(key);
         return html`
             <div class="h-full bg-white overflow-y-auto">
                 <!-- Zen Mode Container -->
@@ -613,7 +619,7 @@ export class LessonEditor extends LitElement {
 
                         <!-- === SETTINGS VIEW (Old Step 1) === -->
                         <div class="${this._viewMode === 'settings' ? 'block' : 'hidden'} animate-fade-in space-y-8 max-w-3xl mx-auto">
-                             <h2 class="text-3xl font-bold text-slate-900">Nastavení Lekce</h2>
+                             <h2 class="text-3xl font-bold text-slate-900">${t('lesson.new')}</h2>
 
                              <!-- INLINED SETTINGS FORM WITH FLOATING LABELS -->
                              <div class="space-y-6 bg-white p-1 rounded-2xl">
@@ -624,7 +630,7 @@ export class LessonEditor extends LitElement {
                                         .value="${this.lesson?.title || ''}" />
                                     <label for="lesson-title-input"
                                         class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
-                                        Název lekce
+                                        ${t('lesson.title')}
                                     </label>
                                 </div>
 
@@ -635,9 +641,17 @@ export class LessonEditor extends LitElement {
                                         .value="${this.lesson?.subtitle || ''}" />
                                     <label for="lesson-subtitle-input"
                                         class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
-                                        Podtitulek / Téma
+                                        ${t('lesson.subtitle')}
                                     </label>
                                     <p class="text-xs text-slate-400 mt-1 pl-3">💡 Tip: Krátký popis tématu pomůže AI lépe zaměřit generovaný obsah.</p>
+                                </div>
+
+                                <div class="relative mt-4">
+                                    <label class="block text-sm font-medium text-slate-600 mb-2">${t('lesson.language')}</label>
+                                    <select id="content-language" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                        <option value="cs" selected>${t('languages.cs')}</option>
+                                        <option value="pt-br">${t('languages.pt_br')}</option>
+                                    </select>
                                 </div>
 
                                 <div class="pt-4">
@@ -684,7 +698,7 @@ export class LessonEditor extends LitElement {
                             <div class="flex flex-col sm:flex-row gap-4 justify-center pt-8">
                                 <button @click=${this._handleMagicGeneration} ?disabled=${this._isLoading}
                                     class="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center text-lg">
-                                    ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> ${this._magicProgress}` : html`<span class="mr-2">✨</span> Magicky Vygenerovat Vše`}
+                                    ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> ${this._magicProgress}` : html`${t('lesson.magic_btn')}`}
                                 </button>
 
                                 <button @click=${this._switchToHub} ?disabled=${this._isLoading}
