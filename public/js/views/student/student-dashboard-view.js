@@ -264,7 +264,7 @@ export class StudentDashboardView extends LitElement {
                             <!-- Content -->
                             <div class="absolute inset-0 p-6 flex flex-col justify-between">
                                 <div>
-                                    <p class="text-xs font-bold text-white/80 uppercase tracking-widest mb-2">Pokračovat v lekci</p>
+                                    <p class="text-xs font-bold text-white/80 uppercase tracking-widest mb-2">${t('student_dashboard.jump_back')}</p>
                                     <h2 class="text-3xl md:text-4xl font-black text-white leading-tight line-clamp-3">
                                         ${this._recentLesson.title}
                                     </h2>

@@ -38,23 +38,27 @@ export class LessonEditor extends LitElement {
         this._viewMode = 'settings'; // Default to settings (creation mode) for new lessons
         this._groups = [];
         this._showStudentPreview = false;
+    }
 
-        this.steps = [
-            { label: 'Základy', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-            { label: 'Obsah', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' },
-            { label: 'Hotovo', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' }
+    get steps() {
+        return [
+            { label: translationService.t('editor.step_basics'), icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+            { label: translationService.t('editor.step_content'), icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' },
+            { label: translationService.t('editor.step_done'), icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' }
         ];
+    }
 
-        this.contentTypes = [
-            { id: 'text', label: 'Text', icon: '✍️', description: 'Studijní text a materiály' },
-            { id: 'presentation', label: 'Prezentace', icon: '🖼️', description: 'AI generované slajdy' },
-            { id: 'video', label: 'Video', icon: '▶️', description: 'YouTube nebo odkaz' },
-            { id: 'quiz', label: 'Kvíz', icon: '❓', description: 'Rychlé ověření' },
-            { id: 'test', label: 'Test', icon: '✅', description: 'Hodnocený test' },
-            { id: 'post', label: 'Audio', icon: '🎙️', description: 'Podcast skript' },
-            { id: 'comic', label: 'Komiks', icon: '🎨', description: 'Humorný komiks k lekci' },
-            { id: 'flashcards', label: 'Kartičky', icon: '🗂️', description: 'Opakování pojmů' },
-            { id: 'mindmap', label: 'Mapa', icon: '🧠', description: 'Mentální mapa souvislostí' }
+    get contentTypes() {
+        return [
+            { id: 'text', label: translationService.t('content_types.text'), icon: '✍️', description: translationService.t('content_types.text_desc') },
+            { id: 'presentation', label: translationService.t('content_types.presentation'), icon: '🖼️', description: translationService.t('content_types.presentation_desc') },
+            { id: 'video', label: translationService.t('content_types.video'), icon: '▶️', description: translationService.t('content_types.video_desc') },
+            { id: 'quiz', label: translationService.t('content_types.quiz'), icon: '❓', description: translationService.t('content_types.quiz_desc') },
+            { id: 'test', label: translationService.t('content_types.test'), icon: '✅', description: translationService.t('content_types.test_desc') },
+            { id: 'post', label: translationService.t('content_types.audio'), icon: '🎙️', description: translationService.t('content_types.audio_desc') },
+            { id: 'comic', label: translationService.t('content_types.comic'), icon: '🎨', description: translationService.t('content_types.comic_desc') },
+            { id: 'flashcards', label: translationService.t('content_types.flashcards'), icon: '🗂️', description: translationService.t('content_types.flashcards_desc') },
+            { id: 'mindmap', label: translationService.t('content_types.mindmap'), icon: '🧠', description: translationService.t('content_types.mindmap_desc') }
         ];
     }
 
@@ -140,7 +144,7 @@ export class LessonEditor extends LitElement {
             this._groups = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (error) {
             console.error("Error fetching groups:", error);
-            showToast("Nepodařilo se načíst skupiny.", true);
+            showToast(translationService.t('common.error'), true);
         }
     }
 
@@ -188,7 +192,7 @@ export class LessonEditor extends LitElement {
              const titleInput = this.renderRoot.querySelector('#lesson-title-input');
              // Only block if trying to leave empty title on NEW lesson
              if ((!titleInput || !titleInput.value.trim()) && !this.lesson?.title) {
-                 showToast("Vyplňte prosím název lekce.", true);
+                 showToast(translationService.t('lesson.title_required') || "Vyplňte prosím název lekce.", true);
                  if(titleInput) titleInput.focus();
                  return;
              }
@@ -235,7 +239,7 @@ export class LessonEditor extends LitElement {
         // Merge current lesson state with any fresh details
         const finalLessonData = { ...this.lesson, ...detailsData };
 
-        if (!finalLessonData.title) { showToast("Název lekce nemůže být prázdný.", true); return; }
+        if (!finalLessonData.title) { showToast(translationService.t('lesson.title_required'), true); return; }
 
         const { getSelectedFiles } = await import('../../upload-handler.js');
         const currentSelection = getSelectedFiles();
@@ -265,7 +269,7 @@ export class LessonEditor extends LitElement {
                 await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), lessonPayload);
                 const updatedLesson = { ...this.lesson, ...lessonPayload };
                 this._handleLessonUpdate({ detail: updatedLesson });
-                showToast("Lekce uložena.");
+                showToast(translationService.t('common.saved'));
             } else {
                 lessonPayload.createdAt = serverTimestamp();
                 lessonPayload.ownerId = firebaseInit.auth.currentUser.uid;
@@ -273,11 +277,11 @@ export class LessonEditor extends LitElement {
                 const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonPayload);
                 const newLesson = { id: docRef.id, ...lessonPayload };
                 this._handleLessonUpdate({ detail: newLesson });
-                showToast("Lekce vytvořena.");
+                showToast(translationService.t('common.saved'));
             }
         } catch (error) {
             console.error("Error saving lesson:", error);
-            showToast("Chyba při ukládání.", true);
+            showToast(translationService.t('common.error'), true);
         } finally {
             this._isLoading = false;
         }
@@ -286,7 +290,7 @@ export class LessonEditor extends LitElement {
     async _handleMagicGeneration() {
         // Validation
         const titleInput = this.renderRoot.querySelector('#lesson-title-input');
-        if (!titleInput || !titleInput.value.trim()) { showToast("Nejdříve zadejte název lekce.", true); return; }
+        if (!titleInput || !titleInput.value.trim()) { showToast(translationService.t('lesson.title_required'), true); return; }
 
         // Save Basic Info First locally
         this.lesson = { ...this.lesson, ...this._getDetails() };
@@ -342,7 +346,7 @@ export class LessonEditor extends LitElement {
                 const typeLabel = this.contentTypes.find(t=>t.id===type)?.label || type;
 
                 // Update Log: Started
-                this._magicLog = [...this._magicLog, `${typeLabel}: Pracuji...`];
+                this._magicLog = [...this._magicLog, `${typeLabel}: ${translationService.t('common.loading')}`];
                 this.requestUpdate();
 
                 let specificPrompt = `Téma lekce: ${this.lesson.title}. ${this.lesson.subtitle || ''}`;
@@ -433,7 +437,7 @@ export class LessonEditor extends LitElement {
                     // Replace last entry or append new? User wants a list.
                     // Let's replace "Pracuji..." with "Hotovo"
                     this._magicLog = this._magicLog.map(item =>
-                        item.includes(`${typeLabel}: Pracuji...`) ? `${typeLabel}: Hotovo ✅` : item
+                        item.includes(`${typeLabel}: ${translationService.t('common.loading')}`) ? `${typeLabel}: ${translationService.t('editor.status_done')} ✅` : item
                     );
                     this.requestUpdate();
 
@@ -502,7 +506,7 @@ export class LessonEditor extends LitElement {
             const editorComponent = this.renderRoot.querySelector('editor-view-' + this._selectedContentType);
             if (editorComponent && typeof editorComponent.save === 'function') {
                 editorComponent.save();
-                showToast("Uloženo.");
+                showToast(translationService.t('common.saved'));
             }
         }
         this._switchToHub();
@@ -587,7 +591,7 @@ export class LessonEditor extends LitElement {
                 const panels = this.lesson.comic?.panels || this.lesson.comic_script?.panels;
                 return panels ? `${panels.length} panelů` : null;
             case 'text':
-                return this.lesson.text_content ? 'Dokončeno' : null;
+                return this.lesson.text_content ? translationService.t('editor.status_done') : null;
             case 'flashcards':
                 return this.lesson.flashcards ? `${this.lesson.flashcards.length} kartiček` : null;
             case 'mindmap':
@@ -668,7 +672,7 @@ export class LessonEditor extends LitElement {
                             <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center mr-2 group-hover:bg-slate-100 transition-colors">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                             </div>
-                            Zavřít
+                            ${t('common.close')}
                         </button>
                         ${this.lesson?.id ? html`<span class="text-xs font-mono text-slate-300 uppercase tracking-widest">ID: ${this.lesson.id.substring(0,6)}</span>` : ''}
                     </header>
@@ -677,7 +681,7 @@ export class LessonEditor extends LitElement {
 
                         <!-- === SETTINGS VIEW (Old Step 1) === -->
                         <div class="${this._viewMode === 'settings' ? 'block' : 'hidden'} animate-fade-in space-y-8 max-w-3xl mx-auto">
-                             <h2 class="text-3xl font-bold text-slate-900">${t('lesson.new')}</h2>
+                             <h2 class="text-3xl font-bold text-slate-900">${t('editor.settings_title')}</h2>
 
                              <!-- INLINED SETTINGS FORM WITH FLOATING LABELS -->
                              <div class="space-y-6 bg-white p-1 rounded-2xl">
@@ -688,7 +692,7 @@ export class LessonEditor extends LitElement {
                                         .value="${this.lesson?.title || ''}" />
                                     <label for="lesson-title-input"
                                         class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
-                                        ${t('lesson.title')}
+                                        ${t('editor.label_title')}
                                     </label>
                                 </div>
 
@@ -699,9 +703,9 @@ export class LessonEditor extends LitElement {
                                         .value="${this.lesson?.subtitle || ''}" />
                                     <label for="lesson-subtitle-input"
                                         class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
-                                        ${t('lesson.subtitle')}
+                                        ${t('editor.label_subtitle')}
                                     </label>
-                                    <p class="text-xs text-slate-400 mt-1 pl-3">💡 Tip: Krátký popis tématu pomůže AI lépe zaměřit generovaný obsah.</p>
+                                    <p class="text-xs text-slate-400 mt-1 pl-3">💡 ${t('editor.label_subtitle_tip')}</p>
                                 </div>
 
                                 <div class="relative mt-4">
@@ -713,7 +717,7 @@ export class LessonEditor extends LitElement {
                                 </div>
 
                                 <div class="pt-4">
-                                    <label class="block font-medium text-slate-600 mb-2">Přiřadit do tříd:</label>
+                                    <label class="block font-medium text-slate-600 mb-2">${t('editor.assign_class')}:</label>
                                     <div class="space-y-2 border rounded-lg p-3 bg-slate-50 max-h-40 overflow-y-auto">
                                         ${this._groups.length > 0 ? this._groups.map(group => html`
                                             <div class="flex items-center">
@@ -737,15 +741,15 @@ export class LessonEditor extends LitElement {
                                 <div class="mb-4">
                                     <span class="text-4xl group-hover:scale-110 transition-transform inline-block">📄</span>
                                 </div>
-                                <h3 class="text-lg font-bold text-slate-700">Podklady pro AI</h3>
-                                <p class="text-sm text-slate-500 mb-6">Nahrajte PDF skripta, prezentace nebo texty. AI z nich vytvoří lekci.</p>
+                                <h3 class="text-lg font-bold text-slate-700">${t('common.files_rag_title')}</h3>
+                                <p class="text-sm text-slate-500 mb-6">${t('common.files_rag_help')}</p>
 
                                 <input type="file" id="course-media-file-input" class="hidden" multiple accept=".pdf,.txt,.docx,.pptx">
                                 <button class="pointer-events-none bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm group-hover:text-indigo-600 group-hover:border-indigo-200">
-                                    Vybrat soubory
+                                    ${t('common.files_select')}
                                 </button>
                                 <button @click=${this._openRagModal} class="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm hover:text-indigo-600 hover:border-indigo-200 hover:bg-slate-50 transition-all ml-4">
-                                    📂 Vybrat z knihovny
+                                    📂 ${t('common.files_library')}
                                 </button>
 
                                 <div id="upload-progress-container" class="hidden mt-4 max-w-md mx-auto"></div>
@@ -756,12 +760,12 @@ export class LessonEditor extends LitElement {
                             <div class="flex flex-col sm:flex-row gap-4 justify-center pt-8">
                                 <button @click=${this._handleMagicGeneration} ?disabled=${this._isLoading}
                                     class="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center text-lg">
-                                    ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> Pracuji...` : html`${t('lesson.magic_btn')}`}
+                                    ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> ${t('common.loading')}` : html`${t('lesson.magic_btn')}`}
                                 </button>
 
                                 <button @click=${this._switchToHub} ?disabled=${this._isLoading}
                                     class="flex-1 py-4 px-6 rounded-xl bg-white border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-center text-lg">
-                                    Pokračovat na obsah <span class="ml-2">→</span>
+                                    ${t('editor.btn_continue_content')} <span class="ml-2">→</span>
                                 </button>
                             </div>
                         </div>
@@ -774,11 +778,11 @@ export class LessonEditor extends LitElement {
                                 <h1 class="text-3xl font-bold text-slate-900 mb-2">${this.lesson?.title || t('professor.new_lesson_card')}</h1>
                                 <button @click=${this._switchToSettings} class="text-sm font-bold text-slate-400 hover:text-indigo-600 flex items-center justify-center mx-auto mb-4">
                                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                                    ${t('professor.hub_subtitle')}
+                                    ${t('editor.hub_edit_details')}
                                 </button>
 
                                 <button @click=${this._openStudentPreview} class="inline-flex items-center px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-sm font-bold hover:bg-indigo-100 transition-colors shadow-sm border border-indigo-100">
-                                    👁️ Náhled studenta
+                                    👁️ ${t('editor.hub_student_preview')}
                                 </button>
                             </div>
 
@@ -825,12 +829,12 @@ export class LessonEditor extends LitElement {
                                                 ${hasContent ? html`
                                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200">
                                                         <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></span>
-                                                        Hotovo
+                                                        ${t('editor.status_done')}
                                                     </span>
                                                 ` : html`
                                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200">
                                                         <span class="w-1.5 h-1.5 bg-slate-300 rounded-full mr-1.5"></span>
-                                                        Prázdné
+                                                        ${t('editor.status_empty')}
                                                     </span>
                                                 `}
                                             </div>
@@ -843,7 +847,7 @@ export class LessonEditor extends LitElement {
                             <div class="mt-16 flex justify-center pb-8">
                                 <button @click=${this._handleBackClick}
                                     class="group relative inline-flex items-center justify-center px-10 py-5 text-lg font-bold text-slate-700 transition-all duration-200 bg-white border border-slate-200 rounded-full hover:bg-slate-50 shadow-lg shadow-slate-200/50 hover:shadow-slate-300/50 hover:-translate-y-1">
-                                    ${t('professor.back_hub')}
+                                    ${t('editor.btn_back_hub')}
                                     <svg class="w-5 h-5 ml-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                 </button>
                             </div>
@@ -855,7 +859,7 @@ export class LessonEditor extends LitElement {
                                 <!-- FIX 3: Navigation Clarity (Editor Header Button) -->
                                 <button @click=${this._handleSaveAndBack} class="flex items-center text-sm font-bold text-white hover:text-indigo-100 transition-colors px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-md">
                                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
-                                    💾 ${t('professor.save_section')}
+                                    💾 ${t('editor.btn_save_changes')}
                                 </button>
                                 <h3 class="font-bold text-slate-800 text-lg flex items-center">
                                     <span class="mr-2 text-2xl">${this.contentTypes.find(t => t.id === this._selectedContentType)?.icon}</span>
@@ -880,7 +884,7 @@ export class LessonEditor extends LitElement {
                     <div class="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
                         <div class="relative w-full h-full max-w-sm max-h-[85vh] flex flex-col">
                              <button @click=${this._closeStudentPreview} class="absolute -top-12 right-0 text-white hover:text-slate-200 font-bold flex items-center">
-                                Zavřít náhled <span class="text-2xl ml-2">×</span>
+                                ${t('common.close')} <span class="text-2xl ml-2">×</span>
                             </button>
 
                             <!-- Mobile Frame -->
@@ -931,9 +935,9 @@ export class LessonEditor extends LitElement {
 
                             <div class="bg-slate-50 rounded-2xl p-6 shadow-inner border border-slate-100 text-left space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
                                 ${this._magicLog.length > 0 ? this._magicLog.map(log => html`
-                                    <div class="flex items-center text-sm font-medium ${log.includes('Hotovo') ? 'text-green-600' : (log.includes('Chyba') ? 'text-red-500' : 'text-slate-600')}">
+                                    <div class="flex items-center text-sm font-medium ${log.includes('✅') ? 'text-green-600' : (log.includes('❌') ? 'text-red-500' : 'text-slate-600')}">
                                         <span class="mr-3 text-lg">
-                                            ${log.includes('Hotovo') ? '✅' : (log.includes('Chyba') ? '❌' : '⏳')}
+                                            ${log.includes('✅') ? '✅' : (log.includes('❌') ? '❌' : '⏳')}
                                         </span>
                                         ${log}
                                     </div>

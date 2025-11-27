@@ -163,7 +163,7 @@ export class ProfessorDashboardView extends LitElement {
                 <div class="max-w-[1600px] mx-auto mb-10 flex flex-col md:flex-row md:items-end justify-between">
                      <div>
                         <h1 class="text-3xl font-bold text-slate-900 tracking-tight mb-1">${t('dashboard.greeting')}, ${userName}</h1>
-                        <p class="text-slate-500">Váš přehled výuky je aktuální.</p>
+                        <p class="text-slate-500">${t('dashboard.subtitle')}</p>
                     </div>
                      <div class="mt-4 md:mt-0">
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
@@ -180,7 +180,7 @@ export class ProfessorDashboardView extends LitElement {
 
                         <!-- Section: Management Stats (Bento Grid) -->
                         <div>
-                            <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 pl-1">Přehled Managementu</h2>
+                            <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 pl-1">${t('dashboard.management_overview')}</h2>
                             <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                 ${this._renderStatCard(t('professor.stats_students'), this._stats.totalStudents, "users", "students")}
                                 ${this._renderStatCard(t('professor.stats_classes'), this._stats.totalClasses, "briefcase", "classes")}
@@ -193,7 +193,7 @@ export class ProfessorDashboardView extends LitElement {
                     <!-- RIGHT COLUMN: Lesson Workflow (30%) -->
                     <div class="lg:col-span-4 space-y-6">
 
-                        <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">Tvůrčí Proces</h2>
+                        <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">${t('dashboard.creative_studio')}</h2>
 
                         <div @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', lesson: null }, bubbles: true, composed: true }))}
                              class="group relative overflow-hidden bg-white rounded-3xl shadow-xl shadow-indigo-200/50 cursor-pointer transition-all duration-300 hover:shadow-indigo-300/60 hover:-translate-y-1 min-h-[300px] flex flex-col p-0 border border-indigo-100">
@@ -249,7 +249,7 @@ export class ProfessorDashboardView extends LitElement {
                             <!-- CTA Footer -->
                             <div class="p-6 pt-4 bg-slate-50 border-t border-slate-100 relative z-10 group-hover:bg-indigo-50/50 transition-colors">
                                 <div class="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-center shadow-lg shadow-indigo-500/30 group-hover:shadow-indigo-500/50 transition-all group-hover:scale-[1.02]">
-                                    Spustit Magii
+                                    ${t('lesson.magic_btn')}
                                 </div>
                             </div>
 
