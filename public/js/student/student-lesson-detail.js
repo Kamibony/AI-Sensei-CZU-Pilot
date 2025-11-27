@@ -97,7 +97,45 @@ export class StudentLessonDetail extends LitElement {
 
         // Helper to add tabs
         const addTab = (id, name, icon, description, colorClass) => {
-            tabs.push({ id, name, icon, description, colorClass });
+             // Check visibility logic:
+             // If visible_sections is undefined => All visible by default (legacy)
+             // If defined => Only if included
+             // NOTE: 'ai-assistant' and 'professor-chat' are always visible for now, or could have their own logic.
+             // For content types (text, video, etc.), we check the visibility.
+
+             let isVisible = true;
+
+             // Mapping tab ID to content ID used in editor visibility
+             // text -> text
+             // video -> video
+             // presentation -> presentation
+             // podcast -> post (special mapping)
+             // quiz -> quiz
+             // test -> test
+             // flashcards -> flashcards
+             // mindmap -> mindmap
+
+             const editorIdMap = {
+                 'text': 'text',
+                 'video': 'video',
+                 'presentation': 'presentation',
+                 'podcast': 'post',
+                 'quiz': 'quiz',
+                 'test': 'test',
+                 'flashcards': 'flashcards',
+                 'mindmap': 'mindmap'
+             };
+
+             const editorId = editorIdMap[id];
+
+             // If it's a content tab, check visibility
+             if (editorId && this.lessonData.visible_sections) {
+                 isVisible = this.lessonData.visible_sections.includes(editorId);
+             }
+
+             if (isVisible) {
+                 tabs.push({ id, name, icon, description, colorClass });
+             }
         };
 
         if (this.lessonData.text_content)
@@ -124,7 +162,7 @@ export class StudentLessonDetail extends LitElement {
         if (this.lessonData.mindmap)
             addTab('mindmap', 'Mapa', '🧠', 'Mentální mapa souvislostí', 'bg-pink-50 text-pink-600');
 
-        // Always available tools
+        // Always available tools (for now, unless we want to hide them too)
         addTab('ai-assistant', 'AI Asistent', '🤖', 'Zeptejte se umělé inteligence', 'bg-indigo-50 text-indigo-600');
         addTab('professor-chat', 'Konzultace', '💬', 'Napište profesorovi', 'bg-slate-50 text-slate-600');
         
