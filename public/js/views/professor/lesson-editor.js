@@ -192,7 +192,7 @@ export class LessonEditor extends LitElement {
              const titleInput = this.renderRoot.querySelector('#lesson-title-input');
              // Only block if trying to leave empty title on NEW lesson
              if ((!titleInput || !titleInput.value.trim()) && !this.lesson?.title) {
-                 showToast(translationService.t('lesson.title_required') || "Vyplňte prosím název lekce.", true);
+                 showToast(translationService.t('lesson.toast_title_required'), true);
                  if(titleInput) titleInput.focus();
                  return;
              }
@@ -330,7 +330,7 @@ export class LessonEditor extends LitElement {
             }
         } catch (e) {
             console.error("Failed to create initial lesson doc:", e);
-            showToast("Chyba při inicializaci lekce: " + e.message, true);
+            showToast(translationService.t('lesson.error_init') + ": " + e.message, true);
             this._isLoading = false;
             return;
         }
@@ -490,7 +490,7 @@ export class LessonEditor extends LitElement {
             this.lesson = { ...this.lesson, visible_sections: updatedVisibleSections };
             // -------------------------------
 
-            showToast("Magie dokončena! Zkontrolujte vygenerovaný obsah.");
+            showToast(translationService.t('lesson.magic_done'));
 
             // Go to Hub view
             this._viewMode = 'hub';
@@ -499,7 +499,7 @@ export class LessonEditor extends LitElement {
 
         } catch (e) {
             console.error("Magic generation fatal error:", e);
-            showToast("Chyba při generování: " + e.message, true);
+            showToast(translationService.t('lesson.error_gen') + ": " + e.message, true);
         } finally {
             this._isLoading = false;
             this._magicLog = []; // Clear log after finish
@@ -555,11 +555,11 @@ export class LessonEditor extends LitElement {
         if (visibleSections.includes(typeId)) {
             // Hide it
             visibleSections = visibleSections.filter(id => id !== typeId);
-            showToast(`Sekce skryta studentům.`);
+            showToast(translationService.t('lesson.section_hidden'));
         } else {
             // Show it
             visibleSections = [...visibleSections, typeId];
-            showToast(`Sekce zobrazena studentům.`);
+            showToast(translationService.t('lesson.section_visible'));
         }
 
         // Optimistic update
@@ -574,7 +574,7 @@ export class LessonEditor extends LitElement {
             });
         } catch (err) {
             console.error("Error toggling visibility:", err);
-            showToast("Chyba při ukládání viditelnosti.", true);
+            showToast(translationService.t('lesson.error_visibility'), true);
             // Revert on error could be implemented here
         }
     }
@@ -740,7 +740,7 @@ export class LessonEditor extends LitElement {
                                                 <label for="group-${group.id}" class="ml-3 text-sm text-gray-700">${group.name}</label>
                                             </div>
                                         `) : html`
-                                            <p class="text-xs text-slate-500">Zatím nemáte vytvořené žádné třídy.</p>
+                                            <p class="text-xs text-slate-500">${translationService.t('lesson.no_classes')}</p>
                                         `}
                                     </div>
                                 </div>
@@ -952,7 +952,7 @@ export class LessonEditor extends LitElement {
                                         ${log}
                                     </div>
                                 `) : html`
-                                    <div class="text-center text-slate-400 py-4 italic">Připravuji kouzla...</div>
+                                    <div class="text-center text-slate-400 py-4 italic">${translationService.t('lesson.magic_preparing')}</div>
                                 `}
                             </div>
                         </div>

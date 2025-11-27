@@ -143,7 +143,7 @@ export class StudentDashboardView extends LitElement {
     async _handleJoinClass() {
         const code = this._joinCodeInput.trim();
         if (!code) {
-            showToast("Zadejte kód třídy", true);
+            showToast(translationService.t('student.join_modal_desc'), true); // Simplified reuse of existing description or generic "Fill code"
             return;
         }
 
@@ -154,7 +154,7 @@ export class StudentDashboardView extends LitElement {
             const querySnapshot = await getDocs(q);
 
             if (querySnapshot.empty) {
-                showToast("Třída s tímto kódem neexistuje", true);
+                showToast(translationService.t('student.error_join'), true); // Generic error for not found
                 this._joining = false;
                 return;
             }
@@ -180,14 +180,14 @@ export class StudentDashboardView extends LitElement {
                 console.warn("Could not update group list directly (likely permissions).", e);
             }
 
-            showToast("Úspěšně připojeno k třídě!");
+            showToast(translationService.t('student.join_success'));
             this._showJoinModal = false;
             this._joinCodeInput = '';
             // Data will refresh automatically via listener
 
         } catch (error) {
             console.error("Error joining class:", error);
-            showToast("Chyba při připojování: " + error.message, true);
+            showToast(translationService.t('student.error_join') + ": " + error.message, true);
         } finally {
             this._joining = false;
         }
@@ -283,7 +283,7 @@ export class StudentDashboardView extends LitElement {
                                         <div class="h-2 w-full bg-black/20 rounded-full overflow-hidden">
                                             <div class="h-full bg-white/90 w-[40%] rounded-full"></div>
                                         </div>
-                                        <p class="text-xs text-white/90 font-bold mt-1.5 ml-1">Zbývá 15 min</p>
+                                        <p class="text-xs text-white/90 font-bold mt-1.5 ml-1">${t('student.lesson_remaining')} 15 min</p>
                                     </div>
                                 </div>
                             </div>
@@ -315,11 +315,11 @@ export class StudentDashboardView extends LitElement {
                                 </svg>
                             </div>
                             <div class="flex-1">
-                                <h4 class="font-bold text-slate-900">Kvíz: Organická chemie</h4>
+                                <h4 class="font-bold text-slate-900">${t('student.mock_quiz')}</h4>
                                 <p class="text-xs text-slate-500 font-medium">Třída 3.B • Pan Novák</p>
                             </div>
                             <div class="text-right">
-                                <span class="block text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-lg">Do zítra</span>
+                                <span class="block text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-lg">${t('student.mock_due')}</span>
                             </div>
                         </div>
 
@@ -331,11 +331,11 @@ export class StudentDashboardView extends LitElement {
                                 </svg>
                             </div>
                             <div class="flex-1">
-                                <h4 class="font-bold text-slate-900">Domácí četba</h4>
+                                <h4 class="font-bold text-slate-900">${t('student.mock_reading')}</h4>
                                 <p class="text-xs text-slate-500 font-medium">Literatura • Paní Dvořáková</p>
                             </div>
                             <div class="text-right">
-                                <span class="block text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">Nové</span>
+                                <span class="block text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">${t('student.mock_new')}</span>
                             </div>
                         </div>
                     </div>
@@ -353,8 +353,8 @@ export class StudentDashboardView extends LitElement {
 
                         <div class="text-center mb-8 mt-2">
                             <div class="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-5 text-4xl shadow-sm border border-indigo-100">🚀</div>
-                            <h3 class="text-2xl font-black text-slate-900">Nová mise?</h3>
-                            <p class="text-slate-500 font-medium mt-2">Zadej kód od učitele a naskoč do třídy.</p>
+                            <h3 class="text-2xl font-black text-slate-900">${t('student.join_modal_title')}</h3>
+                            <p class="text-slate-500 font-medium mt-2">${t('student.join_modal_desc')}</p>
                         </div>
 
                         <div class="space-y-4">
@@ -362,14 +362,14 @@ export class StudentDashboardView extends LitElement {
                                 <input type="text"
                                     .value=${this._joinCodeInput}
                                     @input=${e => this._joinCodeInput = e.target.value.toUpperCase()}
-                                    placeholder="KÓD TŘÍDY"
+                                    placeholder="${t('student.join_placeholder')}"
                                     class="w-full text-center text-3xl font-black tracking-[0.2em] border-2 border-slate-200 rounded-2xl py-5 uppercase focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none text-slate-800 placeholder-slate-300 transition-all"
                                 />
                             </div>
 
                             <button @click=${this._handleJoinClass} ?disabled=${this._joining}
                                 class="w-full bg-indigo-600 text-white font-bold text-lg py-4 rounded-2xl shadow-xl shadow-indigo-500/30 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center">
-                                ${this._joining ? html`<span class="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin mr-3"></span> Připojuji...` : t('student.join')}
+                                ${this._joining ? html`<span class="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin mr-3"></span> ${t('student.joining')}` : t('student.join')}
                             </button>
                         </div>
                     </div>

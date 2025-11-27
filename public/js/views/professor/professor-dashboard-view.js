@@ -115,6 +115,9 @@ export class ProfessorDashboardView extends LitElement {
     }
 
     async _handleCreateClass() {
+        // NOTE: Prompt strings are not yet in translation service as they are browser native.
+        // Ideally we would replace prompt() with a custom modal.
+        // For now, we leave them or try to translate if possible, but t() is synchronous.
         const className = prompt("Zadejte název nové třídy:", "Např. Pokročilá Analýza Dat");
         if (className && className.trim() !== "") {
             const user = firebaseInit.auth.currentUser;
@@ -127,10 +130,10 @@ export class ProfessorDashboardView extends LitElement {
                     createdAt: serverTimestamp(),
                     studentIds: []
                 });
-                showToast("Třída byla úspěšně vytvořena.");
+                showToast(translationService.t('common.saved'));
             } catch (error) {
                 console.error("Error creating class:", error);
-                showToast("Chyba při vytváření třídy.", true);
+                showToast(translationService.t('professor.error_create_class'), true);
             }
         }
     }
@@ -168,7 +171,7 @@ export class ProfessorDashboardView extends LitElement {
                      <div class="mt-4 md:mt-0">
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
                             <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></span>
-                            Systém je online
+                            ${t('professor.system_online')}
                         </span>
                     </div>
                 </div>
@@ -212,8 +215,8 @@ export class ProfessorDashboardView extends LitElement {
                                 <div class="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-100 transition-colors group-hover:bg-indigo-50 group-hover:border-indigo-100">
                                     <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm">📄</div>
                                     <div class="ml-3">
-                                        <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">Vstup</div>
-                                        <div class="font-bold text-slate-800">PDF Dokumenty</div>
+                                        <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">${t('professor.workflow_input')}</div>
+                                        <div class="font-bold text-slate-800">${t('professor.workflow_docs')}</div>
                                     </div>
                                 </div>
 
@@ -226,8 +229,8 @@ export class ProfessorDashboardView extends LitElement {
                                 <div class="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-100 transition-colors group-hover:bg-indigo-50 group-hover:border-indigo-100">
                                     <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm">⚡</div>
                                     <div class="ml-3">
-                                        <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">Proces</div>
-                                        <div class="font-bold text-slate-800">AI Generování</div>
+                                        <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">${t('professor.workflow_process')}</div>
+                                        <div class="font-bold text-slate-800">${t('professor.workflow_ai')}</div>
                                     </div>
                                 </div>
 
@@ -240,8 +243,8 @@ export class ProfessorDashboardView extends LitElement {
                                 <div class="flex items-center p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-100">
                                     <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm text-emerald-600">🎓</div>
                                     <div class="ml-3">
-                                        <div class="text-xs font-bold text-emerald-600 uppercase tracking-wide">Výsledek</div>
-                                        <div class="font-bold text-emerald-900">Hotová Lekce</div>
+                                        <div class="text-xs font-bold text-emerald-600 uppercase tracking-wide">${t('professor.workflow_result')}</div>
+                                        <div class="font-bold text-emerald-900">${t('professor.workflow_final')}</div>
                                     </div>
                                 </div>
                             </div>

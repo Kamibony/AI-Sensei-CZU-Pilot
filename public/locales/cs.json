@@ -20,7 +20,22 @@
     "published_lessons": "Publikované Lekce",
     "active_lessons": "Aktivní lekce"
   },
-  "lesson": { "new": "Nová lekce", "title": "Název lekce", "subtitle": "Podtitulek / Téma", "language": "Jazyk obsahu", "magic_btn": "✨ Magicky Vygenerovat Vše" },
+  "lesson": {
+    "new": "Nová lekce",
+    "title": "Název lekce",
+    "subtitle": "Podtitulek / Téma",
+    "language": "Jazyk obsahu",
+    "magic_btn": "✨ Magicky Vygenerovat Vše",
+    "toast_title_required": "Vyplňte prosím název lekce.",
+    "error_init": "Chyba při inicializaci lekce",
+    "magic_done": "Magie dokončena! Zkontrolujte vygenerovaný obsah.",
+    "error_gen": "Chyba při generování",
+    "section_hidden": "Sekce skryta studentům.",
+    "section_visible": "Sekce zobrazena studentům.",
+    "error_visibility": "Chyba při ukládání viditelnosti.",
+    "no_classes": "Zatím nemáte vytvořené žádné třídy.",
+    "magic_preparing": "Připravuji kouzla..."
+  },
   "languages": { "cs": "Čeština", "pt_br": "Português (Brasil)" },
   "editor": {
     "step_basics": "Základy",
@@ -67,7 +82,23 @@
     "continue": "Pokračovat",
     "empty_classes": "Zatím v žádné třídě?",
     "join": "Připojit se",
-    "next_up": "Co tě čeká"
+    "next_up": "Co tě čeká",
+    "join_success": "Úspěšně připojeno k třídě!",
+    "error_join": "Chyba při připojování",
+    "lesson_remaining": "Zbývá",
+    "mock_quiz": "Kvíz: Organická chemie",
+    "mock_due": "Do zítra",
+    "mock_reading": "Domácí četba",
+    "mock_new": "Nové",
+    "join_modal_title": "Nová mise?",
+    "join_modal_desc": "Zadej kód od učitele a naskoč do třídy.",
+    "join_placeholder": "KÓD TŘÍDY",
+    "joining": "Připojuji..."
+  },
+  "student_dashboard": {
+    "jump_back": "Pokračovat v lekci",
+    "play": "Spustit",
+    "all_caught_up": "Vše hotovo! 🎉"
   },
   "student_dashboard": {
     "jump_back": "Pokračovat v lekci",
@@ -85,6 +116,14 @@
     "finish_publish": "Dokončit a Publikovat",
     "save_section": "Uložit sekci",
     "add_class": "Přidat třídu",
-    "no_classes_yet": "Zatím žádné třídy"
+    "no_classes_yet": "Zatím žádné třídy",
+    "error_create_class": "Chyba při vytváření třídy.",
+    "system_online": "Systém je online",
+    "workflow_input": "Vstup",
+    "workflow_docs": "PDF Dokumenty",
+    "workflow_process": "Proces",
+    "workflow_ai": "AI Generování",
+    "workflow_result": "Výsledek",
+    "workflow_final": "Hotová Lekce"
   }
 }
