@@ -10,6 +10,8 @@ import './quiz-component.js';
 import './test-component.js';
 import './podcast-component.js';
 import './chat-panel.js';
+import './flashcards-component.js';
+import './mindmap-component.js';
 
 // Presunutá funkcia z student.js
 function normalizeLessonData(rawData) {
@@ -20,6 +22,8 @@ function normalizeLessonData(rawData) {
     normalized.text_content = rawData.text_content || rawData.content || null;
     normalized.quiz = rawData.quiz || rawData.quizData || null;
     normalized.test = rawData.test || rawData.testData || null;
+    normalized.flashcards = rawData.flashcards || null;
+    normalized.mindmap = rawData.mindmap || null;
     return normalized;
 }
 
@@ -113,6 +117,12 @@ export class StudentLessonDetail extends LitElement {
 
         if (this.lessonData.test)
             addTab('test', 'Test', '📝', 'Závěrečný test lekce', 'bg-emerald-50 text-emerald-600');
+
+        if (this.lessonData.flashcards)
+            addTab('flashcards', 'Kartičky', '🗂️', 'Opakování pojmů', 'bg-yellow-50 text-yellow-600');
+
+        if (this.lessonData.mindmap)
+            addTab('mindmap', 'Mapa', '🧠', 'Mentální mapa souvislostí', 'bg-pink-50 text-pink-600');
 
         // Always available tools
         addTab('ai-assistant', 'AI Asistent', '🤖', 'Zeptejte se umělé inteligence', 'bg-indigo-50 text-indigo-600');
@@ -270,6 +280,10 @@ export class StudentLessonDetail extends LitElement {
                 return html`<student-test .testData=${this.lessonData.test} .lessonId=${this.lessonId}></student-test>`;
             case 'podcast':
                 return html`<student-podcast .podcastData=${this.lessonData.podcast_script}></student-podcast>`;
+            case 'flashcards':
+                return html`<flashcards-component .cards=${this.lessonData.flashcards}></flashcards-component>`;
+            case 'mindmap':
+                return html`<mindmap-component .code=${this.lessonData.mindmap}></mindmap-component>`;
             case 'ai-assistant':
                 return html`<chat-panel type="ai" .lessonId=${this.lessonId} .currentUserData=${this.currentUserData}></chat-panel>`;
             case 'professor-chat':
