@@ -100,6 +100,11 @@
     "play": "Iniciar",
     "all_caught_up": "Tudo pronto! 🎉"
   },
+  "student_dashboard": {
+    "jump_back": "Continuar na lição",
+    "play": "Iniciar",
+    "all_caught_up": "Tudo pronto! 🎉"
+  },
   "professor": {
     "stats_students": "Alunos",
     "stats_classes": "Turmas",
