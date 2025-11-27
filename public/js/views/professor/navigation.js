@@ -7,23 +7,24 @@ export function setupProfessorNav(showProfessorContent) {
 
     if (nav && user) {
         // Modern Sidebar Container: White/Glass, floating feel, border-r
-        nav.className = 'hidden md:flex fixed top-0 left-0 h-full w-64 bg-white/90 backdrop-blur-xl border-r border-slate-100 z-50 flex-col justify-between transition-all duration-300';
+        // Updated to flex-col h-screen as requested
+        nav.className = 'hidden md:flex fixed top-0 left-0 h-screen w-64 bg-white/90 backdrop-blur-xl border-r border-slate-100 z-50 flex-col justify-between transition-all duration-300';
 
         nav.innerHTML = `
-            <!-- Top Section: Logo & Management -->
-            <div class="flex flex-col w-full">
-                <!-- Minimalist Logo -->
-                <div id="nav-logo" class="h-20 flex items-center justify-start px-6 cursor-pointer group">
-                    <div class="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center shadow-md shadow-indigo-200 font-bold text-lg flex-shrink-0 group-hover:scale-105 transition-transform">
-                        A
-                    </div>
-                    <span class="ml-3 font-bold text-slate-800 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">
-                        AI Sensei
-                    </span>
+            <!-- Fixed Logo Section -->
+            <div id="nav-logo" class="h-20 flex items-center justify-start px-6 cursor-pointer group flex-shrink-0">
+                <div class="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center shadow-md shadow-indigo-200 font-bold text-lg flex-shrink-0 group-hover:scale-105 transition-transform">
+                    A
                 </div>
+                <span class="ml-3 font-bold text-slate-800 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">
+                    AI Sensei
+                </span>
+            </div>
 
+            <!-- Scrollable Middle Section -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col w-full">
                 <!-- Navigation Groups -->
-                <div class="mt-4 space-y-1 px-3">
+                <div class="mt-4 space-y-1 px-3 pb-6">
 
                     <!-- GROUP: ORGANIZACE -->
                     <div class="px-4 mt-2 mb-2">
@@ -64,13 +65,11 @@ export function setupProfessorNav(showProfessorContent) {
                         </div>
                         <span class="ml-2 text-sm font-medium">Analýza</span>
                     </button>
-                </div>
 
-                <!-- Spacer / Divider -->
-                <div class="my-6 border-t border-slate-100 mx-6"></div>
+                    <!-- Spacer / Divider -->
+                    <div class="my-6 border-t border-slate-100 mx-6"></div>
 
-                <!-- GROUP: TVŮRČÍ STUDIO -->
-                <div class="space-y-1 px-3">
+                    <!-- GROUP: TVŮRČÍ STUDIO -->
                     <div class="px-4 mb-2">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tvůrčí Studio</span>
                     </div>
@@ -99,7 +98,7 @@ export function setupProfessorNav(showProfessorContent) {
             </div>
 
             <!-- Bottom Section: Profile & Logout -->
-            <div class="p-4 border-t border-slate-100 space-y-1">
+            <div class="flex-shrink-0 p-4 border-t border-slate-700/50 space-y-1">
                  ${user.email === 'profesor@profesor.cz' ? `
                 <button data-view="admin" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-400 hover:bg-yellow-50 hover:text-yellow-600 group border-l-4 border-transparent">
                      <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
