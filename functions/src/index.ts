@@ -92,6 +92,15 @@ exports.generateContent = onCall({
                      const epCount = promptData.episode_count || promptData.episodeCount || 3;
                      finalPrompt = `Vytvoř sérii ${epCount} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string).`;
                      break;
+                case 'comic':
+                    finalPrompt = `Vytvoř scénář pro 4-panelový vzdělávací komiks na téma "${promptData.userPrompt}". 
+                    Cílem je zábavnou formou vysvětlit klíčový koncept z lekce.
+                    Odpověď musí být JSON objekt s klíčem 'comic', který obsahuje pole přesně 4 objektů (panelů).
+                    Každý objekt musí mít klíče:
+                    - 'panel' (number): číslo panelu 1-4
+                    - 'description' (string): detailní vizuální popis scény pro generátor obrázků (v angličtině pro lepší výsledky, např. "A cartoon style illustration of...")
+                    - 'dialogue' (string): text, který postavy říkají (v češtině, vtipné a edukační).`;
+                    break;
             }
         }
         // RAG Pipeline Logic

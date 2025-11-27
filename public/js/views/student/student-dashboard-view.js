@@ -96,11 +96,11 @@ export class StudentDashboardView extends LitElement {
     async _fetchRecentLesson(groupIds) {
         // Fetch most recent lesson assigned to student's groups
         try {
-             // Firestore limits 'array-contains-any' to 30 elements
-             let searchGroups = groupIds;
-             if (searchGroups.length > 30) {
+            // Firestore limits 'array-contains-any' to 30 elements
+            let searchGroups = groupIds;
+            if (searchGroups.length > 30) {
                 searchGroups = searchGroups.slice(0, 30);
-             }
+            }
 
             const q = query(
                 collection(firebaseInit.db, "lessons"),
@@ -189,110 +189,137 @@ export class StudentDashboardView extends LitElement {
 
     render() {
         if (this._isLoading) {
-             return html`
-                <div class="flex justify-center items-center h-full min-h-[50vh]">
-                     <div class="spinner w-12 h-12 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin"></div>
+            return html`
+                <div class="flex flex-col justify-center items-center h-full min-h-[50vh] space-y-4">
+                     <div class="spinner w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                     <p class="text-sm font-bold text-indigo-300 animate-pulse">Načítám tvůj svět...</p>
                 </div>`;
         }
 
         return html`
-            <div class="space-y-8 pb-24"> <!-- Padding bottom for sticky nav -->
+            <div class="space-y-8 pb-24 font-['Plus_Jakarta_Sans']"> <!-- Padding bottom for sticky nav -->
 
-                <!-- Header -->
-                <div class="pt-4">
-                    <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">
-                        Dobré ráno, <br>
-                        <span class="text-indigo-600">${this._studentName}! 👋</span>
-                    </h1>
+                <!-- Header & Streak -->
+                <div class="pt-2 flex justify-between items-start">
+                    <div>
+                        <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">
+                            Dobré ráno, <br>
+                            <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">${this._studentName}! 👋</span>
+                        </h1>
+                    </div>
+                    <!-- Mock Streak -->
+                    <div class="flex flex-col items-center">
+                        <div class="flex items-center space-x-1 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-100 shadow-sm">
+                            <span class="text-lg">🔥</span>
+                            <span class="font-black text-orange-500">3</span>
+                        </div>
+                        <span class="text-[10px] font-bold text-orange-300 uppercase tracking-wider mt-1">Dny v řadě</span>
+                    </div>
                 </div>
 
                 <!-- Section 1: Stories (Třídy) -->
                 <div>
-                    <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 px-1">Moje Třídy</h2>
-                    <div class="flex overflow-x-auto gap-4 pb-4 -mx-4 px-4 no-scrollbar snap-x">
+                    <div class="flex items-center justify-between mb-4 px-1">
+                        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Moje Třídy</h2>
+                        <span class="text-xs font-bold text-indigo-500 cursor-pointer">Všechny</span>
+                    </div>
+                    
+                    <div class="flex overflow-x-auto gap-5 pb-4 -mx-4 px-4 no-scrollbar snap-x">
                         ${this._groups.length > 0 ? this._groups.map(group => html`
-                            <div class="flex flex-col items-center flex-shrink-0 snap-start">
-                                <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 p-[2px] shadow-md">
-                                    <div class="w-full h-full rounded-full bg-white flex items-center justify-center border-2 border-transparent">
-                                        <span class="text-xl">🏫</span>
+                            <div class="flex flex-col items-center flex-shrink-0 snap-start group cursor-pointer">
+                                <div class="w-[4.5rem] h-[4.5rem] rounded-[1.5rem] bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 p-[3px] shadow-lg shadow-indigo-200 group-hover:scale-105 transition-transform duration-300">
+                                    <div class="w-full h-full rounded-[1.3rem] bg-white flex items-center justify-center border-4 border-white relative overflow-hidden">
+                                        <!-- Placeholder Icon or Initials -->
+                                        <span class="text-2xl font-black text-slate-700">${group.name.charAt(0)}</span>
                                     </div>
                                 </div>
-                                <span class="text-xs font-medium text-slate-700 mt-2 max-w-[4rem] truncate text-center">${group.name}</span>
+                                <span class="text-xs font-bold text-slate-600 mt-2 max-w-[4.5rem] truncate text-center leading-tight">${group.name}</span>
                             </div>
                         `) : nothing}
 
-                        <!-- Always show Add button if groups are empty, or just append it? -->
-                        <!-- Requirement: If _groups.length === 0, render highlighted Add circle. -->
-                        ${this._groups.length === 0 ? html`
-                            <div @click=${() => this._showJoinModal = true} class="flex flex-col items-center flex-shrink-0 cursor-pointer group">
-                                <div class="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-300 transform group-hover:scale-110 transition-all duration-300">
-                                    <span class="text-2xl text-white font-bold">+</span>
-                                </div>
-                                <span class="text-xs font-bold text-indigo-700 mt-2">Připojit se</span>
+                        <!-- Add Button -->
+                        <div @click=${() => this._showJoinModal = true} class="flex flex-col items-center flex-shrink-0 cursor-pointer group">
+                            <div class="w-[4.5rem] h-[4.5rem] rounded-[1.5rem] bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center group-hover:bg-indigo-50 group-hover:border-indigo-300 transition-all duration-300">
+                                <span class="text-2xl text-slate-400 group-hover:text-indigo-500 transition-colors">+</span>
                             </div>
-                        ` : nothing}
+                            <span class="text-xs font-bold text-slate-400 mt-2 group-hover:text-indigo-500 transition-colors">Připojit</span>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Section 2: Jump Back In -->
+                <!-- Section 2: Jump Back In (Hero Card) -->
                 <div>
-                    <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 px-1">Pokračovat</h2>
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">Pokračovat v učení</h2>
                     ${this._recentLesson ? html`
-                        <div class="relative min-h-[200px] rounded-3xl overflow-hidden shadow-xl shadow-indigo-200/50 bg-gradient-to-br from-indigo-600 to-purple-600 p-6 flex flex-col justify-between transform transition-transform active:scale-95">
-                            <!-- Decorative circles -->
-                            <div class="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full translate-x-1/3 -translate-y-1/3 blur-xl"></div>
-                            <div class="absolute bottom-0 left-0 w-24 h-24 bg-purple-400 opacity-20 rounded-full -translate-x-1/3 translate-y-1/3 blur-lg"></div>
+                        <div class="relative min-h-[220px] rounded-[2rem] overflow-hidden shadow-2xl shadow-indigo-500/30 bg-slate-900 p-8 flex flex-col justify-between transform transition-all active:scale-95 group cursor-pointer">
+                            
+                            <!-- Background Gradient & Effects -->
+                            <div class="absolute inset-0 bg-gradient-to-br from-indigo-600 via-purple-700 to-indigo-900 opacity-90"></div>
+                            <div class="absolute top-0 right-0 w-64 h-64 bg-white opacity-10 rounded-full translate-x-1/3 -translate-y-1/3 blur-3xl group-hover:opacity-20 transition-opacity duration-500"></div>
+                            <div class="absolute bottom-0 left-0 w-40 h-40 bg-pink-500 opacity-20 rounded-full -translate-x-1/3 translate-y-1/3 blur-2xl group-hover:opacity-30 transition-opacity duration-500"></div>
 
                             <div class="relative z-10">
-                                <p class="text-indigo-100 text-sm font-medium mb-1">Pokračovat v lekci:</p>
-                                <h3 class="text-2xl font-bold text-white leading-tight">${this._recentLesson.title}</h3>
-                                ${this._recentLesson.subtitle ? html`<p class="text-indigo-200 text-sm mt-2 line-clamp-1">${this._recentLesson.subtitle}</p>` : nothing}
+                                <span class="inline-block px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-bold text-white mb-3 border border-white/10">
+                                    🎯 Poslední aktivita
+                                </span>
+                                <h3 class="text-3xl font-black text-white leading-tight tracking-tight mb-2">${this._recentLesson.title}</h3>
+                                ${this._recentLesson.subtitle ? html`<p class="text-indigo-200 text-sm font-medium line-clamp-2">${this._recentLesson.subtitle}</p>` : nothing}
                             </div>
 
-                            <div class="relative z-10 flex justify-end mt-4">
+                            <div class="relative z-10 flex items-end justify-between mt-6">
+                                <div>
+                                    <p class="text-xs font-bold text-indigo-300 uppercase tracking-wider mb-1">Progress</p>
+                                    <div class="w-32 h-2 bg-slate-800/50 rounded-full overflow-hidden backdrop-blur-sm">
+                                        <div class="h-full bg-gradient-to-r from-green-400 to-emerald-500 w-2/3 rounded-full shadow-[0_0_10px_rgba(52,211,153,0.5)]"></div>
+                                    </div>
+                                </div>
+
                                 <button @click=${() => this._handleLessonSelected(this._recentLesson.id)}
-                                        class="w-12 h-12 rounded-full bg-white text-indigo-600 flex items-center justify-center shadow-lg hover:scale-105 transition-transform">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 ml-0.5">
+                                        class="w-14 h-14 rounded-2xl bg-white text-indigo-600 flex items-center justify-center shadow-lg shadow-black/20 hover:scale-110 hover:rotate-3 transition-all duration-300 group-hover:bg-indigo-50">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7 ml-1">
                                         <path fill-rule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clip-rule="evenodd" />
                                     </svg>
                                 </button>
                             </div>
                         </div>
                     ` : html`
-                         <div class="min-h-[120px] rounded-3xl bg-slate-100 flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-slate-200">
-                            <p class="text-slate-500 font-medium">Zatím žádné aktivní lekce</p>
-                            <p class="text-slate-400 text-sm mt-1">Počkejte na zadání od profesora</p>
+                         <div class="min-h-[140px] rounded-[2rem] bg-slate-50 flex flex-col items-center justify-center p-8 text-center border-2 border-dashed border-slate-200">
+                            <span class="text-4xl mb-3">zzz...</span>
+                            <p class="text-slate-500 font-bold">Zatím žádné úkoly</p>
+                            <p class="text-slate-400 text-xs mt-1">Užívej si volna, dokud to jde! 😎</p>
                          </div>
                     `}
                 </div>
 
-                <!-- Section 3: Coming Up -->
+                <!-- Section 3: Coming Up (Modern List) -->
                 <div>
-                    <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 px-1">Co tě čeká</h2>
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">Co tě čeká</h2>
                     <div class="space-y-3">
                         <!-- Mock Item 1 -->
-                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
-                            <div class="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
-                                    <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 000-1.5h-3.75V6z" clip-rule="evenodd" />
-                                </svg>
+                        <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-5 hover:shadow-md transition-shadow cursor-pointer">
+                            <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 text-xl shadow-sm">
+                                🧠
                             </div>
-                            <div>
-                                <h4 class="font-bold text-slate-800 text-sm">Kvíz z Biologie</h4>
-                                <p class="text-xs text-slate-500">Zítra, 9:00</p>
+                            <div class="flex-grow">
+                                <h4 class="font-bold text-slate-800">Kvíz z Biologie</h4>
+                                <p class="text-xs text-slate-500 font-medium mt-0.5">Zítra, 9:00 • 15 min</p>
+                            </div>
+                            <div class="w-8 h-8 rounded-full border-2 border-slate-200 flex items-center justify-center">
+                                <div class="w-4 h-4 rounded-full bg-slate-200"></div>
                             </div>
                         </div>
 
                         <!-- Mock Item 2 -->
-                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
-                            <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
-                                    <path d="M11.25 4.533A9.707 9.707 0 006 3.75a9.753 9.753 0 00-5.963 2.033 9.75 9.75 0 00-2.422 6.578 9.75 9.75 0 002.422 6.578A9.753 9.753 0 006 21c2.133.08 4.155-.572 5.963-1.783A9.707 9.707 0 0012 18.217a9.707 9.707 0 00.787 1c1.808 1.21 3.83 1.863 5.963 1.783A9.753 9.753 0 0021.385 18.9 9.75 9.75 0 0023.807 12.322a9.75 9.75 0 00-2.422-6.578A9.753 9.753 0 0015.42 3.75a9.707 9.707 0 00-4.17 1.783z" />
-                                </svg>
+                        <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-5 hover:shadow-md transition-shadow cursor-pointer">
+                            <div class="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 text-xl shadow-sm">
+                                ⚡
                             </div>
-                            <div>
-                                <h4 class="font-bold text-slate-800 text-sm">Nový úkol - Fyzika</h4>
-                                <p class="text-xs text-slate-500">Pátek, 23:59</p>
+                            <div class="flex-grow">
+                                <h4 class="font-bold text-slate-800">Nový úkol - Fyzika</h4>
+                                <p class="text-xs text-slate-500 font-medium mt-0.5">Pátek, 23:59 • Projekt</p>
+                            </div>
+                            <div class="w-8 h-8 rounded-full border-2 border-slate-200 flex items-center justify-center">
+                                <div class="w-4 h-4 rounded-full bg-slate-200"></div>
                             </div>
                         </div>
                     </div>
@@ -300,31 +327,34 @@ export class StudentDashboardView extends LitElement {
 
             </div>
 
-            <!-- Join Class Modal -->
+            <!-- Join Class Modal (Modernized) -->
             ${this._showJoinModal ? html`
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-                    <div class="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl relative animate-fade-in">
-                        <button @click=${() => this._showJoinModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-fade-in">
+                    <div class="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl relative overflow-hidden">
+                        <!-- Decorative bg -->
+                        <div class="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-indigo-50 to-white"></div>
+
+                        <button @click=${() => this._showJoinModal = false} class="absolute top-6 right-6 text-slate-400 hover:text-slate-600 z-10 bg-white rounded-full p-2 shadow-sm">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
 
-                        <div class="text-center mb-6">
-                            <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">🔑</div>
-                            <h3 class="text-xl font-bold text-slate-900">Připojit se ke třídě</h3>
-                            <p class="text-slate-500 text-sm mt-1">Zadejte kód, který vám poslal učitel.</p>
+                        <div class="text-center mb-8 relative z-10 mt-4">
+                            <div class="w-20 h-20 bg-white rounded-3xl shadow-xl shadow-indigo-100 flex items-center justify-center mx-auto mb-6 text-4xl border border-slate-50">🔑</div>
+                            <h3 class="text-2xl font-black text-slate-900 tracking-tight">Připojit se</h3>
+                            <p class="text-slate-500 text-sm mt-2 font-medium">Zadej kód od učitele a naskoč do třídy.</p>
                         </div>
 
-                        <div class="space-y-4">
+                        <div class="space-y-4 relative z-10">
                             <input type="text"
                                 .value=${this._joinCodeInput}
                                 @input=${e => this._joinCodeInput = e.target.value.toUpperCase()}
-                                placeholder="Např. A1B2C"
-                                class="w-full text-center text-2xl font-mono font-bold tracking-widest border-2 border-slate-200 rounded-xl py-4 uppercase focus:border-indigo-500 focus:ring-0 text-slate-800 placeholder-slate-300 transition-colors"
+                                placeholder="A1B2C"
+                                class="w-full text-center text-3xl font-mono font-black tracking-[0.5em] border-2 border-slate-200 rounded-2xl py-5 uppercase focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 text-indigo-600 placeholder-slate-200 transition-all outline-none"
                             />
 
                             <button @click=${this._handleJoinClass} ?disabled=${this._joining}
-                                class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transform active:scale-95 transition-all flex items-center justify-center">
-                                ${this._joining ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span> Připojuji...` : 'Vstoupit do třídy'}
+                                class="w-full bg-indigo-600 text-white font-bold py-5 rounded-2xl shadow-xl shadow-indigo-500/30 hover:bg-indigo-700 hover:shadow-indigo-500/50 hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center text-lg">
+                                ${this._joining ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span> Momentík...` : 'Vstoupit 🚀'}
                             </button>
                         </div>
                     </div>
