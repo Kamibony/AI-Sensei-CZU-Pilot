@@ -118,7 +118,7 @@ export class ProfessorDashboardView extends LitElement {
         // NOTE: Prompt strings are not yet in translation service as they are browser native.
         // Ideally we would replace prompt() with a custom modal.
         // For now, we leave them or try to translate if possible, but t() is synchronous.
-        const className = prompt("Zadejte název nové třídy:", "Např. Pokročilá Analýza Dat");
+        const className = prompt(translationService.t('dashboard.enter_class_name'), translationService.t('dashboard.class_name_placeholder'));
         if (className && className.trim() !== "") {
             const user = firebaseInit.auth.currentUser;
             if (!user) return;
@@ -141,23 +141,23 @@ export class ProfessorDashboardView extends LitElement {
     _copyJoinCode(e, joinCode) {
         e.stopPropagation();
         if (!joinCode) {
-             showToast('Kód není k dispozici.', true);
+             showToast(translationService.t('common.no_code'), true);
              return;
         }
         navigator.clipboard.writeText(joinCode).then(() => {
-            showToast('Kód zkopírován do schránky!');
+            showToast(translationService.t('common.code_copied'));
         }, () => {
-            showToast('Nepodařilo se zkopírovat kód.', true);
+            showToast(translationService.t('common.copy_failed'), true);
         });
     }
 
     render() {
+        const t = (key) => translationService.t(key);
         if (this._isLoading) {
-            return html`<div class="flex justify-center items-center h-full"><p class="text-xl text-slate-400 animate-pulse">Načítám dashboard...</p></div>`;
+            return html`<div class="flex justify-center items-center h-full"><p class="text-xl text-slate-400 animate-pulse">${t('common.loading')}</p></div>`;
         }
 
         const userName = firebaseInit.auth.currentUser?.displayName || 'Profesore';
-        const t = (key) => translationService.t(key);
 
         return html`
             <div class="h-full bg-slate-50 overflow-y-auto font-['Plus_Jakarta_Sans'] p-4 lg:p-8">
@@ -296,8 +296,9 @@ export class ProfessorDashboardView extends LitElement {
 
     // Clean List Row for Classes
     _renderClassRow(cls) {
+        const t = (key) => translationService.t(key);
         const studentCount = cls.studentIds ? cls.studentIds.length : 0;
-        const name = cls.name || 'Bezejmenná třída';
+        const name = cls.name || t('common.nameless_class');
         const joinCode = cls.joinCode || '---';
 
         return html`
@@ -311,7 +312,7 @@ export class ProfessorDashboardView extends LitElement {
                         <div class="flex items-center mt-1 space-x-2">
                             <span class="text-xs text-slate-500 flex items-center">
                                 <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                                ${studentCount} studentů
+                                ${studentCount} ${t('common.students_count')}
                             </span>
                              <span class="text-xs text-slate-300">|</span>
                              <span class="text-xs text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
@@ -334,14 +335,15 @@ export class ProfessorDashboardView extends LitElement {
     }
 
     _renderEmptyState() {
+        const t = (key) => translationService.t(key);
         return html`
             <div class="p-12 text-center flex flex-col items-center justify-center">
                 <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
                     <svg class="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                 </div>
-                <h3 class="text-slate-900 font-semibold text-lg">Zatím žádné třídy</h3>
-                <p class="text-slate-500 text-sm mt-1 max-w-xs">Začněte vytvořením své první třídy pro správu studentů.</p>
-                <button @click=${this._handleCreateClass} class="mt-6 text-indigo-600 font-bold text-sm hover:underline">Vytvořit první třídu</button>
+                <h3 class="text-slate-900 font-semibold text-lg">${t('dashboard.no_classes_title')}</h3>
+                <p class="text-slate-500 text-sm mt-1 max-w-xs">${t('dashboard.no_classes_desc')}</p>
+                <button @click=${this._handleCreateClass} class="mt-6 text-indigo-600 font-bold text-sm hover:underline">${t('dashboard.create_first_class')}</button>
             </div>
         `;
     }
