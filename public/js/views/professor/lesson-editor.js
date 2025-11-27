@@ -298,7 +298,7 @@ export class LessonEditor extends LitElement {
         // Get Files
         const currentFiles = getSelectedFiles();
         if (currentFiles.length === 0) {
-            if (!confirm("Generujete bez nahraných souborů. AI bude vařit z vody (pouze z názvu). Chcete pokračovat?")) return;
+            if (!confirm(translationService.t('common.confirm_no_files'))) return;
         }
 
         const filePaths = currentFiles.map(f => f.fullPath).filter(p => p);
@@ -338,8 +338,8 @@ export class LessonEditor extends LitElement {
         const typesToGenerate = ['text', 'presentation', 'quiz', 'test', 'post', 'comic', 'flashcards', 'mindmap'];
         let generatedTypes = [];
 
-        // Get content language
-        const contentLang = this.renderRoot.querySelector('#content-language')?.value || 'cs';
+        // Get content language from global setting
+        const contentLang = translationService.currentLanguage || 'cs';
 
         try {
             for (const type of typesToGenerate) {
@@ -452,7 +452,7 @@ export class LessonEditor extends LitElement {
 
                 } else {
                     console.warn(`Magic generation failed for ${type}:`, result?.error);
-                    this._magicLog = [...this._magicLog, `${typeLabel}: Chyba ❌`];
+                    this._magicLog = [...this._magicLog, `${typeLabel}: ${translationService.t('common.magic_error')}`];
                     this.requestUpdate();
                 }
             }
@@ -585,29 +585,29 @@ export class LessonEditor extends LitElement {
         switch (type.id) {
             case 'presentation':
                 const slides = this.lesson.presentation?.slides;
-                return slides ? `${slides.length} slidů` : null;
+                return slides ? `${slides.length} ${translationService.t('common.stats_slides')}` : null;
             case 'quiz':
                 const quizQ = this.lesson.quiz?.questions;
-                return quizQ ? `${quizQ.length} otázek` : null;
+                return quizQ ? `${quizQ.length} ${translationService.t('common.stats_questions')}` : null;
             case 'test':
                 const testQ = this.lesson.test?.questions;
-                return testQ ? `${testQ.length} otázek` : null;
+                return testQ ? `${testQ.length} ${translationService.t('common.stats_questions')}` : null;
             case 'post':
                 const episodes = this.lesson.post?.episodes;
                 // If episodes array exists use length, otherwise check if object exists (fallback 1)
-                return episodes ? `${episodes.length} epizod` : (this.lesson.post ? '1 epizoda' : null);
+                return episodes ? `${episodes.length} ${translationService.t('common.stats_episodes')}` : (this.lesson.post ? `1 ${translationService.t('common.stats_episode_singular')}` : null);
             case 'comic':
                 // Check for comic_script as well since that's what we generate first
                 const panels = this.lesson.comic?.panels || this.lesson.comic_script?.panels;
-                return panels ? `${panels.length} panelů` : null;
+                return panels ? `${panels.length} ${translationService.t('common.stats_panels')}` : null;
             case 'text':
                 return this.lesson.text_content ? translationService.t('editor.status_done') : null;
             case 'flashcards':
-                return this.lesson.flashcards ? `${this.lesson.flashcards.length} kartiček` : null;
+                return this.lesson.flashcards ? `${this.lesson.flashcards.length} ${translationService.t('common.stats_cards')}` : null;
             case 'mindmap':
-                 return this.lesson.mindmap ? 'Vytvořeno' : null;
+                 return this.lesson.mindmap ? translationService.t('common.stats_created') : null;
             case 'video':
-                return this.lesson.video ? 'Vloženo' : null;
+                return this.lesson.video ? translationService.t('common.stats_inserted') : null;
             default:
                 return null;
         }
@@ -621,8 +621,8 @@ export class LessonEditor extends LitElement {
         const modalClose = document.getElementById('modal-close-btn');
 
         if (!modal || !modalConfirm || !modalCancel || !modalClose) {
-             console.error("Chybějící elementy pro modální okno.");
-             showToast("Chyba: Nepodařilo se načíst komponentu pro výběr souborů.", true);
+             console.error(translationService.t('common.modal_error_elements'));
+             showToast(translationService.t('common.modal_error_load'), true);
              return;
         }
 
@@ -665,7 +665,7 @@ export class LessonEditor extends LitElement {
             case 'comic': return html`<editor-view-comic .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-comic>`;
             case 'flashcards': return html`<editor-view-flashcards .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-flashcards>`;
             case 'mindmap': return html`<editor-view-mindmap .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-mindmap>`;
-            default: return html`<p class="text-red-500">Neznámý typ obsahu</p>`;
+            default: return html`<p class="text-red-500">${translationService.t('common.unknown_type')}</p>`;
         }
     }
 
@@ -716,14 +716,6 @@ export class LessonEditor extends LitElement {
                                         ${t('editor.label_subtitle')}
                                     </label>
                                     <p class="text-xs text-slate-400 mt-1 pl-3">💡 ${t('editor.label_subtitle_tip')}</p>
-                                </div>
-
-                                <div class="relative mt-4">
-                                    <label class="block text-sm font-medium text-slate-600 mb-2">${t('lesson.language')}</label>
-                                    <select id="content-language" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                        <option value="cs" ?selected=${translationService.currentLanguage === 'cs'}>${t('languages.cs')}</option>
-                                        <option value="pt-br" ?selected=${translationService.currentLanguage === 'pt-br'}>${t('languages.pt_br')}</option>
-                                    </select>
                                 </div>
 
                                 <div class="pt-4">
@@ -814,7 +806,7 @@ export class LessonEditor extends LitElement {
                                             <!-- Visibility Toggle -->
                                             <div @click=${(e) => this._toggleSectionVisibility(e, type.id)}
                                                  class="absolute top-4 right-4 p-2 rounded-full shadow-sm z-10 transition-colors ${isVisible ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'}"
-                                                 title="${isVisible ? 'Viditelné pro studenty' : 'Skryté pro studenty'}">
+                                                 title="${isVisible ? t('common.visible_tooltip') : t('common.hidden_tooltip')}">
                                                 <span class="text-lg leading-none">${isVisible ? '👁️' : '👁️‍🗨️'}</span>
                                             </div>
 
@@ -940,8 +932,8 @@ export class LessonEditor extends LitElement {
                                 </div>
                             </div>
 
-                            <h2 class="text-3xl font-extrabold text-slate-900 mb-2">AI pracuje na lekci...</h2>
-                            <p class="text-slate-500 mb-8">Vytvářím kompletní vzdělávací materiály na míru.</p>
+                            <h2 class="text-3xl font-extrabold text-slate-900 mb-2">${t('common.magic_overlay_title')}</h2>
+                            <p class="text-slate-500 mb-8">${t('common.magic_overlay_desc')}</p>
 
                             <div class="bg-slate-50 rounded-2xl p-6 shadow-inner border border-slate-100 text-left space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
                                 ${this._magicLog.length > 0 ? this._magicLog.map(log => html`
