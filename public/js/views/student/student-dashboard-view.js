@@ -2,6 +2,7 @@ import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@
 import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
+import { translationService } from '../../utils/translation-service.js';
 
 export class StudentDashboardView extends LitElement {
     static properties = {
@@ -33,12 +34,17 @@ export class StudentDashboardView extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._fetchData();
+        // Subscribe to language changes
+        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         if (this._studentUnsubscribe) {
             this._studentUnsubscribe();
+        }
+        if (this._langUnsubscribe) {
+            this._langUnsubscribe();
         }
     }
 
@@ -196,6 +202,7 @@ export class StudentDashboardView extends LitElement {
         }
 
         const firstName = this._studentName.split(' ')[0];
+        const t = (key) => translationService.t(key);
 
         return html`
             <div class="space-y-8 pb-24 px-4 md:px-0">
@@ -204,13 +211,13 @@ export class StudentDashboardView extends LitElement {
                 <div class="flex items-center justify-between pt-4">
                     <div>
                         <h1 class="text-2xl font-black text-slate-900 tracking-tight leading-tight">
-                            Dobré ráno,<br>
+                            ${t('student.dashboard_title')},<br>
                             ${firstName}! 👋
                         </h1>
                     </div>
                     <div class="flex items-center gap-1.5 bg-orange-100 text-orange-600 px-3 py-1.5 rounded-full font-bold text-sm shadow-sm">
                         <span>🔥</span>
-                        <span>3 dny</span>
+                        <span>3 ${t('student.streak')}</span>
                     </div>
                 </div>
 
@@ -235,7 +242,7 @@ export class StudentDashboardView extends LitElement {
                             <div class="w-16 h-16 rounded-full p-[2px] bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center shadow-sm transition-transform transform group-active:scale-95">
                                 <span class="text-2xl text-slate-400 font-bold">+</span>
                             </div>
-                            <span class="text-xs font-bold text-slate-400 mt-2">Připojit</span>
+                            <span class="text-xs font-bold text-slate-400 mt-2">${t('student.join')}</span>
                         </div>
                     </div>
                 </div>
@@ -286,9 +293,9 @@ export class StudentDashboardView extends LitElement {
                         <div class="w-full aspect-[4/3] md:aspect-[21/9] rounded-3xl bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-8 text-center">
                             <div class="text-4xl mb-3">🎉</div>
                             <h3 class="text-lg font-bold text-slate-900">Vše hotovo!</h3>
-                            <p class="text-sm text-slate-500 max-w-[200px] mx-auto mt-1">Momentálně nemáte žádné rozpracované lekce.</p>
+                            <p class="text-sm text-slate-500 max-w-[200px] mx-auto mt-1">${t('student.empty_classes')}</p>
                             <button @click=${() => this._showJoinModal = true} class="mt-4 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-indigo-600 shadow-sm">
-                                Připojit se ke třídě
+                                ${t('student.join')}
                             </button>
                         </div>
                     `}
@@ -297,7 +304,7 @@ export class StudentDashboardView extends LitElement {
                 <!-- D. "Next Up" (Activity Feed) -->
                 <div>
                     <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                        Co tě čeká 📅
+                        ${t('student.next_up')} 📅
                     </h2>
                     <div class="space-y-3">
                         <!-- Mock Task 1 -->
@@ -362,7 +369,7 @@ export class StudentDashboardView extends LitElement {
 
                             <button @click=${this._handleJoinClass} ?disabled=${this._joining}
                                 class="w-full bg-indigo-600 text-white font-bold text-lg py-4 rounded-2xl shadow-xl shadow-indigo-500/30 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center">
-                                ${this._joining ? html`<span class="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin mr-3"></span> Připojuji...` : 'Vstoupit'}
+                                ${this._joining ? html`<span class="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin mr-3"></span> Připojuji...` : t('student.join')}
                             </button>
                         </div>
                     </div>

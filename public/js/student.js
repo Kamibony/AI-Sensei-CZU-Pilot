@@ -4,6 +4,7 @@
 import { doc, onSnapshot, setDoc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { showToast } from './utils.js';
+import { translationService } from './utils/translation-service.js';
 import * as firebaseInit from './firebase-init.js';
 import { handleLogout } from './auth.js';
 
@@ -26,7 +27,7 @@ let mainNav = null;
 let mobileBottomNav = null;
 
 // --- JEDINÁ ZMENA: PREMENOVANIE FUNKCIE ---
-export function initStudentApp() {
+export async function initStudentApp() {
 // -----------------------------------------
     const user = firebaseInit.auth.currentUser;
     if (!user) {
@@ -34,6 +35,16 @@ export function initStudentApp() {
         document.getElementById('app-container').innerHTML = `<p class="p-8 text-center text-red-600">Nastala kritická chyba pri prihlasovaní. Skúste obnoviť stránku.</p>`;
         return;
     }
+
+    // Init translation
+    await translationService.init();
+
+    // Subscribe to language changes to re-render nav
+    translationService.subscribe(() => {
+        renderStudentLayout(); // Re-render navs
+        // Re-render content if needed
+        renderAppContent();
+    });
 
     if (studentDataUnsubscribe) studentDataUnsubscribe();
 
@@ -104,9 +115,6 @@ export function cleanupStudentDashboard() {
 }
 
 function renderStudentLayout() {
-    // Only render if we haven't already set up the layout
-    if (document.getElementById('student-layout-initialized')) return;
-
     // Use existing template elements from index.html
     roleContentWrapper = document.getElementById('role-content-wrapper');
     mainNav = document.getElementById('main-nav');
@@ -119,33 +127,38 @@ function renderStudentLayout() {
     
     // Mark as initialized to prevent re-rendering layout on every snapshot update
     roleContentWrapper.setAttribute('id', 'role-content-wrapper'); // Keep ID
-    const flag = document.createElement('div');
-    flag.id = 'student-layout-initialized';
-    flag.style.display = 'none';
-    document.body.appendChild(flag);
 
+    // Check if flag exists to avoid re-attaching global listeners multiple times
+    if (!document.getElementById('student-layout-initialized')) {
+        const flag = document.createElement('div');
+        flag.id = 'student-layout-initialized';
+        flag.style.display = 'none';
+        document.body.appendChild(flag);
+
+         // Global Event Listeners for Navigation (Attach ONLY ONCE)
+        document.addEventListener('lesson-selected', (e) => {
+            selectedLessonId = e.detail.lessonId;
+            previousView = currentView === 'lessonDetail' ? previousView : currentView;
+            currentView = 'lessonDetail';
+            renderAppContent();
+            // We don't update nav state here as 'lessonDetail' isn't a top-level nav item,
+            // or we could map it to 'courses'.
+        });
+
+        document.addEventListener('back-to-list', (e) => {
+            selectedLessonId = null;
+            currentView = 'courses';
+            renderAppContent();
+            updateNavigationState();
+        });
+    }
+
+    // Always re-render navigation DOM to update translations
     // 1. Render Desktop Navigation (Side Bar)
     renderDesktopNavigation();
 
     // 2. Render Mobile Bottom Navigation
     renderMobileNavigation();
-    
-    // Global Event Listeners for Navigation
-    document.addEventListener('lesson-selected', (e) => {
-        selectedLessonId = e.detail.lessonId;
-        previousView = currentView === 'lessonDetail' ? previousView : currentView;
-        currentView = 'lessonDetail';
-        renderAppContent();
-        // We don't update nav state here as 'lessonDetail' isn't a top-level nav item,
-        // or we could map it to 'courses'.
-    });
-
-    document.addEventListener('back-to-list', (e) => {
-        selectedLessonId = null;
-        currentView = 'courses';
-        renderAppContent();
-        updateNavigationState();
-    });
 }
 
 function renderDesktopNavigation() {
@@ -166,8 +179,8 @@ function renderDesktopNavigation() {
             </div>
 
             <div class="mt-4 space-y-1 px-3">
-                ${renderDesktopNavItem('home', 'Domů', '🏠')}
-                ${renderDesktopNavItem('courses', 'Knihovna', '📚')}
+                ${renderDesktopNavItem('home', translationService.t('nav.dashboard'), '🏠')}
+                ${renderDesktopNavItem('courses', translationService.t('nav.classes'), '📚')}
                 ${renderDesktopNavItem('chat', 'Chat', '💬')}
                 ${renderDesktopNavItem('profile', 'Profil', '👤')}
             </div>
@@ -179,7 +192,7 @@ function renderDesktopNavigation() {
                 <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                     <span class="text-xl group-hover:translate-x-1 transition-transform">🚪</span>
                 </div>
-                <span class="ml-2 text-sm font-medium">Odhlásit</span>
+                <span class="ml-2 text-sm font-medium">${translationService.t('nav.logout')}</span>
             </button>
         </div>
     `;
@@ -223,8 +236,8 @@ function renderMobileNavigation() {
     mobileBottomNav.className = "md:hidden fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-md border-t border-slate-200 pb-safe z-50 flex justify-around items-center px-2 py-2 safe-area-pb";
 
     mobileBottomNav.innerHTML = `
-        ${renderMobileNavItem('home', 'Domů', '🏠')}
-        ${renderMobileNavItem('courses', 'Knihovna', '📚')}
+        ${renderMobileNavItem('home', translationService.t('nav.dashboard'), '🏠')}
+        ${renderMobileNavItem('courses', translationService.t('nav.classes'), '📚')}
         ${renderMobileNavItem('chat', 'Chat', '💬')}
         ${renderMobileNavItem('profile', 'Profil', '👤')}
     `;
@@ -342,11 +355,11 @@ function renderProfilePlaceholder(container) {
             <p class="text-slate-500 mb-6">${currentUserData?.email}</p>
 
             <button id="profile-join-class" class="w-full mb-3 bg-indigo-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl hover:bg-indigo-700 transition-all">
-                Připojit se k třídě
+                ${translationService.t('student.join')}
             </button>
 
             <button id="profile-logout-btn" class="w-full bg-red-50 text-red-600 font-bold py-3 px-4 rounded-xl hover:bg-red-100 transition-all">
-                Odhlásit se
+                ${translationService.t('nav.logout')}
             </button>
         </div>
     `;
