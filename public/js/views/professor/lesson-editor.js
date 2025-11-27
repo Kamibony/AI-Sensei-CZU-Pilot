@@ -297,6 +297,7 @@ export class LessonEditor extends LitElement {
         }
 
         const typesToGenerate = ['text', 'presentation', 'quiz', 'test', 'post', 'comic', 'flashcards', 'mindmap'];
+        let generatedTypes = [];
 
         try {
             for (const type of typesToGenerate) {
@@ -373,6 +374,7 @@ export class LessonEditor extends LitElement {
 
                     // Update Local State
                     this.lesson = { ...this.lesson, [dataKey]: dataValue };
+                    generatedTypes.push(type);
 
                     // CRITICAL: Autosave to Firestore immediately
                     if (!this.lesson.id) {
@@ -389,6 +391,39 @@ export class LessonEditor extends LitElement {
                     console.warn(`Magic generation failed for ${type}:`, result?.error);
                 }
             }
+
+            // --- AUTO-VISIBILITY UPDATE ---
+            // Ensure all generated sections are automatically added to visible_sections
+            let updatedVisibleSections = this.lesson.visible_sections ? [...this.lesson.visible_sections] : [];
+
+            // If visible_sections was previously undefined (legacy), it effectively means "all".
+            // But if we are running magic, we want to be explicit.
+            if (!this.lesson.visible_sections) {
+                // If it was undefined, we assume current content was visible.
+                // We'll initialize it with all known content types that have data + new ones.
+                updatedVisibleSections = this.contentTypes
+                    .filter(t => {
+                         const key = t.id === 'text' ? 'text_content' : t.id;
+                         // Check if we have data for this type (either pre-existing or just generated)
+                         return this.lesson[key] || generatedTypes.includes(t.id);
+                    })
+                    .map(t => t.id);
+            } else {
+                 // Add newly generated types if not already present
+                 generatedTypes.forEach(t => {
+                     if (!updatedVisibleSections.includes(t)) {
+                         updatedVisibleSections.push(t);
+                     }
+                 });
+            }
+
+            // Update visible_sections in DB
+            await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
+                visible_sections: updatedVisibleSections,
+                updatedAt: serverTimestamp()
+            });
+            this.lesson = { ...this.lesson, visible_sections: updatedVisibleSections };
+            // -------------------------------
 
             this._magicProgress = '';
             showToast("Magie dokončena! Zkontrolujte vygenerovaný obsah.");
@@ -422,6 +457,83 @@ export class LessonEditor extends LitElement {
 
     _closeStudentPreview() {
         this._showStudentPreview = false;
+    }
+
+    async _toggleSectionVisibility(e, typeId) {
+        e.stopPropagation(); // Prevent card click
+        if (!this.lesson) return;
+
+        // Initialize visible_sections if undefined (legacy: undefined = all visible)
+        let visibleSections = this.lesson.visible_sections;
+        if (!visibleSections) {
+            // If undefined, start with ALL content types that have content
+             visibleSections = this.contentTypes
+                .filter(t => {
+                     const key = t.id === 'text' ? 'text_content' : t.id;
+                     return this.lesson[key];
+                })
+                .map(t => t.id);
+        }
+
+        if (visibleSections.includes(typeId)) {
+            // Hide it
+            visibleSections = visibleSections.filter(id => id !== typeId);
+            showToast(`Sekce skryta studentům.`);
+        } else {
+            // Show it
+            visibleSections = [...visibleSections, typeId];
+            showToast(`Sekce zobrazena studentům.`);
+        }
+
+        // Optimistic update
+        this.lesson = { ...this.lesson, visible_sections: visibleSections };
+        this.requestUpdate();
+
+        // Save to Firestore
+        try {
+            await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
+                visible_sections: visibleSections,
+                updatedAt: serverTimestamp()
+            });
+        } catch (err) {
+            console.error("Error toggling visibility:", err);
+            showToast("Chyba při ukládání viditelnosti.", true);
+            // Revert on error could be implemented here
+        }
+    }
+
+    _getContentStats(type) {
+        if (!this.lesson) return null;
+
+        switch (type.id) {
+            case 'presentation':
+                const slides = this.lesson.presentation?.slides;
+                return slides ? `${slides.length} slidů` : null;
+            case 'quiz':
+                const quizQ = this.lesson.quiz?.questions;
+                return quizQ ? `${quizQ.length} otázek` : null;
+            case 'test':
+                const testQ = this.lesson.test?.questions;
+                return testQ ? `${testQ.length} otázek` : null;
+            case 'post':
+                const episodes = this.lesson.post?.episodes;
+                // If episodes array exists use length, otherwise check if object exists (fallback 1)
+                return episodes ? `${episodes.length} epizod` : (this.lesson.post ? '1 epizoda' : null);
+            case 'comic':
+                // Check for comic_script as well since that's what we generate first
+                const panels = this.lesson.comic?.panels || this.lesson.comic_script?.panels;
+                return panels ? `${panels.length} panelů` : null;
+            case 'text':
+                return this.lesson.text_content ? 'Dokončeno' : null;
+            case 'flashcards':
+                return this.lesson.flashcards ? `${this.lesson.flashcards.length} kartiček` : null;
+            case 'mindmap':
+                 return this.lesson.mindmap ? 'Vytvořeno' : null;
+            case 'video':
+                return this.lesson.video ? 'Vloženo' : null;
+            default:
+                return null;
+        }
     }
 
     _openRagModal(e) {
@@ -602,22 +714,39 @@ export class LessonEditor extends LitElement {
                                 ${this.contentTypes.map(type => {
                                     // Check if content exists
                                     const hasContent = this.lesson && ((type.id === 'text' && this.lesson.text_content) || (type.id !== 'text' && this.lesson[type.id]));
+                                    // Check visibility logic:
+                                    // If visible_sections is undefined => All visible by default (legacy)
+                                    // If defined => Only if included
+                                    const isVisible = !this.lesson?.visible_sections || this.lesson.visible_sections.includes(type.id);
+
+                                    const stats = this._getContentStats(type);
 
                                     return html`
                                         <div @click=${() => this._switchToEditor(type.id)}
                                              class="group cursor-pointer bg-white rounded-3xl border border-slate-100 p-8 transition-all duration-300 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-100/50 hover:-translate-y-1 relative overflow-hidden flex flex-col items-center justify-center min-h-[220px]">
 
-                                            <div class="absolute top-0 right-0 p-5 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                                            <!-- Visibility Toggle -->
+                                            <div @click=${(e) => this._toggleSectionVisibility(e, type.id)}
+                                                 class="absolute top-4 right-4 p-2 rounded-full shadow-sm z-10 transition-colors ${isVisible ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'}"
+                                                 title="${isVisible ? 'Viditelné pro studenty' : 'Skryté pro studenty'}">
+                                                <span class="text-lg leading-none">${isVisible ? '👁️' : '👁️‍🗨️'}</span>
+                                            </div>
+
+                                            <div class="absolute top-0 left-0 p-5 opacity-0 group-hover:opacity-100 transition-all transform -translate-x-2 group-hover:translate-x-0">
                                                 <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
                                             </div>
 
-                                            <div class="w-20 h-20 rounded-2xl bg-slate-50 flex items-center justify-center text-4xl shadow-sm mb-6 group-hover:scale-110 transition-transform duration-300 group-hover:bg-indigo-50">
+                                            <div class="w-20 h-20 rounded-2xl bg-slate-50 flex items-center justify-center text-4xl shadow-sm mb-4 group-hover:scale-110 transition-transform duration-300 group-hover:bg-indigo-50">
                                                 ${type.icon}
                                             </div>
 
                                             <div class="text-center">
                                                 <h3 class="font-bold text-slate-900 text-xl group-hover:text-indigo-700 transition-colors mb-1">${type.label}</h3>
-                                                <p class="text-xs text-slate-400 font-medium">${type.description}</p>
+                                                ${stats ? html`
+                                                    <p class="text-xs text-slate-500 font-mono mt-1">${stats}</p>
+                                                ` : html`
+                                                    <p class="text-xs text-slate-400 font-medium">${type.description}</p>
+                                                `}
                                             </div>
 
                                             <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2">
