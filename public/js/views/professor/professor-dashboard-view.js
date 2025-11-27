@@ -115,6 +115,9 @@ export class ProfessorDashboardView extends LitElement {
     }
 
     async _handleCreateClass() {
+        // NOTE: Prompt strings are not yet in translation service as they are browser native.
+        // Ideally we would replace prompt() with a custom modal.
+        // For now, we leave them or try to translate if possible, but t() is synchronous.
         const className = prompt("Zadejte název nové třídy:", "Např. Pokročilá Analýza Dat");
         if (className && className.trim() !== "") {
             const user = firebaseInit.auth.currentUser;
@@ -127,10 +130,10 @@ export class ProfessorDashboardView extends LitElement {
                     createdAt: serverTimestamp(),
                     studentIds: []
                 });
-                showToast("Třída byla úspěšně vytvořena.");
+                showToast(translationService.t('common.saved'));
             } catch (error) {
                 console.error("Error creating class:", error);
-                showToast("Chyba při vytváření třídy.", true);
+                showToast(translationService.t('professor.error_create_class'), true);
             }
         }
     }
@@ -163,12 +166,12 @@ export class ProfessorDashboardView extends LitElement {
                 <div class="max-w-[1600px] mx-auto mb-10 flex flex-col md:flex-row md:items-end justify-between">
                      <div>
                         <h1 class="text-3xl font-bold text-slate-900 tracking-tight mb-1">${t('dashboard.greeting')}, ${userName}</h1>
-                        <p class="text-slate-500">Váš přehled výuky je aktuální.</p>
+                        <p class="text-slate-500">${t('dashboard.subtitle')}</p>
                     </div>
                      <div class="mt-4 md:mt-0">
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
                             <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></span>
-                            Systém je online
+                            ${t('professor.system_online')}
                         </span>
                     </div>
                 </div>
@@ -180,7 +183,7 @@ export class ProfessorDashboardView extends LitElement {
 
                         <!-- Section: Management Stats (Bento Grid) -->
                         <div>
-                            <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 pl-1">Přehled Managementu</h2>
+                            <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 pl-1">${t('dashboard.management_overview')}</h2>
                             <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                 ${this._renderStatCard(t('professor.stats_students'), this._stats.totalStudents, "users", "students")}
                                 ${this._renderStatCard(t('professor.stats_classes'), this._stats.totalClasses, "briefcase", "classes")}
@@ -193,7 +196,7 @@ export class ProfessorDashboardView extends LitElement {
                     <!-- RIGHT COLUMN: Lesson Workflow (30%) -->
                     <div class="lg:col-span-4 space-y-6">
 
-                        <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">Tvůrčí Proces</h2>
+                        <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">${t('dashboard.creative_studio')}</h2>
 
                         <div @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', lesson: null }, bubbles: true, composed: true }))}
                              class="group relative overflow-hidden bg-white rounded-3xl shadow-xl shadow-indigo-200/50 cursor-pointer transition-all duration-300 hover:shadow-indigo-300/60 hover:-translate-y-1 min-h-[300px] flex flex-col p-0 border border-indigo-100">
@@ -212,8 +215,8 @@ export class ProfessorDashboardView extends LitElement {
                                 <div class="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-100 transition-colors group-hover:bg-indigo-50 group-hover:border-indigo-100">
                                     <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm">📄</div>
                                     <div class="ml-3">
-                                        <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">Vstup</div>
-                                        <div class="font-bold text-slate-800">PDF Dokumenty</div>
+                                        <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">${t('professor.workflow_input')}</div>
+                                        <div class="font-bold text-slate-800">${t('professor.workflow_docs')}</div>
                                     </div>
                                 </div>
 
@@ -226,8 +229,8 @@ export class ProfessorDashboardView extends LitElement {
                                 <div class="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-100 transition-colors group-hover:bg-indigo-50 group-hover:border-indigo-100">
                                     <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm">⚡</div>
                                     <div class="ml-3">
-                                        <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">Proces</div>
-                                        <div class="font-bold text-slate-800">AI Generování</div>
+                                        <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">${t('professor.workflow_process')}</div>
+                                        <div class="font-bold text-slate-800">${t('professor.workflow_ai')}</div>
                                     </div>
                                 </div>
 
@@ -240,8 +243,8 @@ export class ProfessorDashboardView extends LitElement {
                                 <div class="flex items-center p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-100">
                                     <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm text-emerald-600">🎓</div>
                                     <div class="ml-3">
-                                        <div class="text-xs font-bold text-emerald-600 uppercase tracking-wide">Výsledek</div>
-                                        <div class="font-bold text-emerald-900">Hotová Lekce</div>
+                                        <div class="text-xs font-bold text-emerald-600 uppercase tracking-wide">${t('professor.workflow_result')}</div>
+                                        <div class="font-bold text-emerald-900">${t('professor.workflow_final')}</div>
                                     </div>
                                 </div>
                             </div>
@@ -249,7 +252,7 @@ export class ProfessorDashboardView extends LitElement {
                             <!-- CTA Footer -->
                             <div class="p-6 pt-4 bg-slate-50 border-t border-slate-100 relative z-10 group-hover:bg-indigo-50/50 transition-colors">
                                 <div class="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-center shadow-lg shadow-indigo-500/30 group-hover:shadow-indigo-500/50 transition-all group-hover:scale-[1.02]">
-                                    Spustit Magii
+                                    ${t('lesson.magic_btn')}
                                 </div>
                             </div>
 
