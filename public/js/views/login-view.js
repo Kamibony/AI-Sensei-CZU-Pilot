@@ -1,5 +1,5 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { auth, functions } from '../firebase-init.js';
 import { showToast } from '../utils.js';
@@ -124,16 +124,6 @@ export class LoginView extends LitElement {
             this._error = message;
         } finally {
             this._isLoading = false;
-        }
-    }
-
-    async _handleProfessorLogin() {
-        const provider = new GoogleAuthProvider();
-        try {
-            await signInWithPopup(auth, provider);
-        } catch (error) {
-            console.error("Error with Google sign-in:", error);
-            showToast(translationService.t('auth.error_google') + error.message, 'error');
         }
     }
 
@@ -266,26 +256,6 @@ export class LoginView extends LitElement {
                         </p>
                     </div>
                 </div>
-
-                <!-- Google Login (Professor Only) -->
-                ${isProfessor && !this._isRegistering ? html`
-                    <div class="relative py-4">
-                        <div class="absolute inset-0 flex items-center">
-                            <div class="w-full border-t border-slate-200"></div>
-                        </div>
-                        <div class="relative flex justify-center">
-                            <span class="px-4 bg-white text-sm text-slate-400 font-medium uppercase tracking-wider">${t('auth.or')}</span>
-                        </div>
-                    </div>
-
-                    <div>
-                        <button @click=${this._handleProfessorLogin}
-                            class="w-full bg-slate-800 text-white font-semibold py-3 px-4 rounded-xl hover:bg-slate-900 transition-all shadow-md flex items-center justify-center gap-2">
-                            <span>👨‍🏫</span>
-                            ${t('auth.login_professor_btn')}
-                        </button>
-                    </div>
-                ` : ''}
 
                 <!-- Footer -->
                 <p class="text-center text-xs text-slate-400 mt-8">
