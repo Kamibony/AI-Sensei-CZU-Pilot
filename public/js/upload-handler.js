@@ -5,6 +5,7 @@ import { getStorage, ref, getDownloadURL } from "https://www.gstatic.com/firebas
 import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from './firebase-init.js';
 import { showToast } from "./utils.js";
+import { translationService } from "./utils/translation-service.js";
 
 // Hlavná funkcia na spracovanie nahrávania súborov (Bulk upload)
 export async function handleFileUpload(files, courseId, progressContainer, mediaListContainer, onCompleteCallback) {
@@ -15,7 +16,7 @@ export async function handleFileUpload(files, courseId, progressContainer, media
 
     const user = firebaseInit.auth.currentUser;
     if (!user) {
-        showToast(`Nejste přihlášen. Nahrávání bylo zrušeno.`, true);
+        showToast(translationService.t('common.upload_login_required'), true);
         return;
     }
 
@@ -26,11 +27,11 @@ export async function handleFileUpload(files, courseId, progressContainer, media
 
     try {
         await Promise.all(uploadPromises);
-        showToast("Všechny soubory byly úspěšně nahrány.");
+        showToast(translationService.t('common.upload_success_all'));
         if (onCompleteCallback) onCompleteCallback(); // Zavoláme callback
     } catch (error) {
         console.error("Některé nahrávání selhala:", error);
-        showToast("Některé soubory se nepodařilo nahrát.", true);
+        showToast(translationService.t('common.upload_failed_some'), true);
         if (onCompleteCallback) onCompleteCallback(); // Zavoláme callback aj pri chybe
     } finally {
         // Skryjeme progress bar po chvíli
@@ -68,7 +69,7 @@ async function uploadSingleFile(file, courseId, user, progressContainer) {
         // =================================================
 
         // KROK 1: Vypýtame si Signed URL z našej Cloud Function
-        percentageText.textContent = 'Příprava...';
+        percentageText.textContent = translationService.t('common.upload_preparing');
         const result = await getSecureUploadUrl({
             fileName: file.name,
             contentType: file.type,
@@ -80,7 +81,7 @@ async function uploadSingleFile(file, courseId, user, progressContainer) {
 
         // KROK 2: Nahráme súbor pomocou Fetch (mimo Firebase SDK)
         progressBar.style.width = '50%';
-        percentageText.textContent = 'Nahrávám...';
+        percentageText.textContent = translationService.t('common.upload_uploading');
 
         const response = await fetch(signedUrl, {
             method: 'PUT',
@@ -98,22 +99,22 @@ async function uploadSingleFile(file, courseId, user, progressContainer) {
         progressBar.style.width = '90%';
         progressBar.classList.remove('bg-blue-600');
         progressBar.classList.add('bg-yellow-500');
-        percentageText.textContent = 'Finalizace...';
+        percentageText.textContent = translationService.t('common.upload_finalizing');
 
         await finalizeUpload({ docId: docId, filePath: filePath });
 
         // KROK 4: Spustíme RAG spracovanie
         progressBar.style.width = '95%';
-        percentageText.textContent = 'Zpracování AI...';
+        percentageText.textContent = translationService.t('common.upload_ai_processing');
         try {
             await processFileForRAG({ fileId: docId });
         } catch (ragError) {
             console.error(`RAG spracovanie pre ${file.name} zlyhalo:`, ragError);
-            showToast(`Soubor ${file.name} byl nahrán, ale AI analýza selhala.`, true);
+            showToast(translationService.t('common.upload_ai_failed_specific').replace('{filename}', file.name), true);
             // Necháme progress na 95% a zmeníme farbu na oranžovú ako varovanie
             progressBar.classList.remove('bg-yellow-500');
             progressBar.classList.add('bg-orange-500');
-            percentageText.textContent = 'AI Chyba';
+            percentageText.textContent = translationService.t('common.upload_ai_error');
             // V tomto prípade nepokračujeme ďalej a nehlásime chybu "vyššie",
             // pretože upload samotný bol úspešný.
             return; // Ukončíme funkciu tu
@@ -124,13 +125,13 @@ async function uploadSingleFile(file, courseId, user, progressContainer) {
         progressBar.style.width = '100%';
         progressBar.classList.remove('bg-yellow-500');
         progressBar.classList.add('bg-green-600');
-        percentageText.textContent = 'Hotovo!';
+        percentageText.textContent = translationService.t('common.upload_done');
 
     } catch (error) {
         console.error(`Nahrávání souboru ${file.name} selhalo:`, error);
         progressBar.classList.remove('bg-blue-600');
         progressBar.classList.add('bg-red-600');
-        percentageText.textContent = 'Chyba!';
+        percentageText.textContent = translationService.t('common.upload_error');
         if (error.message) {
             showToast(`Chyba: ${error.message}`, true);
         }
@@ -166,7 +167,7 @@ export function renderSelectedFiles(listElementId = "selected-files-list-rag") {
     if (!listEl) return;
 
     if (selectedFiles.length === 0) {
-        listEl.innerHTML = '<li>Žádné soubory nevybrány.</li>';
+        listEl.innerHTML = `<li>${translationService.t('common.no_files_selected')}</li>`;
     } else {
         listEl.innerHTML = selectedFiles.map((file, index) => `
             <li class="flex items-center justify-between text-xs text-slate-700 group">
@@ -188,12 +189,12 @@ export function renderSelectedFiles(listElementId = "selected-files-list-rag") {
 export async function renderMediaLibraryFiles(courseId, listElementId) {
     const listEl = document.getElementById(listElementId);
     if (!listEl) return;
-    listEl.innerHTML = '<p class="text-slate-500 text-sm">Načítám soubory...</p>';
+    listEl.innerHTML = `<p class="text-slate-500 text-sm">${translationService.t('common.library_loading')}</p>`;
 
     try {
         const user = firebaseInit.auth.currentUser;
         if (!user) {
-            listEl.innerHTML = '<p class="text-red-500 text-sm">Nejste přihlášen.</p>';
+            listEl.innerHTML = `<p class="text-red-500 text-sm">${translationService.t('common.library_login_required')}</p>`;
             return;
         }
 
@@ -209,7 +210,7 @@ export async function renderMediaLibraryFiles(courseId, listElementId) {
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-            listEl.innerHTML = '<p class="text-slate-500 text-sm">V knihovně nejsou žádné soubory.</p>';
+            listEl.innerHTML = `<p class="text-slate-500 text-sm">${translationService.t('common.library_empty')}</p>`;
             return;
         }
 
@@ -250,7 +251,7 @@ export async function renderMediaLibraryFiles(courseId, listElementId) {
 
     } catch (error) {
         console.error("Error listing files from Firestore:", error);
-        listEl.innerHTML = '<p class="text-red-500 text-sm">Nepodařilo se načíst soubory.</p>';
+        listEl.innerHTML = `<p class="text-red-500 text-sm">${translationService.t('common.library_error')}</p>`;
     }
 }
 

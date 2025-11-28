@@ -206,7 +206,7 @@ export class ProfessorDashboardView extends LitElement {
                                 <h3 class="text-xl font-bold text-slate-900 tracking-tight flex items-center">
                                     <span class="text-2xl mr-2">✨</span> ${t('professor.new_lesson_card')}
                                 </h3>
-                                <p class="text-slate-500 text-sm mt-1">Automatizovaná tvorba</p>
+                                <p class="text-slate-500 text-sm mt-1">${t('professor.automated_creation')}</p>
                             </div>
 
                             <!-- Workflow Visualization -->
