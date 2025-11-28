@@ -164,7 +164,10 @@
     "status_empty": "Prázdné",
     "btn_publish": "Publikovat a Zavřít",
     "btn_back_hub": "Zpět na přehled",
-    "btn_save_changes": "Uložit změny"
+    "btn_save_changes": "Uložit změny",
+    "ai_tip_title": "Tip od AI Sensei:",
+    "ai_tip_desc": "Toto je návrh vygenerovaný umělou inteligencí. Můžete jej upravit. Změny v této sekci uložte tlačítkem vpravo dole.",
+    "btn_save_section": "Uložit sekci"
   },
   "content_types": {
     "text": "Text",
