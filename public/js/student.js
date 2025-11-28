@@ -181,8 +181,8 @@ function renderDesktopNavigation() {
             <div class="mt-4 space-y-1 px-3">
                 ${renderDesktopNavItem('home', translationService.t('nav.dashboard'), '🏠')}
                 ${renderDesktopNavItem('courses', translationService.t('nav.classes'), '📚')}
-                ${renderDesktopNavItem('chat', 'Chat', '💬')}
-                ${renderDesktopNavItem('profile', 'Profil', '👤')}
+                ${renderDesktopNavItem('chat', translationService.t('nav.interactions'), '💬')}
+                ${renderDesktopNavItem('profile', translationService.t('student.join'), '👤')}
             </div>
         </div>
 
@@ -238,8 +238,8 @@ function renderMobileNavigation() {
     mobileBottomNav.innerHTML = `
         ${renderMobileNavItem('home', translationService.t('nav.dashboard'), '🏠')}
         ${renderMobileNavItem('courses', translationService.t('nav.classes'), '📚')}
-        ${renderMobileNavItem('chat', 'Chat', '💬')}
-        ${renderMobileNavItem('profile', 'Profil', '👤')}
+        ${renderMobileNavItem('chat', translationService.t('nav.interactions'), '💬')}
+        ${renderMobileNavItem('profile', translationService.t('student.join'), '👤')}
     `;
 
     // Add click listeners
@@ -373,46 +373,46 @@ function promptForStudentName(userId, container) {
     container.innerHTML = `
         <div class="flex items-center justify-center min-h-full p-4">
             <div class="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md text-center">
-                <h1 class="text-2xl font-bold text-slate-800 mb-4">Vítejte v AI Sensei!</h1>
-                <p class="text-slate-600 mb-6">Prosím, zadejte své jméno, abychom věděli, jak vás oslovovat.</p>
-                <input type="text" id="student-name-input" placeholder="Vaše jméno a příjmení" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4">
-                <button id="save-name-btn" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 shadow-lg transition-all">Uložit a pokračovat</button>
+                <h1 class="text-2xl font-bold text-slate-800 mb-4">AI Sensei</h1>
+                <p class="text-slate-600 mb-6">${translationService.t('student_dashboard.profile_create_desc')}</p>
+                <input type="text" id="student-name-input" placeholder="${translationService.t('student_dashboard.name_placeholder')}" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4">
+                <button id="save-name-btn" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 shadow-lg transition-all">${translationService.t('student_dashboard.save_continue')}</button>
             </div>
         </div>`;
 
     document.getElementById('save-name-btn').addEventListener('click', async () => {
         const name = document.getElementById('student-name-input').value.trim();
-        if (!name) return showToast('Jméno nemůže být prázdné.', true);
+        if (!name) return showToast(translationService.t('student_dashboard.name_required'), true);
 
         try {
             await updateDoc(doc(firebaseInit.db, 'students', userId), { name: name });
-            showToast('Jméno úspěšně uloženo!');
+            showToast(translationService.t('student_dashboard.name_saved'));
         } catch (error) {
-            showToast('Nepodařilo se uložit jméno.', true);
+            showToast(translationService.t('student_dashboard.name_save_error'), true);
         }
     });
 }
 
 async function handleJoinClass() {
-    const joinCode = window.prompt("Zadejte kód pro připojení do třídy:");
+    const joinCode = window.prompt(translationService.t('student_dashboard.join_prompt'));
     if (!joinCode || joinCode.trim() === "") {
         return;
     }
 
-    showToast("Připojuji se k třídě...", false);
+    showToast(translationService.t('student_dashboard.joining'), false);
 
     try {
         const joinClass = httpsCallable(firebaseInit.functions, 'joinClass');
         const result = await joinClass({ joinCode: joinCode.trim() });
 
         if (result.data.success) {
-            showToast(`Úspěšně jste se připojil(a) k třídě ${result.data.groupName}!`);
+            showToast(translationService.t('student_dashboard.join_success_group').replace('{groupName}', result.data.groupName));
 
         } else {
-            showToast("Neznámá chyba při připojování.", true);
+            showToast(translationService.t('student_dashboard.join_error_unknown'), true);
         }
     } catch (error) {
         console.error("Error joining class:", error);
-        showToast(error.message || "Nepodařilo se připojit k třídě.", true);
+        showToast(error.message || translationService.t('student_dashboard.join_error_unknown'), true);
     }
 }

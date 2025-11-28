@@ -63,12 +63,22 @@ function createGlobalSpinner() {
     }
 }
 
-export function showGlobalSpinner(message = "Načítám...") {
+export function showGlobalSpinner(message) {
     createGlobalSpinner(); // Ensure it exists
     const spinner = document.getElementById('global-spinner');
     const spinnerMessage = document.getElementById('global-spinner-message');
+
+    // Lazy import or global access for translationService?
+    // Since utils is imported by many things, circular dependency risk.
+    // Better to pass translated message, OR default to 'Loading...' if undefined.
+    // But request was to localize "Načítám...".
+    // Assuming translationService is available or we import it dynamically if needed.
+    // However, simplest fix for now:
+    const defaultMsg = window.translationService ? window.translationService.t('common.loading') : "Loading...";
+    const displayMsg = message || defaultMsg;
+
     if (spinnerMessage) {
-        spinnerMessage.textContent = message;
+        spinnerMessage.textContent = displayMsg;
     }
     if (spinner) {
         spinner.classList.remove('hidden');
