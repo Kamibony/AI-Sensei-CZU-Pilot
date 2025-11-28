@@ -34,6 +34,9 @@ service cloud.firestore {
 
       // --- ZAČIATOK OPRAVY PARADOXU ---
 
+      // 1. OPRAVA: Povol 'get' pre vlastníka (aby si mohol načítať profil)
+      allow get: if isOwner(userId);
+
       // 2. OPRAVA: Explicitne povoľ 'create' iba pre vlastníka.
       allow create: if isOwner(userId);
 
