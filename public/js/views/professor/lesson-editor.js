@@ -275,7 +275,7 @@ export class LessonEditor extends LitElement {
             } else {
                 lessonPayload.createdAt = serverTimestamp();
                 lessonPayload.ownerId = firebaseInit.auth.currentUser.uid;
-                lessonPayload.status = 'Naplánováno';
+                lessonPayload.status = 'draft'; // Default to draft for new system
                 const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonPayload);
                 const newLesson = { id: docRef.id, ...lessonPayload };
                 this._handleLessonUpdate({ detail: newLesson });
@@ -323,7 +323,7 @@ export class LessonEditor extends LitElement {
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
                     ownerId: firebaseInit.auth.currentUser.uid,
-                    status: 'Naplánováno'
+                    status: 'draft'
                 };
                 const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonPayload);
                 this.lesson = { ...this.lesson, id: docRef.id, ...lessonPayload };
@@ -516,7 +516,12 @@ export class LessonEditor extends LitElement {
     }
 
     _handleBackClick() {
-        this.dispatchEvent(new CustomEvent('editor-exit', { bubbles: true, composed: true }));
+        // Updated Nav: Go to Timeline (Library) instead of Dashboard
+        this.dispatchEvent(new CustomEvent('navigate', {
+            detail: { view: 'timeline' },
+            bubbles: true,
+            composed: true
+        }));
     }
 
     _handleSaveAndBack() {
@@ -543,6 +548,26 @@ export class LessonEditor extends LitElement {
 
     _closeStudentPreview() {
         this._showStudentPreview = false;
+    }
+
+    async _toggleStatus(e) {
+        if (e) e.stopPropagation();
+        if (!this.lesson || !this.lesson.id) return;
+
+        const newStatus = this.lesson.status === 'published' ? 'draft' : 'published';
+
+        try {
+            await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
+                status: newStatus,
+                updatedAt: serverTimestamp()
+            });
+            this.lesson = { ...this.lesson, status: newStatus };
+            this.requestUpdate();
+            showToast(`Lekce je nyní ${newStatus === 'published' ? 'publikována' : 'v konceptu'}.`);
+        } catch (err) {
+            console.error("Error toggling status:", err);
+            showToast("Chyba při změně stavu.", true);
+        }
     }
 
     async _toggleSectionVisibility(e, typeId) {
@@ -795,10 +820,20 @@ export class LessonEditor extends LitElement {
                             <!-- Hub Header -->
                             <div class="text-center mb-10 relative">
                                 <h1 class="text-3xl font-bold text-slate-900 mb-2">${this.lesson?.title || t('professor.new_lesson_card')}</h1>
-                                <button @click=${this._switchToSettings} class="text-sm font-bold text-slate-400 hover:text-indigo-600 flex items-center justify-center mx-auto mb-4">
-                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                                    ${t('editor.hub_edit_details')}
-                                </button>
+
+                                <div class="flex items-center justify-center gap-4 mb-4">
+                                    <button @click=${this._switchToSettings} class="text-sm font-bold text-slate-400 hover:text-indigo-600 flex items-center">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                        ${t('editor.hub_edit_details')}
+                                    </button>
+
+                                    <!-- Status Toggle -->
+                                    <button @click=${this._toggleStatus}
+                                        class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer border ${this.lesson?.status === 'published' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}">
+                                        <span class="w-2 h-2 rounded-full mr-2 ${this.lesson?.status === 'published' ? 'bg-green-500' : 'bg-slate-400'}"></span>
+                                        ${this.lesson?.status === 'published' ? 'Publikováno' : 'Koncept'}
+                                    </button>
+                                </div>
 
                                 <button @click=${this._openStudentPreview} class="inline-flex items-center px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-sm font-bold hover:bg-indigo-100 transition-colors shadow-sm border border-indigo-100">
                                     👁️ ${t('editor.hub_student_preview')}

@@ -1,5 +1,5 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { doc, onSnapshot, collection, query, where, updateDoc, arrayUnion, arrayRemove, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, onSnapshot, collection, query, where, updateDoc, arrayUnion, arrayRemove, getDocs, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
 
@@ -150,22 +150,42 @@ export class ProfessorClassDetailView extends LitElement {
     }
 
     async _handleDeleteClass() {
-        if (!confirm("Opravdu chcete tuto třídu SMAZAT? Tato akce je nevratná.")) return;
-
-        // Check if any lessons are assigned to this group
+        // Smart Delete Logic
         try {
             const lessonsQuery = query(
                 collection(firebaseInit.db, 'lessons'),
                 where('assignedToGroups', 'array-contains', this.groupId)
             );
             const snapshot = await getDocs(lessonsQuery);
+            const activeLessonsCount = snapshot.size;
 
-            if (!snapshot.empty) {
-                alert("Nelze smazat třídu, která má aktivní lekce. Nejprve odeberte lekce.");
-                return;
+            if (activeLessonsCount > 0) {
+                if (!confirm(`Třída má přiřazené lekce (${activeLessonsCount}). Chcete je odpojit a třídu smazat?`)) {
+                    return;
+                }
+
+                const batch = writeBatch(firebaseInit.db);
+
+                // Unlink lessons
+                snapshot.docs.forEach(docSnapshot => {
+                    const lessonRef = doc(firebaseInit.db, 'lessons', docSnapshot.id);
+                    batch.update(lessonRef, {
+                        assignedToGroups: arrayRemove(this.groupId)
+                    });
+                });
+
+                // Delete group
+                const groupRef = doc(firebaseInit.db, 'groups', this.groupId);
+                batch.delete(groupRef);
+
+                await batch.commit();
+
+            } else {
+                 if (!confirm("Opravdu chcete tuto třídu SMAZAT? Tato akce je nevratná.")) return;
+                 // Simple delete if no lessons
+                 await deleteDoc(doc(firebaseInit.db, 'groups', this.groupId));
             }
 
-            await deleteDoc(doc(firebaseInit.db, 'groups', this.groupId));
             showToast("Třída byla smazána.");
             this._navigateBack();
 
