@@ -874,12 +874,7 @@ export class LessonEditor extends LitElement {
 
                         <!-- === EDITOR VIEW === -->
                         <div class="${this._viewMode === 'editor' ? 'block' : 'hidden'} h-full animate-fade-in flex flex-col">
-                            <div class="mb-6 flex items-center justify-between max-w-5xl mx-auto w-full">
-                                <!-- FIX 3: Navigation Clarity (Editor Header Button) -->
-                                <button @click=${this._handleSaveAndBack} class="flex items-center text-sm font-bold text-white hover:text-indigo-100 transition-colors px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-md">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
-                                    💾 ${t('editor.btn_save_changes')}
-                                </button>
+                            <div class="mb-6 flex items-center justify-end max-w-5xl mx-auto w-full">
                                 <h3 class="font-bold text-slate-800 text-lg flex items-center">
                                     <span class="mr-2 text-2xl">${this.contentTypes.find(t => t.id === this._selectedContentType)?.icon}</span>
                                     ${this.contentTypes.find(t => t.id === this._selectedContentType)?.label}

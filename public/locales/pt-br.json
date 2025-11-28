@@ -179,7 +179,10 @@
     "status_empty": "Vazio",
     "btn_publish": "Publicar e Fechar",
     "btn_back_hub": "Voltar para a visão geral",
-    "btn_save_changes": "Salvar alterações"
+    "btn_save_changes": "Salvar Alterações",
+    "ai_tip_title": "Dica do AI Sensei:",
+    "ai_tip_desc": "Esta é uma sugestão gerada por IA. Você pode editá-la. Salve as alterações nesta seção usando o botão abaixo à direita.",
+    "btn_save_section": "Salvar Seção"
   },
   "content_types": {
     "text": "Texto",
