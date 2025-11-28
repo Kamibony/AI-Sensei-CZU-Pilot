@@ -2,6 +2,7 @@ import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/li
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
+import { translationService } from '../../utils/translation-service.js';
 
 export class ProfessorClassesView extends LitElement {
     static properties = {
@@ -21,12 +22,16 @@ export class ProfessorClassesView extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._fetchClasses();
+        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         if (this.classesUnsubscribe) {
             this.classesUnsubscribe();
+        }
+        if (this._langUnsubscribe) {
+            this._langUnsubscribe();
         }
     }
 
@@ -43,7 +48,7 @@ export class ProfessorClassesView extends LitElement {
             this._isLoading = false;
         }, (error) => {
             console.error("Error fetching classes:", error);
-            showToast("Nepodařilo se načíst třídy.", true);
+            showToast(translationService.t('classes.fetch_error'), true);
             this._isLoading = false;
         });
     }
@@ -58,11 +63,11 @@ export class ProfessorClassesView extends LitElement {
     }
 
     async _handleCreateClass() {
-        const className = prompt("Zadejte název nové třídy:", "");
+        const className = prompt(translationService.t('dashboard.enter_class_name'), "");
         if (className && className.trim() !== "") {
             const user = firebaseInit.auth.currentUser;
             if (!user) {
-                showToast("Pro vytvoření třídy musíte být přihlášeni.", true);
+                showToast(translationService.t('classes.login_required_create'), true);
                 return;
             }
 
@@ -74,10 +79,10 @@ export class ProfessorClassesView extends LitElement {
                     studentIds: [],
                     createdAt: serverTimestamp()
                 });
-                showToast("Třída byla úspěšně vytvořena.");
+                showToast(translationService.t('classes.created_success'));
             } catch (error) {
                 console.error("Error creating class:", error);
-                showToast("Chyba při vytváření třídy.", true);
+                showToast(translationService.t('professor.error_create_class'), true);
             }
         }
     }
@@ -93,29 +98,30 @@ export class ProfessorClassesView extends LitElement {
     _copyJoinCode(e, code) {
         e.stopPropagation();
         navigator.clipboard.writeText(code).then(() => {
-            showToast("Kód zkopírován do schránky.");
+            showToast(translationService.t('common.code_copied'));
         }, () => {
-            showToast("Kód se nepodařilo zkopírovat.", true);
+            showToast(translationService.t('common.copy_failed'), true);
         });
     }
 
     render() {
+        const t = (key) => translationService.t(key);
         return html`
             <div class="h-full flex flex-col bg-slate-50">
                 <header class="bg-white p-6 border-b border-slate-200 flex items-center justify-between">
                     <div>
-                        <h1 class="text-3xl font-extrabold text-slate-800">Správa Tříd</h1>
-                        <p class="text-slate-500 mt-1">Spravujte své třídy, studenty a jejich výuku.</p>
+                        <h1 class="text-3xl font-extrabold text-slate-800">${t('classes.manage_title')}</h1>
+                        <p class="text-slate-500 mt-1">${t('classes.manage_desc')}</p>
                     </div>
                     <button @click=${this._handleCreateClass} class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center shadow-lg shadow-indigo-200 transition-all">
-                        <span class="mr-2">➕</span> Vytvořit novou třídu
+                        <span class="mr-2">➕</span> ${t('classes.create_new')}
                     </button>
                 </header>
 
                 <div class="flex-grow overflow-y-auto p-6">
                     <div class="max-w-7xl mx-auto">
                         ${this._isLoading
-                            ? html`<p class="text-center p-8 text-slate-400">Načítám třídy...</p>`
+                            ? html`<p class="text-center p-8 text-slate-400">${t('classes.loading')}</p>`
                             : this._renderClassesGrid()}
                     </div>
                 </div>
@@ -124,16 +130,17 @@ export class ProfessorClassesView extends LitElement {
     }
 
     _renderClassesGrid() {
+        const t = (key) => translationService.t(key);
         if (this._classes.length === 0) {
             return html`
                 <div class="text-center p-12 bg-white rounded-3xl shadow-sm border border-slate-100">
                     <div class="inline-block p-4 bg-slate-50 rounded-full mb-4">
                         <span class="text-4xl">🏫</span>
                     </div>
-                    <h3 class="text-xl font-bold text-slate-800 mb-2">Zatím nemáte žádné třídy</h3>
-                    <p class="text-slate-500 mb-6">Vytvořte svou první třídu a začněte přidávat studenty.</p>
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">${t('dashboard.no_classes_title')}</h3>
+                    <p class="text-slate-500 mb-6">${t('dashboard.no_classes_desc')}</p>
                     <button @click=${this._handleCreateClass} class="text-indigo-600 font-medium hover:text-indigo-800 hover:underline">
-                        Vytvořit třídu nyní
+                        ${t('dashboard.create_first_class')}
                     </button>
                 </div>
             `;
@@ -147,6 +154,7 @@ export class ProfessorClassesView extends LitElement {
     }
 
     _renderClassCard(cls) {
+        const t = (key) => translationService.t(key);
         const studentCount = (cls.studentIds || []).length;
         return html`
             <div @click=${() => this._navigateToClass(cls.id)}
@@ -154,16 +162,16 @@ export class ProfessorClassesView extends LitElement {
                 <div class="flex justify-between items-start mb-4">
                     <h3 class="text-xl font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">${cls.name}</h3>
                     <div class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide">
-                        ${studentCount} Studenti
+                        ${studentCount} ${t('classes.student_count_label')}
                     </div>
                 </div>
 
                 <div class="flex items-center justify-between mt-6 pt-4 border-t border-slate-50">
                     <div class="flex flex-col">
-                        <span class="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">Kód pro připojení</span>
+                        <span class="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">${t('classes.join_code_label')}</span>
                         <div class="flex items-center space-x-2">
                             <code class="font-mono text-lg font-bold text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">${cls.joinCode}</code>
-                            <button @click=${(e) => this._copyJoinCode(e, cls.joinCode)} class="text-slate-400 hover:text-indigo-600 p-1 rounded-full hover:bg-slate-100 transition-colors" title="Kopírovat kód">
+                            <button @click=${(e) => this._copyJoinCode(e, cls.joinCode)} class="text-slate-400 hover:text-indigo-600 p-1 rounded-full hover:bg-slate-100 transition-colors" title="${t('classes.copy_code_tooltip')}">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                             </button>
                         </div>

@@ -253,11 +253,6 @@
     "play": "Spustit",
     "all_caught_up": "Vše hotovo! 🎉"
   },
-  "student_dashboard": {
-    "jump_back": "Pokračovat v lekci",
-    "play": "Spustit",
-    "all_caught_up": "Vše hotovo! 🎉"
-  },
   "professor": {
     "header_title": "Učitelský panel",
     "profile_image_alt": "Profilový obrázek",
@@ -280,6 +275,67 @@
     "workflow_ai": "AI Generování",
     "workflow_result": "Výsledek",
     "workflow_final": "Hotová Lekce",
-    "automated_creation": "Automatizovaná tvorba"
+    "automated_creation": "Automatizovaná tvorba",
+    "default_name": "Profesore"
+  },
+  "classes": {
+    "manage_title": "Správa Tříd",
+    "manage_desc": "Spravujte své třídy, studenty a jejich výuku.",
+    "create_new": "Vytvořit novou třídu",
+    "fetch_error": "Nepodařilo se načíst třídy.",
+    "login_required_create": "Pro vytvoření třídy musíte být přihlášeni.",
+    "created_success": "Třída byla úspěšně vytvořena.",
+    "join_code_label": "Kód pro připojení",
+    "copy_code_tooltip": "Kopírovat kód",
+    "student_count_label": "studentů",
+    "loading": "Načítám třídy..."
+  },
+  "students_view": {
+    "title": "Studenti",
+    "subtitle": "Přehled registrovaných studentů v kurzu.",
+    "fetch_batch_error": "Nepodařilo se načíst část studentů.",
+    "fetch_groups_error": "Chyba při načítání skupin profesora.",
+    "telegram_connected": "Telegram",
+    "telegram_disconnected": "Bez spojení",
+    "name_missing": "Jméno neuvedeno",
+    "view_profile": "Zobrazit profil",
+    "loading": "Načítám studenty...",
+    "none_registered": "Zatím se nezaregistroval žádný student.",
+    "no_results": "Nebyly nalezeny žádné odpovídající studenti.",
+    "search_placeholder": "Hledat studenta (jméno, email)..."
+  },
+  "analytics": {
+    "title": "Analýza platformy",
+    "fetch_error": "Chyba při načítání dat",
+    "login_required": "Pro zobrazení analýzy se musíte přihlásit.",
+    "unknown_student": "Neznámý student",
+    "total_students": "Celkový počet studentů",
+    "avg_quiz_score": "Průměrné skóre (Kvízy)",
+    "avg_test_score": "Průměrné skóre (Testy)",
+    "from_submissions": "z {count} odevzdání",
+    "top_students": "Top 5 nejaktivnějších studentů",
+    "submissions_count": "odevzdání",
+    "no_activity": "Žádná aktivita k zobrazení.",
+    "loading": "Načítám analytická data...",
+    "no_data": "Žádná analytická data k dispozici."
+  },
+  "media": {
+    "title": "Knihovna médií",
+    "subtitle": "Spravujte všechny soubory (PDF) pro váš kurz.",
+    "login_required": "Chyba: Nejste přihlášen.",
+    "fetch_error": "Nepodařilo se načíst soubory z knihovny.",
+    "delete_confirm": "Opravdu chcete trvale smazat soubor \"{name}\"?",
+    "delete_success": "Záznam \"{name}\" byl smazán.",
+    "delete_error": "Chyba při mazání záznamu souboru",
+    "loading": "Načítám soubory...",
+    "no_files": "Zatím nebyly nahrány žádné soubory.",
+    "delete_tooltip": "Smazat soubor",
+    "upload_title": "Nahrát nový soubor",
+    "upload_desc": "Přetáhněte PDF soubor do oblasti níže nebo klikněte pro výběr.",
+    "drag_drop": "Přetáhněte soubor sem",
+    "or": "nebo",
+    "click_to_select": "Klikněte pro výběr souboru",
+    "supported_format": "Podporovaný formát: PDF",
+    "uploaded_files": "Nahrané soubory"
   }
 }

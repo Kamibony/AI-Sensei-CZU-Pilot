@@ -157,7 +157,7 @@ export class ProfessorDashboardView extends LitElement {
             return html`<div class="flex justify-center items-center h-full"><p class="text-xl text-slate-400 animate-pulse">${t('common.loading')}</p></div>`;
         }
 
-        const userName = firebaseInit.auth.currentUser?.displayName || 'Profesore';
+        const userName = firebaseInit.auth.currentUser?.displayName || t('professor.default_name');
 
         return html`
             <div class="h-full bg-slate-50 overflow-y-auto font-['Plus_Jakarta_Sans'] p-4 lg:p-8">
@@ -323,7 +323,7 @@ export class ProfessorDashboardView extends LitElement {
                 </div>
 
                 <div class="flex items-center">
-                    <button @click=${(e) => this._copyJoinCode(e, joinCode)} class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-all opacity-0 group-hover:opacity-100 mr-2" title="Zkopírovat kód">
+                    <button @click=${(e) => this._copyJoinCode(e, joinCode)} class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-all opacity-0 group-hover:opacity-100 mr-2" title="${t('classes.copy_code_tooltip')}">
                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                     </button>
                     <div class="text-slate-300 group-hover:translate-x-1 transition-transform">
