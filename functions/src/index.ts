@@ -32,8 +32,8 @@ async function sendTelegramMessage(chatId: number, text: string) {
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
     try {
         await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: "Markdown" }),
         });
     } catch (error) {
@@ -45,7 +45,7 @@ async function sendTelegramMessage(chatId: number, text: string) {
 exports.generateContent = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300, // <-- ZMENENÉ (5 minút)
-    memory: '1GiB',
+    memory: "1GiB",
     cors: true
 }, async (request: CallableRequest) => {
     const { contentType, promptData, filePaths } = request.data;
@@ -54,16 +54,16 @@ exports.generateContent = onCall({
     }
     try {
         let finalPrompt = promptData.userPrompt;
-        const language = promptData.language || 'cs';
-        const isJson = ['presentation', 'quiz', 'test', 'post', 'comic', 'flashcards'].includes(contentType);
+        const language = promptData.language || "cs";
+        const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards"].includes(contentType);
 
         // Add language instruction
-        const langInstruction = language === 'pt-br' ? 'Responda em Português do Brasil.' : 'Odpovídej v češtině.';
+        const langInstruction = language === "pt-br" ? "Responda em Português do Brasil." : "Odpovídej v češtině.";
         finalPrompt += `\n\n${langInstruction}`;
 
         if (isJson) {
             switch(contentType) {
-                case 'presentation':
+                case "presentation":
                     // ===== APLIKOVANÁ ZMENA: Prísna kontrola namiesto predvolenej hodnoty =====
                     
                     logger.log("Generating presentation, received slide_count:", promptData.slide_count);
@@ -77,7 +77,7 @@ exports.generateContent = onCall({
                         // Vyhodíme chybu, ktorá sa zobrazí používateľovi na frontende
                         throw new HttpsError(
                             "invalid-argument", 
-                            `Neplatný počet slidů. Zadejte prosím kladné číslo (dostali jsme '${promptData.slide_count || ''}').`
+                            `Neplatný počet slidů. Zadejte prosím kladné číslo (dostali jsme '${promptData.slide_count || ""}').`
                         );
                     }
                     
@@ -88,20 +88,20 @@ exports.generateContent = onCall({
                     break;
                     // ===== KONIEC ZMENY =====
 
-                case 'quiz':
+                case "quiz":
                     finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number). ${langInstruction}`;
                     break;
-                case 'test':
-                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${promptData.questionCount || 5} otázkami. Obtížnost: ${promptData.difficulty || 'Střední'}. Typy otázek: ${promptData.questionTypes || 'Mix'}. Odpověď musí být JSON objekt s klíčem 'questions', ktorý obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number). ${langInstruction}`;
+                case "test":
+                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${promptData.questionCount || 5} otázkami. Obtížnost: ${promptData.difficulty || "Střední"}. Typy otázek: ${promptData.questionTypes || "Mix"}. Odpověď musí být JSON objekt s klíčem 'questions', ktorý obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number). ${langInstruction}`;
                     break;
-                case 'post':
+                case "post":
                      const epCount = promptData.episode_count || promptData.episodeCount || 3;
                      finalPrompt = `Vytvoř sérii ${epCount} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string). ${langInstruction}`;
                      break;
-                 case 'comic':
+                 case "comic":
                     // Just rely on global append
                     break;
-                case 'flashcards':
+                case "flashcards":
                     // Just rely on global append
                     break;
             }
@@ -117,13 +117,13 @@ exports.generateContent = onCall({
             const promptEmbedding = await GeminiAPI.getEmbeddings(finalPrompt);
 
             // 2. Fetch all chunks from the relevant files
-            let allChunks: any[] = [];
+            const allChunks: any[] = [];
             for (const filePath of filePaths) {
                 // Ensure filePath is a valid string
-                if (!filePath || typeof filePath !== 'string') continue;
+                if (!filePath || typeof filePath !== "string") continue;
 
                 // Extract fileId from storage path `courses/{courseId}/media/{fileId}`
-                const fileId = filePath.split('/').pop();
+                const fileId = filePath.split("/").pop();
                 if (!fileId) continue;
 
                 const chunksSnapshot = await db.collection(`fileMetadata/${fileId}/chunks`).get();
@@ -155,7 +155,7 @@ exports.generateContent = onCall({
             const context = topChunks.map(chunk => chunk.text).join("\n\n---\n\n");
             const augmentedPrompt = `Based on the following contexts, answer the user's question.\n\nContexts:\n${context}\n\nUser's Question:\n${finalPrompt}`;
 
-            logger.log(`[RAG] Sending augmented prompt to Gemini.`);
+            logger.log("[RAG] Sending augmented prompt to Gemini.");
             // Use the standard text/json generation with the new augmented prompt.
             // Note: We don't pass the filePaths to these functions anymore, as the context is in the prompt.
             return isJson
@@ -184,7 +184,7 @@ exports.generateContent = onCall({
 exports.generateImage = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: '1GiB',
+    memory: "1GiB",
     cors: true
 }, async (request: CallableRequest) => {
     const { prompt } = request.data;
@@ -192,8 +192,8 @@ exports.generateImage = onCall({
         throw new HttpsError("invalid-argument", "Missing prompt.");
     }
 
-    if (!request.auth || request.auth.token.role !== 'professor') {
-        throw new HttpsError('unauthenticated', 'This action requires professor privileges.');
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "This action requires professor privileges.");
     }
 
     try {
@@ -201,7 +201,7 @@ exports.generateImage = onCall({
         const imageBase64 = await GeminiAPI.generateImageFromPrompt(prompt);
         return { imageBase64 };
     } catch (error) {
-        logger.error(`Error in generateImage:`, error);
+        logger.error("Error in generateImage:", error);
         if (error instanceof HttpsError) {
             throw error;
         }
@@ -213,9 +213,9 @@ exports.generateImage = onCall({
     }
 });
 
-exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540, memory: '1GiB' }, async (request: CallableRequest) => {
-    if (!request.auth || request.auth.token.role !== 'professor') {
-        throw new HttpsError('unauthenticated', 'This action requires professor privileges.');
+exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540, memory: "1GiB" }, async (request: CallableRequest) => {
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "This action requires professor privileges.");
     }
 
     // Debug Log for Environment Variables
@@ -223,7 +223,7 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
 
     const { fileId } = request.data;
     if (!fileId) {
-        throw new HttpsError('invalid-argument', 'Missing fileId.');
+        throw new HttpsError("invalid-argument", "Missing fileId.");
     }
 
     try {
@@ -232,14 +232,14 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
         const fileMetadataDoc = await fileMetadataRef.get();
 
         if (!fileMetadataDoc.exists) {
-            throw new HttpsError('not-found', `File metadata not found for id: ${fileId}`);
+            throw new HttpsError("not-found", `File metadata not found for id: ${fileId}`);
         }
 
         const { storagePath, ownerId } = fileMetadataDoc.data();
 
         // Security check
         if (ownerId !== request.auth.uid) {
-             throw new HttpsError('permission-denied', 'You do not have permission to process this file.');
+             throw new HttpsError("permission-denied", "You do not have permission to process this file.");
         }
 
         // 1. Download file from Storage
@@ -249,7 +249,7 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
         logger.log(`[RAG] Downloaded ${storagePath} (${(fileBuffer.length / 1024).toFixed(2)} KB)`);
 
         if (!fileBuffer || fileBuffer.length === 0) {
-            throw new HttpsError('failed-precondition', 'File is empty.');
+            throw new HttpsError("failed-precondition", "File is empty.");
         }
 
         // 2. Extract text from PDF
@@ -262,12 +262,12 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
             text = pdfData.text;
         } catch (pdfError: any) {
             logger.error("[RAG] PDF parsing failed:", pdfError);
-            throw new HttpsError('invalid-argument', `Failed to parse PDF file: ${pdfError.message || 'Unknown PDF error'}`);
+            throw new HttpsError("invalid-argument", `Failed to parse PDF file: ${pdfError.message || "Unknown PDF error"}`);
         }
 
         if (!text || text.trim().length === 0) {
             logger.warn("[RAG] PDF extracted text is empty.");
-             throw new HttpsError('invalid-argument', 'PDF file contains no extractable text.');
+             throw new HttpsError("invalid-argument", "PDF file contains no extractable text.");
         }
         logger.log(`[RAG] Extracted ${text.length} characters of text from PDF.`);
 
@@ -317,7 +317,7 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
             logger.log(`[RAG] Processed and saved batch of ${batchChunks.length} chunks. Total: ${chunksProcessed}/${chunks.length}`);
         }
 
-        await fileMetadataRef.update({ ragStatus: 'processed', processedAt: FieldValue.serverTimestamp() });
+        await fileMetadataRef.update({ ragStatus: "processed", processedAt: FieldValue.serverTimestamp() });
 
         logger.log(`[RAG] Successfully processed and stored chunks for fileId: ${fileId}`);
         return { success: true, message: `Successfully processed file into ${chunks.length} chunks.` };
@@ -327,7 +327,7 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
         // Attempt to mark the file as failed in Firestore
         try {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            await db.collection("fileMetadata").doc(fileId).update({ ragStatus: 'failed', error: errorMessage });
+            await db.collection("fileMetadata").doc(fileId).update({ ragStatus: "failed", error: errorMessage });
         } catch (updateError) {
             logger.error(`[RAG] Failed to update file metadata with error status for ${fileId}:`, updateError);
         }
@@ -353,7 +353,7 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
 exports.getAiAssistantResponse = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300, // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
-    memory: '1GiB'
+    memory: "1GiB"
 }, async (request: CallableRequest) => {
     const { lessonId, userQuestion } = request.data;
     if (!lessonId || !userQuestion) {
@@ -553,7 +553,7 @@ exports.getAiStudentSummary = onCall({
         
         const quizResults = quizSnapshot.docs.map((doc: QueryDocumentSnapshot) => {
             const data = doc.data();
-            return `Kvíz '${data.quizTitle || 'bez názvu'}': ${(data.score * 100).toFixed(0)}%`;
+            return `Kvíz '${data.quizTitle || "bez názvu"}': ${(data.score * 100).toFixed(0)}%`;
         });
 
         // 3. Získať výsledky testov
@@ -565,7 +565,7 @@ exports.getAiStudentSummary = onCall({
             
         const testResults = testSnapshot.docs.map((doc: QueryDocumentSnapshot) => {
             const data = doc.data();
-            return `Test '${data.testTitle || 'bez názvu'}': ${(data.score * 100).toFixed(0)}%`;
+            return `Test '${data.testTitle || "bez názvu"}': ${(data.score * 100).toFixed(0)}%`;
         });
 
         // 4. Získať konverzácie (len otázky od študenta)
@@ -577,7 +577,7 @@ exports.getAiStudentSummary = onCall({
         const studentQuestions = messagesSnapshot.docs.map((doc: QueryDocumentSnapshot) => doc.data().text);
 
         // 5. Vytvoriť kontext pre AI
-        let promptContext = `
+        const promptContext = `
 Data studenta:
 Jméno: ${studentName}
 Výsledky kvízů (posledních 10):
@@ -640,13 +640,13 @@ ${promptContext}
 exports.telegramBotWebhook = onRequest({ region: DEPLOY_REGION, secrets: ["TELEGRAM_BOT_TOKEN"] }, (req: Request, res: any) => {
     corsHandler(req, res, async () => {
         // ... (kód zostáva nezmenený, ale s opravami) ...
-        if (req.method !== 'POST') {
-            res.status(405).send('Method Not Allowed');
+        if (req.method !== "POST") {
+            res.status(405).send("Method Not Allowed");
             return;
         }
         const update = req.body;
         if (!update || !update.message) {
-            res.status(200).send('OK');
+            res.status(200).send("OK");
             return;
         }
 
@@ -656,7 +656,7 @@ exports.telegramBotWebhook = onRequest({ region: DEPLOY_REGION, secrets: ["TELEG
 
         try {
             if (text && text.startsWith("/start")) {
-                const token = text.split(' ')[1];
+                const token = text.split(" ")[1];
                 if (token) {
                     const q = db.collection("students").where("telegramLinkToken", "==", token).limit(1);
                     const querySnapshot = await q.get();
@@ -779,7 +779,7 @@ exports.submitQuizResults = onCall({ region: DEPLOY_REGION }, async (request: Ca
     const studentId = request.auth.uid;
     const { lessonId, quizTitle, score, totalQuestions, answers } = request.data;
 
-    if (typeof score === 'undefined' || !lessonId || !answers) {
+    if (typeof score === "undefined" || !lessonId || !answers) {
         // ===== TOTO JE OPRAVENÝ RIADOK =====
         throw new HttpsError("invalid-argument", "Chybí potřebná data pro uložení výsledků kvízu.");
     }
@@ -788,7 +788,7 @@ exports.submitQuizResults = onCall({ region: DEPLOY_REGION }, async (request: Ca
         const submission = {
             studentId: studentId,
             lessonId: lessonId,
-            quizTitle: quizTitle || 'Kvíz bez názvu', // Fallback
+            quizTitle: quizTitle || "Kvíz bez názvu", // Fallback
             score: score,
             totalQuestions: totalQuestions,
             answers: answers,
@@ -815,7 +815,7 @@ exports.submitTestResults = onCall({ region: DEPLOY_REGION }, async (request: Ca
     const studentId = request.auth.uid;
     const { lessonId, testTitle, score, totalQuestions, answers } = request.data;
 
-    if (typeof score === 'undefined' || !lessonId || !answers) {
+    if (typeof score === "undefined" || !lessonId || !answers) {
         throw new HttpsError("invalid-argument", "Chybí potřebná data pro uložení výsledků testu.");
     }
 
@@ -823,7 +823,7 @@ exports.submitTestResults = onCall({ region: DEPLOY_REGION }, async (request: Ca
         const submission = {
             studentId: studentId,
             lessonId: lessonId,
-            testTitle: testTitle || 'Test bez názvu', // Fallback
+            testTitle: testTitle || "Test bez názvu", // Fallback
             score: score,
             totalQuestions: totalQuestions,
             answers: answers,
@@ -848,7 +848,7 @@ exports.joinClass = onCall({ region: DEPLOY_REGION }, async (request: CallableRe
     const studentId = request.auth.uid;
 
     const joinCode = request.data.joinCode;
-    if (typeof joinCode !== 'string' || joinCode.trim() === '') {
+    if (typeof joinCode !== "string" || joinCode.trim() === "") {
         throw new HttpsError("invalid-argument", "Je nutné zadat kód třídy.");
     }
 
@@ -901,12 +901,12 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, asy
     const { email, password, role } = request.data;
 
     // Validate role
-    if (role !== 'professor' && role !== 'student') {
-        throw new HttpsError('invalid-argument', 'Role must be either "professor" or "student".');
+    if (role !== "professor" && role !== "student") {
+        throw new HttpsError("invalid-argument", "Role must be either \"professor\" or \"student\".");
     }
     // Validate email and password
     if (!email || !password) {
-        throw new HttpsError('invalid-argument', 'Email and password are required.');
+        throw new HttpsError("invalid-argument", "Email and password are required.");
     }
 
     try {
@@ -921,7 +921,7 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, asy
         await getAuth().setCustomUserClaims(userId, { role: role });
 
         // 3. Create document in 'users' collection
-        const userDocRef = db.collection('users').doc(userId);
+        const userDocRef = db.collection("users").doc(userId);
         await userDocRef.set({
             email: email,
             role: role,
@@ -929,13 +929,13 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, asy
         });
 
         // 4. PRESERVE DUAL-WRITE: If role is 'student', create doc in 'students' collection
-        if (role === 'student') {
-            const studentDocRef = db.collection('students').doc(userId);
+        if (role === "student") {
+            const studentDocRef = db.collection("students").doc(userId);
             await studentDocRef.set({
                 email: email,
-                role: 'student', // Redundant but kept for consistency
+                role: "student", // Redundant but kept for consistency
                 createdAt: FieldValue.serverTimestamp(),
-                name: '' // Empty name for consistency
+                name: "" // Empty name for consistency
             });
         }
 
@@ -945,30 +945,30 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, asy
     } catch (error: any) {
         logger.error("Error in registerUserWithRole:", error);
         // Forward known auth errors to the client
-        if (error.code && error.code.startsWith('auth/')) {
-            throw new HttpsError('invalid-argument', error.message, { errorCode: error.code });
+        if (error.code && error.code.startsWith("auth/")) {
+            throw new HttpsError("invalid-argument", error.message, { errorCode: error.code });
         }
         // Generic error for other issues
         // Using 'aborted' instead of 'internal' to ensure the message is visible on the client side during debugging
-        throw new HttpsError('aborted', `DEBUG ERROR: ${error.message} (Code: ${error.code})`);
+        throw new HttpsError("aborted", `DEBUG ERROR: ${error.message} (Code: ${error.code})`);
     }
 });
 
 exports.admin_setUserRole = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     // 1. Verify caller is the admin
-    if (request.auth?.token.email !== 'profesor@profesor.cz') {
+    if (request.auth?.token.email !== "profesor@profesor.cz") {
         logger.warn(`Unauthorized role change attempt by ${request.auth?.token.email}`);
-        throw new HttpsError('unauthenticated', 'Tato akce vyžaduje oprávnění administrátora.');
+        throw new HttpsError("unauthenticated", "Tato akce vyžaduje oprávnění administrátora.");
     }
 
     const { userId, newRole } = request.data;
 
     // 2. Validate arguments
     if (!userId || !newRole) {
-        throw new HttpsError('invalid-argument', 'Chybí ID uživatele nebo nová role.');
+        throw new HttpsError("invalid-argument", "Chybí ID uživatele nebo nová role.");
     }
-    if (newRole !== 'professor' && newRole !== 'student') {
-        throw new HttpsError('invalid-argument', 'Nová role může být pouze "professor" nebo "student".');
+    if (newRole !== "professor" && newRole !== "student") {
+        throw new HttpsError("invalid-argument", "Nová role může být pouze \"professor\" nebo \"student\".");
     }
 
     try {
@@ -976,16 +976,16 @@ exports.admin_setUserRole = onCall({ region: DEPLOY_REGION }, async (request: Ca
         await getAuth().setCustomUserClaims(userId, { role: newRole });
 
         // 3. Update user role in Firestore
-        const userRef = db.collection('users').doc(userId);
+        const userRef = db.collection("users").doc(userId);
         await userRef.update({ role: newRole });
 
         logger.log(`Admin ${request.auth.token.email} successfully changed role of user ${userId} to ${newRole}`);
 
         // 4. Return success
-        return { success: true, message: `Role uživatele byla úspěšně změněna.` };
+        return { success: true, message: "Role uživatele byla úspěšně změněna." };
     } catch (error) {
         logger.error(`Error setting user role for ${userId} by admin ${request.auth?.token.email}:`, error);
-        throw new HttpsError('internal', 'Nepodařilo se změnit roli uživatele v databázi.');
+        throw new HttpsError("internal", "Nepodařilo se změnit roli uživatele v databázi.");
     }
 });
 
@@ -996,7 +996,7 @@ exports.onUserCreate = onDocumentCreated({document: "users/{userId}", region: DE
         return;
     }
     const data = snapshot.data();
-    const role = data.role || 'student'; // Default to 'student' if role is not set
+    const role = data.role || "student"; // Default to 'student' if role is not set
     const userId = event.params.userId;
 
     try {
@@ -1010,13 +1010,13 @@ exports.onUserCreate = onDocumentCreated({document: "users/{userId}", region: DE
 // 1. NOVÁ FUNKCIA: Pripraví nahrávanie a vráti Signed URL
 exports.getSecureUploadUrl = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
 // 1. AUTORIZÁCIA: Povolíme iba profesorom
-if (!request.auth || request.auth.token.role !== 'professor') {
-throw new HttpsError('unauthenticated', 'Na túto akciu musíte mať rolu profesora.');
+if (!request.auth || request.auth.token.role !== "professor") {
+throw new HttpsError("unauthenticated", "Na túto akciu musíte mať rolu profesora.");
 }
 
 const { fileName, contentType, courseId, size } = request.data;
 if (!fileName || !contentType || !courseId) {
-throw new HttpsError('invalid-argument', 'Chýbajú povinné údaje (fileName, contentType, courseId).');
+throw new HttpsError("invalid-argument", "Chýbajú povinné údaje (fileName, contentType, courseId).");
 }
 
 const userId = request.auth.uid;
@@ -1033,7 +1033,7 @@ fileName: fileName,
 contentType: contentType,
 size: size,
 storagePath: filePath, // Uložíme finálnu cestu
-status: 'pending_upload', // Zatiaľ čaká na nahratie
+status: "pending_upload", // Zatiaľ čaká na nahratie
 createdAt: FieldValue.serverTimestamp()
 });
 } catch (error) {
@@ -1048,8 +1048,8 @@ const bucket = storage.bucket(STORAGE_BUCKET);
 const file = bucket.file(filePath);
 
 const options = {
-version: 'v4' as const,
-action: 'write' as const,
+version: "v4" as const,
+action: "write" as const,
 expires: Date.now() + 15 * 60 * 1000, // 15 minút platnosť
 contentType: contentType, // Vynútime presný typ obsahu
 metadata: {
@@ -1071,12 +1071,12 @@ throw new HttpsError("internal", "Nepodarilo sa vygenerovať URL na nahrávanie.
 // 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí (S DETAILNÝM LOGOVANÍM)
 exports.finalizeUpload = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'Musíte byť prihlásený.');
+        throw new HttpsError("unauthenticated", "Musíte byť prihlásený.");
     }
 
     const { docId, filePath } = request.data;
     if (!docId || !filePath) {
-        throw new HttpsError('invalid-argument', 'Chýba docId alebo filePath.');
+        throw new HttpsError("invalid-argument", "Chýba docId alebo filePath.");
     }
 
     logger.log(`Starting finalizeUpload for docId: ${docId}, filePath: ${filePath}`);
@@ -1088,7 +1088,7 @@ exports.finalizeUpload = onCall({ region: DEPLOY_REGION }, async (request: Calla
         const doc = await docRef.get();
         if (!doc.exists) {
             logger.error(`Firestore document not found for docId: ${docId}`);
-            throw new HttpsError('not-found', 'Metadata súboru neboli nájdené.');
+            throw new HttpsError("not-found", "Metadata súboru neboli nájdené.");
         }
 
         const metadata = doc.data();
@@ -1098,7 +1098,7 @@ exports.finalizeUpload = onCall({ region: DEPLOY_REGION }, async (request: Calla
 
         if (ownerIdFromFirestore !== currentUserId) {
             logger.warn(`Permission denied. Firestore ownerId (${ownerIdFromFirestore}) does not match current user (${currentUserId}).`);
-            throw new HttpsError('permission-denied', 'Nemáte oprávnenie na finalizáciu tohto súboru.');
+            throw new HttpsError("permission-denied", "Nemáte oprávnenie na finalizáciu tohto súboru.");
         }
 
         const storage = getStorage();
@@ -1120,7 +1120,7 @@ exports.finalizeUpload = onCall({ region: DEPLOY_REGION }, async (request: Calla
         }
 
         await docRef.update({
-            status: 'completed',
+            status: "completed",
             uploadedAt: FieldValue.serverTimestamp()
         });
 
@@ -1142,8 +1142,8 @@ exports.finalizeUpload = onCall({ region: DEPLOY_REGION }, async (request: Calla
 // ==================================================================
 exports.admin_migrateFileMetadata = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     // 1. Authorize: Only the admin can run this
-    if (request.auth?.token.email !== 'profesor@profesor.cz') {
-        throw new HttpsError('unauthenticated', 'This action requires administrator privileges.');
+    if (request.auth?.token.email !== "profesor@profesor.cz") {
+        throw new HttpsError("unauthenticated", "This action requires administrator privileges.");
     }
 
     logger.log("Starting metadata migration process...");
@@ -1213,9 +1213,9 @@ exports.admin_migrateFileMetadata = onCall({ region: DEPLOY_REGION }, async (req
 // ==================================================================
 exports.emergency_restoreProfessors = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     // 1. Authorize: Bypass role check, use email for the admin
-    if (request.auth?.token.email !== 'profesor@profesor.cz') {
+    if (request.auth?.token.email !== "profesor@profesor.cz") {
         logger.warn(`Unauthorized emergency role restore attempt by ${request.auth?.token.email}`);
-        throw new HttpsError('unauthenticated', 'This action requires special administrator privileges.');
+        throw new HttpsError("unauthenticated", "This action requires special administrator privileges.");
     }
 
     logger.log(`Emergency role restore initiated by ${request.auth.token.email}...`);
@@ -1234,10 +1234,10 @@ exports.emergency_restoreProfessors = onCall({ region: DEPLOY_REGION }, async (r
         const promises = snapshot.docs.map(async (doc: QueryDocumentSnapshot) => {
             const userId = doc.id;
             const userData = doc.data();
-            const email = userData.email || 'N/A';
+            const email = userData.email || "N/A";
 
             try {
-                await getAuth().setCustomUserClaims(userId, { role: 'professor' });
+                await getAuth().setCustomUserClaims(userId, { role: "professor" });
                 logger.log(`Successfully restored role 'professor' for user: ${userId} (${email})`);
                 updatedCount++;
             } catch (error) {
@@ -1274,9 +1274,9 @@ exports.emergency_restoreProfessors = onCall({ region: DEPLOY_REGION }, async (r
 // ==================================================================
 exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     // 1. Authorize: Only the admin can run this
-    if (request.auth?.token.email !== 'profesor@profesor.cz') {
+    if (request.auth?.token.email !== "profesor@profesor.cz") {
         logger.warn(`Unauthorized role migration attempt by ${request.auth?.token.email}`);
-        throw new HttpsError('unauthenticated', 'This action requires administrator privileges.');
+        throw new HttpsError("unauthenticated", "This action requires administrator privileges.");
     }
 
     logger.log("Starting student role migration process...");
@@ -1304,18 +1304,18 @@ exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (req
                 const email = userRecord.email;
 
                 // SECURITY CHECK: Skip admin or existing professors
-                if (email === 'profesor@profesor.cz' || currentClaims.role === 'professor') {
+                if (email === "profesor@profesor.cz" || currentClaims.role === "professor") {
                     logger.log(`Skipping admin/professor account: ${email}`);
                     continue;
                 }
 
-                if (currentClaims.role !== 'student') {
-                    await auth.setCustomUserClaims(studentId, { ...currentClaims, role: 'student' });
+                if (currentClaims.role !== "student") {
+                    await auth.setCustomUserClaims(studentId, { ...currentClaims, role: "student" });
                     logger.log(`Successfully set role 'student' for user: ${studentId} (${email})`);
                     updatedCount++;
                 }
             } catch (error: any) {
-                if (error.code === 'auth/user-not-found') {
+                if (error.code === "auth/user-not-found") {
                     logger.warn(`Orphaned student record found. User with ID ${studentId} does not exist in Auth. Skipping.`);
                 } else {
                     logger.error(`Failed to process user ${studentId}:`, error);
