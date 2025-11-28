@@ -2,6 +2,7 @@
 
 import { LitElement, html } from 'https://cdn.skypack.dev/lit';
 import { showToast } from '../utils.js';
+import { translationService } from '../utils/translation-service.js';
 
 // Globálna premenná pre 'utterance', aby sme ju mohli manažovať
 let currentSpeechUtterance = null;
@@ -29,9 +30,23 @@ export class StudentPodcast extends LitElement {
         return this;
     }
 
+    connectedCallback() {
+        super.connectedCallback();
+        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        if (this._langUnsubscribe) {
+            this._langUnsubscribe();
+        }
+    }
+
     render() {
+        const t = (key) => translationService.t(key);
+
         if (!('speechSynthesis' in window)) {
-            return html`<p class="text-red-500">Váš prohlížeč nepodporuje přehrávání podcastů pomocí Speech Synthesis.</p>`;
+            return html`<p class="text-red-500">${t('student_dashboard.browser_unsupported')}</p>`;
         }
         
         if (!this.podcastData || !this.podcastData.episodes || !Array.isArray(this.podcastData.episodes)) {
@@ -53,14 +68,14 @@ export class StudentPodcast extends LitElement {
                                 class="play-podcast-btn text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-3 rounded-md flex items-center ${isThisPlaying ? 'hidden' : ''}"
                                 @click=${() => this._handlePlayPodcast(index)}>
                                 <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
-                                ${isThisPaused ? 'Pokračovat' : 'Přehrát'}
+                                ${isThisPaused ? t('student_dashboard.resume') : t('student_dashboard.play')}
                             </button>
 
                             <button 
                                 class="pause-podcast-btn text-sm bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-md flex items-center ${isThisPlaying ? '' : 'hidden'}"
                                 @click=${this._handlePausePodcast}>
                                 <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd"></path></svg>
-                                Pozastavit
+                                ${t('student_dashboard.pause')}
                             </button>
 
                             <button 
@@ -116,7 +131,7 @@ export class StudentPodcast extends LitElement {
             currentSpeechUtterance.onerror = (event) => {
                 if (event.error !== 'canceled' && event.error !== 'interrupted' && event.error !== 'cancel') {
                     console.error('SpeechSynthesisUtterance.onerror', event);
-                    showToast(`Chyba při přehrávání: ${event.error}`, true);
+                    showToast(`${translationService.t('student_dashboard.playback_error')}: ${event.error}`, true);
                     this.currentPlayingEpisodeIndex = -1;
                     this.isPaused = false;
                     currentSpeechUtterance = null;
@@ -142,7 +157,7 @@ export class StudentPodcast extends LitElement {
                          // Stav je už nastavený, Lit sa postará o prekreslenie
                      } catch (e) {
                           console.error("Error calling synth.speak:", e);
-                          showToast("Chyba při spuštění přehrávání.", true);
+                          showToast(translationService.t('student_dashboard.playback_error'), true);
                           this.currentPlayingEpisodeIndex = -1;
                           this.isPaused = false;
                           currentSpeechUtterance = null;
