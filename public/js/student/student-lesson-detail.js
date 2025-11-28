@@ -224,19 +224,20 @@ export class StudentLessonDetail extends LitElement {
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     ${this.availableTabs.map(tab => html`
                         <div @click=${() => this._handleHubItemClick(tab.id)}
-                             class="group bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl border border-slate-100 cursor-pointer transition-all duration-300 transform hover:-translate-y-1">
+                             class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col items-center text-center hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer h-full group">
 
-                            <div class="flex items-start justify-between mb-6">
-                                <div class="w-16 h-16 rounded-2xl ${tab.colorClass} flex items-center justify-center text-3xl shadow-sm group-hover:scale-110 transition-transform duration-300">
-                                    ${tab.icon}
-                                </div>
-                                <div class="bg-slate-50 text-slate-400 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                                    ✨ Začít
-                                </div>
+                            <div class="w-12 h-12 rounded-lg ${tab.colorClass} flex items-center justify-center mb-4 text-2xl group-hover:scale-110 transition-transform">
+                                ${tab.icon}
                             </div>
 
-                            <h3 class="text-xl font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors">${tab.name}</h3>
-                            <p class="text-slate-500 text-sm leading-relaxed">${tab.description}</p>
+                            <h3 class="font-bold text-slate-900 mb-1 text-lg group-hover:text-indigo-600 transition-colors">${tab.name}</h3>
+                            <p class="text-sm text-slate-500 mb-4 leading-relaxed">${tab.description}</p>
+
+                            <div class="mt-auto pt-2">
+                                <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full uppercase tracking-wide group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                                    ✨ Začít
+                                </span>
+                            </div>
                         </div>
                     `)}
                 </div>
