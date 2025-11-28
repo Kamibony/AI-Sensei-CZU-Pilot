@@ -3,7 +3,7 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 import { getDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initProfessorApp } from './professor.js';
 import { initStudentApp, cleanupStudentDashboard } from './student.js';
-import { initAuth } from './auth.js';
+import './views/login-view.js'; // Import component definition
 import { showToast, showGlobalSpinner, hideGlobalSpinner } from './utils.js';
 import { translationService } from './utils/translation-service.js';
 
@@ -14,11 +14,11 @@ async function main() {
         console.log("Firebase fully initialized.");
     } catch (error) {
         console.error("Firebase init failed:", error);
-        renderCriticalError("Nepodařilo se připojit k aplikaci.");
+        renderCriticalError(translationService.t('common.app_init_error'));
         return;
     }
 
-    initAuth();
+    // initAuth removed - logic moved to LoginView
 
     onAuthStateChanged(auth, async (user) => {
         if (user) {
@@ -31,7 +31,7 @@ async function main() {
                 console.warn("User role is missing, attempting to refresh token...");
 
                 // Zobrazíme nejaký globálny spinner/loading
-                showGlobalSpinner("Nastavujem váš účet, prosím čakajte...");
+                showGlobalSpinner(translationService.t('common.app_setting_account'));
 
                 // Začneme "poll" (dopytovať sa) na nový token
                 // Použijeme parameter 'true' na vynútenie obnovy
@@ -73,7 +73,7 @@ async function main() {
             } else {
                 // Ak rola stále chýba, odhlásime ho s chybou
                 console.error("Failed to get user role after multiple attempts. Logging out.");
-                showToast("Nepodarilo sa načítať rolu používateľa. Skúste sa prihlásiť znova.", true);
+                showToast(translationService.t('common.app_role_error'), true);
                 signOut(auth);
             }
 
@@ -90,17 +90,15 @@ async function main() {
 
 function renderLoginState() {
     const appContainer = document.getElementById('app-container');
-    const loginTemplate = document.getElementById('login-template');
-    if (appContainer && loginTemplate) {
-        appContainer.innerHTML = '';
-        appContainer.appendChild(loginTemplate.content.cloneNode(true));
+    if (appContainer) {
+        appContainer.innerHTML = '<login-view></login-view>';
     }
 }
 
 function renderLoadingState() {
     const appContainer = document.getElementById('app-container');
     if (appContainer) {
-        appContainer.innerHTML = '<div class="flex items-center justify-center h-screen"><div class="text-xl text-slate-600 animate-pulse">Načítám aplikaci...</div></div>';
+        appContainer.innerHTML = `<div class="flex items-center justify-center h-screen"><div class="text-xl text-slate-600 animate-pulse">${translationService.t('common.app_loading')}</div></div>`;
     }
 }
 

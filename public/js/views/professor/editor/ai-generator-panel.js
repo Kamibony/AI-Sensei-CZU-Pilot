@@ -7,6 +7,7 @@ import { showToast } from '../../../utils.js';
 // DÔLEŽITÉ: Kompletný zoznam importov z upload-handler.js
 import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles, processAndStoreFile, addSelectedFile } from '../../../upload-handler.js';
 import { callGenerateContent } from '../../../gemini-api.js';
+import { translationService } from '../../../utils/translation-service.js';
 
 const btnBase = "px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
 const btnPrimary = `${btnBase} bg-green-700 text-white hover:bg-green-800 w-full`; // Added w-full
@@ -75,7 +76,7 @@ export class AiGeneratorPanel extends LitElement {
                 </div>
                 <div class="mb-1">
                      <ul id="${listId}" class="text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-200 min-h-[50px]">
-                        <li>Žádné soubory nevybrány.</li>
+                        <li>${translationService.t('common.no_files_selected')}</li>
                     </ul>
                 </div>
                 <p class="text-xs text-slate-400 mt-2">
