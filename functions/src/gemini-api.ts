@@ -113,7 +113,7 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
         if (functionName === "generateJson") {
             return JSON.stringify({ mock: "This is a mock JSON response from the emulator." });
         }
-        return `This is a mock response from the emulator for a text prompt.`;
+        return "This is a mock response from the emulator for a text prompt.";
     }
     try {
         const modelId = process.env.GEMINI_MODEL || "gemini-2.5-pro";
@@ -225,7 +225,7 @@ async function generateImageFromPrompt(prompt: string): Promise<string> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
         console.log("EMULATOR_MOCK for generateImageFromPrompt: Returning a mock base64 image.");
         // Simple 1024x1024 blue square SVG as a placeholder, to be returned as base64 but NOT wrapped in data:image
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><rect width="1024" height="1024" fill="#60A5FA" /><text x="50%" y="50%" font-size="60" text-anchor="middle" dy=".3em" fill="white" font-family="sans-serif">EMULATOR</text></svg>`;
+        const svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1024 1024\" width=\"1024\" height=\"1024\"><rect width=\"1024\" height=\"1024\" fill=\"#60A5FA\" /><text x=\"50%\" y=\"50%\" font-size=\"60\" text-anchor=\"middle\" dy=\".3em\" fill=\"white\" font-family=\"sans-serif\">EMULATOR</text></svg>";
         const base64Svg = Buffer.from(svg).toString("base64");
         return base64Svg;
     }
@@ -275,7 +275,7 @@ async function generateImageFromPrompt(prompt: string): Promise<string> {
         if (!imageBase64) {
             throw new HttpsError("internal", "Could not find image data in the Imagen response.");
         }
-        console.log(`[gemini-api:generateImageFromPrompt] Successfully received image from Imagen.`);
+        console.log("[gemini-api:generateImageFromPrompt] Successfully received image from Imagen.");
         return imageBase64;
 
     } catch (error) {

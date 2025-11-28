@@ -1,5 +1,6 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
 import { translationService } from '../../utils/translation-service.js';
@@ -149,36 +150,8 @@ export class StudentDashboardView extends LitElement {
 
         this._joining = true;
         try {
-            // 1. Find group by code
-            const q = query(collection(firebaseInit.db, "groups"), where("joinCode", "==", code));
-            const querySnapshot = await getDocs(q);
-
-            if (querySnapshot.empty) {
-                showToast(translationService.t('student.error_join'), true); // Generic error for not found
-                this._joining = false;
-                return;
-            }
-
-            const groupDoc = querySnapshot.docs[0];
-            const groupId = groupDoc.id;
-
-            // 2. Add student to group (update student doc)
-            const user = firebaseInit.auth.currentUser;
-            await updateDoc(doc(firebaseInit.db, "students", user.uid), {
-                memberOfGroups: arrayUnion(groupId)
-            });
-
-            // 3. Add student to group's student list (update group doc)
-            // Note: This dual-write ideally happens in a transaction or Cloud Function 'joinClass',
-            // but we follow the instruction to use updateDoc on student here.
-            // We do best effort on the group doc too.
-            try {
-                await updateDoc(doc(firebaseInit.db, "groups", groupId), {
-                    studentIds: arrayUnion(user.uid)
-                });
-            } catch (e) {
-                console.warn("Could not update group list directly (likely permissions).", e);
-            }
+            const joinClassFn = httpsCallable(firebaseInit.functions, 'joinClass');
+            const result = await joinClassFn({ joinCode: code });
 
             showToast(translationService.t('student.join_success'));
             this._showJoinModal = false;
