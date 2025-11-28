@@ -129,49 +129,52 @@ export class ProfessorStudentsView extends LitElement {
     renderStudentCard(student) {
         const t = (key) => translationService.t(key);
         const initials = (student.name || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-        const avatarBgColor = this._getAvatarColor(student.id);
+
+        // Use consistent color hashing logic if desired, or random.
+        // Here I'll use a dynamic gradient similar to classes for modern feel.
+        const colors = [
+            'from-blue-500 to-indigo-600',
+            'from-purple-500 to-pink-600',
+            'from-emerald-500 to-teal-600',
+            'from-orange-500 to-red-600',
+            'from-cyan-500 to-blue-600',
+            'from-rose-500 to-orange-500'
+        ];
+        // Simple hash from string
+        const hash = (student.id || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const bgGradient = colors[hash % colors.length];
 
         return html`
-            <div class="group relative bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer border border-slate-100 p-6 flex items-start space-x-4"
+            <div class="group relative bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 p-5 flex items-center space-x-4 cursor-pointer"
                  @click=${() => this._navigateToProfile(student.id)}>
 
-                <!-- Status Badge (Absolute Positioned) -->
-                <div class="absolute top-4 right-4">
-                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${student.telegramChatId ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-700/10' : 'bg-slate-50 text-slate-500 ring-1 ring-slate-500/10'}">
-                        ${student.telegramChatId ? t('students_view.telegram_connected') : t('students_view.telegram_disconnected')}
-                    </span>
-                </div>
-
                 <!-- Avatar -->
-                <div class="flex-shrink-0 w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-sm ${avatarBgColor}">
+                <div class="flex-shrink-0 w-16 h-16 rounded-full bg-gradient-to-br ${bgGradient} flex items-center justify-center text-white font-bold text-xl shadow-md ring-4 ring-slate-50">
                     ${initials}
                 </div>
 
                 <!-- Info -->
-                <div class="flex-grow pt-1 min-w-0">
+                <div class="flex-grow min-w-0">
                      <h3 class="text-lg font-bold text-slate-900 truncate group-hover:text-indigo-600 transition-colors" title="${student.name || t('students_view.name_missing')}">
                         ${student.name || t('students_view.name_missing')}
                     </h3>
-                     <p class="text-sm text-slate-500 truncate mt-1" title="${student.email}">${student.email}</p>
+                     <p class="text-sm text-slate-500 truncate mt-0.5" title="${student.email}">${student.email}</p>
 
-                     <div class="mt-4 flex items-center text-xs text-slate-400 font-medium">
-                        <span class="flex items-center hover:text-slate-600 transition-colors">
-                            ${t('students_view.view_profile')} &rarr;
+                     <div class="flex items-center mt-2 space-x-2">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${student.telegramChatId ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}">
+                            ${student.telegramChatId ? t('students_view.telegram_connected') : t('students_view.telegram_disconnected')}
                         </span>
                      </div>
                 </div>
+
+                <!-- Actions: Chat Button -->
+                <button class="flex-shrink-0 p-3 rounded-full bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors border border-transparent hover:border-indigo-100"
+                        title="${t('students_view.chat_tooltip')}"
+                        @click=${(e) => { e.stopPropagation(); this._navigateToProfile(student.id); /* Navigate to chat tab logic handled in profile view */ }}>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                </button>
             </div>
         `;
-    }
-
-    _getAvatarColor(id) {
-        const colors = ['bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-yellow-500', 'bg-lime-500', 'bg-green-500', 'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-sky-500', 'bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-purple-500', 'bg-fuchsia-500', 'bg-pink-500', 'bg-rose-500'];
-        let hash = 0;
-        for (let i = 0; i < id.length; i++) {
-            hash = id.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        const index = Math.abs(hash % colors.length);
-        return colors[index];
     }
 
     render() {
@@ -180,11 +183,25 @@ export class ProfessorStudentsView extends LitElement {
         let content;
 
         if (this._isLoading) {
-            content = html`<p class="text-center p-8 text-slate-400">${t('students_view.loading')}</p>`;
+            content = html`
+                <div class="flex justify-center items-center h-64 col-span-full">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                </div>`;
         } else if (this._students.length === 0) {
-            content = html`<p class="text-center p-8 text-slate-500">${t('students_view.none_registered')}</p>`;
+            content = html`
+                <div class="col-span-full text-center p-12 bg-white rounded-3xl border border-slate-100">
+                    <div class="inline-flex items-center justify-center w-16 h-16 bg-slate-100 rounded-full mb-4 text-slate-400">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    </div>
+                    <p class="text-slate-500 font-medium">${t('students_view.none_registered')}</p>
+                </div>
+            `;
         } else if (filteredStudents.length === 0) {
-             content = html`<p class="text-center p-8 text-slate-500">${t('students_view.no_results')}</p>`;
+             content = html`
+                <div class="col-span-full text-center p-12">
+                    <p class="text-slate-500">${t('students_view.no_results')}</p>
+                </div>
+             `;
         } else {
             content = html`
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -193,22 +210,36 @@ export class ProfessorStudentsView extends LitElement {
         }
 
         return html`
-            <header class="text-center p-6 border-b border-slate-200 bg-white">
-                <h1 class="text-3xl font-extrabold text-slate-800">${t('students_view.title')}</h1>
-                <p class="text-slate-500 mt-1">${t('students_view.subtitle')}</p>
-            </header>
-            <div class="flex-grow overflow-y-auto p-4 md:p-6">
-                <div class="mb-6 max-w-md mx-auto">
-                    <input type="search"
-                           placeholder="${t('students_view.search_placeholder')}"
-                           .value=${this._searchTerm}
-                           @input=${this._handleSearchInput}
-                           class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    >
-                 </div>
+            <div class="h-full flex flex-col bg-slate-50">
+                <header class="bg-white p-6 border-b border-slate-200">
+                    <div class="max-w-7xl mx-auto text-center">
+                        <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${t('students_view.title')}</h1>
+                        <p class="text-slate-500 mt-1 font-medium">${t('students_view.subtitle')}</p>
+                    </div>
+                </header>
 
-                <div id="students-list-container">
-                    ${content}
+                <div class="flex-grow overflow-y-auto p-6">
+                    <div class="max-w-7xl mx-auto space-y-8">
+
+                        <!-- Search Bar (Floating) -->
+                        <div class="sticky top-0 z-10 -mt-2 mb-8 pt-2">
+                             <div class="relative max-w-2xl mx-auto">
+                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                </div>
+                                <input type="search"
+                                       placeholder="${t('students_view.search_placeholder')}"
+                                       .value=${this._searchTerm}
+                                       @input=${this._handleSearchInput}
+                                       class="block w-full pl-12 pr-4 py-4 bg-white/90 backdrop-blur-md border border-slate-200 text-slate-700 placeholder-slate-400 rounded-full shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                                >
+                             </div>
+                        </div>
+
+                        <div id="students-list-container">
+                            ${content}
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
