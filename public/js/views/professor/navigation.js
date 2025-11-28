@@ -30,7 +30,7 @@ export function setupProfessorNav(showProfessorContent) {
 
                     <!-- GROUP: ORGANIZACE -->
                     <div class="px-4 mt-2 mb-2">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Organizace</span>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${t('nav.organization')}</span>
                     </div>
 
                     <button data-view="dashboard" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
@@ -58,14 +58,14 @@ export function setupProfessorNav(showProfessorContent) {
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">💬</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium">Interakce</span>
+                        <span class="ml-2 text-sm font-medium">${t('nav.interactions')}</span>
                     </button>
 
                     <button data-view="analytics" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
                         <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                             <span class="text-xl transition-transform group-hover:scale-110">📊</span>
                         </div>
-                        <span class="ml-2 text-sm font-medium">Analýza</span>
+                        <span class="ml-2 text-sm font-medium">${t('nav.analytics')}</span>
                     </button>
 
                     <!-- Spacer / Divider -->
@@ -73,7 +73,7 @@ export function setupProfessorNav(showProfessorContent) {
 
                     <!-- GROUP: TVŮRČÍ STUDIO -->
                     <div class="px-4 mb-2">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tvůrčí Studio</span>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${t('nav.creative_studio')}</span>
                     </div>
 
                      <button data-view="timeline" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
@@ -114,7 +114,7 @@ export function setupProfessorNav(showProfessorContent) {
                      <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
                         <span class="text-xl group-hover:rotate-90 transition-transform duration-500">⚙️</span>
                     </div>
-                    <span class="ml-2 text-sm font-medium">Admin</span>
+                    <span class="ml-2 text-sm font-medium">${t('nav.admin')}</span>
                 </button>
                 ` : ''}
 

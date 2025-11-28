@@ -4,6 +4,7 @@ import { LitElement, html } from 'https://cdn.skypack.dev/lit';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { showToast } from '../utils.js';
+import { translationService } from '../utils/translation-service.js';
 import * as firebaseInit from '../firebase-init.js';
 import { getAiAssistantResponse } from '../gemini-api.js';
 
@@ -57,6 +58,7 @@ export class ChatPanel extends LitElement {
         super.connectedCallback();
         // Začneme počúvať na zmeny v chate
         this._loadChatHistory();
+        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
     // `disconnectedCallback` sa spustí, keď je komponent odobratý (napr. prepnutie tabu)
@@ -66,6 +68,9 @@ export class ChatPanel extends LitElement {
         if (this.chatUnsubscribe) {
             this.chatUnsubscribe();
             console.log(`Chat listener for type '${this.type}' stopped.`);
+        }
+        if (this._langUnsubscribe) {
+            this._langUnsubscribe();
         }
     }
 
@@ -181,7 +186,7 @@ export class ChatPanel extends LitElement {
         if (this.chatHistory.length === 0) {
             // Ak je listener aktívny, ale dáta ešte neprišli, zobrazíme "Načítání"
             // Ak už prišli a sú prázdne, zobrazíme "Začněte"
-            return html`<p class="text-center text-slate-400 p-4">${this.chatUnsubscribe ? 'Začněte konverzaci...' : 'Načítání konverzace...'}</p>`;
+            return html`<p class="text-center text-slate-400 p-4">${this.chatUnsubscribe ? translationService.t('student_dashboard.chat_start') : translationService.t('student_dashboard.chat_loading')}</p>`;
         }
 
         // Mapujeme pole správ na HTML elementy
@@ -202,7 +207,7 @@ export class ChatPanel extends LitElement {
         } else if (data.sender === 'ai-typing') {
             alignmentClasses = 'mr-auto float-left';
             baseClasses += ` bg-gray-200 text-gray-500 italic ${alignmentClasses} rounded-tl-none ai-typing-indicator`;
-            content = 'píše...';
+            content = translationService.t('student_dashboard.typing');
         } else if (data.sender === 'system-error') {
             alignmentClasses = 'mx-auto';
             baseClasses += ` bg-red-100 text-red-700 text-center ${alignmentClasses}`;
@@ -264,12 +269,12 @@ export class ChatPanel extends LitElement {
                 }
             }, (error) => {
                 console.error(`Error with ${this.type} chat listener:`, error);
-                showToast(`Chyba při načítání ${this.type} konverzace.`, true);
+                showToast(translationService.t('student_dashboard.chat_error_load'), true);
             });
 
         } catch (error) {
             console.error(`Error loading ${this.type} chat history:`, error);
-            showToast(`Nepodařilo se načíst ${this.type} konverzaci.`, true);
+            showToast(translationService.t('student_dashboard.chat_error_load'), true);
         }
     }
 
@@ -351,7 +356,7 @@ export class ChatPanel extends LitElement {
             }
         } catch (error) {
             console.error("Error sending message or saving to DB:", error);
-            showToast("Nepodařilo se odeslat zprávu.", true);
+            showToast(translationService.t('student_dashboard.chat_error_send'), true);
             // Zobrazíme chybu v chate
             this.chatHistory = [...this.chatHistory, { text: `CHYBA: Zprávu "${text}" se nepodařilo odeslat.`, sender: 'system-error' }];
         }
