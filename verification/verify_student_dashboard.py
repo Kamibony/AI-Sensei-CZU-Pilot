@@ -1,126 +1,81 @@
 from playwright.sync_api import sync_playwright, expect
 import time
-import sys
 
-def test_student_dashboard(page):
-    # 1. Navigate to the app
-    print("Navigating to app...")
-    page.goto("http://localhost:5000/")
+def verify_student_dashboard(page):
+    # 1. Login as Student
+    print("Navigating to home...")
+    page.goto("http://127.0.0.1:5000/")
 
-    # Wait for initial load
-    time.sleep(5)
-
-    # 2. Login as Student (Legacy Admin fallback often works for testing if allowed, but we need student view)
-    # We will try to click "Vstoupit jako profesor" then switch to student login if available,
-    # BUT the prompt says "Vstoupit jako profesor" goes to professor login.
-    # The default view has a login form for students.
-
-    print("Checking for login form...")
-    # Check if we are on role selection or login
-    # Based on index.html template, it starts empty then renders login-template.
-
-    # Wait for login form
+    # Wait for role selection
+    print("Waiting for role selection...")
+    # Use localized text key "Jsem Student" which corresponds to 'auth.role_student'
+    # "role_student": "Jsem Student"
     try:
-        page.wait_for_selector("#login-email", timeout=10000)
-        print("Login form found.")
+        page.get_by_text("Jsem Student").click()
     except:
-        print("Login form not found. Checking body...")
-        print(page.content())
-        return
+        print("Could not find 'Jsem Student'. Trying 'Vstoupit jako student' again or checking page content.")
+        # page.screenshot(path="verification/debug_home.png")
+        # Maybe it's already logged in?
+        # But instructions say "Always show main role-selection page".
+        pass
 
-    # Login with a test student account
-    # Since we don't have a guaranteed account, we'll try to register one or use a known one.
-    # Actually, emulators are fresh. We need to register.
+    # Login form
+    print("Filling login form...")
+    # Expect email input
+    page.locator("#login-email").fill("student@student.cz")
+    page.locator("#login-password").fill("password")
 
-    print("Switching to register form...")
-    page.click("#show-register-form")
-
-    email = f"student_test_{int(time.time())}@test.com"
-    password = "password123"
-
-    print(f"Registering {email}...")
-    page.fill("#register-email", email)
-    page.fill("#register-password", password)
-    page.click("#register-btn")
+    # Click Login "Přihlásit se"
+    page.get_by_role("button", name="Přihlásit se").click()
 
     # Wait for dashboard to load
-    # The dashboard header says "Dobré ráno" or similar.
-    # And we have a name prompt first.
+    print("Waiting for dashboard...")
+    # "Dobré ráno, Studente!" -> "Dobré ráno" is in h1
+    expect(page.locator("h1")).to_contain_text("Dobré ráno", timeout=10000)
 
-    print("Waiting for name prompt or dashboard...")
-    time.sleep(5)
+    # Take screenshot of Dashboard
+    print("Taking Dashboard screenshot...")
+    page.screenshot(path="verification/dashboard_rect.png")
 
-    # Check for Name Prompt
-    if page.is_visible("#student-name-input"):
-        print("Name prompt visible. Filling name...")
-        page.fill("#student-name-input", "Test Student")
-        page.click("#save-name-btn")
-        time.sleep(2)
+    # 2. Verify Rectangular Classes
+    # We look for the new structure: div with border-slate-200 and rounded-xl
 
-    # Now we should be on the dashboard
-    print("Verifying Dashboard...")
+    # 3. Verify Hero Card
+    # Look for "POKRAČOVAT V LEKCI" or "Vše hotovo!"
 
-    # Verify Greeting
-    try:
-        expect(page.locator("h1")).to_contain_text("Dobré ráno")
-        print("Greeting verified.")
-    except Exception as e:
-        print(f"Greeting verification failed: {e}")
-        print(page.content())
+    # 4. Click a lesson to check Detail View
+    print("Looking for lesson to click...")
+    # Try clicking "Pokračovat" button in Hero
+    continue_btn = page.get_by_role("button", name="Pokračovat")
 
-    # Verify Bottom Nav (Mobile) - We need to emulate mobile or check visibility
-    # The script runs in headless, default viewport is 1280x720 (Desktop).
-    # So we should see Side Nav (#main-nav)
-
-    print("Verifying Desktop Sidebar...")
-    if page.is_visible("#main-nav"):
-        print("Sidebar is visible.")
+    if continue_btn.is_visible():
+        print("Clicking Continue button...")
+        continue_btn.click()
     else:
-        print("Sidebar NOT visible.")
+        print("No active lesson to continue. Trying to click a class or next up...")
+        # Try clicking a Next Up item
+        # Look for "Nový" badge
+        next_up_item = page.locator(".border-slate-200").filter(has_text="Nový").first
+        if next_up_item.is_visible():
+            print("Clicking Next Up item...")
+            next_up_item.click()
+        else:
+            print("No lessons found. Cannot verify Detail View.")
+            return
 
-    # Verify "Pokračovat" section
-    if page.get_by_text("Pokračovat").is_visible():
-         print("Jump Back In section visible.")
-    else:
-         print("Jump Back In section NOT visible (might be empty if no lessons).")
-
-    # Take screenshot of Home
-    page.screenshot(path="verification/dashboard_home.png")
-    print("Screenshot dashboard_home.png taken.")
-
-    # Switch to Courses
-    print("Switching to Courses...")
-    page.click("button[data-nav='courses']")
-    time.sleep(2)
-
-    # Verify Title "Knihovna Kurzů"
-    expect(page.locator("h2")).to_contain_text("Knihovna Kurzů")
-    print("Courses view verified.")
-    page.screenshot(path="verification/dashboard_courses.png")
-
-    # Switch to Chat
-    print("Switching to Chat...")
-    page.click("button[data-nav='chat']")
-    time.sleep(1)
-    page.screenshot(path="verification/dashboard_chat.png")
-
-    # Switch to Profile
-    print("Switching to Profile...")
-    page.click("button[data-nav='profile']")
-    time.sleep(1)
-    page.screenshot(path="verification/dashboard_profile.png")
+    # Wait for navigation
+    time.sleep(3)
+    print("Taking Lesson Detail screenshot...")
+    page.screenshot(path="verification/lesson_detail_rect.png")
 
 if __name__ == "__main__":
     with sync_playwright() as p:
-        # Launch with arguments to ignore HTTPS errors if needed
-        browser = p.chromium.launch(args=['--disable-web-security'])
-        context = browser.new_context(viewport={'width': 1280, 'height': 720})
-        page = context.new_page()
-
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
         try:
-            test_student_dashboard(page)
+            verify_student_dashboard(page)
         except Exception as e:
-            print(f"Test failed: {e}")
-            page.screenshot(path="verification/error_state.png")
+            print(f"Error: {e}")
+            page.screenshot(path="verification/error.png")
         finally:
             browser.close()

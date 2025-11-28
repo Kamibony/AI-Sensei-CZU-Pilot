@@ -221,22 +221,24 @@ export class StudentLessonDetail extends LitElement {
                 </div>
 
                 <!-- Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     ${this.availableTabs.map(tab => html`
                         <div @click=${() => this._handleHubItemClick(tab.id)}
-                             class="group bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl border border-slate-100 cursor-pointer transition-all duration-300 transform hover:-translate-y-1">
+                             class="group bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col items-center text-center hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer">
 
-                            <div class="flex items-start justify-between mb-6">
-                                <div class="w-16 h-16 rounded-2xl ${tab.colorClass} flex items-center justify-center text-3xl shadow-sm group-hover:scale-110 transition-transform duration-300">
-                                    ${tab.icon}
-                                </div>
-                                <div class="bg-slate-50 text-slate-400 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                                    ✨ Začít
-                                </div>
+                            <div class="w-12 h-12 rounded-lg ${tab.colorClass} flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                                ${tab.icon}
                             </div>
 
-                            <h3 class="text-xl font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors">${tab.name}</h3>
-                            <p class="text-slate-500 text-sm leading-relaxed">${tab.description}</p>
+                            <h3 class="text-base font-bold text-slate-800 mb-1 group-hover:text-indigo-600 transition-colors">${tab.name}</h3>
+                            <p class="text-xs text-slate-500 mb-4 line-clamp-2 min-h-[2.5em]">${tab.description}</p>
+
+                            <!-- Status Indicator -->
+                            <div class="mt-auto">
+                                <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-md uppercase tracking-wide">
+                                    ✨ Začít
+                                </span>
+                            </div>
                         </div>
                     `)}
                 </div>
