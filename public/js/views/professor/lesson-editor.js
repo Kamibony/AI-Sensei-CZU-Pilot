@@ -26,6 +26,7 @@ export class LessonEditor extends LitElement {
         _viewMode: { state: true, type: String },
         _groups: { state: true, type: Array },
         _showStudentPreview: { state: true, type: Boolean },
+        _showSuccessModal: { state: true, type: Boolean },
     };
 
     constructor() {
@@ -38,6 +39,7 @@ export class LessonEditor extends LitElement {
         this._viewMode = 'settings'; // Default to settings (creation mode) for new lessons
         this._groups = [];
         this._showStudentPreview = false;
+        this._showSuccessModal = false;
     }
 
     get steps() {
@@ -490,12 +492,19 @@ export class LessonEditor extends LitElement {
             this.lesson = { ...this.lesson, visible_sections: updatedVisibleSections };
             // -------------------------------
 
-            showToast(translationService.t('lesson.magic_done'));
+            // showToast(translationService.t('lesson.magic_done'));
 
-            // Go to Hub view
-            this._viewMode = 'hub';
-            this._currentStep = 2; // Force UI to render the Hub/Step 2 container
+            // Show Success Modal
+            this._showSuccessModal = true;
             this.requestUpdate();
+
+            setTimeout(() => {
+                this._showSuccessModal = false;
+                // Go to Hub view
+                this._viewMode = 'hub';
+                this._currentStep = 2; // Force UI to render the Hub/Step 2 container
+                this.requestUpdate();
+            }, 1500);
 
         } catch (e) {
             console.error("Magic generation fatal error:", e);
@@ -626,6 +635,14 @@ export class LessonEditor extends LitElement {
              return;
         }
 
+        // Apply translations to modal (static HTML)
+        const modalTitle = modal.querySelector('h2');
+        const modalLoading = modal.querySelector('li');
+        if (modalTitle) modalTitle.textContent = translationService.t('library.modal_title');
+        if (modalLoading) modalLoading.textContent = translationService.t('library.loading');
+        if (modalConfirm) modalConfirm.textContent = translationService.t('common.confirm_selection');
+        if (modalCancel) modalCancel.textContent = translationService.t('common.cancel');
+
         // Load current files for THIS lesson to global state
         loadSelectedFiles(this.lesson?.ragFilePaths || []);
 
@@ -684,7 +701,7 @@ export class LessonEditor extends LitElement {
                             </div>
                             ${t('common.close')}
                         </button>
-                        ${this.lesson?.id ? html`<span class="text-xs font-mono text-slate-300 uppercase tracking-widest">ID: ${this.lesson.id.substring(0,6)}</span>` : ''}
+                        ${this.lesson?.id ? html`<span class="text-xs font-mono text-slate-300 uppercase tracking-widest">${t('common.id')}: ${this.lesson.id.substring(0,6)}</span>` : ''}
                     </header>
 
                     <div class="flex-grow relative">
@@ -947,6 +964,18 @@ export class LessonEditor extends LitElement {
                                     <div class="text-center text-slate-400 py-4 italic">${translationService.t('lesson.magic_preparing')}</div>
                                 `}
                             </div>
+                        </div>
+                    </div>
+                ` : ''}
+
+                <!-- Success Modal -->
+                ${this._showSuccessModal ? html`
+                    <div class="fixed inset-0 z-[120] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                        <div class="bg-white rounded-3xl p-8 shadow-2xl max-w-sm w-full text-center transform scale-100 transition-transform duration-300">
+                             <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <span class="text-5xl">✨</span>
+                            </div>
+                            <h2 class="text-2xl font-extrabold text-slate-900 mb-2">${t('lesson.magic_success_title')}</h2>
                         </div>
                     </div>
                 ` : ''}
