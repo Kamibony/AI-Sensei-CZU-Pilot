@@ -185,9 +185,9 @@ export class ProfessorDashboardView extends LitElement {
                         <div>
                             <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 pl-1">${t('dashboard.management_overview')}</h2>
                             <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                                ${this._renderStatCard(t('professor.stats_students'), this._stats.totalStudents, "users", "students")}
-                                ${this._renderStatCard(t('professor.stats_classes'), this._stats.totalClasses, "briefcase", "classes")}
-                                ${this._renderStatCard(t('professor.stats_lessons'), this._stats.totalLessons, "book", "timeline")}
+                                ${this._renderStatCard('professor.stats_students', this._stats.totalStudents, "users", "students")}
+                                ${this._renderStatCard('professor.stats_classes', this._stats.totalClasses, "briefcase", "classes")}
+                                ${this._renderStatCard('professor.stats_lessons', this._stats.totalLessons, "book", "timeline")}
                             </div>
                         </div>
 
@@ -265,7 +265,7 @@ export class ProfessorDashboardView extends LitElement {
     }
 
     // Bento Grid Stat Card
-    _renderStatCard(title, value, iconName, targetView) {
+    _renderStatCard(titleKey, value, iconName, targetView) {
         const icons = {
             "users": "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
             "briefcase": "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
@@ -274,6 +274,7 @@ export class ProfessorDashboardView extends LitElement {
         };
         const d = icons[iconName] || icons["users"];
         const displayValue = (value !== undefined && value !== null) ? value : 0;
+        const displayTitle = translationService.t(titleKey);
 
         return html`
             <div @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: targetView }, bubbles: true, composed: true }))}
@@ -288,7 +289,7 @@ export class ProfessorDashboardView extends LitElement {
                 </div>
                 <div>
                     <p class="text-2xl font-bold text-slate-800">${displayValue}</p>
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">${title}</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">${displayTitle}</p>
                 </div>
             </div>
         `;
