@@ -1,5 +1,6 @@
 // public/js/views/professor/professor-student-profile-view.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
 import { getDoc, doc, collection, query, where, getDocs, orderBy, Timestamp, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -251,17 +252,16 @@ export class ProfessorStudentProfileView extends LitElement {
                           ? aiSummary.generatedAt.toDate().toLocaleString('cs-CZ') 
                           : (aiSummary.generatedAt ? new Date(aiSummary.generatedAt).toLocaleString('cs-CZ') : 'Neznámé datum');
             
-            let formattedText = aiSummary.text
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/\n\* /g, '<br>• ')
-                .replace(/\n\d+\. /g, (match) => `<br>${match.trim()} `)
-                .replace(/\n/g, '<br>');
+            // Use marked for proper Markdown rendering
+            const rawMarkup = marked.parse(aiSummary.text);
 
             summaryHtml = html`
                 <h3 class="text-lg font-semibold text-green-800 mb-3">AI Postřehy</h3>
                 <p class="text-xs text-slate-500 mb-3">Poslední generování: ${date}</p>
-                <div class="prose prose-sm max-w-none text-slate-800">${formattedText}</div> 
+                <!-- Render HTML from markdown safely -->
+                <div class="prose prose-sm max-w-none text-slate-800">
+                    <div .innerHTML="${rawMarkup}"></div>
+                </div>
             `;
         } else {
             summaryHtml = html`
@@ -371,16 +371,24 @@ export class ProfessorStudentProfileView extends LitElement {
                         </div>
                     ` : this._chatMessages.map(msg => {
                         const isMe = msg.senderId === currentUser?.uid;
-                        const bubbleClass = isMe
+                        const isAi = msg.sender === 'ai' || msg.type === 'ai';
+
+                        let bubbleClass = isMe
                             ? 'bg-green-100 text-green-900 ml-auto rounded-br-none'
                             : 'bg-white text-gray-800 border mr-auto rounded-bl-none';
+
+                        if (isAi) {
+                             bubbleClass = 'bg-slate-100 border-slate-200 text-slate-600 italic mr-auto rounded-bl-none';
+                        }
+
                         const alignClass = isMe ? 'justify-end' : 'justify-start';
 
                         const time = msg.timestamp ? (msg.timestamp.toDate ? msg.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Teď') : '...';
 
                         return html`
                             <div class="flex ${alignClass}">
-                                <div class="max-w-[70%] rounded-2xl p-3 shadow-sm ${bubbleClass}">
+                                <div class="max-w-[70%] rounded-2xl p-3 shadow-sm ${bubbleClass} relative">
+                                    ${isAi ? html`<div class="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1">🤖 AI Asistent</div>` : ''}
                                     <div class="text-sm">${msg.text}</div>
                                     <div class="text-[10px] opacity-70 mt-1 text-right">${time}</div>
                                 </div>
