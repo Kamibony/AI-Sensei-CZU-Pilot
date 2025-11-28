@@ -3,6 +3,7 @@ import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/li
 import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
+import { translationService } from '../../utils/translation-service.js';
 
 export class ProfessorAnalyticsView extends LitElement {
     static properties = {
@@ -29,12 +30,16 @@ export class ProfessorAnalyticsView extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._initializeListeners();
+        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         this._unsubscribeListeners.forEach(item => item.unsub());
         this._unsubscribeListeners = [];
+        if (this._langUnsubscribe) {
+            this._langUnsubscribe();
+        }
     }
 
     _createBatchedListeners(collectionName, field, values, operator = 'in') {
@@ -72,7 +77,7 @@ export class ProfessorAnalyticsView extends LitElement {
                 this._recalculateAnalytics();
             }, (error) => {
                 console.error(`Error listening to ${collectionName}:`, error);
-                this._error = `Chyba při načítání dat (${collectionName}).`;
+                this._error = `${translationService.t('analytics.fetch_error')} (${collectionName}).`;
                 showToast(`Chyba: ${error.message}`, true);
             });
             unsubscribes.push(unsub);
@@ -86,7 +91,7 @@ export class ProfessorAnalyticsView extends LitElement {
         const currentUser = firebaseInit.auth.currentUser;
 
         if (!currentUser) {
-            this._error = "Pro zobrazení analýzy se musíte přihlásit.";
+            this._error = translationService.t('analytics.login_required');
             this._isLoading = false;
             return;
         }
@@ -159,10 +164,10 @@ export class ProfessorAnalyticsView extends LitElement {
             .sort((a, b) => b[1] - a[1])
             .slice(0, 5);
 
-        const studentIdToNameMap = new Map(students.map(s => [s.id, s.name || 'Neznámý student']));
+        const studentIdToNameMap = new Map(students.map(s => [s.id, s.name || translationService.t('analytics.unknown_student')]));
 
         const topStudents = topStudentIds.map(([studentId, submissions]) => ({
-            name: studentIdToNameMap.get(studentId) || 'Neznámý student',
+            name: studentIdToNameMap.get(studentId) || translationService.t('analytics.unknown_student'),
             submissions,
         }));
 
@@ -190,24 +195,25 @@ export class ProfessorAnalyticsView extends LitElement {
     }
 
     renderContent() {
+        const t = (key, params) => translationService.t(key, params);
         const data = this._analyticsData;
         
         const topStudentsHtml = (data.topStudents || []).map(student => html`
             <li class="flex justify-between items-center py-2 border-b last:border-b-0">
                 <span class="text-slate-700">${student.name}</span>
-                <span class="font-semibold text-green-700">${student.submissions} odevzdání</span>
+                <span class="font-semibold text-green-700">${student.submissions} ${t('analytics.submissions_count')}</span>
             </li>`);
 
         return html`
             <div id="analytics-content" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                ${this._createStatCard('Celkový počet studentů', data.studentCount, '👥')}
-                ${this._createStatCard('Průměrné skóre (Kvízy)', `${data.avgQuizScore}%`, '❓', `(z ${data.quizSubmissionCount} odevzdání)`)}
-                ${this._createStatCard('Průměrné skóre (Testy)', `${data.avgTestScore}%`, '✅', `(z ${data.testSubmissionCount} odevzdání)`)}
+                ${this._createStatCard(t('analytics.total_students'), data.studentCount, '👥')}
+                ${this._createStatCard(t('analytics.avg_quiz_score'), `${data.avgQuizScore}%`, '❓', `(${t('analytics.from_submissions', { count: data.quizSubmissionCount })})`)}
+                ${this._createStatCard(t('analytics.avg_test_score'), `${data.avgTestScore}%`, '✅', `(${t('analytics.from_submissions', { count: data.testSubmissionCount })})`)}
                 
                 <div class="bg-white p-6 rounded-xl shadow-lg md:col-span-2 lg:col-span-3">
-                    <h4 class="text-lg font-semibold text-slate-800 mb-4">Top 5 nejaktivnějších studentů</h4>
+                    <h4 class="text-lg font-semibold text-slate-800 mb-4">${t('analytics.top_students')}</h4>
                     <ul class="divide-y divide-slate-100">
-                        ${topStudentsHtml.length > 0 ? topStudentsHtml : html`<p class="text-slate-500 py-4">Žádná aktivita k zobrazení.</p>`}
+                        ${topStudentsHtml.length > 0 ? topStudentsHtml : html`<p class="text-slate-500 py-4">${t('analytics.no_activity')}</p>`}
                     </ul>
                 </div>
             </div>
@@ -215,20 +221,21 @@ export class ProfessorAnalyticsView extends LitElement {
     }
 
     render() {
+        const t = (key) => translationService.t(key);
         let content;
         if (this._isLoading) {
-            content = html`<div id="analytics-loading" class="text-center text-slate-500"><p>Načítám analytická data...</p></div>`;
+            content = html`<div id="analytics-loading" class="text-center text-slate-500"><p>${t('analytics.loading')}</p></div>`;
         } else if (this._error) {
             content = html`<div id="analytics-loading" class="text-center text-red-500"><p>${this._error}</p></div>`;
         } else if (this._analyticsData) {
             content = this.renderContent();
         } else {
-             content = html`<div id="analytics-loading" class="text-center text-slate-500"><p>Žádná analytická data k dispozici.</p></div>`;
+             content = html`<div id="analytics-loading" class="text-center text-slate-500"><p>${t('analytics.no_data')}</p></div>`;
         }
         
         return html`
             <div class="p-6 md:p-8">
-                <h2 class="text-3xl font-extrabold text-slate-800 mb-6">Analýza platformy</h2>
+                <h2 class="text-3xl font-extrabold text-slate-800 mb-6">${t('analytics.title')}</h2>
                 ${content}
             </div>
         `;

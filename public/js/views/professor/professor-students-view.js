@@ -3,6 +3,7 @@ import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/li
 import { collection, query, where, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
+import { translationService } from '../../utils/translation-service.js';
 
 export class ProfessorStudentsView extends LitElement {
     static properties = {
@@ -25,11 +26,15 @@ export class ProfessorStudentsView extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._initializeListeners();
+        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         this._unsubscribeListeners.forEach(item => item.unsub());
+        if (this._langUnsubscribe) {
+            this._langUnsubscribe();
+        }
     }
 
     _createBatchedStudentListeners(groupIds) {
@@ -63,7 +68,7 @@ export class ProfessorStudentsView extends LitElement {
                 this._isLoading = false;
             }, (error) => {
                 console.error("Error fetching students batch:", error);
-                showToast("Nepodařilo se načíst část studentů.", true);
+                showToast(translationService.t('students_view.fetch_batch_error'), true);
             });
             this._unsubscribeListeners.push({ id: 'students', unsub });
         }
@@ -93,7 +98,7 @@ export class ProfessorStudentsView extends LitElement {
             this._createBatchedStudentListeners(groupIds);
         }, (error) => {
             console.error("Error fetching professor's groups:", error);
-            showToast("Chyba při načítání skupin profesora.", true);
+            showToast(translationService.t('students_view.fetch_groups_error'), true);
             this._isLoading = false;
         });
         this._unsubscribeListeners.push({ id: 'groups', unsub: unsubGroups });
@@ -122,6 +127,7 @@ export class ProfessorStudentsView extends LitElement {
     }
 
     renderStudentCard(student) {
+        const t = (key) => translationService.t(key);
         const initials = (student.name || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
         const avatarBgColor = this._getAvatarColor(student.id);
 
@@ -132,7 +138,7 @@ export class ProfessorStudentsView extends LitElement {
                 <!-- Status Badge (Absolute Positioned) -->
                 <div class="absolute top-4 right-4">
                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${student.telegramChatId ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-700/10' : 'bg-slate-50 text-slate-500 ring-1 ring-slate-500/10'}">
-                        ${student.telegramChatId ? 'Telegram' : 'Bez spojení'}
+                        ${student.telegramChatId ? t('students_view.telegram_connected') : t('students_view.telegram_disconnected')}
                     </span>
                 </div>
 
@@ -143,14 +149,14 @@ export class ProfessorStudentsView extends LitElement {
 
                 <!-- Info -->
                 <div class="flex-grow pt-1 min-w-0">
-                     <h3 class="text-lg font-bold text-slate-900 truncate group-hover:text-indigo-600 transition-colors" title="${student.name || 'Jméno neuvedeno'}">
-                        ${student.name || 'Jméno neuvedeno'}
+                     <h3 class="text-lg font-bold text-slate-900 truncate group-hover:text-indigo-600 transition-colors" title="${student.name || t('students_view.name_missing')}">
+                        ${student.name || t('students_view.name_missing')}
                     </h3>
                      <p class="text-sm text-slate-500 truncate mt-1" title="${student.email}">${student.email}</p>
 
                      <div class="mt-4 flex items-center text-xs text-slate-400 font-medium">
                         <span class="flex items-center hover:text-slate-600 transition-colors">
-                            Zobrazit profil &rarr;
+                            ${t('students_view.view_profile')} &rarr;
                         </span>
                      </div>
                 </div>
@@ -169,15 +175,16 @@ export class ProfessorStudentsView extends LitElement {
     }
 
     render() {
+        const t = (key) => translationService.t(key);
         const filteredStudents = this._filteredStudents;
         let content;
 
         if (this._isLoading) {
-            content = html`<p class="text-center p-8 text-slate-400">Načítám studenty...</p>`;
+            content = html`<p class="text-center p-8 text-slate-400">${t('students_view.loading')}</p>`;
         } else if (this._students.length === 0) {
-            content = html`<p class="text-center p-8 text-slate-500">Zatím se nezaregistroval žádný student.</p>`;
+            content = html`<p class="text-center p-8 text-slate-500">${t('students_view.none_registered')}</p>`;
         } else if (filteredStudents.length === 0) {
-             content = html`<p class="text-center p-8 text-slate-500">Nebyly nalezeny žádné odpovídající studenti.</p>`;
+             content = html`<p class="text-center p-8 text-slate-500">${t('students_view.no_results')}</p>`;
         } else {
             content = html`
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -187,13 +194,13 @@ export class ProfessorStudentsView extends LitElement {
 
         return html`
             <header class="text-center p-6 border-b border-slate-200 bg-white">
-                <h1 class="text-3xl font-extrabold text-slate-800">Studenti</h1>
-                <p class="text-slate-500 mt-1">Přehled registrovaných studentů v kurzu.</p>
+                <h1 class="text-3xl font-extrabold text-slate-800">${t('students_view.title')}</h1>
+                <p class="text-slate-500 mt-1">${t('students_view.subtitle')}</p>
             </header>
             <div class="flex-grow overflow-y-auto p-4 md:p-6">
                 <div class="mb-6 max-w-md mx-auto">
                     <input type="search"
-                           placeholder="Hledat studenta (jméno, email)..."
+                           placeholder="${t('students_view.search_placeholder')}"
                            .value=${this._searchTerm}
                            @input=${this._handleSearchInput}
                            class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
