@@ -5,7 +5,6 @@ import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
 import { translationService } from '../../utils/translation-service.js';
 import { baseStyles } from '../../shared-styles.js';
-import { handleLogout } from '../../auth.js'; // Need to import logout
 
 export class StudentDashboardView extends LitElement {
     static properties = {
@@ -162,69 +161,93 @@ export class StudentDashboardView extends LitElement {
                 </div>`;
         }
 
+        const firstName = this._studentName.split(' ')[0];
         const t = (key) => translationService.t(key);
 
-        return html`
-            <div class="space-y-8 pb-24 px-4 md:px-0 max-w-7xl mx-auto">
+        const jumpBackLesson = this._recentLessons.length > 0 ? this._recentLessons[0] : null;
 
-                <!-- Header Section -->
-                <div class="flex items-center justify-between pt-4">
+        return html`
+            <div class="space-y-8 pb-24 px-4 md:px-8 max-w-7xl mx-auto">
+
+                <!-- A. Hero Section -->
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 pt-6">
                     <div>
-                        <h1 class="text-2xl font-black text-slate-900 tracking-tight">
-                            ${this._studentName}
+                        <h1 class="text-3xl font-black text-slate-900 tracking-tight">
+                        ${t('student.dashboard_title')},<br>
+                        <span class="text-indigo-600">${firstName}!</span> 👋
                         </h1>
                     </div>
 
-                    <div class="flex items-center gap-4">
-                        ${this._studentStreak > 0 ? html`
-                            <div class="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2 border border-indigo-100 shadow-sm">
-                                <span>🔥</span>
-                                <span>${this._studentStreak} dní</span>
+                    ${this._studentStreak > 0 ? html`
+                        <div class="bg-white border border-orange-100 p-3 rounded-2xl shadow-sm flex items-center gap-3">
+                            <div class="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-xl animate-pulse">🔥</div>
+                            <div>
+                                <div class="text-xs text-slate-400 font-bold uppercase tracking-wider">Tvoje tempo</div>
+                                <div class="text-orange-600 font-black text-lg leading-none">${this._studentStreak} dní</div>
                             </div>
-                        ` : nothing}
-
-                        <button @click=${handleLogout} class="bg-slate-100 text-slate-600 px-4 py-2 rounded-full text-sm font-bold hover:bg-slate-200 transition-colors shadow-sm">
-                            Odhlásit
-                        </button>
-                    </div>
+                        </div>
+                    ` : nothing}
                 </div>
 
-                <!-- Moje Třídy (My Classes) -->
+                <!-- B. My Classes Section -->
                 <div>
                     <div class="flex items-center justify-between mb-4">
                         <h2 class="text-lg font-bold text-slate-800">Moje Třídy</h2>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        <!-- Add Class Button -->
-                        <div class="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-6 flex flex-col items-center justify-center text-center gap-3 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-all group h-40"
-                             @click=${() => this._showJoinModal = true}>
-                            <div class="w-12 h-12 rounded-full bg-white border border-slate-200 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
-                                <span class="text-2xl text-slate-400 group-hover:text-indigo-600">+</span>
+                    <div class="flex overflow-x-auto snap-x pb-4 -mx-4 px-4 gap-4 md:grid md:grid-cols-3 lg:grid-cols-4 md:overflow-visible md:pb-0 md:mx-0 md:px-0">
+
+                         <!-- Jump Back In Card (Integrated) -->
+                         ${jumpBackLesson ? html`
+                            <div class="min-w-[160px] h-32 md:h-auto bg-gradient-to-br from-indigo-600 to-violet-700 text-white rounded-2xl flex flex-col justify-between p-4 shadow-lg shadow-indigo-200 hover:shadow-xl hover:scale-[1.02] transition-all cursor-pointer flex-shrink-0 snap-start relative overflow-hidden group"
+                                 @click=${() => this._handleLessonSelected(jumpBackLesson.id)}>
+                                <div class="absolute top-0 right-0 p-3 opacity-20 text-4xl group-hover:scale-110 transition-transform">▶️</div>
+                                <div>
+                                    <span class="text-[10px] font-bold uppercase opacity-80 tracking-wider block mb-1">${t('student_dashboard.jump_back')}</span>
+                                    <h3 class="font-bold leading-tight line-clamp-2">${jumpBackLesson.title}</h3>
+                                </div>
+                                <div class="mt-2 text-xs font-medium opacity-90 flex items-center gap-1">
+                                    Pokračovat
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                                </div>
                             </div>
-                            <span class="text-sm font-bold text-slate-500 group-hover:text-indigo-600">Připojit se kód</span>
-                        </div>
+                        ` : nothing}
 
                         <!-- Class Cards -->
                         ${this._groups.map(group => html`
-                            <div class="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col justify-between shadow-sm hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer h-40">
-                                <div class="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xl mb-4">
-                                    ${(group?.name || 'T').substring(0, 1).toUpperCase()}
+                            <div class="min-w-[160px] h-32 md:h-auto bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:shadow-md hover:border-indigo-200 hover:-translate-y-1 transition-all cursor-pointer flex-shrink-0 snap-start"
+                                 @click=${() => showToast(`Třída: ${group.name}`)}>
+                                <div class="flex justify-between items-start">
+                                    <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
+                                        ${group.name.substring(0, 1).toUpperCase()}
+                                    </div>
+                                    <!-- Optional: Indicator if new content -->
                                 </div>
                                 <div>
-                                    <h3 class="font-bold text-slate-800 truncate text-lg">${group?.name || 'Bez názvu'}</h3>
+                                    <h3 class="font-bold text-slate-800 truncate">${group.name}</h3>
                                     <p class="text-xs text-slate-400 truncate mt-1">
-                                        ${group?.ownerName || 'Neznámý učitel'}
+                                        ${group.ownerName || group.ownerEmail || t('common.unknown_teacher')}
                                     </p>
                                 </div>
                             </div>
                         `)}
+
+                        <!-- Join Class Card -->
+                        <div class="min-w-[160px] h-32 md:h-auto bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2 hover:bg-slate-100 hover:border-indigo-300 transition-all cursor-pointer flex-shrink-0 snap-start group"
+                             @click=${() => this._showJoinModal = true}>
+                            <div class="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                                <svg class="w-5 h-5 text-slate-400 group-hover:text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            </div>
+                            <span class="text-sm font-bold text-slate-500 group-hover:text-indigo-600">${t('student.join')}</span>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Moje Lekce (Next Up) -->
+                <!-- C. Next Up Section -->
                 <div>
-                    <h2 class="text-lg font-bold text-slate-800 mb-4">Moje Lekce</h2>
+                    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        ${t('student.next_up')} 📅
+                    </h2>
 
                      ${this._recentLessons.length === 0 ? html`
                          <div class="w-full p-8 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-center">
@@ -233,18 +256,32 @@ export class StudentDashboardView extends LitElement {
                             <p class="text-sm text-slate-500 mt-1">Momentálně nemáš žádné nové lekce.</p>
                          </div>
                     ` : html`
-                        <div class="flex flex-col gap-3">
-                            ${this._recentLessons.map((lesson) => html`
-                                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer group"
+                        <div class="space-y-3">
+                            ${this._recentLessons.map((lesson, index) => html`
+                                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-indigo-100 transition-all group cursor-pointer"
                                      @click=${() => this._handleLessonSelected(lesson.id)}>
 
-                                    <div class="flex-1">
-                                        <h4 class="font-bold text-slate-900 group-hover:text-indigo-700 transition-colors">${lesson.title}</h4>
-                                        <p class="text-sm text-slate-500">${lesson.topic || 'Obecné'}</p>
+                                    <!-- Index/Icon -->
+                                    <div class="w-12 h-12 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center shrink-0 font-bold text-lg group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                                        ${index + 1}
                                     </div>
 
-                                    <button class="w-10 h-10 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm group-hover:scale-110">
-                                        <svg class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    <!-- Content -->
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <h4 class="font-bold text-slate-900 truncate group-hover:text-indigo-700 transition-colors">${lesson.title}</h4>
+                                            <span class="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Nový</span>
+                                        </div>
+                                        <p class="text-xs text-slate-500 font-medium flex items-center gap-2">
+                                            <span class="truncate max-w-[150px]">${lesson.topic || 'Obecné'}</span>
+                                            <span class="w-1 h-1 rounded-full bg-slate-300"></span>
+                                            <span>${lesson.estimatedDuration || '15 min'}</span>
+                                        </p>
+                                    </div>
+
+                                    <!-- Play Button Action -->
+                                    <button class="w-10 h-10 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+                                        <svg class="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                                     </button>
                                 </div>
                             `)}
@@ -254,31 +291,33 @@ export class StudentDashboardView extends LitElement {
 
             </div>
 
-            <!-- Join Modal -->
+            <!-- Join Modal (Zen Style) -->
             ${this._showJoinModal ? html`
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                    <div class="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl relative">
-                        <button @click=${() => this._showJoinModal = false} class="absolute top-5 right-5 text-slate-400 hover:text-slate-600">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+                    <div class="bg-white rounded-[2rem] p-8 w-full max-w-sm shadow-2xl relative">
+                        <button @click=${() => this._showJoinModal = false} class="absolute top-5 right-5 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
 
-                        <div class="text-center mb-6">
-                            <h3 class="text-2xl font-bold text-slate-900">${t('student.join_modal_title')}</h3>
-                            <p class="text-slate-500 mt-2 text-sm">${t('student.join_modal_desc')}</p>
+                        <div class="text-center mb-8 mt-2">
+                            <div class="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-5 text-4xl shadow-sm border border-indigo-100">🚀</div>
+                            <h3 class="text-2xl font-black text-slate-900">${t('student.join_modal_title')}</h3>
+                            <p class="text-slate-500 font-medium mt-2">${t('student.join_modal_desc')}</p>
                         </div>
 
                         <div class="space-y-4">
-                            <input type="text"
-                                .value=${this._joinCodeInput}
-                                @input=${e => this._joinCodeInput = e.target.value.toUpperCase()}
-                                placeholder="${t('student.join_placeholder')}"
-                                class="w-full text-center text-2xl font-bold border-2 border-slate-200 rounded-xl py-4 uppercase focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all"
-                            />
+                            <div>
+                                <input type="text"
+                                    .value=${this._joinCodeInput}
+                                    @input=${e => this._joinCodeInput = e.target.value.toUpperCase()}
+                                    placeholder="${t('student.join_placeholder')}"
+                                    class="w-full text-center text-3xl font-black tracking-[0.2em] border-2 border-slate-200 rounded-2xl py-5 uppercase focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none text-slate-800 placeholder-slate-300 transition-all"
+                                />
+                            </div>
 
                             <button @click=${this._handleJoinClass} ?disabled=${this._joining}
-                                class="w-full bg-indigo-600 text-white font-bold text-lg py-3 rounded-xl hover:bg-indigo-700 hover:scale-[1.02] transition-all flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed">
-                                ${this._joining ? html`<span class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>` : ''}
-                                ${this._joining ? t('student.joining') : t('student.join')}
+                                class="w-full bg-indigo-600 text-white font-bold text-lg py-4 rounded-2xl shadow-xl shadow-indigo-500/30 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center">
+                                ${this._joining ? html`<span class="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin mr-3"></span> ${t('student.joining')}` : t('student.join')}
                             </button>
                         </div>
                     </div>
