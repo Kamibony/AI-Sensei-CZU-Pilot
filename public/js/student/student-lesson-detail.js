@@ -1,6 +1,6 @@
 // Súbor: public/js/student/student-lesson-detail.js
 
-import { LitElement, html, nothing } from 'https://cdn.skypack.dev/lit';
+import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../firebase-init.js';
 import { renderPresentation } from './presentation-handler.js';
