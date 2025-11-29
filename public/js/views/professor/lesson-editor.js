@@ -563,10 +563,11 @@ export class LessonEditor extends LitElement {
             });
             this.lesson = { ...this.lesson, status: newStatus };
             this.requestUpdate();
-            showToast(`Lekce je nyní ${newStatus === 'published' ? 'publikována' : 'v konceptu'}.`);
+            const statusLabel = newStatus === 'published' ? translationService.t('lesson.status_published') : translationService.t('lesson.status_draft');
+            showToast(`${statusLabel}`);
         } catch (err) {
             console.error("Error toggling status:", err);
-            showToast("Chyba při změně stavu.", true);
+            showToast(translationService.t('common.error'), true);
         }
     }
 
@@ -831,7 +832,7 @@ export class LessonEditor extends LitElement {
                                     <button @click=${this._toggleStatus}
                                         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer border ${this.lesson?.status === 'published' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}">
                                         <span class="w-2 h-2 rounded-full mr-2 ${this.lesson?.status === 'published' ? 'bg-green-500' : 'bg-slate-400'}"></span>
-                                        ${this.lesson?.status === 'published' ? 'Publikováno' : 'Koncept'}
+                                        ${this.lesson?.status === 'published' ? t('lesson.status_published') : t('lesson.status_draft')}
                                     </button>
                                 </div>
 

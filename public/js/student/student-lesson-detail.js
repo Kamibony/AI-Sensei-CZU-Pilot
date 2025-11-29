@@ -1,9 +1,10 @@
 // Súbor: public/js/student/student-lesson-detail.js
 
-import { LitElement, html } from 'https://cdn.skypack.dev/lit';
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { LitElement, html, nothing } from 'https://cdn.skypack.dev/lit';
+import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../firebase-init.js';
 import { renderPresentation } from './presentation-handler.js';
+import { translationService } from '../utils/translation-service.js';
 
 // Musíme importovať všetky komponenty, ktoré tento komponent bude renderovať
 import './quiz-component.js';
@@ -37,7 +38,8 @@ export class StudentLessonDetail extends LitElement {
             availableTabs: { type: Array, state: true },
             activeTabId: { type: String, state: true },
             isLoading: { type: Boolean, state: true },
-            _viewMode: { type: String, state: true } // 'hub' or 'content'
+            _viewMode: { type: String, state: true }, // 'hub' or 'content'
+            _progress: { type: Object, state: true }
         };
     }
 
@@ -50,10 +52,74 @@ export class StudentLessonDetail extends LitElement {
         this.activeTabId = null;
         this.isLoading = true;
         this._viewMode = 'hub';
+        this._progress = { completedSections: [] };
+        this._progressUnsubscribe = null;
     }
 
     createRenderRoot() {
         return this;
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        // Subscribe to language changes
+        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
+        this._initProgressTracking();
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        if (this._langUnsubscribe) {
+            this._langUnsubscribe();
+        }
+        if (this._progressUnsubscribe) {
+            this._progressUnsubscribe();
+        }
+    }
+
+    _initProgressTracking() {
+        const user = firebaseInit.auth.currentUser;
+        if (!user || !this.lessonId) return;
+
+        const progressRef = doc(firebaseInit.db, `students/${user.uid}/progress/${this.lessonId}`);
+
+        this._progressUnsubscribe = onSnapshot(progressRef, (docSnap) => {
+            if (docSnap.exists()) {
+                this._progress = docSnap.data();
+            } else {
+                this._progress = { completedSections: [] };
+            }
+        }, (error) => {
+            console.error("Error tracking progress:", error);
+        });
+    }
+
+    async _markSectionComplete(sectionId) {
+        if (!sectionId) return;
+        const user = firebaseInit.auth.currentUser;
+        if (!user || !this.lessonId) return;
+
+        // Optimistic update
+        if (!this._progress.completedSections) this._progress.completedSections = [];
+        if (!this._progress.completedSections.includes(sectionId)) {
+            // Optimistic
+            this._progress = {
+                ...this._progress,
+                completedSections: [...this._progress.completedSections, sectionId]
+            };
+
+            const progressRef = doc(firebaseInit.db, `students/${user.uid}/progress/${this.lessonId}`);
+            try {
+                // Use setDoc with merge: true to handle both create and update
+                await setDoc(progressRef, {
+                    completedSections: arrayUnion(sectionId),
+                    lastUpdated: new Date()
+                }, { merge: true });
+
+            } catch (e) {
+                console.error("Error saving progress:", e);
+            }
+        }
     }
 
     willUpdate(changedProperties) {
@@ -67,6 +133,7 @@ export class StudentLessonDetail extends LitElement {
         // Otherwise, if lessonId is passed, fetch from Firestore as usual.
         else if (changedProperties.has('lessonId') && this.lessonId && !this.lessonData) {
             this._fetchLessonDetail();
+            this._initProgressTracking(); // Re-init tracking if lessonId changes
         }
     }
 
@@ -162,28 +229,28 @@ export class StudentLessonDetail extends LitElement {
         };
 
         if (this.lessonData.text_content)
-            addTab('text', 'Studijní Text', '📝', 'Přečtěte si látku k lekci', 'bg-blue-50 text-blue-600');
+            addTab('text', translationService.t('content_types.text'), '📝', translationService.t('content_types.text_desc'), 'bg-blue-50 text-blue-600');
 
         if (this.lessonData.youtube_link)
-            addTab('video', 'Video', '🎬', 'Sledujte video výklad', 'bg-red-50 text-red-600');
+            addTab('video', translationService.t('content_types.video'), '🎬', translationService.t('content_types.video_desc'), 'bg-red-50 text-red-600');
 
         if (this.lessonData.presentation)
-            addTab('presentation', 'Prezentace', '📊', 'Prohlédněte si slidy', 'bg-orange-50 text-orange-600');
+            addTab('presentation', translationService.t('content_types.presentation'), '📊', translationService.t('content_types.presentation_desc'), 'bg-orange-50 text-orange-600');
 
         if (this.lessonData.podcast_script)
-            addTab('podcast', 'Podcast', '🎙️', 'Poslechněte si audio verzi', 'bg-purple-50 text-purple-600');
+            addTab('podcast', translationService.t('content_types.audio'), '🎙️', translationService.t('content_types.audio_desc'), 'bg-purple-50 text-purple-600');
 
         if (this.lessonData.quiz)
-            addTab('quiz', 'Kvíz', '❓', 'Otestujte své znalosti', 'bg-green-50 text-green-600');
+            addTab('quiz', translationService.t('content_types.quiz'), '❓', translationService.t('content_types.quiz_desc'), 'bg-green-50 text-green-600');
 
         if (this.lessonData.test)
-            addTab('test', 'Test', '📝', 'Závěrečný test lekce', 'bg-emerald-50 text-emerald-600');
+            addTab('test', translationService.t('content_types.test'), '📝', translationService.t('content_types.test_desc'), 'bg-emerald-50 text-emerald-600');
 
         if (this.lessonData.flashcards)
-            addTab('flashcards', 'Kartičky', '🗂️', 'Opakování pojmů', 'bg-yellow-50 text-yellow-600');
+            addTab('flashcards', translationService.t('content_types.flashcards'), '🗂️', translationService.t('content_types.flashcards_desc'), 'bg-yellow-50 text-yellow-600');
 
         if (this.lessonData.mindmap)
-            addTab('mindmap', 'Mapa', '🧠', 'Mentální mapa souvislostí', 'bg-pink-50 text-pink-600');
+            addTab('mindmap', translationService.t('content_types.mindmap'), '🧠', translationService.t('content_types.mindmap_desc'), 'bg-pink-50 text-pink-600');
 
         // Always available tools (for now, unless we want to hide them too)
         addTab('ai-assistant', 'AI Asistent', '🤖', 'Zeptejte se umělé inteligence', 'bg-indigo-50 text-indigo-600');
@@ -232,38 +299,72 @@ export class StudentLessonDetail extends LitElement {
     }
 
     _renderHub() {
+        // Calculate progress
+        const totalContentTabs = this.availableTabs.filter(t => !['ai-assistant', 'professor-chat'].includes(t.id)).length;
+        const completedCount = this._progress?.completedSections?.length || 0;
+        // Ensure we don't show more than total (in case of legacy data or mismatches)
+        const displayCompleted = Math.min(completedCount, totalContentTabs);
+        const progressPercent = totalContentTabs > 0 ? Math.round((displayCompleted / totalContentTabs) * 100) : 0;
+
         return html`
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <!-- Header -->
                 <div class="mb-8">
-                    <button @click=${this._handleBackToList} class="mb-4 text-slate-500 hover:text-indigo-600 flex items-center transition-colors">
-                        <span class="mr-2">←</span> Zpět do knihovny
-                    </button>
-                    <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-2">${this.lessonData.title}</h1>
-                    ${this.lessonData.subtitle ? html`<p class="text-lg text-slate-500 max-w-3xl">${this.lessonData.subtitle}</p>` : ''}
+                    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                        <div>
+                            <button @click=${this._handleBackToList} class="mb-4 text-slate-500 hover:text-indigo-600 flex items-center transition-colors">
+                                <span class="mr-2">←</span> ${translationService.t('common.back')}
+                            </button>
+                            <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-2">${this.lessonData.title}</h1>
+                            ${this.lessonData.subtitle ? html`<p class="text-lg text-slate-500 max-w-3xl">${this.lessonData.subtitle}</p>` : ''}
+                        </div>
+
+                        <!-- Progress Widget -->
+                        ${totalContentTabs > 0 ? html`
+                            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 min-w-[200px]">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm font-bold text-slate-700">${translationService.t('student.progress_label')}</span>
+                                    <span class="text-xs font-mono text-slate-500">${displayCompleted} / ${totalContentTabs}</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2.5">
+                                    <div class="bg-gradient-to-r from-indigo-500 to-purple-500 h-2.5 rounded-full transition-all duration-1000" style="width: ${progressPercent}%"></div>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
                 </div>
 
                 <!-- Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    ${this.availableTabs.map(tab => html`
-                        <div @click=${() => this._handleHubItemClick(tab.id)}
-                             class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col items-center text-center hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer h-full group">
+                    ${this.availableTabs.map(tab => {
+                        const isCompleted = this._progress?.completedSections?.includes(tab.id);
+                        return html`
+                            <div @click=${() => this._handleHubItemClick(tab.id)}
+                                 class="relative bg-white rounded-xl border ${isCompleted ? 'border-green-200 ring-1 ring-green-100' : 'border-slate-200'} shadow-sm p-6 flex flex-col items-center text-center hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer h-full group overflow-hidden">
 
-                            <div class="w-12 h-12 rounded-lg ${tab.colorClass} flex items-center justify-center mb-4 text-2xl group-hover:scale-110 transition-transform">
-                                ${tab.icon}
+                                ${isCompleted ? html`
+                                    <div class="absolute top-0 right-0 p-3">
+                                        <div class="bg-green-100 text-green-600 rounded-full p-1 shadow-sm">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                                        </div>
+                                    </div>
+                                ` : ''}
+
+                                <div class="w-12 h-12 rounded-lg ${tab.colorClass} flex items-center justify-center mb-4 text-2xl group-hover:scale-110 transition-transform">
+                                    ${tab.icon}
+                                </div>
+
+                                <h3 class="font-bold text-slate-900 mb-1 text-lg group-hover:text-indigo-600 transition-colors">${tab.name}</h3>
+                                <p class="text-sm text-slate-500 mb-4 leading-relaxed">${tab.description}</p>
+
+                                <div class="mt-auto pt-2">
+                                    <span class="text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wide transition-colors ${isCompleted ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600'}">
+                                        ${isCompleted ? 'Hotovo' : '✨ Začít'}
+                                    </span>
+                                </div>
                             </div>
-
-                            <h3 class="font-bold text-slate-900 mb-1 text-lg group-hover:text-indigo-600 transition-colors">${tab.name}</h3>
-                            ${this._getContentStats(tab.id) ? html`<p class="text-xs opacity-80 mb-2 font-medium text-slate-400">${this._getContentStats(tab.id)}</p>` : ''}
-                            <p class="text-sm text-slate-500 mb-4 leading-relaxed">${tab.description}</p>
-
-                            <div class="mt-auto pt-2">
-                                <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full uppercase tracking-wide group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
-                                    ✨ Začít
-                                </span>
-                            </div>
-                        </div>
-                    `)}
+                        `;
+                    })}
                 </div>
             </div>
         `;
@@ -311,7 +412,14 @@ export class StudentLessonDetail extends LitElement {
                     renderPresentation(contentArea, this.lessonData.presentation);
                 }
             }, 0);
-            return html`<div id="presentation-container"></div>`;
+            return html`
+                <div id="presentation-container"></div>
+                <div class="mt-8 flex justify-center">
+                    <button @click=${() => this._markSectionComplete('presentation')} class="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold shadow-lg hover:bg-indigo-700 transition-colors">
+                        Prezentace prostudována ✅
+                    </button>
+                </div>
+            `;
         }
         
         // Ostatné prípady
@@ -325,28 +433,48 @@ export class StudentLessonDetail extends LitElement {
                 const textContentDiv = document.createElement('div');
                 textContentDiv.className = "prose prose-indigo max-w-none prose-lg"; // Added prose-indigo and prose-lg
                 textContentDiv.innerHTML = marked.parse(this.lessonData.text_content || ''); 
-                return html`${textContentDiv}`;
+                return html`
+                    ${textContentDiv}
+                    <div class="mt-12 flex justify-center">
+                        <button @click=${() => this._markSectionComplete('text')} class="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold shadow-lg hover:bg-indigo-700 transition-colors">
+                            Dokončit čtení ✅
+                        </button>
+                    </div>
+                `;
                 
             case 'video':
                 const videoIdMatch = this.lessonData.youtube_link ? this.lessonData.youtube_link.match(/(?:v=|\/embed\/|\.be\/)([\w-]{11})/) : null;
                 if (videoIdMatch && videoIdMatch[1]) {
                     return html`
-                        <div class="aspect-video w-full rounded-2xl overflow-hidden shadow-lg">
+                        <div class="aspect-video w-full rounded-2xl overflow-hidden shadow-lg mb-8">
                             <iframe class="w-full h-full" src="https://www.youtube.com/embed/${videoIdMatch[1]}" frameborder="0" allowfullscreen></iframe>
-                        </div>`;
+                        </div>
+                        <div class="flex justify-center">
+                            <button @click=${() => this._markSectionComplete('video')} class="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold shadow-lg hover:bg-indigo-700 transition-colors">
+                                Video shlédnuto ✅
+                            </button>
+                        </div>
+                    `;
                 } else {
                     return html`<p class="text-red-500">Neplatný nebo chybějící YouTube odkaz.</p>`;
                 }
             case 'quiz':
-                return html`<student-quiz .quizData=${this.lessonData.quiz} .lessonId=${this.lessonId}></student-quiz>`;
+                return html`<student-quiz .quizData=${this.lessonData.quiz} .lessonId=${this.lessonId} @quiz-completed=${() => this._markSectionComplete('quiz')}></student-quiz>`;
             case 'test':
-                return html`<student-test .testData=${this.lessonData.test} .lessonId=${this.lessonId}></student-test>`;
+                return html`<student-test .testData=${this.lessonData.test} .lessonId=${this.lessonId} @test-completed=${() => this._markSectionComplete('test')}></student-test>`;
             case 'podcast':
-                return html`<student-podcast .podcastData=${this.lessonData.podcast_script}></student-podcast>`;
+                return html`<student-podcast .podcastData=${this.lessonData.podcast_script} @podcast-completed=${() => this._markSectionComplete('podcast')}></student-podcast>`;
             case 'flashcards':
-                return html`<flashcards-component .cards=${this.lessonData.flashcards}></flashcards-component>`;
+                return html`<flashcards-component .cards=${this.lessonData.flashcards} @flashcards-completed=${() => this._markSectionComplete('flashcards')}></flashcards-component>`;
             case 'mindmap':
-                return html`<mindmap-component .code=${this.lessonData.mindmap}></mindmap-component>`;
+                return html`
+                    <mindmap-component .code=${this.lessonData.mindmap}></mindmap-component>
+                    <div class="mt-8 flex justify-center">
+                        <button @click=${() => this._markSectionComplete('mindmap')} class="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold shadow-lg hover:bg-indigo-700 transition-colors">
+                            Prostudováno ✅
+                        </button>
+                    </div>
+                `;
             case 'ai-assistant':
                 return html`<chat-panel type="ai" .lessonId=${this.lessonId} .currentUserData=${this.currentUserData}></chat-panel>`;
             case 'professor-chat':

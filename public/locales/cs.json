@@ -93,6 +93,8 @@
     "stats_created": "Vytvořeno",
     "stats_cards": "kartiček",
     "unknown_type": "Neznámý typ obsahu",
+    "status_draft": "Koncept",
+    "status_published": "Publikováno",
     "modal_error_elements": "Chybějící elementy pro modální okno.",
     "modal_error_load": "Chyba: Nepodařilo se načíst komponentu pro výběr souborů.",
     "no_files_selected": "Žádné soubory nevybrány.",
@@ -246,7 +248,8 @@
     "play": "Přehrát",
     "pause": "Pozastavit",
     "resume": "Pokračovat",
-    "playback_error": "Chyba při přehrávání."
+    "playback_error": "Chyba při přehrávání.",
+    "progress_label": "Váš postup"
   },
   "student_dashboard": {
     "jump_back": "Pokračovat v lekci",
@@ -337,5 +340,11 @@
     "click_to_select": "Klikněte pro výběr souboru",
     "supported_format": "Podporovaný formát: PDF",
     "uploaded_files": "Nahrané soubory"
+  },
+  "class": {
+    "tab_grades": "Výsledky",
+    "table_student": "Student",
+    "table_score": "Skóre",
+    "no_grades": "Zatím žádné známky"
   }
 }
