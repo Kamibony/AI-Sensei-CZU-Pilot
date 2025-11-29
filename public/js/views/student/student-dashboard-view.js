@@ -182,15 +182,29 @@ export class StudentDashboardView extends LitElement {
                     ` : nothing}
                 </div>
 
-                <!-- B. "My Classes" as Rectangular Cards -->
+                <!-- B. "My Classes" as Rectangular Cards (Includes Jump Back In) -->
                 <div>
                     <div class="flex overflow-x-auto gap-4 pb-4 -mx-4 px-4 no-scrollbar snap-x">
+
+                        <!-- Jump Back In Card -->
+                        ${jumpBackLesson ? html`
+                            <div class="min-w-[140px] h-24 bg-gradient-to-br from-indigo-600 to-violet-700 text-white rounded-xl flex flex-col justify-center items-center shadow-md hover:shadow-lg hover:scale-105 transition-all cursor-pointer flex-shrink-0 snap-start"
+                                 @click=${() => this._handleLessonSelected(jumpBackLesson.id)}>
+                                <div class="text-2xl mb-1">▶️</div>
+                                <span class="text-[10px] font-bold uppercase opacity-80 tracking-wider">${t('student_dashboard.jump_back')}</span>
+                                <span class="text-xs font-bold truncate max-w-[120px] text-center px-2">${jumpBackLesson.title}</span>
+                            </div>
+                        ` : nothing}
+
                         ${this._groups.map(group => html`
                             <div class="min-w-[140px] h-24 bg-white border border-slate-200 rounded-xl flex flex-col justify-center items-center shadow-sm hover:border-indigo-400 transition-all cursor-pointer flex-shrink-0 snap-start" @click=${() => showToast(`Třída: ${group.name}`)}>
-                                <div class="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center mb-2">
-                                     <span class="text-sm font-bold text-indigo-600">${group.name.substring(0, 2).toUpperCase()}</span>
+                                <div class="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center mb-1">
+                                     <span class="text-xs font-bold text-indigo-600">${group.name.substring(0, 2).toUpperCase()}</span>
                                 </div>
                                 <span class="text-sm font-bold text-slate-700 truncate max-w-[120px]">${group.name}</span>
+                                <span class="text-[10px] text-slate-400 truncate max-w-[120px]">
+                                    ${group.ownerName || group.ownerEmail || t('common.unknown_teacher')}
+                                </span>
                             </div>
                         `)}
 
@@ -204,31 +218,7 @@ export class StudentDashboardView extends LitElement {
                     </div>
                 </div>
 
-                <!-- C. "Jump Back In" (Hero) -->
-                <div>
-                     ${jumpBackLesson ? html`
-                        <div class="w-full p-6 bg-white border-l-4 border-indigo-600 rounded-xl shadow-md flex justify-between items-center cursor-pointer hover:shadow-lg transition-all group"
-                             @click=${() => this._handleLessonSelected(jumpBackLesson.id)}>
-                            <div>
-                                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">${t('student_dashboard.jump_back')}</p>
-                                <h2 class="text-lg md:text-xl font-bold text-slate-900 line-clamp-1 group-hover:text-indigo-600 transition-colors">
-                                    ${jumpBackLesson.title}
-                                </h2>
-                            </div>
-                            <button class="bg-indigo-600 text-white text-sm font-bold px-4 py-2 rounded-full shadow-sm hover:bg-indigo-700 transition-colors flex items-center gap-2">
-                                <span>▶️</span>
-                                <span class="hidden sm:inline">Pokračovat</span>
-                            </button>
-                        </div>
-                    ` : html`
-                         <!-- Empty State -->
-                        <div class="w-full p-8 bg-white border border-slate-200 rounded-xl shadow-sm text-center">
-                            <div class="text-4xl mb-3">🎉</div>
-                            <h3 class="text-lg font-bold text-slate-900">Vše hotovo!</h3>
-                            <p class="text-sm text-slate-500 max-w-[200px] mx-auto mt-1">${t('student.empty_classes')}</p>
-                        </div>
-                    `}
-                </div>
+                <!-- C. Removed separate Jump Back In section -->
 
                 <!-- D. "Next Up" (Real Data) -->
                 <div>

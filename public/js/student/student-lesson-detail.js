@@ -91,6 +91,29 @@ export class StudentLessonDetail extends LitElement {
         }
     }
 
+    _getContentStats(type) {
+        if (!this.lessonData) return '';
+
+        switch (type) {
+            case 'presentation':
+                return (Array.isArray(this.lessonData.presentation) ? this.lessonData.presentation.length : 0) + ' slidů';
+            case 'quiz':
+                return (this.lessonData.quiz && this.lessonData.quiz.questions ? this.lessonData.quiz.questions.length : 0) + ' otázek';
+            case 'test':
+                return (this.lessonData.test && this.lessonData.test.questions ? this.lessonData.test.questions.length : 0) + ' otázek';
+            case 'flashcards':
+                return (Array.isArray(this.lessonData.flashcards) ? this.lessonData.flashcards.length : 0) + ' kartiček';
+            case 'podcast':
+                return '1 epizoda';
+            case 'video':
+                return '1 video';
+            case 'mindmap':
+                return '1 mapa';
+            default:
+                return '';
+        }
+    }
+
     _buildAvailableTabs() {
         // Build tab list with metadata for the Hub
         const tabs = [];
@@ -231,6 +254,7 @@ export class StudentLessonDetail extends LitElement {
                             </div>
 
                             <h3 class="font-bold text-slate-900 mb-1 text-lg group-hover:text-indigo-600 transition-colors">${tab.name}</h3>
+                            ${this._getContentStats(tab.id) ? html`<p class="text-xs opacity-80 mb-2 font-medium text-slate-400">${this._getContentStats(tab.id)}</p>` : ''}
                             <p class="text-sm text-slate-500 mb-4 leading-relaxed">${tab.description}</p>
 
                             <div class="mt-auto pt-2">
