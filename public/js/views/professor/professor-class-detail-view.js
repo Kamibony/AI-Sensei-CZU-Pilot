@@ -1,7 +1,8 @@
-import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { doc, onSnapshot, collection, query, where, updateDoc, arrayUnion, arrayRemove, getDocs, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
+import { translationService } from '../../utils/translation-service.js';
 
 export class ProfessorClassDetailView extends LitElement {
     static properties = {
@@ -12,7 +13,8 @@ export class ProfessorClassDetailView extends LitElement {
         _allLessons: { state: true, type: Array },
         _activeTab: { state: true, type: String },
         _isLoading: { state: true, type: Boolean },
-        _showLessonSelector: { state: true, type: Boolean }
+        _showLessonSelector: { state: true, type: Boolean },
+        _grades: { state: true, type: Array } // Array of submissions
     };
 
     constructor() {
@@ -25,6 +27,7 @@ export class ProfessorClassDetailView extends LitElement {
         this._activeTab = 'students';
         this._isLoading = true;
         this._showLessonSelector = false;
+        this._grades = [];
         this.unsubscribes = [];
     }
 
@@ -35,11 +38,13 @@ export class ProfessorClassDetailView extends LitElement {
         if (this.groupId) {
             this._fetchData();
         }
+        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         this.unsubscribes.forEach(unsub => unsub());
+        if (this._langUnsubscribe) this._langUnsubscribe();
     }
 
     _fetchData() {
@@ -62,8 +67,6 @@ export class ProfessorClassDetailView extends LitElement {
         this.unsubscribes.push(groupUnsubscribe);
 
         // 2. Fetch Assigned Lessons
-        // Note: Firestore array-contains query
-        // Must filter by ownerId to satisfy security rules
         const assignedLessonsQuery = query(
             collection(firebaseInit.db, 'lessons'),
             where("assignedToGroups", "array-contains", this.groupId),
@@ -72,16 +75,15 @@ export class ProfessorClassDetailView extends LitElement {
 
         const lessonsUnsubscribe = onSnapshot(assignedLessonsQuery, (snapshot) => {
             this._assignedLessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            this._fetchGrades(); // Fetch grades when lessons load
         });
         this.unsubscribes.push(lessonsUnsubscribe);
 
         // 3. Fetch All Professor's Lessons (for assignment selector)
-        // We can fetch this once or subscribe. Subscription is safer for real-time.
         const allLessonsQuery = query(
             collection(firebaseInit.db, 'lessons'),
             where("ownerId", "==", user.uid)
         );
-        // We don't necessarily need real-time for the picker list, but let's be consistent
         const allLessonsUnsubscribe = onSnapshot(allLessonsQuery, (snapshot) => {
             this._allLessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         });
@@ -95,24 +97,13 @@ export class ProfessorClassDetailView extends LitElement {
             return;
         }
 
-        // Handle chunking for 'in' query if needed (limit 10), or filter client side if list is huge.
-        // For simplicity and robustness with small classes (<10), we use 'in'.
-        // If > 10, we'll fetch chunks.
-
         const chunks = [];
         const chunkSize = 10;
         for (let i = 0; i < studentIds.length; i += chunkSize) {
             chunks.push(studentIds.slice(i, i + chunkSize));
         }
 
-        // Clear previous student listeners if any (though we re-render usually)
-        // Ideally we should manage these nested listeners better, but for now simple refresh is okay.
-        // Actually, let's just do one-time fetch for students if the list changes to avoid complex nested unsubscribes logic in this refactor,
-        // OR better: use a simpler approach.
-        // Let's implement robust chunked subscription.
-
-        // Reset students array to avoid duplicates on re-subscription
-        let allStudents = new Map(); // Use Map to merge chunks by ID
+        let allStudents = new Map();
 
         this._studentUnsubscribes = this._studentUnsubscribes || [];
         this._studentUnsubscribes.forEach(unsub => unsub());
@@ -124,13 +115,71 @@ export class ProfessorClassDetailView extends LitElement {
                 snapshot.docs.forEach(doc => {
                     allStudents.set(doc.id, { id: doc.id, ...doc.data() });
                 });
-                // Check if any were removed from this specific snapshot (hard in onSnapshot without docChanges analysis)
-                // Simpler: Just rebuild the array from the Map on every update
                 this._students = Array.from(allStudents.values());
+                this._fetchGrades(); // Refresh grades if students load late
                 this._isLoading = false;
             });
             this._studentUnsubscribes.push(unsub);
             this.unsubscribes.push(unsub);
+        });
+    }
+
+    _fetchGrades() {
+        // Only fetch if we have students and lessons
+        if (this._students.length === 0) return;
+
+        // Fetch submissions for all students in this group
+        // We can't filter by group easily in submissions unless we store groupId there (which we might not).
+        // So we query submissions where studentId IN [students list].
+        // Again, chunking apply.
+
+        // Also we want quizzes and tests.
+        // Let's do a simple one-time fetch or snapshot. Snapshot is better.
+
+        const studentIds = this._students.map(s => s.id);
+        const chunks = [];
+        const chunkSize = 10;
+        for (let i = 0; i < studentIds.length; i += chunkSize) {
+            chunks.push(studentIds.slice(i, i + chunkSize));
+        }
+
+        // We need to clear previous listeners?
+        this._gradeUnsubscribes = this._gradeUnsubscribes || [];
+        this._gradeUnsubscribes.forEach(unsub => unsub());
+        this._gradeUnsubscribes = [];
+
+        let allSubmissions = [];
+
+        const updateGrades = () => {
+             this._grades = [...allSubmissions];
+        };
+
+        ['quiz_submissions', 'test_submissions'].forEach(collectionName => {
+             chunks.forEach(chunk => {
+                const q = query(collection(firebaseInit.db, collectionName), where('studentId', 'in', chunk));
+                const unsub = onSnapshot(q, (snapshot) => {
+                    // Filter out old ones from this chunk/collection
+                    // This logic is tricky with multiple listeners pushing to one array.
+                    // Better approach: use a Map key = collection + id
+                    // For simplicity, let's just REPLACE the specific ones in a map-based storage
+                    // Actually, let's use a simpler approach: Just one array, and filter dupes?
+                    // Or a Map of Map: studentId -> lessonId -> score.
+
+                    snapshot.docs.forEach(doc => {
+                        const data = doc.data();
+                        // Find if exists
+                        const existingIndex = allSubmissions.findIndex(s => s.id === doc.id);
+                        if (existingIndex >= 0) {
+                            allSubmissions[existingIndex] = { id: doc.id, ...data, type: collectionName };
+                        } else {
+                            allSubmissions.push({ id: doc.id, ...data, type: collectionName });
+                        }
+                    });
+                    updateGrades();
+                });
+                this._gradeUnsubscribes.push(unsub);
+                this.unsubscribes.push(unsub);
+             });
         });
     }
 
@@ -150,7 +199,6 @@ export class ProfessorClassDetailView extends LitElement {
     }
 
     async _handleDeleteClass() {
-        // Smart Delete Logic
         try {
             const lessonsQuery = query(
                 collection(firebaseInit.db, 'lessons'),
@@ -166,7 +214,6 @@ export class ProfessorClassDetailView extends LitElement {
 
                 const batch = writeBatch(firebaseInit.db);
 
-                // Unlink lessons
                 snapshot.docs.forEach(docSnapshot => {
                     const lessonRef = doc(firebaseInit.db, 'lessons', docSnapshot.id);
                     batch.update(lessonRef, {
@@ -174,7 +221,6 @@ export class ProfessorClassDetailView extends LitElement {
                     });
                 });
 
-                // Delete group
                 const groupRef = doc(firebaseInit.db, 'groups', this.groupId);
                 batch.delete(groupRef);
 
@@ -182,7 +228,6 @@ export class ProfessorClassDetailView extends LitElement {
 
             } else {
                  if (!confirm("Opravdu chcete tuto třídu SMAZAT? Tato akce je nevratná.")) return;
-                 // Simple delete if no lessons
                  await deleteDoc(doc(firebaseInit.db, 'groups', this.groupId));
             }
 
@@ -201,9 +246,6 @@ export class ProfessorClassDetailView extends LitElement {
                 await updateDoc(doc(firebaseInit.db, 'groups', this.groupId), {
                     studentIds: arrayRemove(studentId)
                 });
-                // Note: The student's 'memberOfGroups' should also be updated.
-                // Ideally via Cloud Function or batch write if we have permission.
-                // Assuming backend rules or triggers handle consistency, or we do best effort here.
                 showToast("Student byl odebrán ze třídy.");
             } catch (e) {
                 console.error(e);
@@ -243,7 +285,7 @@ export class ProfessorClassDetailView extends LitElement {
 
     _navigateBack() {
         this.dispatchEvent(new CustomEvent('navigate', {
-            detail: { view: 'classes' }, // Go back to Classes Hub
+            detail: { view: 'classes' },
             bubbles: true,
             composed: true
         }));
@@ -251,7 +293,7 @@ export class ProfessorClassDetailView extends LitElement {
 
     render() {
         if (this._isLoading && !this._group) {
-            return html`<div class="flex justify-center items-center h-full"><p class="text-xl text-slate-500">Načítám...</p></div>`;
+            return html`<div class="flex justify-center items-center h-full"><p class="text-xl text-slate-500">${translationService.t('common.loading')}</p></div>`;
         }
 
         if (!this._group) {
@@ -265,7 +307,7 @@ export class ProfessorClassDetailView extends LitElement {
                     <div class="flex items-center justify-between mb-4">
                         <button @click=${this._navigateBack} class="text-slate-500 hover:text-indigo-600 flex items-center transition-colors">
                             <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                            Zpět na přehled
+                            ${translationService.t('common.back')}
                         </button>
                         <div class="flex space-x-2">
                              <button @click=${this._handleRenameClass} class="p-2 text-slate-400 hover:text-indigo-600 rounded-full hover:bg-slate-100" title="Přejmenovat">
@@ -285,7 +327,7 @@ export class ProfessorClassDetailView extends LitElement {
                                     <code class="bg-slate-100 px-2 py-0.5 rounded font-mono font-bold text-slate-700">${this._group.joinCode}</code>
                                 </div>
                                 <div class="text-slate-400 text-sm">|</div>
-                                <div class="text-slate-500 text-sm">${this._students.length} Studentů</div>
+                                <div class="text-slate-500 text-sm">${this._students.length} ${translationService.t('common.students_count')}</div>
                             </div>
                         </div>
                     </div>
@@ -296,11 +338,15 @@ export class ProfessorClassDetailView extends LitElement {
                     <nav class="flex space-x-8">
                         <button @click=${() => this._activeTab = 'students'}
                                 class="${this._activeTab === 'students' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'} py-4 border-b-2 font-medium transition-colors flex items-center">
-                            <span class="mr-2">👥</span> Studenti
+                            <span class="mr-2">👥</span> ${translationService.t('nav.students')}
                         </button>
                         <button @click=${() => this._activeTab = 'lessons'}
                                 class="${this._activeTab === 'lessons' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'} py-4 border-b-2 font-medium transition-colors flex items-center">
-                            <span class="mr-2">📚</span> Lekce
+                            <span class="mr-2">📚</span> ${translationService.t('professor.stats_lessons')}
+                        </button>
+                        <button @click=${() => this._activeTab = 'grades'}
+                                class="${this._activeTab === 'grades' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'} py-4 border-b-2 font-medium transition-colors flex items-center">
+                            <span class="mr-2">📊</span> ${translationService.t('class.tab_grades')}
                         </button>
                     </nav>
                 </div>
@@ -308,7 +354,9 @@ export class ProfessorClassDetailView extends LitElement {
                 <!-- Tab Content -->
                 <div class="flex-grow overflow-y-auto p-6">
                     <div class="max-w-5xl mx-auto">
-                        ${this._activeTab === 'students' ? this._renderStudentsTab() : this._renderLessonsTab()}
+                        ${this._activeTab === 'students' ? this._renderStudentsTab() :
+                          this._activeTab === 'lessons' ? this._renderLessonsTab() :
+                          this._renderGradesTab()}
                     </div>
                 </div>
 
@@ -323,8 +371,7 @@ export class ProfessorClassDetailView extends LitElement {
             return html`
                 <div class="text-center p-12 bg-white rounded-2xl shadow-sm border border-slate-100">
                     <div class="text-slate-300 text-5xl mb-4">👥</div>
-                    <h3 class="text-lg font-bold text-slate-700">Žádní studenti</h3>
-                    <p class="text-slate-500">V této třídě zatím nejsou zapsáni žádní studenti.</p>
+                    <h3 class="text-lg font-bold text-slate-700">${translationService.t('students_view.none_registered')}</h3>
                 </div>
             `;
         }
@@ -334,7 +381,7 @@ export class ProfessorClassDetailView extends LitElement {
                 <table class="min-w-full divide-y divide-slate-200">
                     <thead class="bg-slate-50">
                         <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Jméno</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">${translationService.t('auth.email_label')}</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Email</th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Akce</th>
                         </tr>
@@ -343,7 +390,7 @@ export class ProfessorClassDetailView extends LitElement {
                         ${this._students.map(student => html`
                             <tr>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-slate-900">${student.name || 'Neznámé jméno'}</div>
+                                    <div class="text-sm font-medium text-slate-900">${student.name || translationService.t('students_view.name_missing')}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-slate-500">${student.email || '---'}</div>
@@ -383,7 +430,7 @@ export class ProfessorClassDetailView extends LitElement {
                                         </div>
                                         <div>
                                             <h3 class="font-bold text-slate-800">${lesson.title}</h3>
-                                            <p class="text-xs text-slate-500">${lesson.topic || 'Bez tématu'}</p>
+                                            <p class="text-xs text-slate-500">${lesson.subtitle || ''}</p>
                                         </div>
                                     </div>
                                     <button @click=${() => this._removeLessonAssignment(lesson.id)} class="text-slate-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors" title="Odebrat lekci">
@@ -398,8 +445,77 @@ export class ProfessorClassDetailView extends LitElement {
         `;
     }
 
+    _renderGradesTab() {
+        const t = (key) => translationService.t(key);
+
+        // Filter lessons that have quiz or test
+        const gradableLessons = this._assignedLessons.filter(l => l.quiz || l.test);
+
+        if (gradableLessons.length === 0) {
+             return html`
+                <div class="text-center p-12 bg-white rounded-2xl shadow-sm border border-slate-100">
+                    <div class="text-slate-300 text-5xl mb-4">📊</div>
+                    <h3 class="text-lg font-bold text-slate-700">${t('class.no_grades')}</h3>
+                    <p class="text-slate-500">Žádné přiřazené lekce nemají testy nebo kvízy.</p>
+                </div>
+            `;
+        }
+
+        return html`
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-50 z-10 border-r border-slate-200">
+                                ${t('class.table_student')}
+                            </th>
+                            ${gradableLessons.map(lesson => html`
+                                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider min-w-[120px]">
+                                    ${lesson.title}
+                                </th>
+                            `)}
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-slate-200">
+                        ${this._students.map(student => html`
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 whitespace-nowrap sticky left-0 bg-white border-r border-slate-200 font-medium text-slate-900">
+                                    ${student.name || t('students_view.name_missing')}
+                                </td>
+                                ${gradableLessons.map(lesson => {
+                                    // Find submission for this student and lesson
+                                    // There could be multiple (quiz + test), let's average or show both?
+                                    // Simplification: Show the highest Score found for this lessonId
+                                    const submissions = this._grades.filter(g => g.studentId === student.id && g.lessonId === lesson.id);
+
+                                    if (submissions.length === 0) {
+                                        return html`<td class="px-6 py-4 text-center text-slate-300">-</td>`;
+                                    }
+
+                                    // Calc score
+                                    // Submissions have 'score' (percentage) usually
+                                    const bestScore = Math.max(...submissions.map(s => s.score || 0));
+
+                                    let colorClass = "text-slate-600";
+                                    if (bestScore >= 90) colorClass = "text-green-600 font-bold";
+                                    else if (bestScore >= 70) colorClass = "text-indigo-600";
+                                    else if (bestScore < 50) colorClass = "text-red-500";
+
+                                    return html`
+                                        <td class="px-6 py-4 text-center ${colorClass}">
+                                            ${Math.round(bestScore)}%
+                                        </td>
+                                    `;
+                                })}
+                            </tr>
+                        `)}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
     _renderLessonSelector() {
-        // Filter out already assigned lessons
         const availableLessons = this._allLessons.filter(l =>
             !l.assignedToGroups || !l.assignedToGroups.includes(this.groupId)
         );
@@ -421,7 +537,7 @@ export class ProfessorClassDetailView extends LitElement {
                                     <div class="flex justify-between items-center">
                                         <div>
                                             <h4 class="font-bold text-slate-700 group-hover:text-indigo-700">${lesson.title}</h4>
-                                            <p class="text-sm text-slate-500">${lesson.topic || 'Bez tématu'}</p>
+                                            <p class="text-sm text-slate-500">${lesson.subtitle || ''}</p>
                                         </div>
                                         <span class="text-indigo-600 opacity-0 group-hover:opacity-100 font-medium text-sm transition-opacity">Přiřadit &rarr;</span>
                                     </div>

@@ -93,6 +93,8 @@
     "stats_created": "Criado",
     "stats_cards": "cartões",
     "unknown_type": "Tipo de conteúdo desconhecido",
+    "status_draft": "Rascunho",
+    "status_published": "Publicado",
     "modal_error_elements": "Elementos ausentes para janela modal.",
     "modal_error_load": "Erro: Falha ao carregar componente de seleção de arquivos.",
     "no_files_selected": "Nenhum arquivo selecionado.",
@@ -246,7 +248,8 @@
     "play": "Reproduzir",
     "pause": "Pausar",
     "resume": "Continuar",
-    "playback_error": "Erro na reprodução."
+    "playback_error": "Erro na reprodução.",
+    "progress_label": "Seu progresso"
   },
   "student_dashboard": {
     "jump_back": "Continuar na aula",
@@ -337,5 +340,11 @@
     "click_to_select": "Clique para selecionar arquivo",
     "supported_format": "Formato suportado: PDF",
     "uploaded_files": "Arquivos enviados"
+  },
+  "class": {
+    "tab_grades": "Resultados",
+    "table_student": "Aluno",
+    "table_score": "Pontuação",
+    "no_grades": "Sem notas ainda"
   }
 }
