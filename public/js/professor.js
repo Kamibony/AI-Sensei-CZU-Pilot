@@ -50,6 +50,11 @@ export async function initProfessorApp(user) {
     // Pôvodný kód na inicializáciu aplikácie
     roleContentWrapper.innerHTML = `<professor-app></professor-app>`;
     
+    // Inject the new navigation component into #main-nav
+    // This is handled inside ProfessorApp.firstUpdated(), but we can also ensure it here if needed.
+    // However, sticking to the existing pattern of ProfessorApp handling its setup is safer.
+    // See ProfessorApp.firstUpdated() in public/js/views/professor/professor-app.js
+
     // Tento log sa teraz zobrazí po diagnostike
     console.log("Professor app initialized for user:", user.uid);
 }

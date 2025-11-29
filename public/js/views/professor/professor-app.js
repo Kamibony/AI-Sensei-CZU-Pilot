@@ -13,6 +13,7 @@ import './professor-student-profile-view.js';
 import './professor-interactions-view.js';
 import './professor-analytics-view.js';
 import './admin-user-management-view.js';
+import './app-navigation.js'; // New Navigation Component
 
 // New Class-Centric Views
 import './professor-dashboard-view.js';
@@ -57,7 +58,28 @@ export class ProfessorApp extends LitElement {
     }
 
     firstUpdated() {
-        setupProfessorNav(this._showProfessorContent.bind(this));
+        // We no longer use setupProfessorNav with the old innerHTML method.
+        // Instead, we mount the new <app-navigation> into #main-nav
+        const navContainer = document.getElementById('main-nav');
+        if (navContainer) {
+            navContainer.innerHTML = '<app-navigation></app-navigation>';
+            // Listen for events from the nav component which will bubble up if we attach listener to document/window or the nav itself
+            // Since <app-navigation> is in #main-nav (outside this component), events won't bubble to this component naturally via shadow DOM composition if strictly separate.
+            // But 'navigate' event is composed: true, bubbles: true.
+            // However, #main-nav is a sibling of #role-content-wrapper (where this app lives).
+            // Events bubble up the DOM tree. #main-nav -> body -> window.
+            // ProfessorApp is in #role-content-wrapper -> body -> window.
+            // So ProfessorApp won't see the event unless it listens on window/document.
+
+            // Wait, I already added `this.addEventListener('navigate', ...)` in connectedCallback.
+            // But `this` is ProfessorApp.
+            // The event originates in #main-nav.
+            // So I need to listen on window or document.
+        }
+
+        // Add global listener for navigation from outside
+        window.addEventListener('navigate', this._handleNavigation.bind(this));
+
         const logoutBtn = document.getElementById('logout-btn-nav');
         if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
     }
@@ -89,6 +111,12 @@ export class ProfessorApp extends LitElement {
     }
 
     _handleNavigation(e) {
+        // Update the navigation component active state if it exists
+        const nav = document.querySelector('app-navigation');
+        if (nav) {
+            nav.activeView = e.detail.view;
+        }
+
         const { view, ...data } = e.detail;
         this._showProfessorContent(view, data);
     }
@@ -135,7 +163,9 @@ export class ProfessorApp extends LitElement {
                 </aside>
 
                 <div class="flex-grow flex flex-col h-full overflow-hidden">
-                    <professor-header></professor-header>
+                    <!-- professor-header removed for dashboard view as it now has its own topbar -->
+                    ${this._currentView !== 'dashboard' ? html`<professor-header></professor-header>` : ''}
+
                     <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-full overflow-hidden">
                         ${this._renderMainContent()}
                     </main>
