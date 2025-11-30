@@ -86,6 +86,14 @@ export class ProfessorDashboardView extends LitElement {
                 this._isLoading = false;
             });
             this.unsubscribes.push(lessonsUnsubscribe);
+
+            // Safety timeout: If data fetching takes too long (e.g. emulator issues), force loading to false
+            setTimeout(() => {
+                if (this._isLoading) {
+                    console.warn("Dashboard: Data fetch timed out or stalled. Forcing UI render.");
+                    this._isLoading = false;
+                }
+            }, 2500);
         });
 
         // Add auth listener to unsubscribes so it gets cleaned up on disconnect
@@ -106,6 +114,18 @@ export class ProfessorDashboardView extends LitElement {
             bubbles: true,
             composed: true
         }));
+    }
+
+    _navigate(view) {
+        this.dispatchEvent(new CustomEvent('navigate', {
+            detail: { view },
+            bubbles: true,
+            composed: true
+        }));
+    }
+
+    _handleLogout() {
+        handleLogout();
     }
 
     _generateJoinCode() {
@@ -172,171 +192,133 @@ export class ProfessorDashboardView extends LitElement {
         return html`
             <style>
                 ${baseStyles.cssText}
+
+                /* Custom overrides for dashboard polish */
+                .dashboard-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 24px 32px;
+                    background: #fff;
+                    border-bottom: 1px solid #e2e8f0;
+                }
+                .dashboard-content {
+                    padding: 32px;
+                    max-width: 1400px;
+                    margin: 0 auto;
+                }
             </style>
-            <main class="main">
-                <header class="topbar">
-                    <div class="topbar-left">
-                        <div class="topbar-title-row">
-                            <div class="topbar-title">Učitelský panel</div>
-                            <span style="font-size:13px;color:var(--text-muted);">Dobré ráno, ${userName} 👋</span>
-                        </div>
-                        <div class="topbar-sub">Zde máte rychlý přehled a akce pro dnešní den.</div>
+
+            <header class="dashboard-header">
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-800">Učitelský panel</h1>
+                    <p class="text-sm text-slate-500 mt-1">Dobré ráno, ${userName} 👋</p>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <div class="hidden md:flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full border border-green-200 text-xs font-medium">
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        <span>Systém je online</span>
                     </div>
 
-                    <div class="topbar-right">
-                        <div class="status-pill">
-                            <span class="status-dot"></span>
-                            <span>Systém je online</span>
-                        </div>
+                    <div class="relative flex items-center gap-3">
+                         <div class="flex items-center gap-2 cursor-pointer bg-slate-50 hover:bg-slate-100 px-3 py-2 rounded-full border border-slate-200 transition-colors">
+                            <span class="text-xl">🇨🇿</span>
+                            <span class="text-sm font-medium text-slate-700">Čeština</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                         </div>
+                    </div>
 
-                        <div class="topbar-controls">
-                            <select class="lang-select-top" @change=${this._handleLanguageChange}>
-                                <option value="cs" ?selected=${translationService.currentLanguage === 'cs'}>Čeština</option>
-                                <option value="sk" ?selected=${translationService.currentLanguage === 'sk'}>Slovenčina</option>
-                                <option value="en" ?selected=${translationService.currentLanguage === 'en'}>English</option>
-                                <option value="pt-br" ?selected=${translationService.currentLanguage === 'pt-br'}>Português</option>
-                            </select>
+                    <button @click=${this._handleLogout} class="px-4 py-2 rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all flex items-center gap-2">
+                        <span>⏏️</span> <span>Odhlásit</span>
+                    </button>
+                </div>
+            </header>
 
-                            <button class="logout-top" @click=${handleLogout}>
-                                <span>⏏</span>
-                                <span>Odhlásit se</span>
-                            </button>
+            <div class="dashboard-content">
 
-                            <div class="user-badge">
-                                <div class="user-avatar">${userName.charAt(0).toUpperCase()}</div>
-                                <div>${user?.email}</div>
+                <section class="mb-10">
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Přehled managementu</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                        <div class="stat-card cursor-pointer hover:shadow-md transition-shadow" @click=${() => this._navigate('students')}>
+                            <div class="stat-top">
+                                <div class="stat-icon bg-blue-50 text-blue-600 rounded-xl w-10 h-10 flex items-center justify-center text-xl">👤</div>
+                                <div class="stat-label text-slate-500 font-medium">Studenti</div>
+                            </div>
+                            <div class="stat-value text-3xl font-bold text-slate-800 mt-2">${this._stats.totalStudents}</div>
+                            <div class="stat-footer text-xs text-slate-400 mt-2 flex justify-between">
+                                <span>Aktivní ve vašich třídách</span>
+                                <span class="text-indigo-600 font-medium hover:underline">Otevřít →</span>
                             </div>
                         </div>
-                    </div>
-                </header>
 
-                <section class="quick-actions">
-                    <div class="qa-main">
-                        <button class="btn-primary" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor' }, bubbles: true, composed: true }))}>
-                            <span class="icon">✨</span>
-                            <span>Nová lekce z PDF</span>
-                        </button>
-                        <button class="btn-ghost" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'classes' }, bubbles: true, composed: true }))}>
-                            <span>🧑‍🏫</span>
-                            <span>Otevřít Moje třídy</span>
-                        </button>
-                        <button class="btn-ghost" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'timeline' }, bubbles: true, composed: true }))}>
-                            <span>📚</span>
-                            <span>Knihovna lekcí</span>
-                        </button>
-                    </div>
-                    <div class="qa-hint">
-                        Tip: Nahrajte PDF a nechte AI Sensei během pár vteřin vytvořit hotovou lekci.
+                        <div class="stat-card cursor-pointer hover:shadow-md transition-shadow" @click=${() => this._navigate('classes')}>
+                            <div class="stat-top">
+                                <div class="stat-icon bg-purple-50 text-purple-600 rounded-xl w-10 h-10 flex items-center justify-center text-xl">🧑‍🏫</div>
+                                <div class="stat-label text-slate-500 font-medium">Třídy</div>
+                            </div>
+                            <div class="stat-value text-3xl font-bold text-slate-800 mt-2">${this._stats.totalClasses}</div>
+                            <div class="stat-footer text-xs text-slate-400 mt-2 flex justify-between">
+                                <span>Během tohoto semestru</span>
+                                <span class="text-indigo-600 font-medium hover:underline">Spravovat →</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card cursor-pointer hover:shadow-md transition-shadow" @click=${() => this._navigate('timeline')}>
+                            <div class="stat-top">
+                                <div class="stat-icon bg-amber-50 text-amber-600 rounded-xl w-10 h-10 flex items-center justify-center text-xl">📖</div>
+                                <div class="stat-label text-slate-500 font-medium">Lekce</div>
+                            </div>
+                            <div class="stat-value text-3xl font-bold text-slate-800 mt-2">${this._stats.totalLessons}</div>
+                            <div class="stat-footer text-xs text-slate-400 mt-2 flex justify-between">
+                                <span>V knihovně lekcí</span>
+                                <span class="text-indigo-600 font-medium hover:underline">Knihovna →</span>
+                            </div>
+                        </div>
+
                     </div>
                 </section>
 
-                <section class="grid">
-                    <section>
-                        <div class="card">
-                            <div class="card-header">
-                                <div>
-                                    <div class="card-title">Přehled managementu</div>
-                                    <div class="card-subtitle">Rychlý přístup ke studentům, třídám a lekcím.</div>
-                                </div>
+                <section>
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Tvůrčí studio</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+                        <div @click=${() => this._navigate('editor')} class="group cursor-pointer p-6 rounded-3xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all relative overflow-hidden">
+                            <div class="relative z-10">
+                                <div class="text-3xl mb-3">✨</div>
+                                <h3 class="text-lg font-bold">Magická lekce</h3>
+                                <p class="text-indigo-100 text-xs mt-1">Vytvořit z PDF pomocí AI</p>
                             </div>
-
-                            <div class="management-grid">
-                                <div class="stat-card" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'students' }, bubbles: true, composed: true }))}>
-                                    <div class="stat-top">
-                                        <div class="stat-icon">👤</div>
-                                        <div class="stat-label">Studenti</div>
-                                    </div>
-                                    <div class="stat-value">${this._stats.totalStudents}</div>
-                                    <div class="stat-footer">
-                                        <span>Aktivní ve vašich třídách</span>
-                                        <span class="link-inline">Otevřít studenty →</span>
-                                    </div>
-                                </div>
-
-                                <div class="stat-card" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'classes' }, bubbles: true, composed: true }))}>
-                                    <div class="stat-top">
-                                        <div class="stat-icon">🧑‍🏫</div>
-                                        <div class="stat-label">Třídy</div>
-                                    </div>
-                                    <div class="stat-value">${this._stats.totalClasses}</div>
-                                    <div class="stat-footer">
-                                        <span>Během tohoto semestru</span>
-                                        <span class="link-inline">Moje třídy →</span>
-                                    </div>
-                                </div>
-
-                                <div class="stat-card" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'timeline' }, bubbles: true, composed: true }))}>
-                                    <div class="stat-top">
-                                        <div class="stat-icon">📖</div>
-                                        <div class="stat-label">Lekce</div>
-                                    </div>
-                                    <div class="stat-value">${this._stats.totalLessons}</div>
-                                    <div class="stat-footer">
-                                        <span>V knihovně lekcí</span>
-                                        <span class="link-inline">Knihovna lekcí →</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Add Create Class Button directly here for visibility -->
-                            <div class="mt-6 flex justify-end">
-                                <button class="btn-ghost" @click=${this._openCreateClassModal}>
-                                    <span>+</span>
-                                    <span>Vytvořit třídu</span>
-                                </button>
-                            </div>
+                            <div class="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-xl group-hover:scale-150 transition-transform duration-700"></div>
                         </div>
-                    </section>
 
-                    <aside>
-                        <div class="lesson-flow-card">
-                            <div class="flow-badge">Tvůrčí studio</div>
-                            <div>
-                                <div class="lesson-title">Nová Lekce</div>
-                                <div class="lesson-sub">Automatizovaná tvorba pomocí AI – od PDF k hotové lekci.</div>
-                            </div>
-
-                            <div class="flow-steps">
-                                <div class="flow-step badge">
-                                    <div class="flow-icon">📄</div>
-                                    <div>
-                                        <div class="flow-label">Vstup</div>
-                                        <div class="flow-main">PDF Dokumenty</div>
-                                        <div class="flow-desc">Nahrajte prezentaci, skripta nebo pracovní list.</div>
-                                    </div>
-                                </div>
-
-                                <div class="flow-step">
-                                    <div class="flow-icon">⚡</div>
-                                    <div>
-                                        <div class="flow-label">Proces</div>
-                                        <div class="flow-main">AI Generování</div>
-                                        <div class="flow-desc">AI Sensei vytvoří strukturovanou lekci, aktivity a otázky.</div>
-                                    </div>
-                                </div>
-
-                                <div class="flow-step result">
-                                    <div class="flow-icon result">🎓</div>
-                                    <div>
-                                        <div class="flow-label">Výsledek</div>
-                                        <div class="flow-main">Hotová Lekce</div>
-                                        <div class="flow-desc">Lekce připravená k použití ve vaší třídě nebo online.</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="flow-divider"></div>
-
-                            <button class="btn-primary btn-primary-wide" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor' }, bubbles: true, composed: true }))}>
-                                <span class="icon">✨</span>
-                                <span>Magicky vygenerovat vše</span>
-                            </button>
+                        <div @click=${() => this._navigate('editor')} class="cursor-pointer p-6 rounded-3xl bg-white border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-200 hover:-translate-y-1 transition-all">
+                            <div class="text-3xl mb-3">🛠️</div>
+                            <h3 class="text-lg font-bold text-slate-800">Manuální tvorba</h3>
+                            <p class="text-slate-400 text-xs mt-1">Prázdný editor</p>
                         </div>
-                    </aside>
+
+                        <div @click=${() => this._navigate('timeline')} class="cursor-pointer p-6 rounded-3xl bg-white border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-200 hover:-translate-y-1 transition-all">
+                            <div class="text-3xl mb-3">📚</div>
+                            <h3 class="text-lg font-bold text-slate-800">Knihovna</h3>
+                            <p class="text-slate-400 text-xs mt-1">Moje uložené lekce</p>
+                        </div>
+
+                        <div @click=${() => this._navigate('media')} class="cursor-pointer p-6 rounded-3xl bg-white border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-200 hover:-translate-y-1 transition-all">
+                            <div class="text-3xl mb-3">📂</div>
+                            <h3 class="text-lg font-bold text-slate-800">Média & Soubory</h3>
+                            <p class="text-slate-400 text-xs mt-1">Správce souborů</p>
+                        </div>
+
+                    </div>
                 </section>
 
-                ${this._renderCreateClassModal(t)}
-            </main>
+            </div>
+
+            ${this._renderCreateClassModal(t)}
         `;
     }
 

@@ -1,5 +1,4 @@
-// public/js/views/professor/professor-app.js
-import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { collection, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Importy komponentov
@@ -34,6 +33,39 @@ export class ProfessorApp extends LitElement {
         _sidebarVisible: { state: true, type: Boolean },
     };
 
+    static styles = css`
+        :host {
+            display: block;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .app-layout {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            height: 100%;
+            gap: 0;
+        }
+        aside {
+            height: 100%;
+            overflow: hidden;
+        }
+        .content-area {
+            display: flex;
+            flex-direction: row; /* Internal layout */
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+        #main-content-area {
+            flex-grow: 1;
+            background-color: #f8fafc; /* slate-50 */
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+    `;
+
     constructor() {
         super();
         this._currentView = 'dashboard'; // Default to the new dashboard
@@ -41,6 +73,21 @@ export class ProfessorApp extends LitElement {
         this._lessonsData = [];
         this._sidebarVisible = false; // Dashboard is full-width
     }
+
+    // createRenderRoot removed to use Shadow DOM and static styles properly for the layout
+    // But wait, if I remove createRenderRoot, I lose global styles inheritance (Tailwind).
+    // The prompt implies I should "Ensure the main container... uses a tight Grid layout".
+    // If I use Shadow DOM, I need to be careful about Tailwind.
+    // However, the prompt specifically gave a CSS suggestion with :host.
+    // If I keep createRenderRoot, :host doesn't work the same way (it works if style is added to document/head or inline).
+    // But existing code uses `createRenderRoot() { return this; }`.
+    // If I keep `createRenderRoot`, I should put the styles in a <style> tag in render, or rely on classes.
+    // Tailwind doesn't have a grid-template-columns: 260px 1fr utility by default (arbitrary values: grid-cols-[260px_1fr]).
+
+    // Let's stick to createRenderRoot returning this, and use inline styles or a style tag, to avoid breaking everything else.
+    // The prompt gave CSS Suggestion with :host, which implies Shadow DOM, BUT the existing file uses createRenderRoot.
+    // If I switch to Shadow DOM, I might break Tailwind.
+    // I will keep createRenderRoot and use inline style for the grid to be safe and strictly follow "grid-template-columns: 260px 1fr".
 
     createRenderRoot() { return this; }
 
@@ -58,23 +105,10 @@ export class ProfessorApp extends LitElement {
     }
 
     firstUpdated() {
-        // We no longer use setupProfessorNav with the old innerHTML method.
-        // Instead, we mount the new <app-navigation> into #main-nav
+        // Hide external main-nav to avoid duplication as we render it internally now
         const navContainer = document.getElementById('main-nav');
         if (navContainer) {
-            navContainer.innerHTML = '<app-navigation></app-navigation>';
-            // Listen for events from the nav component which will bubble up if we attach listener to document/window or the nav itself
-            // Since <app-navigation> is in #main-nav (outside this component), events won't bubble to this component naturally via shadow DOM composition if strictly separate.
-            // But 'navigate' event is composed: true, bubbles: true.
-            // However, #main-nav is a sibling of #role-content-wrapper (where this app lives).
-            // Events bubble up the DOM tree. #main-nav -> body -> window.
-            // ProfessorApp is in #role-content-wrapper -> body -> window.
-            // So ProfessorApp won't see the event unless it listens on window/document.
-
-            // Wait, I already added `this.addEventListener('navigate', ...)` in connectedCallback.
-            // But `this` is ProfessorApp.
-            // The event originates in #main-nav.
-            // So I need to listen on window or document.
+            navContainer.style.display = 'none';
         }
 
         // Add global listener for navigation from outside
@@ -112,7 +146,7 @@ export class ProfessorApp extends LitElement {
 
     _handleNavigation(e) {
         // Update the navigation component active state if it exists
-        const nav = document.querySelector('app-navigation');
+        const nav = this.querySelector('app-navigation');
         if (nav) {
             nav.activeView = e.detail.view;
         }
@@ -154,21 +188,43 @@ export class ProfessorApp extends LitElement {
     }
 
     render() {
-        // Changed: Added pl-64 to accommodate the fixed sidebar
         return html`
-            <div id="dashboard-professor" class="pl-64 w-full flex flex-row main-view active h-screen overflow-hidden">
-                <aside id="professor-sidebar"
-                       class="w-full md:w-80 lg:w-96 bg-slate-100 border-r border-slate-200 flex-col flex-shrink-0 h-full ${this._sidebarVisible ? 'flex' : 'hidden'} overflow-hidden z-10">
-                    ${this._renderSidebar()}
+            <style>
+                :host {
+                    display: block;
+                    height: 100vh;
+                    overflow: hidden;
+                }
+                .app-layout {
+                    display: grid;
+                    grid-template-columns: 260px 1fr;
+                    height: 100%;
+                    gap: 0;
+                }
+            </style>
+            <div id="dashboard-professor" class="app-layout">
+
+                <!-- Main Navigation Sidebar -->
+                <aside class="h-full bg-white border-r border-slate-200 z-20 overflow-hidden">
+                    <app-navigation .activeView=${this._currentView}></app-navigation>
                 </aside>
 
-                <div class="flex-grow flex flex-col h-full overflow-hidden">
-                    <!-- professor-header removed for dashboard view as it now has its own topbar -->
-                    ${this._currentView !== 'dashboard' ? html`<professor-header></professor-header>` : ''}
+                <!-- Main Content Area (including internal sidebar) -->
+                <div class="flex flex-row h-full overflow-hidden relative">
 
-                    <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-full overflow-hidden">
-                        ${this._renderMainContent()}
-                    </main>
+                    <aside id="professor-sidebar"
+                           class="w-full md:w-80 lg:w-96 bg-slate-100 border-r border-slate-200 flex-col flex-shrink-0 h-full ${this._sidebarVisible ? 'flex' : 'hidden'} overflow-hidden z-10">
+                        ${this._renderSidebar()}
+                    </aside>
+
+                    <div class="flex-grow flex flex-col h-full overflow-hidden">
+                        <!-- professor-header removed for dashboard view as it now has its own topbar -->
+                        ${this._currentView !== 'dashboard' ? html`<professor-header></professor-header>` : ''}
+
+                        <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-full overflow-hidden">
+                            ${this._renderMainContent()}
+                        </main>
+                    </div>
                 </div>
             </div>
         `;
