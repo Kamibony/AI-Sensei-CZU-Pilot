@@ -1,6 +1,4 @@
 // Súbor: public/js/student.js
-// Tento súbor je teraz "kontrolór" alebo "router" pre študentskú sekciu.
-
 import { doc, onSnapshot, setDoc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { showToast } from './utils.js';
@@ -17,32 +15,25 @@ import './views/student/student-dashboard-view.js';
 // Globálny stav pre študentskú sekciu
 let studentDataUnsubscribe = null;
 let currentUserData = null;
-let currentView = 'loading'; // 'loading', 'promptForName', 'home', 'courses', 'chat', 'profile', 'lessonDetail'
+let currentView = 'loading'; 
 let selectedLessonId = null;
-let previousView = 'home'; // For back navigation from detail
+let previousView = 'home';
 
-let mainContentElement = null; // Odkaz na hlavný kontajner
 let roleContentWrapper = null;
 let mainNav = null;
 let mobileBottomNav = null;
 
-// --- JEDINÁ ZMENA: PREMENOVANIE FUNKCIE ---
 export async function initStudentApp() {
-// -----------------------------------------
     const user = firebaseInit.auth.currentUser;
     if (!user) {
         console.error("Kritická chyba: initStudentApp bol spustený bez prihláseného používateľa!");
-        document.getElementById('app-container').innerHTML = `<p class="p-8 text-center text-red-600">Nastala kritická chyba pri prihlasovaní. Skúste obnoviť stránku.</p>`;
         return;
     }
 
-    // Init translation
     await translationService.init();
 
-    // Subscribe to language changes to re-render nav
     translationService.subscribe(() => {
-        renderStudentLayout(); // Re-render navs
-        // Re-render content if needed
+        renderStudentLayout();
         renderAppContent();
     });
 
@@ -57,20 +48,14 @@ export async function initStudentApp() {
             if (!currentUserData.name || currentUserData.name.trim() === '') {
                 currentView = 'promptForName';
             } else {
-                // Initial state logic
                 if (currentView === 'loading' || currentView === 'promptForName') {
                     currentView = 'home';
                 }
             }
             
-            // Render basic layout if needed
             renderStudentLayout();
-            
-            // Update Navigation UI state
-            updateNavigationState();
-
-            // Render current view
             renderAppContent();
+            updateNavigationState();
 
         } else {
             console.warn(`Profil pre študenta s UID ${user.uid} nebol nájdený. Vytváram nový...`);
@@ -82,8 +67,6 @@ export async function initStudentApp() {
                     name: '',
                     telegramLinkToken: token
                 });
-                console.log(`Profil pre študenta ${user.uid} bol úspešne vytvorený.`);
-                // onSnapshot sa spustí znova a nastaví currentView na 'promptForName'
             } catch (error) {
                 console.error("Nepodarilo sa automaticky vytvoriť profil študenta:", error);
             }
@@ -97,55 +80,46 @@ export function cleanupStudentDashboard() {
     if (studentDataUnsubscribe) {
         studentDataUnsubscribe();
         studentDataUnsubscribe = null;
-        console.log("Student dashboard listener cleaned up.");
     }
     if (window.speechSynthesis && window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
-        console.log("Speech synthesis cancelled on cleanup.");
     }
 
-    // Cleanup DOM references
-    mainContentElement = null;
     roleContentWrapper = null;
     mainNav = null;
     mobileBottomNav = null;
-
     currentView = 'loading';
     selectedLessonId = null;
 }
 
 function renderStudentLayout() {
-    // Use existing template elements from index.html
     roleContentWrapper = document.getElementById('role-content-wrapper');
     mainNav = document.getElementById('main-nav');
     mobileBottomNav = document.getElementById('mobile-bottom-nav');
 
-    if (!roleContentWrapper || !mainNav || !mobileBottomNav) {
-        console.error("Missing critical layout elements in index.html");
-        return;
-    }
+    if (!roleContentWrapper || !mainNav || !mobileBottomNav) return;
     
-    // Mark as initialized to prevent re-rendering layout on every snapshot update
-    roleContentWrapper.setAttribute('id', 'role-content-wrapper'); // Keep ID
+    // 1. SYSTEM LAYOUT FIX (Flexbox)
+    // Sidebar: w-64, not fixed
+    // Content: flex-1, fills remaining space
+    mainNav.className = 'hidden md:flex w-64 h-full flex-col bg-white border-r border-slate-100 z-40 transition-all duration-300';
+    roleContentWrapper.className = 'flex-1 h-full flex flex-col overflow-y-auto bg-slate-50 transition-all duration-300 pb-20 md:pb-0';
 
-    // Check if flag exists to avoid re-attaching global listeners multiple times
+    // Global Listeners (Attach ONCE)
     if (!document.getElementById('student-layout-initialized')) {
         const flag = document.createElement('div');
         flag.id = 'student-layout-initialized';
         flag.style.display = 'none';
         document.body.appendChild(flag);
 
-         // Global Event Listeners for Navigation (Attach ONLY ONCE)
         document.addEventListener('lesson-selected', (e) => {
             selectedLessonId = e.detail.lessonId;
             previousView = currentView === 'lessonDetail' ? previousView : currentView;
             currentView = 'lessonDetail';
             renderAppContent();
-            // We don't update nav state here as 'lessonDetail' isn't a top-level nav item,
-            // or we could map it to 'courses'.
         });
 
-        document.addEventListener('back-to-list', (e) => {
+        document.addEventListener('back-to-list', () => {
             selectedLessonId = null;
             currentView = 'courses';
             renderAppContent();
@@ -153,53 +127,43 @@ function renderStudentLayout() {
         });
     }
 
-    // Always re-render navigation DOM to update translations
-    // 1. Render Desktop Navigation (Side Bar)
     renderDesktopNavigation();
-
-    // 2. Render Mobile Bottom Navigation
     renderMobileNavigation();
 }
 
 function renderDesktopNavigation() {
-    // Apply Professor styling: bg-white/90, backdrop-blur-xl, border-r
-    mainNav.className = 'hidden md:flex fixed top-0 left-0 h-full w-64 bg-white/90 backdrop-blur-xl border-r border-slate-100 z-50 flex-col justify-between transition-all duration-300';
-
     mainNav.innerHTML = `
-        <!-- Top Section: Logo & Menu -->
-        <div class="flex flex-col w-full">
-            <!-- Logo -->
-            <div id="nav-logo" class="h-20 flex items-center justify-start px-6 cursor-pointer group">
-                 <div class="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center shadow-md shadow-indigo-200 font-bold text-lg flex-shrink-0 group-hover:scale-105 transition-transform">
-                    A
-                </div>
-                <span class="ml-3 font-bold text-slate-800 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">
-                    AI Sensei
-                </span>
+        <div id="nav-logo" class="h-20 flex items-center justify-start px-6 cursor-pointer group flex-shrink-0 border-b border-transparent">
+             <div class="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center shadow-md shadow-indigo-200 font-bold text-lg flex-shrink-0 group-hover:scale-105 transition-transform">
+                A
             </div>
-
-            <div class="mt-4 space-y-1 px-3">
-                ${renderDesktopNavItem('home', translationService.t('nav.dashboard'), '🏠')}
-                ${renderDesktopNavItem('courses', translationService.t('nav.classes'), '📚')}
-                ${renderDesktopNavItem('chat', translationService.t('nav.interactions'), '💬')}
-                ${renderDesktopNavItem('profile', translationService.t('student.join'), '👤')}
-            </div>
+            <span class="ml-3 font-bold text-slate-800 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">
+                AI Sensei
+            </span>
         </div>
 
-        <!-- Bottom Section: Logout -->
-        <div class="p-4 border-t border-slate-100 space-y-1">
-             <button id="desktop-logout-btn" class="w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-400 hover:bg-red-50 hover:text-red-600 group">
-                <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
-                    <span class="text-xl group-hover:translate-x-1 transition-transform">🚪</span>
-                </div>
-                <span class="ml-2 text-sm font-medium">${translationService.t('nav.logout')}</span>
+        <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col w-full px-3 py-6 space-y-1">
+            ${renderDesktopNavItem('home', translationService.t('nav.dashboard'), '🏠')}
+            ${renderDesktopNavItem('courses', translationService.t('nav.classes'), '📚')}
+            ${renderDesktopNavItem('chat', translationService.t('nav.interactions'), '💬')}
+            
+            <div class="my-4 border-t border-slate-100 mx-3"></div>
+            
+            ${renderDesktopNavItem('profile', translationService.t('student.join'), '👤')}
+        </div>
+
+        <div class="p-4 border-t border-slate-100 bg-white">
+             <button id="desktop-logout-btn" class="nav-item w-full flex items-center p-2.5 rounded-xl transition-all duration-200 text-slate-400 hover:bg-red-50 hover:text-red-600 group outline-none focus:outline-none">
+                <span class="text-xl mr-3 group-hover:translate-x-1 transition-transform">🚪</span>
+                <span class="text-sm font-medium">${translationService.t('nav.logout')}</span>
             </button>
         </div>
     `;
 
-    // Add click listeners
+    // Click Listeners
     ['home', 'courses', 'chat', 'profile'].forEach(view => {
-        document.getElementById(`nav-desktop-${view}`).addEventListener('click', () => {
+        const btn = document.getElementById(`nav-desktop-${view}`);
+        if(btn) btn.addEventListener('click', () => {
             currentView = view;
             renderAppContent();
             updateNavigationState();
@@ -207,32 +171,25 @@ function renderDesktopNavigation() {
     });
 
     document.getElementById('desktop-logout-btn').addEventListener('click', handleLogout);
-
-    // Logo Click to Dashboard
     const logo = mainNav.querySelector('#nav-logo');
-    if (logo) {
-        logo.addEventListener('click', () => {
-             currentView = 'home';
-             renderAppContent();
-             updateNavigationState();
-        });
-    }
+    if (logo) logo.addEventListener('click', () => {
+         currentView = 'home';
+         renderAppContent();
+         updateNavigationState();
+    });
 }
 
 function renderDesktopNavItem(viewName, label, icon) {
-    // Style: nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent
+    // New Clean Style: No borders, consistent padding
     return `
-        <button id="nav-desktop-${viewName}" class="nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent">
-            <div class="w-10 h-10 flex items-center justify-center rounded-md flex-shrink-0">
-                <span class="text-xl transition-transform group-hover:scale-110">${icon}</span>
-            </div>
-            <span class="ml-2 text-sm font-medium">${label}</span>
+        <button id="nav-desktop-${viewName}" class="nav-item w-full flex items-center p-2.5 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none relative overflow-hidden">
+            <span class="text-xl mr-3 relative z-10 group-hover:scale-110 transition-transform duration-200">${icon}</span>
+            <span class="text-sm font-medium relative z-10">${label}</span>
         </button>
     `;
 }
 
 function renderMobileNavigation() {
-    // Style: fixed bottom-0 w-full bg-white/95 backdrop-blur border-t border-slate-200 flex justify-around p-3 z-50
     mobileBottomNav.className = "md:hidden fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-md border-t border-slate-200 pb-safe z-50 flex justify-around items-center px-2 py-2 safe-area-pb";
 
     mobileBottomNav.innerHTML = `
@@ -242,7 +199,6 @@ function renderMobileNavigation() {
         ${renderMobileNavItem('profile', translationService.t('student.join'), '👤')}
     `;
 
-    // Add click listeners
     ['home', 'courses', 'chat', 'profile'].forEach(view => {
         document.getElementById(`nav-mobile-${view}`).addEventListener('click', () => {
             currentView = view;
@@ -254,7 +210,7 @@ function renderMobileNavigation() {
 
 function renderMobileNavItem(viewName, label, icon) {
     return `
-        <button id="nav-mobile-${viewName}" class="nav-item flex flex-col items-center justify-center w-full py-2 text-slate-400 hover:text-slate-600 transition-colors">
+        <button id="nav-mobile-${viewName}" class="nav-item flex flex-col items-center justify-center w-full py-2 text-slate-400 hover:text-slate-600 transition-colors outline-none">
             <span class="text-2xl mb-1 transform transition-transform duration-200 nav-icon">${icon}</span>
             <span class="text-[10px] font-medium tracking-wide nav-label">${label}</span>
         </button>
@@ -262,28 +218,25 @@ function renderMobileNavItem(viewName, label, icon) {
 }
 
 function updateNavigationState() {
-    // Determine active tab (map lessonDetail to courses if desired, or keep separate)
     let activeTab = currentView;
     if (activeTab === 'lessonDetail') activeTab = 'courses';
     if (activeTab === 'promptForName' || activeTab === 'loading') activeTab = 'home';
 
-    // Desktop
+    // Desktop: Reset & Set Active
     document.querySelectorAll('#main-nav .nav-item').forEach(el => {
-        // Reset classes
-        el.className = 'nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group border-l-4 border-transparent';
+        el.className = 'nav-item w-full flex items-center p-2.5 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none';
     });
 
     const activeDesktop = document.getElementById(`nav-desktop-${activeTab}`);
     if (activeDesktop) {
-        // Active Style: bg-slate-50 text-indigo-600 font-semibold group border-l-4 border-indigo-500 shadow-sm
-        activeDesktop.className = 'nav-item w-full flex items-center p-2 rounded-lg transition-all duration-200 bg-slate-50 text-indigo-600 font-semibold group border-l-4 border-indigo-500 shadow-sm';
+        // Active: Indigo Background + Text
+        activeDesktop.className = 'nav-item w-full flex items-center p-2.5 rounded-xl transition-all duration-200 bg-indigo-50 text-indigo-700 font-bold shadow-sm group outline-none focus:outline-none';
     }
 
     // Mobile
     document.querySelectorAll('#mobile-bottom-nav .nav-item').forEach(el => {
         el.classList.remove('text-indigo-600');
         el.classList.add('text-slate-400');
-
         const icon = el.querySelector('.nav-icon');
         if (icon) icon.classList.remove('scale-110');
     });
@@ -292,7 +245,6 @@ function updateNavigationState() {
     if (activeMobile) {
         activeMobile.classList.remove('text-slate-400');
         activeMobile.classList.add('text-indigo-600');
-
         const icon = activeMobile.querySelector('.nav-icon');
         if (icon) icon.classList.add('scale-110');
     }
@@ -302,12 +254,11 @@ function renderAppContent() {
     const container = document.getElementById('role-content-wrapper');
     if (!container) return;
 
-    // Added md:pl-64 to account for fixed sidebar
-    container.className = "flex-grow flex flex-col overflow-y-auto bg-slate-50 pb-24 md:pb-0 md:pl-64 transition-all duration-300";
+    // Reset content to be sure
+    container.innerHTML = '';
 
     switch (currentView) {
         case 'promptForName':
-            container.innerHTML = '';
             promptForStudentName(currentUserData.id, container);
             break;
 
@@ -328,7 +279,6 @@ function renderAppContent() {
             break;
             
         case 'lessonDetail':
-            container.innerHTML = '';
             const detailEl = document.createElement('student-lesson-detail');
             detailEl.lessonId = selectedLessonId;
             detailEl.currentUserData = currentUserData;
@@ -347,20 +297,24 @@ function renderAppContent() {
 
 function renderProfilePlaceholder(container) {
     container.innerHTML = `
-        <div class="max-w-md mx-auto mt-10 p-6 bg-white rounded-3xl shadow-sm text-center">
-            <div class="w-24 h-24 mx-auto bg-slate-100 rounded-full flex items-center justify-center mb-4 text-4xl">
-                👤
+        <div class="p-8 max-w-lg mx-auto w-full">
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 text-center">
+                <div class="w-24 h-24 mx-auto bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mb-6 text-4xl text-white shadow-lg">
+                    ${currentUserData?.name ? currentUserData.name.charAt(0).toUpperCase() : '👤'}
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800 mb-1">${currentUserData?.name || 'Student'}</h2>
+                <p class="text-slate-500 mb-8">${currentUserData?.email}</p>
+
+                <div class="space-y-3">
+                    <button id="profile-join-class" class="w-full bg-indigo-50 text-indigo-700 font-bold py-3 px-4 rounded-xl hover:bg-indigo-100 transition-all border border-indigo-100">
+                        ${translationService.t('student.join')}
+                    </button>
+
+                    <button id="profile-logout-btn" class="w-full bg-white border border-slate-200 text-red-600 font-bold py-3 px-4 rounded-xl hover:bg-red-50 hover:border-red-100 transition-all">
+                        ${translationService.t('nav.logout')}
+                    </button>
+                </div>
             </div>
-            <h2 class="text-2xl font-bold text-slate-800">${currentUserData?.name || 'Student'}</h2>
-            <p class="text-slate-500 mb-6">${currentUserData?.email}</p>
-
-            <button id="profile-join-class" class="w-full mb-3 bg-indigo-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl hover:bg-indigo-700 transition-all">
-                ${translationService.t('student.join')}
-            </button>
-
-            <button id="profile-logout-btn" class="w-full bg-red-50 text-red-600 font-bold py-3 px-4 rounded-xl hover:bg-red-100 transition-all">
-                ${translationService.t('nav.logout')}
-            </button>
         </div>
     `;
     
@@ -368,15 +322,19 @@ function renderProfilePlaceholder(container) {
     document.getElementById('profile-join-class').addEventListener('click', handleJoinClass);
 }
 
-// Funkcia pre zadanie mena
 function promptForStudentName(userId, container) {
     container.innerHTML = `
-        <div class="flex items-center justify-center min-h-full p-4">
+        <div class="flex items-center justify-center h-full p-4">
             <div class="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md text-center">
-                <h1 class="text-2xl font-bold text-slate-800 mb-4">AI Sensei</h1>
-                <p class="text-slate-600 mb-6">${translationService.t('student_dashboard.profile_create_desc')}</p>
-                <input type="text" id="student-name-input" placeholder="${translationService.t('student_dashboard.name_placeholder')}" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4">
-                <button id="save-name-btn" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 shadow-lg transition-all">${translationService.t('student_dashboard.save_continue')}</button>
+                <div class="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-3xl">✨</div>
+                <h1 class="text-2xl font-bold text-slate-800 mb-2">Vítejte v AI Sensei</h1>
+                <p class="text-slate-500 mb-8">Jak vám máme říkat?</p>
+                
+                <input type="text" id="student-name-input" placeholder="Vaše jméno" class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 mb-4 transition-all text-center font-bold text-lg text-slate-800">
+                
+                <button id="save-name-btn" class="w-full bg-indigo-600 text-white font-bold py-4 px-6 rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all transform active:scale-95">
+                    Pokračovat →
+                </button>
             </div>
         </div>`;
 
@@ -395,9 +353,7 @@ function promptForStudentName(userId, container) {
 
 async function handleJoinClass() {
     const joinCode = window.prompt(translationService.t('student_dashboard.join_prompt'));
-    if (!joinCode || joinCode.trim() === "") {
-        return;
-    }
+    if (!joinCode || joinCode.trim() === "") return;
 
     showToast(translationService.t('student_dashboard.joining'), false);
 
@@ -407,7 +363,6 @@ async function handleJoinClass() {
 
         if (result.data.success) {
             showToast(translationService.t('student_dashboard.join_success_group').replace('{groupName}', result.data.groupName));
-
         } else {
             showToast(translationService.t('student_dashboard.join_error_unknown'), true);
         }
