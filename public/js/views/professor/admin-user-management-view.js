@@ -127,7 +127,7 @@ export class AdminUserManagementView extends LitElement {
                     <p class="text-slate-500 mt-1">Přiřazujte role profesorů a studentů.</p>
                 </header>
                 <div class="flex-grow overflow-y-auto p-4 md:p-6 bg-slate-50">
-                    <div class="max-w-4xl mx-auto">
+                    <div class="w-full px-6">
                         ${content}
                     </div>
                 </div>

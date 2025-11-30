@@ -137,7 +137,7 @@ export class ProfessorClassesView extends LitElement {
                 </header>
 
                 <div class="flex-grow overflow-y-auto p-6">
-                    <div class="max-w-7xl mx-auto">
+                    <div>
                         ${this._isLoading
                             ? html`
                                 <div class="flex justify-center items-center h-64">

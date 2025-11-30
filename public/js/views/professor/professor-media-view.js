@@ -166,14 +166,14 @@ export class ProfessorMediaView extends LitElement {
         return html`
             <div class="h-full flex flex-col bg-slate-50">
                 <header class="bg-white p-6 border-b border-slate-200">
-                     <div class="max-w-7xl mx-auto text-center">
+                     <div class="w-full text-center">
                         <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${t('media.title')}</h1>
                         <p class="text-slate-500 mt-1 font-medium">${t('media.subtitle')}</p>
                     </div>
                 </header>
 
                 <div class="flex-grow overflow-y-auto p-6">
-                    <div class="max-w-6xl mx-auto space-y-8">
+                    <div class="w-full px-6 space-y-8">
 
                         <!-- Upload Area -->
                         <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">

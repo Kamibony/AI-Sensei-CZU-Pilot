@@ -156,7 +156,7 @@ export class ProfessorApp extends LitElement {
     render() {
         // Changed: Added pl-64 to accommodate the fixed sidebar
         return html`
-            <div id="dashboard-professor" class="pl-64 w-full flex flex-row main-view active h-screen overflow-hidden">
+            <div id="dashboard-professor" class="w-full flex flex-row main-view active h-screen overflow-hidden">
                 <aside id="professor-sidebar"
                        class="w-full md:w-80 lg:w-96 bg-slate-100 border-r border-slate-200 flex-col flex-shrink-0 h-full ${this._sidebarVisible ? 'flex' : 'hidden'} overflow-hidden z-10">
                     ${this._renderSidebar()}

@@ -42,7 +42,7 @@ export class ProfessorHeader extends LitElement {
 
         return html`
             <header class="flex-shrink-0 bg-white shadow-md">
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="w-full px-4 sm:px-6 lg:px-8">
                     <div class="flex items-center justify-between h-16">
                         <div>
                             <h1 class="text-xl font-bold text-slate-800">${t('professor.header_title')}</h1>

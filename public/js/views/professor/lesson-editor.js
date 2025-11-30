@@ -717,7 +717,7 @@ export class LessonEditor extends LitElement {
         return html`
             <div class="h-full bg-white overflow-y-auto">
                 <!-- Zen Mode Container -->
-                <div class="max-w-6xl mx-auto px-6 py-12 flex flex-col h-full">
+                <div class="px-6 py-12 flex flex-col h-full">
 
                     <!-- Simple Header -->
                     <header class="flex items-center justify-between mb-8">
@@ -733,7 +733,7 @@ export class LessonEditor extends LitElement {
                     <div class="flex-grow relative">
 
                         <!-- === SETTINGS VIEW (Old Step 1) === -->
-                        <div class="${this._viewMode === 'settings' ? 'block' : 'hidden'} animate-fade-in space-y-8 max-w-3xl mx-auto">
+                        <div class="${this._viewMode === 'settings' ? 'block' : 'hidden'} animate-fade-in space-y-8">
                              <h2 class="text-3xl font-bold text-slate-900">${t('editor.settings_title')}</h2>
 
                              <!-- INLINED SETTINGS FORM WITH FLOATING LABELS -->
@@ -841,7 +841,7 @@ export class LessonEditor extends LitElement {
                                 </button>
                             </div>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto w-full">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full px-6">
                                 ${this.contentTypes.map(type => {
                                     // Check if content exists
                                     const hasContent = this.lesson && ((type.id === 'text' && this.lesson.text_content) || (type.id !== 'text' && this.lesson[type.id]));
@@ -910,7 +910,7 @@ export class LessonEditor extends LitElement {
 
                         <!-- === EDITOR VIEW === -->
                         <div class="${this._viewMode === 'editor' ? 'block' : 'hidden'} h-full animate-fade-in flex flex-col">
-                            <div class="mb-6 flex items-center justify-end max-w-5xl mx-auto w-full">
+                            <div class="mb-6 flex items-center justify-end w-full px-6">
                                 <h3 class="font-bold text-slate-800 text-lg flex items-center">
                                     <span class="mr-2 text-2xl">${this.contentTypes.find(t => t.id === this._selectedContentType)?.icon}</span>
                                     ${this.contentTypes.find(t => t.id === this._selectedContentType)?.label}
@@ -918,7 +918,7 @@ export class LessonEditor extends LitElement {
                             </div>
 
                             <!-- Active Editor Content -->
-                            <div id="active-editor-content" class="flex-grow bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 p-1 overflow-hidden max-w-5xl mx-auto w-full">
+                            <div id="active-editor-content" class="flex-grow bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 p-1 overflow-hidden w-full px-6">
                                 <div class="h-full overflow-y-auto custom-scrollbar">
                                      ${this.renderEditorContent(this._selectedContentType)}
                                 </div>

@@ -353,7 +353,7 @@ export class ProfessorClassDetailView extends LitElement {
 
                 <!-- Tab Content -->
                 <div class="flex-grow overflow-y-auto p-6">
-                    <div class="max-w-5xl mx-auto">
+                    <div class="w-full px-6">
                         ${this._activeTab === 'students' ? this._renderStudentsTab() :
                           this._activeTab === 'lessons' ? this._renderLessonsTab() :
                           this._renderGradesTab()}

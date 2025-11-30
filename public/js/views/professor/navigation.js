@@ -10,11 +10,11 @@ export function setupProfessorNav(showProfessorContent) {
 
     if (nav && user) {
         // 1. Sidebar Styling: Fixed position, full height, width 64 (256px)
-        nav.className = 'hidden md:flex w-64 h-full flex-shrink-0 flex-col border-r border-slate-100 bg-white justify-between transition-all duration-300';
+        nav.className = 'hidden md:flex w-64 h-full flex-col border-r border-slate-100 bg-white flex-shrink-0 z-50';
         
         // 2. Content Layout Fix: Push content to the right by exactly sidebar width (md:ml-64)
         if (contentWrapper) {
-            contentWrapper.className = 'flex-1 flex flex-col h-full overflow-y-auto bg-slate-50 transition-all duration-300';
+            contentWrapper.className = 'flex-1 flex flex-col h-full overflow-y-auto bg-slate-50 relative';
         }
 
         nav.innerHTML = `
