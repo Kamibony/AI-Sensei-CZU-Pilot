@@ -128,9 +128,10 @@ export class ProfessorDashboardView extends LitElement {
         const user = firebaseInit.auth.currentUser;
         const userName = user?.displayName || user?.email || 'Profesore';
 
-        // UPRAVENÉ: Odstránené 'mx-auto' z divu, aby sa obsah netlačil na stred a nevytváral medzeru od menu
+        // 2. OPRAVA: Odstránené 'md:pl-64' a 'bg-slate-50' (to teraz rieši parent wrapper)
+        // Používame čistý <div>, ktorý len vypĺňa dostupný priestor
         return html`
-            <main class="main bg-slate-50 min-h-screen w-full md:pl-64 transition-all duration-300">
+            <div class="w-full">
                 <div class="max-w-7xl p-6 md:p-8 space-y-8">
                 
                     <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -266,7 +267,7 @@ export class ProfessorDashboardView extends LitElement {
                 </div>
 
                 ${this._renderCreateClassModal()}
-            </main>
+            </div>
         `;
     }
 
