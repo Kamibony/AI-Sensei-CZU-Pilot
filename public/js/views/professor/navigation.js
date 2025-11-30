@@ -3,24 +3,22 @@ import { translationService } from "../../utils/translation-service.js";
 
 export function setupProfessorNav(showProfessorContent) {
     const nav = document.getElementById('main-nav');
-    // Získame referenciu na hlavný obaľovač obsahu
     const contentWrapper = document.getElementById('role-content-wrapper');
     const auth = getAuth();
     const user = auth.currentUser;
     const t = (key) => translationService.t(key);
 
     if (nav && user) {
-        // 1. SYSTEMOVÁ ZMENA: Nastavíme layout pre fixný sidebar
-        // Sidebar je fixed (vyňatý z toku), preto obsahu dáme margin-left
+        // 1. Sidebar Styling: Fixed position, full height, width 64 (256px)
         nav.className = 'hidden md:flex fixed top-0 left-0 h-screen w-64 bg-white border-r border-slate-100 z-50 flex-col justify-between transition-all duration-300';
         
-        // Aplikujeme margin na content wrapper, aby obsah nebiehal pod menu
+        // 2. Content Layout Fix: Push content to the right by exactly sidebar width (md:ml-64)
         if (contentWrapper) {
             contentWrapper.className = 'flex-grow flex flex-col overflow-y-auto md:ml-64 bg-slate-50 min-h-screen transition-all duration-300';
         }
 
         nav.innerHTML = `
-            <div id="nav-logo" class="h-20 flex items-center justify-start px-6 cursor-pointer group flex-shrink-0">
+            <div id="nav-logo" class="h-20 flex items-center justify-start px-6 cursor-pointer group flex-shrink-0 border-b border-transparent">
                 <div class="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center shadow-md shadow-indigo-200 font-bold text-lg flex-shrink-0 group-hover:scale-105 transition-transform">
                     A
                 </div>
@@ -29,64 +27,32 @@ export function setupProfessorNav(showProfessorContent) {
                 </span>
             </div>
 
-            <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col w-full px-4">
-                <div class="mt-6 space-y-1">
-
-                    <div class="px-2 mt-2 mb-2">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${t('nav.organization')}</span>
-                    </div>
-
-                    <button data-view="dashboard" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
-                        <span class="text-xl mr-3 group-hover:scale-110 transition-transform">🏠</span>
-                        <span class="text-sm font-medium">${t('nav.dashboard')}</span>
-                    </button>
-
-                    <button data-view="classes" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
-                        <span class="text-xl mr-3 group-hover:scale-110 transition-transform">🏫</span>
-                        <span class="text-sm font-medium">${t('nav.classes')}</span>
-                    </button>
-
-                    <button data-view="students" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
-                        <span class="text-xl mr-3 group-hover:scale-110 transition-transform">👥</span>
-                        <span class="text-sm font-medium">${t('nav.students')}</span>
-                    </button>
-
-                    <button data-view="interactions" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
-                        <span class="text-xl mr-3 group-hover:scale-110 transition-transform">💬</span>
-                        <span class="text-sm font-medium">${t('nav.interactions')}</span>
-                    </button>
-
-                    <button data-view="analytics" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
-                        <span class="text-xl mr-3 group-hover:scale-110 transition-transform">📊</span>
-                        <span class="text-sm font-medium">${t('nav.analytics')}</span>
-                    </button>
-
-                    <div class="my-6 border-t border-slate-100 mx-2"></div>
-
-                    <div class="px-2 mb-2">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${t('nav.creative_studio')}</span>
-                    </div>
-
-                     <button data-view="timeline" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
-                        <span class="text-xl mr-3 group-hover:scale-110 transition-transform">📚</span>
-                        <span class="text-sm font-medium">${t('nav.library')}</span>
-                    </button>
-
-                    <button data-view="media" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
-                        <span class="text-xl mr-3 group-hover:scale-110 transition-transform">📁</span>
-                        <span class="text-sm font-medium">${t('nav.media')}</span>
-                    </button>
-
-                    <button data-view="editor" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
-                        <span class="text-xl mr-3 group-hover:scale-110 transition-transform">✨</span>
-                        <span class="text-sm font-medium">${t('nav.editor')}</span>
-                    </button>
+            <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col w-full px-3 py-4 space-y-1">
+                
+                <div class="px-3 mb-2 mt-2">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${t('nav.organization')}</span>
                 </div>
+
+                ${renderNavButton('dashboard', '🏠', t('nav.dashboard'))}
+                ${renderNavButton('classes', '🏫', t('nav.classes'))}
+                ${renderNavButton('students', '👥', t('nav.students'))}
+                ${renderNavButton('interactions', '💬', t('nav.interactions'))}
+                ${renderNavButton('analytics', '📊', t('nav.analytics'))}
+
+                <div class="my-4 border-t border-slate-100 mx-3"></div>
+
+                <div class="px-3 mb-2">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${t('nav.creative_studio')}</span>
+                </div>
+
+                ${renderNavButton('timeline', '📚', t('nav.library'))}
+                ${renderNavButton('media', '📁', t('nav.media'))}
+                ${renderNavButton('editor', '✨', t('nav.editor'))}
             </div>
 
-            <div class="flex-shrink-0 p-4 border-t border-slate-100">
+            <div class="flex-shrink-0 p-4 border-t border-slate-100 bg-white">
                  ${user.email === 'profesor@profesor.cz' ? `
-                <button data-view="admin" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-yellow-50 hover:text-yellow-600 group mb-2 outline-none focus:outline-none">
+                <button data-view="admin" class="nav-item w-full flex items-center p-2.5 rounded-xl transition-all duration-200 text-slate-500 hover:bg-yellow-50 hover:text-yellow-700 group mb-1">
                     <span class="text-xl mr-3 group-hover:rotate-90 transition-transform duration-500">⚙️</span>
                     <span class="text-sm font-medium">${t('nav.admin')}</span>
                 </button>
@@ -94,42 +60,52 @@ export function setupProfessorNav(showProfessorContent) {
             </div>
         `;
 
-        // Setup Click Listeners
+        // Helper Function for Consistent Buttons
+        function renderNavButton(view, icon, label) {
+            return `
+            <button data-view="${view}" class="nav-item w-full flex items-center p-2.5 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group relative overflow-hidden">
+                <span class="text-xl mr-3 relative z-10 group-hover:scale-110 transition-transform duration-200">${icon}</span>
+                <span class="text-sm font-medium relative z-10">${label}</span>
+            </button>`;
+        }
+
+        // Event Listeners
         nav.querySelectorAll('button[data-view]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const view = e.currentTarget.dataset.view;
-
-                // Reset all: Odstránime všetky "border" triedy a aktívne pozadia
-                nav.querySelectorAll('button[data-view]').forEach(b => {
-                    b.className = 'nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none border-0 ring-0';
-                });
-
-                // Activate: Iba jemné pozadie a výrazný text (ŽIADNY BORDER)
-                const activeBtn = e.currentTarget;
-                let activeClass = 'nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 bg-indigo-50 text-indigo-700 font-bold shadow-sm group outline-none focus:outline-none border-0 ring-0';
-
-                if (view === 'admin') {
-                     activeClass = 'nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 bg-yellow-50 text-yellow-700 font-bold shadow-sm group outline-none focus:outline-none border-0 ring-0';
-                }
-
-                activeBtn.className = activeClass;
+                updateActiveState(view);
                 showProfessorContent(view);
             });
         });
 
-        // Logo Click
+        // Logo Handler
         const logo = nav.querySelector('#nav-logo');
-        if (logo) {
-            logo.addEventListener('click', () => {
-                const dashBtn = nav.querySelector('button[data-view="dashboard"]');
-                if(dashBtn) dashBtn.click();
-            });
-        }
+        if (logo) logo.addEventListener('click', () => {
+            updateActiveState('dashboard');
+            showProfessorContent('dashboard');
+        });
         
-        // Set Default Active State
-        const defaultBtn = nav.querySelector('button[data-view="dashboard"]');
-        if(defaultBtn && !document.querySelector('.nav-item.bg-indigo-50')) {
-             defaultBtn.className = 'nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 bg-indigo-50 text-indigo-700 font-bold shadow-sm group outline-none focus:outline-none border-0 ring-0';
+        // Initial State
+        updateActiveState('dashboard');
+
+        function updateActiveState(activeView) {
+            // Reset ALL buttons
+            nav.querySelectorAll('.nav-item').forEach(b => {
+                b.className = 'nav-item w-full flex items-center p-2.5 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group';
+            });
+
+            // Set Active
+            const activeBtn = nav.querySelector(`button[data-view="${activeView}"]`);
+            if (activeBtn) {
+                // Style: Indigo Background, Indigo Text, Bold (NO BORDERS)
+                let activeClass = 'nav-item w-full flex items-center p-2.5 rounded-xl transition-all duration-200 bg-indigo-50 text-indigo-700 font-bold shadow-sm group';
+                
+                if (activeView === 'admin') {
+                     activeClass = 'nav-item w-full flex items-center p-2.5 rounded-xl transition-all duration-200 bg-yellow-50 text-yellow-700 font-bold shadow-sm group';
+                }
+                
+                activeBtn.className = activeClass;
+            }
         }
     }
 }
