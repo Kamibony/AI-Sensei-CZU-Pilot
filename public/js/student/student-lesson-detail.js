@@ -97,8 +97,19 @@ export class StudentLessonDetail extends LitElement {
 
     async _markSectionComplete(sectionId) {
         if (!sectionId) return;
+
+        // Critical Check: Ensure User is Authenticated
         const user = firebaseInit.auth.currentUser;
-        if (!user || !this.lessonId) return;
+        if (!user) {
+            console.error("Critical Error: User not authenticated in _markSectionComplete");
+            showToast("Chyba: Uživatel není přihlášen.", true);
+            return;
+        }
+
+        if (!this.lessonId) {
+             console.error("Critical Error: Missing lessonId in _markSectionComplete");
+             return;
+        }
 
         // Check if already completed to avoid redundant updates
         const currentCompleted = this._progress.completedSections || [];
@@ -115,15 +126,22 @@ export class StudentLessonDetail extends LitElement {
         this.requestUpdate(); // Force UI update
 
         // 2. Background Firebase Update
-        const progressRef = doc(firebaseInit.db, `students/${user.uid}/progress/${this.lessonId}`);
+        const path = `students/${user.uid}/progress/${this.lessonId}`;
+        const progressRef = doc(firebaseInit.db, path);
+
         try {
             await setDoc(progressRef, {
                 completedSections: arrayUnion(sectionId),
                 lastUpdated: new Date()
             }, { merge: true });
+
+            // Success - State is already updated optimistically
+            console.log(`Progress saved successfully to ${path}`);
+
         } catch (e) {
-            console.error("Error saving progress:", e);
-            // Rollback on error (optional, but good practice)
+            console.error(`Error saving progress to ${path}:`, e);
+
+            // Rollback on error
             this._progress = {
                 ...this._progress,
                 completedSections: currentCompleted
