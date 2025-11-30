@@ -1,7 +1,7 @@
 import { LitElement, html, nothing } from 'https://cdn.skypack.dev/lit';
 import { doc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as firebaseInit from '../../firebase-init.js';
-import { translationService } from '../../utils/translation-service.js';
+import * as firebaseInit from '../firebase-init.js';
+import { translationService } from '../utils/translation-service.js';
 
 export class StudentClassesView extends LitElement {
     static properties = {
