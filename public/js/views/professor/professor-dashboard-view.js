@@ -128,146 +128,143 @@ export class ProfessorDashboardView extends LitElement {
         const user = firebaseInit.auth.currentUser;
         const userName = user?.displayName || user?.email || 'Profesore';
 
-        // 2. OPRAVA: Odstránené 'md:pl-64' a 'bg-slate-50' (to teraz rieši parent wrapper)
-        // Používame čistý <div>, ktorý len vypĺňa dostupný priestor
+        // UPRAVENÝ LAYOUT: Odstránené 'mx-auto' a 'max-w-7xl', aby sa obsah natiahol a zmizla medzera
         return html`
-            <div class="w-full">
-                <div class="max-w-7xl p-6 md:p-8 space-y-8">
+            <div class="w-full p-6 md:p-8 space-y-8">
                 
-                    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                            <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Učitelský panel</h1>
-                            <p class="text-slate-500 mt-1">Dobré ráno, ${userName} 👋</p>
+                <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Učitelský panel</h1>
+                        <p class="text-slate-500 mt-1">Dobré ráno, ${userName} 👋</p>
+                    </div>
+
+                    <div class="flex items-center gap-3 bg-white p-2 pr-4 rounded-full shadow-sm border border-slate-100">
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold shadow-md">
+                            ${userName.charAt(0).toUpperCase()}
+                        </div>
+                        
+                        <div class="h-8 w-px bg-slate-200 mx-1"></div>
+
+                        <div class="relative group">
+                            <select @change=${this._handleLanguageChange} class="appearance-none bg-transparent font-medium text-sm text-slate-600 hover:text-indigo-600 focus:outline-none cursor-pointer pr-4 py-1">
+                                <option value="cs" ?selected=${translationService.currentLanguage === 'cs'}>CZ</option>
+                                <option value="sk" ?selected=${translationService.currentLanguage === 'sk'}>SK</option>
+                                <option value="en" ?selected=${translationService.currentLanguage === 'en'}>EN</option>
+                                <option value="pt-br" ?selected=${translationService.currentLanguage === 'pt-br'}>BR</option>
+                            </select>
                         </div>
 
-                        <div class="flex items-center gap-3 bg-white p-2 pr-4 rounded-full shadow-sm border border-slate-100">
-                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold shadow-md">
-                                ${userName.charAt(0).toUpperCase()}
-                            </div>
-                            
-                            <div class="h-8 w-px bg-slate-200 mx-1"></div>
+                        <button @click=${handleLogout} class="text-slate-400 hover:text-red-500 transition-colors p-1" title="Odhlásit se">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                        </button>
+                    </div>
+                </header>
 
-                            <div class="relative group">
-                                <select @change=${this._handleLanguageChange} class="appearance-none bg-transparent font-medium text-sm text-slate-600 hover:text-indigo-600 focus:outline-none cursor-pointer pr-4 py-1">
-                                    <option value="cs" ?selected=${translationService.currentLanguage === 'cs'}>CZ</option>
-                                    <option value="sk" ?selected=${translationService.currentLanguage === 'sk'}>SK</option>
-                                    <option value="en" ?selected=${translationService.currentLanguage === 'en'}>EN</option>
-                                    <option value="pt-br" ?selected=${translationService.currentLanguage === 'pt-br'}>BR</option>
-                                </select>
-                            </div>
-
-                            <button @click=${handleLogout} class="text-slate-400 hover:text-red-500 transition-colors p-1" title="Odhlásit se">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-                            </button>
-                        </div>
-                    </header>
-
-                    <section>
-                        <div class="flex items-center justify-between mb-4">
-                            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                <span class="bg-blue-100 text-blue-600 p-1.5 rounded-lg">👥</span> 
-                                Přehled managementu
-                            </h2>
-                            <button class="text-sm font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors" @click=${() => this._showCreateClassModal = true}>
-                                + Nová třída
-                            </button>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group"
-                                 @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'students' }, bubbles: true, composed: true }))}>
-                                <div class="flex justify-between items-start mb-4">
-                                    <div class="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                                    </div>
-                                    <span class="text-3xl font-extrabold text-slate-900">${this._stats.totalStudents}</span>
-                                </div>
-                                <h3 class="font-bold text-slate-700">Moji studenti</h3>
-                                <p class="text-xs text-slate-400 mt-1">Aktivní ve vašich třídách</p>
-                            </div>
-
-                            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group"
-                                 @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'classes' }, bubbles: true, composed: true }))}>
-                                <div class="flex justify-between items-start mb-4">
-                                    <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                                    </div>
-                                    <span class="text-3xl font-extrabold text-slate-900">${this._stats.totalClasses}</span>
-                                </div>
-                                <h3 class="font-bold text-slate-700">Moje třídy</h3>
-                                <p class="text-xs text-slate-400 mt-1">Spravovat skupiny a kódy</p>
-                            </div>
-
-                            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group"
-                                 @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'analytics' }, bubbles: true, composed: true }))}>
-                                <div class="flex justify-between items-start mb-4">
-                                    <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                                    </div>
-                                    <span class="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded">Novinka</span>
-                                </div>
-                                <h3 class="font-bold text-slate-700">Analytika výuky</h3>
-                                <p class="text-xs text-slate-400 mt-1">Přehled aktivity studentů</p>
-                            </div>
-                        </div>
-                    </section>
-
-                    <section>
-                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
-                            <span class="bg-purple-100 text-purple-600 p-1.5 rounded-lg">✨</span> 
-                            Tvůrčí studio
+                <section>
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <span class="bg-blue-100 text-blue-600 p-1.5 rounded-lg">👥</span> 
+                            Přehled managementu
                         </h2>
+                        <button class="text-sm font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors" @click=${() => this._showCreateClassModal = true}>
+                            + Nová třída
+                        </button>
+                    </div>
 
-                        <div class="bg-white rounded-3xl p-1 shadow-sm border border-slate-200">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
-                                
-                                <div class="p-6 hover:bg-purple-50/50 transition-colors cursor-pointer group rounded-l-3xl"
-                                     @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor' }, bubbles: true, composed: true }))}>
-                                    <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-purple-200 mb-4 group-hover:scale-110 transition-transform">
-                                        ✨
-                                    </div>
-                                    <h3 class="font-bold text-slate-900 group-hover:text-purple-700 transition-colors">Magický Generátor</h3>
-                                    <p class="text-sm text-slate-500 mt-1 leading-relaxed">Vytvořte kompletní lekci z PDF souboru během vteřiny.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group"
+                                @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'students' }, bubbles: true, composed: true }))}>
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                                 </div>
-
-                                <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
-                                     @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', viewMode: 'settings' }, bubbles: true, composed: true }))}>
-                                    <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-indigo-200 group-hover:text-indigo-600 transition-colors">
-                                        📝
-                                    </div>
-                                    <h3 class="font-bold text-slate-900 group-hover:text-indigo-700 transition-colors">Vytvořit manuálně</h3>
-                                    <p class="text-sm text-slate-500 mt-1 leading-relaxed">Začněte s prázdnou lekcí a poskládejte ji sami.</p>
-                                </div>
-
-                                <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
-                                     @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'timeline' }, bubbles: true, composed: true }))}>
-                                    <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-blue-200 group-hover:text-blue-600 transition-colors">
-                                        📚
-                                    </div>
-                                    <div class="flex justify-between items-center">
-                                        <h3 class="font-bold text-slate-900 group-hover:text-blue-700 transition-colors">Knihovna lekcí</h3>
-                                        <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-full">${this._stats.totalLessons}</span>
-                                    </div>
-                                    <p class="text-sm text-slate-500 mt-1 leading-relaxed">Přehled a úprava všech vašich existujících lekcí.</p>
-                                </div>
-
-                                <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group rounded-r-3xl"
-                                     @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'media' }, bubbles: true, composed: true }))}>
-                                    <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-orange-200 group-hover:text-orange-600 transition-colors">
-                                        📁
-                                    </div>
-                                    <h3 class="font-bold text-slate-900 group-hover:text-orange-700 transition-colors">Média & Soubory</h3>
-                                    <p class="text-sm text-slate-500 mt-1 leading-relaxed">Správce nahraných dokumentů a multimédií.</p>
-                                </div>
-
+                                <span class="text-3xl font-extrabold text-slate-900">${this._stats.totalStudents}</span>
                             </div>
+                            <h3 class="font-bold text-slate-700">Moji studenti</h3>
+                            <p class="text-xs text-slate-400 mt-1">Aktivní ve vašich třídách</p>
                         </div>
-                    </section>
 
-                </div>
+                        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group"
+                                @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'classes' }, bubbles: true, composed: true }))}>
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                                </div>
+                                <span class="text-3xl font-extrabold text-slate-900">${this._stats.totalClasses}</span>
+                            </div>
+                            <h3 class="font-bold text-slate-700">Moje třídy</h3>
+                            <p class="text-xs text-slate-400 mt-1">Spravovat skupiny a kódy</p>
+                        </div>
 
-                ${this._renderCreateClassModal()}
+                        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group"
+                                @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'analytics' }, bubbles: true, composed: true }))}>
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                                </div>
+                                <span class="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded">Novinka</span>
+                            </div>
+                            <h3 class="font-bold text-slate-700">Analytika výuky</h3>
+                            <p class="text-xs text-slate-400 mt-1">Přehled aktivity studentů</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section>
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                        <span class="bg-purple-100 text-purple-600 p-1.5 rounded-lg">✨</span> 
+                        Tvůrčí studio
+                    </h2>
+
+                    <div class="bg-white rounded-3xl p-1 shadow-sm border border-slate-200">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+                            
+                            <div class="p-6 hover:bg-purple-50/50 transition-colors cursor-pointer group rounded-l-3xl"
+                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor' }, bubbles: true, composed: true }))}>
+                                <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-purple-200 mb-4 group-hover:scale-110 transition-transform">
+                                    ✨
+                                </div>
+                                <h3 class="font-bold text-slate-900 group-hover:text-purple-700 transition-colors">Magický Generátor</h3>
+                                <p class="text-sm text-slate-500 mt-1 leading-relaxed">Vytvořte kompletní lekci z PDF souboru během vteřiny.</p>
+                            </div>
+
+                            <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
+                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', viewMode: 'settings' }, bubbles: true, composed: true }))}>
+                                <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-indigo-200 group-hover:text-indigo-600 transition-colors">
+                                    📝
+                                </div>
+                                <h3 class="font-bold text-slate-900 group-hover:text-indigo-700 transition-colors">Vytvořit manuálně</h3>
+                                <p class="text-sm text-slate-500 mt-1 leading-relaxed">Začněte s prázdnou lekcí a poskládejte ji sami.</p>
+                            </div>
+
+                            <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
+                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'timeline' }, bubbles: true, composed: true }))}>
+                                <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-blue-200 group-hover:text-blue-600 transition-colors">
+                                    📚
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <h3 class="font-bold text-slate-900 group-hover:text-blue-700 transition-colors">Knihovna lekcí</h3>
+                                    <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-full">${this._stats.totalLessons}</span>
+                                </div>
+                                <p class="text-sm text-slate-500 mt-1 leading-relaxed">Přehled a úprava všech vašich existujících lekcí.</p>
+                            </div>
+
+                            <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group rounded-r-3xl"
+                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'media' }, bubbles: true, composed: true }))}>
+                                <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-orange-200 group-hover:text-orange-600 transition-colors">
+                                    📁
+                                </div>
+                                <h3 class="font-bold text-slate-900 group-hover:text-orange-700 transition-colors">Média & Soubory</h3>
+                                <p class="text-sm text-slate-500 mt-1 leading-relaxed">Správce nahraných dokumentů a multimédií.</p>
+                            </div>
+
+                        </div>
+                    </div>
+                </section>
+
             </div>
+
+            ${this._renderCreateClassModal()}
         `;
     }
 
