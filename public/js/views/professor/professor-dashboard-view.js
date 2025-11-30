@@ -16,10 +16,8 @@ export class ProfessorDashboardView extends LitElement {
         _newClassName: { state: true, type: String }
     };
 
-    // Use Light DOM to support global styles + manual injection of shared styles
+    // Používame Light DOM pre Tailwind a globálne štýly
     createRenderRoot() { return this; }
-
-    static styles = [baseStyles];
 
     constructor() {
         super();
@@ -35,7 +33,6 @@ export class ProfessorDashboardView extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._fetchDashboardData();
-        // Subscribe to language changes
         this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
@@ -48,64 +45,39 @@ export class ProfessorDashboardView extends LitElement {
     }
 
     _fetchDashboardData() {
-        // Wrap in onAuthStateChanged to ensure we have a user
         const authUnsub = firebaseInit.auth.onAuthStateChanged(user => {
             if (!user) {
-                // Not logged in or logged out
                 this._isLoading = false;
                 return;
             }
-
             this._isLoading = true;
-
-            // Clear old listeners if any
             this.unsubscribes.forEach(unsub => unsub());
             this.unsubscribes = [];
 
-            // Fetch Classes
             const classesQuery = query(collection(firebaseInit.db, 'groups'), where("ownerId", "==", user.uid));
-            const classesUnsubscribe = onSnapshot(classesQuery, (snapshot) => {
+            this.unsubscribes.push(onSnapshot(classesQuery, (snapshot) => {
                 this._classes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            }, err => console.error("Error fetching classes:", err));
-            this.unsubscribes.push(classesUnsubscribe);
+            }));
 
-            // Fetch Students of this Professor
             const studentsQuery = query(collection(firebaseInit.db, 'students'), where("ownerId", "==", user.uid));
-            const studentsUnsubscribe = onSnapshot(studentsQuery, (snapshot) => {
+            this.unsubscribes.push(onSnapshot(studentsQuery, (snapshot) => {
                 this._students = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            }, err => console.error("Error fetching students:", err));
-            this.unsubscribes.push(studentsUnsubscribe);
+            }));
 
-            // Fetch Lessons of this Professor
             const lessonsQuery = query(collection(firebaseInit.db, 'lessons'), where("ownerId", "==", user.uid));
-            const lessonsUnsubscribe = onSnapshot(lessonsQuery, (snapshot) => {
+            this.unsubscribes.push(onSnapshot(lessonsQuery, (snapshot) => {
                 this._lessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 this._isLoading = false;
-            }, err => {
-                console.error("Error fetching lessons:", err);
-                this._isLoading = false;
-            });
-            this.unsubscribes.push(lessonsUnsubscribe);
+            }));
         });
-
-        // Add auth listener to unsubscribes so it gets cleaned up on disconnect
         this.unsubscribes.push(authUnsub);
     }
 
     get _stats() {
         const totalStudents = new Set(this._classes.flatMap(c => c.studentIds || [])).size;
-        const activeLessons = this._lessons.filter(l => l.assignedToGroups && l.assignedToGroups.length > 0).length;
-        const totalLessons = this._lessons.length;
         const totalClasses = this._classes.length;
-        return { totalStudents, activeLessons, totalClasses, totalLessons };
-    }
-
-    _navigateToClassDetail(groupId) {
-        this.dispatchEvent(new CustomEvent('navigate', {
-            detail: { view: 'class-detail', groupId },
-            bubbles: true,
-            composed: true
-        }));
+        const totalLessons = this._lessons.length;
+        return { totalStudents, totalClasses, totalLessons };
     }
 
     _generateJoinCode() {
@@ -117,25 +89,12 @@ export class ProfessorDashboardView extends LitElement {
         return result;
     }
 
-    _openCreateClassModal() {
-        this._newClassName = "";
-        this._showCreateClassModal = true;
-    }
-
-    _closeCreateClassModal() {
-        this._showCreateClassModal = false;
-        this._newClassName = "";
-    }
-
     async _submitCreateClass() {
         const className = this._newClassName.trim();
         if (!className) {
-            // Fallback text if translation key missing
-            const msg = translationService.t('dashboard.enter_class_name');
-            showToast(msg === 'dashboard.enter_class_name' ? 'Zadejte název třídy' : msg, true);
+            showToast('Zadejte název třídy', true);
             return;
         }
-
         const user = firebaseInit.auth.currentUser;
         if (!user) return;
 
@@ -148,10 +107,11 @@ export class ProfessorDashboardView extends LitElement {
                 studentIds: []
             });
             showToast(translationService.t('common.saved'));
-            this._closeCreateClassModal();
+            this._showCreateClassModal = false;
+            this._newClassName = "";
         } catch (error) {
             console.error("Error creating class:", error);
-            showToast(translationService.t('professor.error_create_class'), true);
+            showToast('Chyba při vytváření třídy', true);
         }
     }
 
@@ -163,200 +123,182 @@ export class ProfessorDashboardView extends LitElement {
     render() {
         const t = (key) => translationService.t(key);
         if (this._isLoading) {
-             return html`<div class="flex justify-center items-center h-full"><p class="text-xl text-slate-400 animate-pulse">${t('common.loading')}</p></div>`;
+             return html`<div class="flex justify-center items-center h-full min-h-screen"><p class="text-xl text-slate-400 animate-pulse">${t('common.loading')}</p></div>`;
         }
 
         const user = firebaseInit.auth.currentUser;
-        const userName = user?.displayName || user?.email || 'Profesore'; // Use static 'Profesore' as fallback
+        const userName = user?.displayName || user?.email || 'Profesore';
 
+        // 1. SYSTEMOVÉ RIEŠENIE LAYOUTU:
+        // Používame 'md:ml-64' na odsunutie obsahu o šírku menu (256px).
+        // 'min-h-screen' zabezpečí, že pozadie bude vždy po celej výške.
+        // 'p-8' dáva obsahu dýchať.
+        
         return html`
-            <style>
-                ${baseStyles.cssText}
-            </style>
-            <main class="main">
-                <header class="topbar">
-                    <div class="topbar-left">
-                        <div class="topbar-title-row">
-                            <div class="topbar-title">Učitelský panel</div>
-                            <span style="font-size:13px;color:var(--text-muted);">Dobré ráno, ${userName} 👋</span>
-                        </div>
-                        <div class="topbar-sub">Zde máte rychlý přehled a akce pro dnešní den.</div>
-                    </div>
-
-                    <div class="topbar-right">
-                        <div class="status-pill">
-                            <span class="status-dot"></span>
-                            <span>Systém je online</span>
+            <main class="main bg-slate-50 min-h-screen w-full md:pl-64 transition-all duration-300">
+                <div class="max-w-7xl mx-auto p-6 md:p-8 space-y-8">
+                
+                    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Učitelský panel</h1>
+                            <p class="text-slate-500 mt-1">Dobré ráno, ${userName} 👋</p>
                         </div>
 
-                        <div class="topbar-controls">
-                            <select class="lang-select-top" @change=${this._handleLanguageChange}>
-                                <option value="cs" ?selected=${translationService.currentLanguage === 'cs'}>Čeština</option>
-                                <option value="sk" ?selected=${translationService.currentLanguage === 'sk'}>Slovenčina</option>
-                                <option value="en" ?selected=${translationService.currentLanguage === 'en'}>English</option>
-                                <option value="pt-br" ?selected=${translationService.currentLanguage === 'pt-br'}>Português</option>
-                            </select>
+                        <div class="flex items-center gap-3 bg-white p-2 pr-4 rounded-full shadow-sm border border-slate-100">
+                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold shadow-md">
+                                ${userName.charAt(0).toUpperCase()}
+                            </div>
+                            
+                            <div class="h-8 w-px bg-slate-200 mx-1"></div>
 
-                            <button class="logout-top" @click=${handleLogout}>
-                                <span>⏏</span>
-                                <span>Odhlásit se</span>
+                            <div class="relative group">
+                                <select @change=${this._handleLanguageChange} class="appearance-none bg-transparent font-medium text-sm text-slate-600 hover:text-indigo-600 focus:outline-none cursor-pointer pr-4 py-1">
+                                    <option value="cs" ?selected=${translationService.currentLanguage === 'cs'}>CZ</option>
+                                    <option value="sk" ?selected=${translationService.currentLanguage === 'sk'}>SK</option>
+                                    <option value="en" ?selected=${translationService.currentLanguage === 'en'}>EN</option>
+                                    <option value="pt-br" ?selected=${translationService.currentLanguage === 'pt-br'}>BR</option>
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-0 text-slate-400">
+                                    <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </div>
+                            </div>
+
+                            <button @click=${handleLogout} class="text-slate-400 hover:text-red-500 transition-colors p-1" title="Odhlásit se">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
                             </button>
-
-                            <div class="user-badge">
-                                <div class="user-avatar">${userName.charAt(0).toUpperCase()}</div>
-                                <div>${user?.email}</div>
-                            </div>
                         </div>
-                    </div>
-                </header>
+                    </header>
 
-                <section class="quick-actions">
-                    <div class="qa-main">
-                        <button class="btn-primary" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor' }, bubbles: true, composed: true }))}>
-                            <span class="icon">✨</span>
-                            <span>Nová lekce z PDF</span>
-                        </button>
-                        <button class="btn-ghost" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'classes' }, bubbles: true, composed: true }))}>
-                            <span>🧑‍🏫</span>
-                            <span>Otevřít Moje třídy</span>
-                        </button>
-                        <button class="btn-ghost" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'timeline' }, bubbles: true, composed: true }))}>
-                            <span>📚</span>
-                            <span>Knihovna lekcí</span>
-                        </button>
-                    </div>
-                    <div class="qa-hint">
-                        Tip: Nahrajte PDF a nechte AI Sensei během pár vteřin vytvořit hotovou lekci.
-                    </div>
-                </section>
-
-                <section class="grid">
                     <section>
-                        <div class="card">
-                            <div class="card-header">
-                                <div>
-                                    <div class="card-title">Přehled managementu</div>
-                                    <div class="card-subtitle">Rychlý přístup ke studentům, třídám a lekcím.</div>
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <span class="bg-blue-100 text-blue-600 p-1.5 rounded-lg">👥</span> 
+                                Přehled managementu
+                            </h2>
+                            <button class="text-sm font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors" @click=${() => this._showCreateClassModal = true}>
+                                + Nová třída
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group"
+                                 @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'students' }, bubbles: true, composed: true }))}>
+                                <div class="flex justify-between items-start mb-4">
+                                    <div class="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                                    </div>
+                                    <span class="text-3xl font-extrabold text-slate-900">${this._stats.totalStudents}</span>
                                 </div>
+                                <h3 class="font-bold text-slate-700">Moji studenti</h3>
+                                <p class="text-xs text-slate-400 mt-1">Aktivní ve vašich třídách</p>
                             </div>
 
-                            <div class="management-grid">
-                                <div class="stat-card" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'students' }, bubbles: true, composed: true }))}>
-                                    <div class="stat-top">
-                                        <div class="stat-icon">👤</div>
-                                        <div class="stat-label">Studenti</div>
+                            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group"
+                                 @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'classes' }, bubbles: true, composed: true }))}>
+                                <div class="flex justify-between items-start mb-4">
+                                    <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
                                     </div>
-                                    <div class="stat-value">${this._stats.totalStudents}</div>
-                                    <div class="stat-footer">
-                                        <span>Aktivní ve vašich třídách</span>
-                                        <span class="link-inline">Otevřít studenty →</span>
-                                    </div>
+                                    <span class="text-3xl font-extrabold text-slate-900">${this._stats.totalClasses}</span>
                                 </div>
-
-                                <div class="stat-card" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'classes' }, bubbles: true, composed: true }))}>
-                                    <div class="stat-top">
-                                        <div class="stat-icon">🧑‍🏫</div>
-                                        <div class="stat-label">Třídy</div>
-                                    </div>
-                                    <div class="stat-value">${this._stats.totalClasses}</div>
-                                    <div class="stat-footer">
-                                        <span>Během tohoto semestru</span>
-                                        <span class="link-inline">Moje třídy →</span>
-                                    </div>
-                                </div>
-
-                                <div class="stat-card" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'timeline' }, bubbles: true, composed: true }))}>
-                                    <div class="stat-top">
-                                        <div class="stat-icon">📖</div>
-                                        <div class="stat-label">Lekce</div>
-                                    </div>
-                                    <div class="stat-value">${this._stats.totalLessons}</div>
-                                    <div class="stat-footer">
-                                        <span>V knihovně lekcí</span>
-                                        <span class="link-inline">Knihovna lekcí →</span>
-                                    </div>
-                                </div>
+                                <h3 class="font-bold text-slate-700">Moje třídy</h3>
+                                <p class="text-xs text-slate-400 mt-1">Spravovat skupiny a kódy</p>
                             </div>
 
-                            <!-- Add Create Class Button directly here for visibility -->
-                            <div class="mt-6 flex justify-end">
-                                <button class="btn-ghost" @click=${this._openCreateClassModal}>
-                                    <span>+</span>
-                                    <span>Vytvořit třídu</span>
-                                </button>
+                            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group"
+                                 @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'analytics' }, bubbles: true, composed: true }))}>
+                                <div class="flex justify-between items-start mb-4">
+                                    <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                                    </div>
+                                    <span class="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded">Novinka</span>
+                                </div>
+                                <h3 class="font-bold text-slate-700">Analytika výuky</h3>
+                                <p class="text-xs text-slate-400 mt-1">Přehled aktivity studentů</p>
                             </div>
                         </div>
                     </section>
 
-                    <aside>
-                        <div class="lesson-flow-card">
-                            <div class="flow-badge">Tvůrčí studio</div>
-                            <div>
-                                <div class="lesson-title">Nová Lekce</div>
-                                <div class="lesson-sub">Automatizovaná tvorba pomocí AI – od PDF k hotové lekci.</div>
+                    <section>
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                            <span class="bg-purple-100 text-purple-600 p-1.5 rounded-lg">✨</span> 
+                            Tvůrčí studio
+                        </h2>
+
+                        <div class="bg-white rounded-3xl p-1 shadow-sm border border-slate-200">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+                                
+                                <div class="p-6 hover:bg-purple-50/50 transition-colors cursor-pointer group rounded-l-3xl"
+                                     @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor' }, bubbles: true, composed: true }))}>
+                                    <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-purple-200 mb-4 group-hover:scale-110 transition-transform">
+                                        ✨
+                                    </div>
+                                    <h3 class="font-bold text-slate-900 group-hover:text-purple-700 transition-colors">Magický Generátor</h3>
+                                    <p class="text-sm text-slate-500 mt-1 leading-relaxed">Vytvořte kompletní lekci z PDF souboru během vteřiny.</p>
+                                </div>
+
+                                <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
+                                     @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', viewMode: 'settings' }, bubbles: true, composed: true }))}>
+                                    <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-indigo-200 group-hover:text-indigo-600 transition-colors">
+                                        📝
+                                    </div>
+                                    <h3 class="font-bold text-slate-900 group-hover:text-indigo-700 transition-colors">Vytvořit manuálně</h3>
+                                    <p class="text-sm text-slate-500 mt-1 leading-relaxed">Začněte s prázdnou lekcí a poskládejte ji sami.</p>
+                                </div>
+
+                                <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
+                                     @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'timeline' }, bubbles: true, composed: true }))}>
+                                    <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-blue-200 group-hover:text-blue-600 transition-colors">
+                                        📚
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <h3 class="font-bold text-slate-900 group-hover:text-blue-700 transition-colors">Knihovna lekcí</h3>
+                                        <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-full">${this._stats.totalLessons}</span>
+                                    </div>
+                                    <p class="text-sm text-slate-500 mt-1 leading-relaxed">Přehled a úprava všech vašich existujících lekcí.</p>
+                                </div>
+
+                                <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group rounded-r-3xl"
+                                     @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'media' }, bubbles: true, composed: true }))}>
+                                    <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-orange-200 group-hover:text-orange-600 transition-colors">
+                                        📁
+                                    </div>
+                                    <h3 class="font-bold text-slate-900 group-hover:text-orange-700 transition-colors">Média & Soubory</h3>
+                                    <p class="text-sm text-slate-500 mt-1 leading-relaxed">Správce nahraných dokumentů a multimédií.</p>
+                                </div>
+
                             </div>
-
-                            <div class="flow-steps">
-                                <div class="flow-step badge">
-                                    <div class="flow-icon">📄</div>
-                                    <div>
-                                        <div class="flow-label">Vstup</div>
-                                        <div class="flow-main">PDF Dokumenty</div>
-                                        <div class="flow-desc">Nahrajte prezentaci, skripta nebo pracovní list.</div>
-                                    </div>
-                                </div>
-
-                                <div class="flow-step">
-                                    <div class="flow-icon">⚡</div>
-                                    <div>
-                                        <div class="flow-label">Proces</div>
-                                        <div class="flow-main">AI Generování</div>
-                                        <div class="flow-desc">AI Sensei vytvoří strukturovanou lekci, aktivity a otázky.</div>
-                                    </div>
-                                </div>
-
-                                <div class="flow-step result">
-                                    <div class="flow-icon result">🎓</div>
-                                    <div>
-                                        <div class="flow-label">Výsledek</div>
-                                        <div class="flow-main">Hotová Lekce</div>
-                                        <div class="flow-desc">Lekce připravená k použití ve vaší třídě nebo online.</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="flow-divider"></div>
-
-                            <button class="btn-primary btn-primary-wide" @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor' }, bubbles: true, composed: true }))}>
-                                <span class="icon">✨</span>
-                                <span>Magicky vygenerovat vše</span>
-                            </button>
                         </div>
-                    </aside>
-                </section>
+                    </section>
 
-                ${this._renderCreateClassModal(t)}
+                </div>
+
+                ${this._renderCreateClassModal()}
             </main>
         `;
     }
 
-    _renderCreateClassModal(t) {
+    _renderCreateClassModal() {
         if (!this._showCreateClassModal) return null;
 
         return html`
-            <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                <div class="bg-white rounded-2xl shadow-xl p-6 w-96">
-                    <h3 class="text-lg font-bold mb-4">Vytvořit novou třídu</h3>
+            <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm transform transition-all scale-100">
+                    <h3 class="text-xl font-bold mb-1 text-slate-900">Vytvořit novou třídu</h3>
+                    <p class="text-sm text-slate-500 mb-6">Zadejte název pro identifikaci skupiny.</p>
+                    
                     <input
                         type="text"
-                        class="w-full border border-gray-300 rounded-lg p-2 mb-4"
-                        placeholder="Název třídy (např. 4.A Fyzika)"
+                        class="w-full border-2 border-slate-200 rounded-xl p-3 mb-6 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all font-bold text-slate-700"
+                        placeholder="Např. 4.A Fyzika"
                         .value=${this._newClassName}
                         @input=${e => this._newClassName = e.target.value}
+                        @keypress=${e => e.key === 'Enter' && this._submitCreateClass()}
+                        autofocus
                     >
-                    <div class="flex justify-end gap-2">
-                        <button class="btn-ghost" @click=${this._closeCreateClassModal}>Zrušit</button>
-                        <button class="btn-primary" @click=${this._submitCreateClass}>Uložit</button>
+                    <div class="flex justify-end gap-3">
+                        <button class="px-4 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors" @click=${() => this._showCreateClassModal = false}>Zrušit</button>
+                        <button class="px-6 py-2 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all transform active:scale-95" @click=${this._submitCreateClass}>Uložit</button>
                     </div>
                 </div>
             </div>
