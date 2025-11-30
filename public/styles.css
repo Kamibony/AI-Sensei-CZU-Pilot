@@ -9032,3 +9032,59 @@ html {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+}
+
+.mobile-nav-active svg {
+    @apply text-green-700;
+}
+.mobile-nav-active span {
+    @apply text-green-700;
+}
+
+/* Custom Scrollbar for modern look */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 20px;
+}
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+    background-color: #94a3b8;
+}
+
+/* --- FIXES FOR SIDEBAR --- */
+/* Remove any potential borders from legacy code */
+#main-nav {
+    border-right-width: 1px !important;
+    border-right-color: #f1f5f9 !important; /* slate-100 */
+    border-left: none !important;
+    border-top: none !important;
+    border-bottom: none !important;
+    background-color: white !important; /* Force white background */
+}
+
+/* Remove "Green Frame" from nav items */
+#main-nav .nav-item {
+    border: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Re-add shadow only for active state if needed, but keep it subtle */
+#main-nav .nav-item.shadow-sm {
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
+}
