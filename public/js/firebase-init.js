@@ -56,7 +56,11 @@ export async function initializeFirebase() {
     functions = getFunctions(app, 'europe-west1');
     
     if (typeof analytics === 'undefined') {
-        analytics = getAnalytics(app);
+        try {
+            analytics = getAnalytics(app);
+        } catch (e) {
+            console.warn("Analytics initialization skipped:", e);
+        }
     }
 
     // Pripojenie k emulátorom, ak bežíme na localhoste
