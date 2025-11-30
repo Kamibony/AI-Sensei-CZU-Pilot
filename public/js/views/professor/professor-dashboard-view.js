@@ -16,7 +16,6 @@ export class ProfessorDashboardView extends LitElement {
         _newClassName: { state: true, type: String }
     };
 
-    // Používame Light DOM pre Tailwind a globálne štýly
     createRenderRoot() { return this; }
 
     constructor() {
@@ -129,14 +128,10 @@ export class ProfessorDashboardView extends LitElement {
         const user = firebaseInit.auth.currentUser;
         const userName = user?.displayName || user?.email || 'Profesore';
 
-        // 1. SYSTEMOVÉ RIEŠENIE LAYOUTU:
-        // Používame 'md:ml-64' na odsunutie obsahu o šírku menu (256px).
-        // 'min-h-screen' zabezpečí, že pozadie bude vždy po celej výške.
-        // 'p-8' dáva obsahu dýchať.
-        
+        // UPRAVENÉ: Odstránené 'mx-auto' z divu, aby sa obsah netlačil na stred a nevytváral medzeru od menu
         return html`
             <main class="main bg-slate-50 min-h-screen w-full md:pl-64 transition-all duration-300">
-                <div class="max-w-7xl mx-auto p-6 md:p-8 space-y-8">
+                <div class="max-w-7xl p-6 md:p-8 space-y-8">
                 
                     <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
@@ -158,9 +153,6 @@ export class ProfessorDashboardView extends LitElement {
                                     <option value="en" ?selected=${translationService.currentLanguage === 'en'}>EN</option>
                                     <option value="pt-br" ?selected=${translationService.currentLanguage === 'pt-br'}>BR</option>
                                 </select>
-                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-0 text-slate-400">
-                                    <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                                </div>
                             </div>
 
                             <button @click=${handleLogout} class="text-slate-400 hover:text-red-500 transition-colors p-1" title="Odhlásit se">
