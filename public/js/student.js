@@ -11,6 +11,7 @@ import './student/student-lesson-list.js';
 import './student/student-lesson-detail.js';
 import './student/chat-panel.js';
 import './views/student/student-dashboard-view.js';
+import './student/student-classes-view.js';
 
 // Globálny stav pre študentskú sekciu
 let studentDataUnsubscribe = null;
@@ -129,9 +130,14 @@ function renderStudentLayout() {
 
         document.addEventListener('back-to-list', () => {
             selectedLessonId = null;
-            currentView = 'courses';
+            currentView = 'lessons'; // Changed from 'courses' to 'lessons' to match new key
             renderAppContent();
             updateNavigationState();
+        });
+
+        // Listen for requests to join class from anywhere
+        document.addEventListener('request-join-class', () => {
+            handleJoinClass();
         });
     }
 
@@ -152,12 +158,9 @@ function renderDesktopNavigation() {
 
         <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col w-full px-3 py-6 space-y-1">
             ${renderDesktopNavItem('home', translationService.t('nav.dashboard'), '🏠')}
-            ${renderDesktopNavItem('courses', translationService.t('nav.classes'), '📚')}
-            ${renderDesktopNavItem('chat', translationService.t('nav.interactions'), '💬')}
-            
-            <div class="my-4 border-t border-slate-100 mx-3"></div>
-            
-            ${renderDesktopNavItem('profile', translationService.t('student.join'), '👤')}
+            ${renderDesktopNavItem('lessons', 'Moje Lekce', '📖')}
+            ${renderDesktopNavItem('classes', 'Moje Třídy', '🏫')}
+            ${renderDesktopNavItem('agenda', 'Agenda', '📅')}
         </div>
 
         <div class="p-4 border-t border-slate-100 bg-white">
@@ -169,7 +172,7 @@ function renderDesktopNavigation() {
     `;
 
     // Click Listeners
-    ['home', 'courses', 'chat', 'profile'].forEach(view => {
+    ['home', 'lessons', 'classes', 'agenda'].forEach(view => {
         const btn = document.getElementById(`nav-desktop-${view}`);
         if(btn) btn.addEventListener('click', () => {
             currentView = view;
@@ -202,12 +205,12 @@ function renderMobileNavigation() {
 
     mobileBottomNav.innerHTML = `
         ${renderMobileNavItem('home', translationService.t('nav.dashboard'), '🏠')}
-        ${renderMobileNavItem('courses', translationService.t('nav.classes'), '📚')}
-        ${renderMobileNavItem('chat', translationService.t('nav.interactions'), '💬')}
-        ${renderMobileNavItem('profile', translationService.t('student.join'), '👤')}
+        ${renderMobileNavItem('lessons', 'Lekce', '📖')}
+        ${renderMobileNavItem('classes', 'Třídy', '🏫')}
+        ${renderMobileNavItem('agenda', 'Agenda', '📅')}
     `;
 
-    ['home', 'courses', 'chat', 'profile'].forEach(view => {
+    ['home', 'lessons', 'classes', 'agenda'].forEach(view => {
         document.getElementById(`nav-mobile-${view}`).addEventListener('click', () => {
             currentView = view;
             renderAppContent();
@@ -227,7 +230,7 @@ function renderMobileNavItem(viewName, label, icon) {
 
 function updateNavigationState() {
     let activeTab = currentView;
-    if (activeTab === 'lessonDetail') activeTab = 'courses';
+    if (activeTab === 'lessonDetail') activeTab = 'lessons';
     if (activeTab === 'promptForName' || activeTab === 'loading') activeTab = 'home';
 
     // Desktop: Reset & Set Active
@@ -274,16 +277,22 @@ function renderAppContent() {
             container.innerHTML = '<student-dashboard-view></student-dashboard-view>';
             break;
             
-        case 'courses':
+        case 'lessons':
             container.innerHTML = '<student-lesson-list></student-lesson-list>';
             break;
 
-        case 'chat':
-            container.innerHTML = '<student-chat-panel></student-chat-panel>';
+        case 'classes':
+            container.innerHTML = '<student-classes-view></student-classes-view>';
             break;
 
-        case 'profile':
-            renderProfilePlaceholder(container);
+        case 'agenda':
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-full text-center p-8">
+                    <div class="w-24 h-24 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center text-4xl mb-6">📅</div>
+                    <h2 class="text-2xl font-bold text-slate-800">Agenda</h2>
+                    <p class="text-slate-500 mt-2 max-w-md">Tuto sekci pro vás právě připravujeme. Brzy zde uvidíte svůj rozvrh a plánované události.</p>
+                </div>
+            `;
             break;
             
         case 'lessonDetail':
@@ -301,33 +310,6 @@ function renderAppContent() {
                 </div>`;
             break;
     }
-}
-
-function renderProfilePlaceholder(container) {
-    container.innerHTML = `
-        <div class="p-8 max-w-lg mx-auto w-full">
-            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 text-center">
-                <div class="w-24 h-24 mx-auto bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mb-6 text-4xl text-white shadow-lg">
-                    ${currentUserData?.name ? currentUserData.name.charAt(0).toUpperCase() : '👤'}
-                </div>
-                <h2 class="text-2xl font-bold text-slate-800 mb-1">${currentUserData?.name || 'Student'}</h2>
-                <p class="text-slate-500 mb-8">${currentUserData?.email}</p>
-
-                <div class="space-y-3">
-                    <button id="profile-join-class" class="w-full bg-indigo-50 text-indigo-700 font-bold py-3 px-4 rounded-xl hover:bg-indigo-100 transition-all border border-indigo-100">
-                        ${translationService.t('student.join')}
-                    </button>
-
-                    <button id="profile-logout-btn" class="w-full bg-white border border-slate-200 text-red-600 font-bold py-3 px-4 rounded-xl hover:bg-red-50 hover:border-red-100 transition-all">
-                        ${translationService.t('nav.logout')}
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    document.getElementById('profile-logout-btn').addEventListener('click', handleLogout);
-    document.getElementById('profile-join-class').addEventListener('click', handleJoinClass);
 }
 
 function promptForStudentName(userId, container) {
