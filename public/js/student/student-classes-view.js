@@ -74,6 +74,15 @@ export class StudentClassesView extends LitElement {
         this.dispatchEvent(event);
     }
 
+    _handleClassClick(groupId) {
+        const event = new CustomEvent('class-selected', {
+            detail: { groupId: groupId },
+            bubbles: true,
+            composed: true
+        });
+        this.dispatchEvent(event);
+    }
+
     render() {
         // Use t() where possible, but hardcode requested new Czech strings if keys are missing
         const t = (key, defaultText) => {
@@ -104,20 +113,20 @@ export class StudentClassesView extends LitElement {
                 ${this._groups.length > 0 ? html`
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         ${this._groups.map(group => html`
-                            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex items-center justify-between">
+                            <div @click=${() => this._handleClassClick(group.id)} class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex items-center justify-between cursor-pointer group">
                                 <div class="flex items-center gap-4">
                                     <div class="w-14 h-14 rounded-xl bg-slate-50 text-slate-500 flex items-center justify-center font-bold text-xl">
                                         ${group.name.substring(0, 1).toUpperCase()}
                                     </div>
                                     <div>
-                                        <h4 class="font-bold text-slate-800 text-lg">${group.name}</h4>
+                                        <h4 class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors">${group.name}</h4>
                                         <p class="text-sm text-slate-400 flex items-center gap-1">
                                             👨‍🏫 ${group.ownerName || 'Učitel'}
                                         </p>
                                     </div>
                                 </div>
-                                <div class="text-slate-300">
-                                    <span class="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded">Člen</span>
+                                <div class="text-slate-300 group-hover:text-indigo-600 transition-colors">
+                                    →
                                 </div>
                             </div>
                         `)}
@@ -125,7 +134,7 @@ export class StudentClassesView extends LitElement {
                 ` : html`
                     <div class="text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
                         <div class="text-5xl mb-4">🏫</div>
-                        <h3 class="text-xl font-bold text-slate-800">Zatím nejste v žádné třídě</h3>
+                        <h3 class="text-xl font-bold text-slate-800">Zatím nejsou žádné třídy</h3>
                         <p class="text-slate-500 mt-2 mb-6">Připojte se pomocí kódu od vašeho profesora.</p>
                         <button @click=${this._handleJoinClassClick} class="text-indigo-600 font-bold hover:underline">
                             Připojit se teď
