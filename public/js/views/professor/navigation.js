@@ -3,13 +3,21 @@ import { translationService } from "../../utils/translation-service.js";
 
 export function setupProfessorNav(showProfessorContent) {
     const nav = document.getElementById('main-nav');
+    // Získame referenciu na hlavný obaľovač obsahu
+    const contentWrapper = document.getElementById('role-content-wrapper');
     const auth = getAuth();
     const user = auth.currentUser;
     const t = (key) => translationService.t(key);
 
     if (nav && user) {
-        // Modern Sidebar: Clean, white, no heavy borders
+        // 1. SYSTEMOVÁ ZMENA: Nastavíme layout pre fixný sidebar
+        // Sidebar je fixed (vyňatý z toku), preto obsahu dáme margin-left
         nav.className = 'hidden md:flex fixed top-0 left-0 h-screen w-64 bg-white border-r border-slate-100 z-50 flex-col justify-between transition-all duration-300';
+        
+        // Aplikujeme margin na content wrapper, aby obsah nebiehal pod menu
+        if (contentWrapper) {
+            contentWrapper.className = 'flex-grow flex flex-col overflow-y-auto md:ml-64 bg-slate-50 min-h-screen transition-all duration-300';
+        }
 
         nav.innerHTML = `
             <div id="nav-logo" class="h-20 flex items-center justify-start px-6 cursor-pointer group flex-shrink-0">
@@ -28,27 +36,27 @@ export function setupProfessorNav(showProfessorContent) {
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${t('nav.organization')}</span>
                     </div>
 
-                    <button data-view="dashboard" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group">
+                    <button data-view="dashboard" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
                         <span class="text-xl mr-3 group-hover:scale-110 transition-transform">🏠</span>
                         <span class="text-sm font-medium">${t('nav.dashboard')}</span>
                     </button>
 
-                    <button data-view="classes" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group">
+                    <button data-view="classes" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
                         <span class="text-xl mr-3 group-hover:scale-110 transition-transform">🏫</span>
                         <span class="text-sm font-medium">${t('nav.classes')}</span>
                     </button>
 
-                    <button data-view="students" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group">
+                    <button data-view="students" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
                         <span class="text-xl mr-3 group-hover:scale-110 transition-transform">👥</span>
                         <span class="text-sm font-medium">${t('nav.students')}</span>
                     </button>
 
-                    <button data-view="interactions" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group">
+                    <button data-view="interactions" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
                         <span class="text-xl mr-3 group-hover:scale-110 transition-transform">💬</span>
                         <span class="text-sm font-medium">${t('nav.interactions')}</span>
                     </button>
 
-                    <button data-view="analytics" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group">
+                    <button data-view="analytics" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
                         <span class="text-xl mr-3 group-hover:scale-110 transition-transform">📊</span>
                         <span class="text-sm font-medium">${t('nav.analytics')}</span>
                     </button>
@@ -59,17 +67,17 @@ export function setupProfessorNav(showProfessorContent) {
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${t('nav.creative_studio')}</span>
                     </div>
 
-                     <button data-view="timeline" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group">
+                     <button data-view="timeline" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
                         <span class="text-xl mr-3 group-hover:scale-110 transition-transform">📚</span>
                         <span class="text-sm font-medium">${t('nav.library')}</span>
                     </button>
 
-                    <button data-view="media" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group">
+                    <button data-view="media" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
                         <span class="text-xl mr-3 group-hover:scale-110 transition-transform">📁</span>
                         <span class="text-sm font-medium">${t('nav.media')}</span>
                     </button>
 
-                    <button data-view="editor" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group">
+                    <button data-view="editor" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none">
                         <span class="text-xl mr-3 group-hover:scale-110 transition-transform">✨</span>
                         <span class="text-sm font-medium">${t('nav.editor')}</span>
                     </button>
@@ -78,7 +86,7 @@ export function setupProfessorNav(showProfessorContent) {
 
             <div class="flex-shrink-0 p-4 border-t border-slate-100">
                  ${user.email === 'profesor@profesor.cz' ? `
-                <button data-view="admin" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-yellow-50 hover:text-yellow-600 group mb-2">
+                <button data-view="admin" class="nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-yellow-50 hover:text-yellow-600 group mb-2 outline-none focus:outline-none">
                     <span class="text-xl mr-3 group-hover:rotate-90 transition-transform duration-500">⚙️</span>
                     <span class="text-sm font-medium">${t('nav.admin')}</span>
                 </button>
@@ -91,17 +99,17 @@ export function setupProfessorNav(showProfessorContent) {
             btn.addEventListener('click', (e) => {
                 const view = e.currentTarget.dataset.view;
 
-                // Reset all buttons (Standard style)
+                // Reset all: Odstránime všetky "border" triedy a aktívne pozadia
                 nav.querySelectorAll('button[data-view]').forEach(b => {
-                    b.className = 'nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group';
+                    b.className = 'nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 group outline-none focus:outline-none border-0 ring-0';
                 });
 
-                // Activate clicked button (Active style - No borders, just background)
+                // Activate: Iba jemné pozadie a výrazný text (ŽIADNY BORDER)
                 const activeBtn = e.currentTarget;
-                let activeClass = 'nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 bg-indigo-50 text-indigo-700 font-bold shadow-sm group';
+                let activeClass = 'nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 bg-indigo-50 text-indigo-700 font-bold shadow-sm group outline-none focus:outline-none border-0 ring-0';
 
                 if (view === 'admin') {
-                     activeClass = 'nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 bg-yellow-50 text-yellow-700 font-bold shadow-sm group';
+                     activeClass = 'nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 bg-yellow-50 text-yellow-700 font-bold shadow-sm group outline-none focus:outline-none border-0 ring-0';
                 }
 
                 activeBtn.className = activeClass;
@@ -109,7 +117,7 @@ export function setupProfessorNav(showProfessorContent) {
             });
         });
 
-        // Logo Click to Dashboard
+        // Logo Click
         const logo = nav.querySelector('#nav-logo');
         if (logo) {
             logo.addEventListener('click', () => {
@@ -118,10 +126,10 @@ export function setupProfessorNav(showProfessorContent) {
             });
         }
         
-        // Default active state for dashboard on load if needed
+        // Set Default Active State
         const defaultBtn = nav.querySelector('button[data-view="dashboard"]');
         if(defaultBtn && !document.querySelector('.nav-item.bg-indigo-50')) {
-             defaultBtn.className = 'nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 bg-indigo-50 text-indigo-700 font-bold shadow-sm group';
+             defaultBtn.className = 'nav-item w-full flex items-center p-3 rounded-xl transition-all duration-200 bg-indigo-50 text-indigo-700 font-bold shadow-sm group outline-none focus:outline-none border-0 ring-0';
         }
     }
 }
