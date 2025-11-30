@@ -1,7 +1,6 @@
 // Súbor: public/js/student.js
 import { doc, onSnapshot, setDoc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { showToast } from './utils.js';
 import { translationService } from './utils/translation-service.js';
 import * as firebaseInit from './firebase-init.js';
 import { handleLogout } from './auth.js';
@@ -9,6 +8,7 @@ import { handleLogout } from './auth.js';
 // Importujeme hlavné komponenty zobrazenia
 import './student/student-lesson-list.js';
 import './student/student-lesson-detail.js';
+import './student/student-class-detail.js';
 import './student/chat-panel.js';
 import './views/student/student-dashboard-view.js';
 import './student/student-classes-view.js';
@@ -18,6 +18,7 @@ let studentDataUnsubscribe = null;
 let currentUserData = null;
 let currentView = 'loading'; 
 let selectedLessonId = null;
+let selectedGroupId = null;
 let previousView = 'home';
 
 let roleContentWrapper = null;
@@ -91,6 +92,7 @@ export function cleanupStudentDashboard() {
     mobileBottomNav = null;
     currentView = 'loading';
     selectedLessonId = null;
+    selectedGroupId = null;
 }
 
 function renderStudentLayout() {
@@ -103,14 +105,7 @@ function renderStudentLayout() {
     // 1. SYSTEM LAYOUT FIX (Flexbox)
     // Sidebar: w-64, not fixed (flex item), visible on md+
     // Content: flex-1, fills remaining space
-    // NOTE: If mainNav is hidden (mobile), it takes 0 width. If flex (desktop), it takes 64.
     mainNav.className = 'hidden md:flex w-64 h-full flex-col bg-white border-r border-slate-100 z-40 transition-all duration-300 flex-shrink-0';
-
-    // On desktop, mainNav is in the flow, so we don't need pl-64 if the parent is flex-row.
-    // However, if the mainNav is FIXED (which is common for sidebars), we need pl-64.
-    // The prompt requested: "sidebar w-64, obsah flex-1 ... aby sa obsah nezobrazoval pod menu ale vedľa neho".
-    // If the sidebar is flex, it sits next to it.
-    // I am adding `flex-shrink-0` to mainNav to be safe.
 
     roleContentWrapper.className = 'flex-1 h-full flex flex-col overflow-y-auto bg-slate-50 transition-all duration-300 pb-20 md:pb-0';
 
@@ -128,9 +123,22 @@ function renderStudentLayout() {
             renderAppContent();
         });
 
+        document.addEventListener('class-selected', (e) => {
+            selectedGroupId = e.detail.groupId;
+            previousView = currentView;
+            currentView = 'classDetail';
+            renderAppContent();
+        });
+
+        document.addEventListener('back-to-classes', () => {
+            selectedGroupId = null;
+            currentView = 'classes';
+            renderAppContent();
+        });
+
         document.addEventListener('back-to-list', () => {
             selectedLessonId = null;
-            currentView = 'lessons'; // Changed from 'courses' to 'lessons' to match new key
+            currentView = 'lessons';
             renderAppContent();
             updateNavigationState();
         });
@@ -231,6 +239,7 @@ function renderMobileNavItem(viewName, label, icon) {
 function updateNavigationState() {
     let activeTab = currentView;
     if (activeTab === 'lessonDetail') activeTab = 'lessons';
+    if (activeTab === 'classDetail') activeTab = 'classes';
     if (activeTab === 'promptForName' || activeTab === 'loading') activeTab = 'home';
 
     // Desktop: Reset & Set Active
@@ -285,6 +294,12 @@ function renderAppContent() {
             container.innerHTML = '<student-classes-view></student-classes-view>';
             break;
 
+        case 'classDetail':
+            const classDetailEl = document.createElement('student-class-detail');
+            classDetailEl.groupId = selectedGroupId;
+            container.appendChild(classDetailEl);
+            break;
+
         case 'agenda':
             container.innerHTML = `
                 <div class="flex flex-col items-center justify-center h-full text-center p-8">
@@ -330,13 +345,13 @@ function promptForStudentName(userId, container) {
 
     document.getElementById('save-name-btn').addEventListener('click', async () => {
         const name = document.getElementById('student-name-input').value.trim();
-        if (!name) return showToast(translationService.t('student_dashboard.name_required'), true);
+        if (!name) return; // Silent fail
 
         try {
             await updateDoc(doc(firebaseInit.db, 'students', userId), { name: name });
-            showToast(translationService.t('student_dashboard.name_saved'));
+            // Silent success - onSnapshot will handle UI update
         } catch (error) {
-            showToast(translationService.t('student_dashboard.name_save_error'), true);
+            console.error("Error saving name:", error);
         }
     });
 }
@@ -345,19 +360,16 @@ async function handleJoinClass() {
     const joinCode = window.prompt(translationService.t('student_dashboard.join_prompt'));
     if (!joinCode || joinCode.trim() === "") return;
 
-    showToast(translationService.t('student_dashboard.joining'), false);
-
     try {
         const joinClass = httpsCallable(firebaseInit.functions, 'joinClass');
         const result = await joinClass({ joinCode: joinCode.trim() });
 
         if (result.data.success) {
-            showToast(translationService.t('student_dashboard.join_success_group').replace('{groupName}', result.data.groupName));
+            // Success - onSnapshot will handle UI update
         } else {
-            showToast(translationService.t('student_dashboard.join_error_unknown'), true);
+            console.error(translationService.t('student_dashboard.join_error_unknown'));
         }
     } catch (error) {
         console.error("Error joining class:", error);
-        showToast(error.message || translationService.t('student_dashboard.join_error_unknown'), true);
     }
 }

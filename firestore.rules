@@ -25,6 +25,11 @@ service cloud.firestore {
     match /students/{studentId} {
       allow read: if isProfessor() || isProfessorRole() || isOwner(studentId);
       allow create, update: if isOwner(studentId);
+
+      // Povol read/write pre subkolekciu progress pre vlastníka
+      match /progress/{lessonId} {
+        allow read, write: if isOwner(studentId);
+      }
     }
 
     // Pravidlá pre správu používateľov
