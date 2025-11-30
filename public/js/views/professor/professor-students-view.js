@@ -212,14 +212,14 @@ export class ProfessorStudentsView extends LitElement {
         return html`
             <div class="h-full flex flex-col bg-slate-50">
                 <header class="bg-white p-6 border-b border-slate-200">
-                    <div class="max-w-7xl mx-auto text-center">
+                    <div class="text-center">
                         <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${t('students_view.title')}</h1>
                         <p class="text-slate-500 mt-1 font-medium">${t('students_view.subtitle')}</p>
                     </div>
                 </header>
 
                 <div class="flex-grow overflow-y-auto p-6">
-                    <div class="max-w-7xl mx-auto space-y-8">
+                    <div class="space-y-8">
 
                         <!-- Search Bar (Floating) -->
                         <div class="sticky top-0 z-10 -mt-2 mb-8 pt-2">
