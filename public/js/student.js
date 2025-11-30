@@ -100,9 +100,17 @@ function renderStudentLayout() {
     if (!roleContentWrapper || !mainNav || !mobileBottomNav) return;
     
     // 1. SYSTEM LAYOUT FIX (Flexbox)
-    // Sidebar: w-64, not fixed
+    // Sidebar: w-64, not fixed (flex item), visible on md+
     // Content: flex-1, fills remaining space
-    mainNav.className = 'hidden md:flex w-64 h-full flex-col bg-white border-r border-slate-100 z-40 transition-all duration-300';
+    // NOTE: If mainNav is hidden (mobile), it takes 0 width. If flex (desktop), it takes 64.
+    mainNav.className = 'hidden md:flex w-64 h-full flex-col bg-white border-r border-slate-100 z-40 transition-all duration-300 flex-shrink-0';
+
+    // On desktop, mainNav is in the flow, so we don't need pl-64 if the parent is flex-row.
+    // However, if the mainNav is FIXED (which is common for sidebars), we need pl-64.
+    // The prompt requested: "sidebar w-64, obsah flex-1 ... aby sa obsah nezobrazoval pod menu ale vedľa neho".
+    // If the sidebar is flex, it sits next to it.
+    // I am adding `flex-shrink-0` to mainNav to be safe.
+
     roleContentWrapper.className = 'flex-1 h-full flex flex-col overflow-y-auto bg-slate-50 transition-all duration-300 pb-20 md:pb-0';
 
     // Global Listeners (Attach ONCE)

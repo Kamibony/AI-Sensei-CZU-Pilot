@@ -3,6 +3,7 @@
 import { LitElement, html, nothing } from 'https://cdn.skypack.dev/lit';
 import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../firebase-init.js';
+import { showToast } from '../utils.js';
 import { renderPresentation } from './presentation-handler.js';
 import { translationService } from '../utils/translation-service.js';
 
@@ -99,26 +100,36 @@ export class StudentLessonDetail extends LitElement {
         const user = firebaseInit.auth.currentUser;
         if (!user || !this.lessonId) return;
 
-        // Optimistic update
-        if (!this._progress.completedSections) this._progress.completedSections = [];
-        if (!this._progress.completedSections.includes(sectionId)) {
-            // Optimistic
+        // Check if already completed to avoid redundant updates
+        const currentCompleted = this._progress.completedSections || [];
+        if (currentCompleted.includes(sectionId)) return;
+
+        // 1. Optimistic Update (Immediate Visual Feedback)
+        const newCompleted = [...currentCompleted, sectionId];
+
+        // Update local state immediately to trigger re-render
+        this._progress = {
+            ...this._progress,
+            completedSections: newCompleted
+        };
+        this.requestUpdate(); // Force UI update
+
+        // 2. Background Firebase Update
+        const progressRef = doc(firebaseInit.db, `students/${user.uid}/progress/${this.lessonId}`);
+        try {
+            await setDoc(progressRef, {
+                completedSections: arrayUnion(sectionId),
+                lastUpdated: new Date()
+            }, { merge: true });
+        } catch (e) {
+            console.error("Error saving progress:", e);
+            // Rollback on error (optional, but good practice)
             this._progress = {
                 ...this._progress,
-                completedSections: [...this._progress.completedSections, sectionId]
+                completedSections: currentCompleted
             };
-
-            const progressRef = doc(firebaseInit.db, `students/${user.uid}/progress/${this.lessonId}`);
-            try {
-                // Use setDoc with merge: true to handle both create and update
-                await setDoc(progressRef, {
-                    completedSections: arrayUnion(sectionId),
-                    lastUpdated: new Date()
-                }, { merge: true });
-
-            } catch (e) {
-                console.error("Error saving progress:", e);
-            }
+            this.requestUpdate();
+            showToast("Chyba při ukládání postupu. Zkuste to prosím znovu.", true);
         }
     }
 
@@ -402,6 +413,27 @@ export class StudentLessonDetail extends LitElement {
         `;
     }
 
+    _renderCompletionButton(sectionId, label = "Dokončit") {
+        const isCompleted = this._progress?.completedSections?.includes(sectionId);
+
+        return html`
+            <div class="mt-12 flex justify-center">
+                <button
+                    @click=${() => this._markSectionComplete(sectionId)}
+                    ?disabled=${isCompleted}
+                    class="px-8 py-3 rounded-full font-bold shadow-lg transition-all transform active:scale-95 flex items-center gap-2
+                    ${isCompleted
+                        ? 'bg-green-100 text-green-700 cursor-default shadow-none border border-green-200'
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-200 hover:-translate-y-1'}"
+                >
+                    ${isCompleted
+                        ? html`<span>Hotovo</span> <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`
+                        : html`<span>${label}</span> <span>✅</span>`}
+                </button>
+            </div>
+        `;
+    }
+
     _renderTabContent() {
         // `renderPresentation` je špeciálny prípad, lebo manipuluje s DOM, musíme mu dať kontajner
         if (this.activeTabId === 'presentation') {
@@ -414,11 +446,7 @@ export class StudentLessonDetail extends LitElement {
             }, 0);
             return html`
                 <div id="presentation-container"></div>
-                <div class="mt-8 flex justify-center">
-                    <button @click=${() => this._markSectionComplete('presentation')} class="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold shadow-lg hover:bg-indigo-700 transition-colors">
-                        Prezentace prostudována ✅
-                    </button>
-                </div>
+                ${this._renderCompletionButton('presentation', 'Prezentace prostudována')}
             `;
         }
         
@@ -435,11 +463,7 @@ export class StudentLessonDetail extends LitElement {
                 textContentDiv.innerHTML = marked.parse(this.lessonData.text_content || ''); 
                 return html`
                     ${textContentDiv}
-                    <div class="mt-12 flex justify-center">
-                        <button @click=${() => this._markSectionComplete('text')} class="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold shadow-lg hover:bg-indigo-700 transition-colors">
-                            Dokončit čtení ✅
-                        </button>
-                    </div>
+                    ${this._renderCompletionButton('text', 'Dokončit čtení')}
                 `;
                 
             case 'video':
@@ -449,11 +473,7 @@ export class StudentLessonDetail extends LitElement {
                         <div class="aspect-video w-full rounded-2xl overflow-hidden shadow-lg mb-8">
                             <iframe class="w-full h-full" src="https://www.youtube.com/embed/${videoIdMatch[1]}" frameborder="0" allowfullscreen></iframe>
                         </div>
-                        <div class="flex justify-center">
-                            <button @click=${() => this._markSectionComplete('video')} class="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold shadow-lg hover:bg-indigo-700 transition-colors">
-                                Video shlédnuto ✅
-                            </button>
-                        </div>
+                        ${this._renderCompletionButton('video', 'Video shlédnuto')}
                     `;
                 } else {
                     return html`<p class="text-red-500">Neplatný nebo chybějící YouTube odkaz.</p>`;
@@ -469,11 +489,7 @@ export class StudentLessonDetail extends LitElement {
             case 'mindmap':
                 return html`
                     <mindmap-component .code=${this.lessonData.mindmap}></mindmap-component>
-                    <div class="mt-8 flex justify-center">
-                        <button @click=${() => this._markSectionComplete('mindmap')} class="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold shadow-lg hover:bg-indigo-700 transition-colors">
-                            Prostudováno ✅
-                        </button>
-                    </div>
+                    ${this._renderCompletionButton('mindmap', 'Prostudováno')}
                 `;
             case 'ai-assistant':
                 return html`<chat-panel type="ai" .lessonId=${this.lessonId} .currentUserData=${this.currentUserData}></chat-panel>`;
