@@ -11,42 +11,42 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.css"/>
     <script src="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.js.iife.js"></script>
-    </head>
+</head>
 <body class="bg-slate-100 font-['Plus_Jakarta_Sans'] text-slate-900 antialiased">
 
     <div id="toast-container"></div>
     <div id="app-container"></div>
 
-    <!-- Login template removed, replaced by <login-view> component -->
-
     <template id="main-app-template">
-        <div id="main-app" class="flex flex-col md:flex-row h-screen bg-slate-100">
-            <nav id="main-nav" class="bg-green-800 p-2 md:flex flex-col items-center hidden md:w-20 lg:w-64 transition-all duration-300"></nav>
-            <div id="role-content-wrapper" class="flex-grow flex flex-col overflow-y-auto"></div>
-            <nav id="mobile-bottom-nav" class="md:hidden w-full bg-white border-t border-slate-200 flex justify-around p-2 fixed bottom-0 z-10"></nav>
+        <div id="main-app" class="min-h-screen bg-slate-50">
+            <nav id="main-nav"></nav>
+            
+            <div id="role-content-wrapper"></div>
+            
+            <nav id="mobile-bottom-nav" class="md:hidden w-full bg-white border-t border-slate-200 flex justify-around p-2 fixed bottom-0 z-50"></nav>
         </div>
     </template>
 
     <script type="module" src="js/app.js"></script>
 
-    <div id="media-library-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black bg-opacity-60 transition-opacity" style="--tw-bg-opacity: 0.6;">
-        <div class="bg-white rounded-2xl shadow-xl w-11/12 max-w-4xl h-5/6 flex flex-col">
-            <div class="flex justify-between items-center p-4 border-b border-slate-200 flex-shrink-0">
+    <div id="media-library-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-4xl h-5/6 flex flex-col transform transition-all scale-100">
+            <div class="flex justify-between items-center p-6 border-b border-slate-100 flex-shrink-0">
                 <h2 class="text-xl font-bold text-slate-800">Vybrat soubory z knihovny</h2>
-                <button id="modal-close-btn" class="text-3xl font-light text-slate-500 hover:text-slate-800 transition-colors">&times;</button>
+                <button id="modal-close-btn" class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors">&times;</button>
             </div>
             
-            <div id="modal-library-content" class="flex-grow p-4 overflow-y-auto bg-slate-50">
+            <div id="modal-library-content" class="flex-grow p-6 overflow-y-auto bg-slate-50">
                 <ul id="modal-media-list" class="space-y-2">
-                   <li class="text-sm text-gray-500">Načítám soubory...</li>
+                   <li class="text-sm text-gray-500 text-center py-8">Načítám soubory...</li>
                 </ul>
             </div>
             
-            <div class="p-4 border-t border-slate-200 bg-white flex justify-end flex-shrink-0">
-                <button id="modal-cancel-btn" class="px-5 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 mr-3 transition-colors">Zrušit</button>
-                <button id="modal-confirm-btn" class="px-5 py-2 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition-colors">Potvrdit výběr</button>
+            <div class="p-6 border-t border-slate-100 bg-white flex justify-end gap-3 flex-shrink-0 rounded-b-2xl">
+                <button id="modal-cancel-btn" class="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 font-medium hover:bg-slate-50 transition-colors">Zrušit</button>
+                <button id="modal-confirm-btn" class="px-5 py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5">Potvrdit výběr</button>
             </div>
         </div>
     </div>
-    </body>
+</body>
 </html>
