@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - release
+      - legacy-v1
 
 jobs:
   build_and_deploy:
@@ -35,7 +36,7 @@ jobs:
           npm run build
           cd ..
 
-      # --- Nasadenie na DEV (vetva main) ---
+      # --- Nasadenie na DEV (vetva main) -> ai-sensei-czu-pilot ---
       - name: Deploy to DEV (ai-sensei-czu-pilot)
         if: github.ref == 'refs/heads/main'
         uses: w9jds/firebase-action@master
@@ -44,11 +45,20 @@ jobs:
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
-      # --- Nasadenie na PROD (vetva release) ---
-      - name: Deploy to PROD (via-academy-prod)
+      # --- Nasadenie na NOVÝ PROD (vetva release) -> ai-sensei-prod ---
+      - name: Deploy to PROD (ai-sensei-prod)
         if: github.ref == 'refs/heads/release'
         uses: w9jds/firebase-action@master
         with:
           args: deploy --project prod --force
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      # --- Nasadenie na LEGACY (vetva legacy-v1) -> via-academy-prod ---
+      - name: Deploy to LEGACY (via-academy-prod)
+        if: github.ref == 'refs/heads/legacy-v1'
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --project legacy --force
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
