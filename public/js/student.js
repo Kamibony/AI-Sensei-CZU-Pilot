@@ -42,7 +42,7 @@ class StudentDashboard extends LitElement {
         if (!this.user) return html`<div>Loading...</div>`;
 
         return html`
-            <div class="min-h-screen bg-slate-50 flex">
+            <div class="h-full overflow-hidden bg-slate-50 flex">
                 <!-- Sidebar -->
                 <nav class="fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200 z-50 transform transition-transform duration-200 ease-in-out ${this.isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0">
                     <div class="flex flex-col h-full">
@@ -92,7 +92,7 @@ class StudentDashboard extends LitElement {
                 </div>
 
                 <!-- Main Content -->
-                <main class="flex-1 md:ml-64 min-h-screen transition-all duration-200">
+                <main class="flex-1 md:ml-64 h-full overflow-y-auto transition-all duration-200">
                     <div class="p-8 max-w-7xl mx-auto">
                         ${this.renderContent()}
                     </div>
@@ -133,7 +133,7 @@ class StudentDashboard extends LitElement {
                         <student-lesson-detail
                             .lessonId="${this.selectedLessonId}"
                             .studentId="${this.user.uid}"
-                            @back="${() => this.selectedLessonId = null}">
+                            @back-to-list="${() => this.selectedLessonId = null}">
                         </student-lesson-detail>
                     `;
                 }
@@ -159,8 +159,9 @@ class StudentDashboard extends LitElement {
                 return html`
                     <student-classes-view
                         .user="${this.user}"
+                        @request-join-class="${(e) => console.log('Join requested:', e.detail)}"
                         @class-selected="${(e) => {
-                            this.selectedClassId = e.detail.classId;
+                            this.selectedClassId = e.detail.groupId;
                         }}">
                     </student-classes-view>
                 `;
