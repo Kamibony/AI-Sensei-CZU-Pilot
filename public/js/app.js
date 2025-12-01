@@ -2,7 +2,7 @@ import { initializeFirebase, auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initProfessorApp } from './professor.js';
-import { initStudentApp, cleanupStudentDashboard } from './student.js';
+import { initStudentApp } from './student.js';
 import './views/login-view.js'; // Import component definition
 import { showToast, showGlobalSpinner, hideGlobalSpinner } from './utils.js';
 import { translationService } from './utils/translation-service.js';
@@ -65,9 +65,6 @@ async function main() {
                 await initProfessorApp(user);
             } else if (userRole === 'student') {
                 sessionStorage.setItem('userRole', userRole);
-                if (typeof cleanupStudentDashboard === 'function') {
-                    cleanupStudentDashboard();
-                }
                 renderMainLayout();
                 initStudentApp();
             } else {
@@ -80,9 +77,6 @@ async function main() {
         } else {
             // Používateľ nie je prihlásený
             sessionStorage.removeItem('userRole');
-            if (typeof cleanupStudentDashboard === 'function') {
-                 cleanupStudentDashboard();
-            }
             renderLoginState();
         }
     });
