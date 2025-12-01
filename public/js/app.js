@@ -66,7 +66,7 @@ async function main() {
             } else if (userRole === 'student') {
                 sessionStorage.setItem('userRole', userRole);
                 renderMainLayout();
-                initStudentApp();
+                initStudentApp(user);
             } else {
                 // Ak rola stále chýba, odhlásime ho s chybou
                 console.error("Failed to get user role after multiple attempts. Logging out.");
