@@ -21,11 +21,13 @@ jobs:
       - name: Install Frontend Dependencies
         run: npm install
 
-      # --- OPRAVA: TOTO MUSÍ BYŤ POVOLENÉ PRE TAILWIND ---
+      # --- Build CSS (Tailwind) ---
+      # Dôležité pre vzhľad aplikácie
       - name: Build CSS from Tailwind
         run: npm run build:css
-      # ----------------------------------------------------
 
+      # --- Build Functions (Backend) ---
+      # Príprava Cloud Functions pred nasadením
       - name: Install and Build Functions
         run: |
           set -e
@@ -35,8 +37,10 @@ jobs:
           npm run build
           cd ..
 
-      # --- Nasadenie na DEV (vetva main) ---
-      - name: Deploy to DEV (ai-sensei-czu-pilot)
+      # =====================================================
+      # NASADENIE NA VÝVOJ (DEV - ai-sensei-czu-pilot)
+      # =====================================================
+      - name: Deploy to DEV
         if: github.ref == 'refs/heads/main'
         uses: w9jds/firebase-action@master
         with:
@@ -44,11 +48,16 @@ jobs:
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
-      # --- Nasadenie na PROD (vetva release) ---
-      - name: Deploy to PROD (via-academy-prod)
+      # =====================================================
+      # NASADENIE NA NOVÚ PRODUKCIU (PROD - ai-sensei-prod)
+      # =====================================================
+      # Táto časť je kľúčová. Používa nový kľúč a smeruje na nový projekt.
+      - name: Deploy to NEW PROD
         if: github.ref == 'refs/heads/release'
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --project prod --force
+          # Explicitne určíme projekt ai-sensei-prod
+          args: deploy --project ai-sensei-prod --force
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          # Použijeme nový Service Account kľúč (uisti sa, že je v Secrets!)
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_AI_SENSEI_PROD }}
