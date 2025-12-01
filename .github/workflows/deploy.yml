@@ -32,7 +32,7 @@ jobs:
           set -e
           rm -rf functions/lib
           cd functions
-          npm ci
+          npm install
           npm run build
           cd ..
 
