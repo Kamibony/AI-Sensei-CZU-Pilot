@@ -1,7 +1,6 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { doc, onSnapshot, collection, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../firebase-init.js';
-import { translationService } from '../utils/translation-service.js'; // Fix import path
 
 export class StudentLessonList extends LitElement {
 
@@ -61,7 +60,7 @@ export class StudentLessonList extends LitElement {
             let myGroups = studentSnap.data().memberOfGroups;
             if (myGroups.length > 30) myGroups = myGroups.slice(0, 30);
 
-            // FIX: Odstránil som 'published' filter, aby sa zobrazovali aj drafty počas vývoja
+            // FIX: Removed 'published' filter so drafts are visible (per user request)
             try {
                 const lessonsQuery = query(
                     collection(firebaseInit.db, "lessons"),
@@ -78,9 +77,11 @@ export class StudentLessonList extends LitElement {
                     this.isLoading = false;
                 }, (error) => {
                     console.error("Error fetching lessons:", error);
-                    // Detekcia chýbajúceho indexu
+                    // Improved error handling for missing index
                     if (error.code === 'failed-precondition' || error.message.includes('index')) {
-                        this.error = "Chybí databázový index (požádejte administrátora o vytvoření indexu v konzoli Firebase).";
+                        console.error("🔥 MISSING INDEX ERROR: The query requires an index. Please create it in the Firebase Console.", error);
+                        // Using a user-friendly message inline instead of toast
+                        this.error = "Systémová chyba: Chybí databázový index. Kontaktujte prosím podporu.";
                     } else {
                         this.error = "Nepodařilo se načíst lekce.";
                     }
