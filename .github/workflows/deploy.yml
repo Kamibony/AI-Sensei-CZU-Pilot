@@ -1,8 +1,10 @@
-name: Build and Deploy to Firebase (Legacy)
+name: Build and Deploy to Firebase
 
 on:
   push:
     branches:
+      - main
+      - release
       - legacy-v1
 
 jobs:
@@ -27,17 +29,36 @@ jobs:
 
       - name: Install and Build Functions
         run: |
+          set -e
+          rm -rf functions/lib
           cd functions
-          npm install
+          npm ci
           npm run build
           cd ..
 
-      # --- Nasadenie Legacy verzie na PROD (via-academy-prod) ---
-      # Tento krok sa spustí len pre vetvu legacy-v1 a pošle kód na alias 'prod'
-      - name: Deploy Legacy to PROD (via-academy-prod)
-        if: github.ref == 'refs/heads/legacy-v1'
+      # --- Nasadenie na DEV (vetva main) -> ai-sensei-czu-pilot ---
+      - name: Deploy to DEV (ai-sensei-czu-pilot)
+        if: github.ref == 'refs/heads/main'
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --project dev --force
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      # --- Nasadenie na NOVÝ PROD (vetva release) -> ai-sensei-prod ---
+      - name: Deploy to PROD (ai-sensei-prod)
+        if: github.ref == 'refs/heads/release'
         uses: w9jds/firebase-action@master
         with:
           args: deploy --project prod --force
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      # --- Nasadenie na LEGACY (vetva legacy-v1) -> via-academy-prod ---
+      - name: Deploy to LEGACY (via-academy-prod)
+        if: github.ref == 'refs/heads/legacy-v1'
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --project legacy --force
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
