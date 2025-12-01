@@ -6,15 +6,19 @@ import {
     onSnapshot,
     doc,
     getDoc,
-    orderBy
+    orderBy,
+    updateDoc,
+    arrayUnion,
+    getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { showToast } from './utils.js';
 import './student/student-classes-view.js';
 import './student/student-lesson-list.js';
 import './student/student-lesson-detail.js';
 import './student/student-class-detail.js';
-import './student/student-dashboard-view.js'; // Import the new dashboard view
+import './student/student-dashboard-view.js';
 
 class StudentDashboard extends LitElement {
     static properties = {
@@ -22,7 +26,8 @@ class StudentDashboard extends LitElement {
         currentView: { type: String },
         selectedLessonId: { type: String },
         selectedClassId: { type: String },
-        isSidebarOpen: { type: Boolean }
+        isSidebarOpen: { type: Boolean },
+        isJoinModalOpen: { type: Boolean }
     };
 
     constructor() {
@@ -32,6 +37,7 @@ class StudentDashboard extends LitElement {
         this.selectedLessonId = null;
         this.selectedClassId = null;
         this.isSidebarOpen = false;
+        this.isJoinModalOpen = false;
     }
 
     createRenderRoot() {
@@ -98,6 +104,34 @@ class StudentDashboard extends LitElement {
                     </div>
                 </main>
             </div>
+
+            <!-- Join Class Modal -->
+            ${this.isJoinModalOpen ? html`
+                <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+                    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                        <!-- Background overlay -->
+                        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" @click="${() => this.isJoinModalOpen = false}"></div>
+                        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                        <div class="relative inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                                <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">Připojit se k třídě</h3>
+                                <div class="mt-2">
+                                    <p class="text-sm text-gray-500 mb-4">Zadejte kód třídy, který jste obdrželi od učitele.</p>
+                                    <input type="text" id="join-class-code" class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border" placeholder="Kód třídy">
+                                </div>
+                            </div>
+                            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                                <button type="button" @click="${this._submitJoinClass}" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">
+                                    Připojit se
+                                </button>
+                                <button type="button" @click="${() => this.isJoinModalOpen = false}" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                                    Zrušit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
         `;
     }
 
@@ -159,7 +193,7 @@ class StudentDashboard extends LitElement {
                 return html`
                     <student-classes-view
                         .user="${this.user}"
-                        @request-join-class="${(e) => console.log('Join requested:', e.detail)}"
+                        @request-join-class="${(e) => this.isJoinModalOpen = true}"
                         @class-selected="${(e) => {
                             this.selectedClassId = e.detail.groupId;
                         }}">
@@ -188,6 +222,52 @@ class StudentDashboard extends LitElement {
             window.location.reload();
         } catch (error) {
             console.error('Logout failed:', error);
+        }
+    }
+
+    async _submitJoinClass() {
+        const codeInput = document.getElementById('join-class-code');
+        const code = codeInput ? codeInput.value.trim() : '';
+
+        if (!code) {
+            showToast('Zadejte prosím kód třídy', true);
+            return;
+        }
+
+        await this._handleJoinClass(code);
+    }
+
+    async _handleJoinClass(code) {
+        try {
+            // Find class by code
+            const groupsRef = collection(db, "groups");
+            const q = query(groupsRef, where("code", "==", code));
+            const querySnapshot = await getDocs(q);
+
+            if (querySnapshot.empty) {
+                showToast('Třída s tímto kódem nebyla nalezena', true);
+                return;
+            }
+
+            const groupDoc = querySnapshot.docs[0];
+            const groupId = groupDoc.id;
+
+            // Update student document
+            const studentRef = doc(db, "students", this.user.uid);
+            await updateDoc(studentRef, {
+                memberOfGroups: arrayUnion(groupId)
+            });
+
+            this.isJoinModalOpen = false;
+            showToast('Úspěšně jste se připojili k třídě!');
+
+            // Clear input
+            const input = document.getElementById('join-class-code');
+            if (input) input.value = '';
+
+        } catch (error) {
+            console.error('Error joining class:', error);
+            showToast('Chyba při připojování k třídě', true);
         }
     }
 }
