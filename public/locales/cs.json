@@ -1,1 +1,20 @@
-{}
+{
+    "content_types": {
+        "text": "Textový obsah",
+        "text_desc": "Studijní materiály ke čtení",
+        "video": "Video lekce",
+        "video_desc": "Sledujte výuková videa",
+        "presentation": "Prezentace",
+        "presentation_desc": "Prohlédněte si slidy",
+        "audio": "Podcast",
+        "audio_desc": "Poslechněte si audio verzi",
+        "quiz": "Kvíz",
+        "quiz_desc": "Ověřte své znalosti",
+        "test": "Závěrečný test",
+        "test_desc": "Získejte hodnocení",
+        "flashcards": "Kartičky",
+        "flashcards_desc": "Procvičování pojmů",
+        "mindmap": "Myšlenková mapa",
+        "mindmap_desc": "Vizuální přehled tématu"
+    }
+}
