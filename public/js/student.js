@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-init.js';
+import { db, auth, functions } from './firebase-init.js';
 import {
     collection,
     query,
@@ -9,6 +9,7 @@ import {
     orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import './student/student-classes-view.js';
 import './student/student-lesson-list.js';
@@ -22,7 +23,11 @@ class StudentDashboard extends LitElement {
         currentView: { type: String },
         selectedLessonId: { type: String },
         selectedClassId: { type: String },
-        isSidebarOpen: { type: Boolean }
+        isSidebarOpen: { type: Boolean },
+        isJoinClassModalOpen: { type: Boolean },
+        joinCode: { type: String },
+        joinError: { type: String },
+        isJoining: { type: Boolean }
     };
 
     constructor() {
@@ -32,6 +37,10 @@ class StudentDashboard extends LitElement {
         this.selectedLessonId = null;
         this.selectedClassId = null;
         this.isSidebarOpen = false;
+        this.isJoinClassModalOpen = false;
+        this.joinCode = '';
+        this.joinError = '';
+        this.isJoining = false;
     }
 
     createRenderRoot() {
@@ -42,7 +51,7 @@ class StudentDashboard extends LitElement {
         if (!this.user) return html`<div>Loading...</div>`;
 
         return html`
-            <div class="h-full overflow-hidden bg-slate-50 flex">
+            <div class="h-full overflow-hidden bg-slate-50 flex relative">
                 <!-- Sidebar -->
                 <nav class="fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200 z-50 transform transition-transform duration-200 ease-in-out ${this.isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0">
                     <div class="flex flex-col h-full">
@@ -97,8 +106,81 @@ class StudentDashboard extends LitElement {
                         ${this.renderContent()}
                     </div>
                 </main>
+
+                <!-- Join Class Modal -->
+                ${this.isJoinClassModalOpen ? this.renderJoinClassModal() : ''}
             </div>
         `;
+    }
+
+    renderJoinClassModal() {
+        return html`
+            <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" @click="${(e) => { if(e.target === e.currentTarget) this._closeJoinClassModal(); }}">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-slate-900">Připojit se k třídě</h3>
+                        <button @click="${this._closeJoinClassModal}" class="text-slate-400 hover:text-slate-600 transition-colors">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Kód třídy</label>
+                        <input
+                            type="text"
+                            .value="${this.joinCode}"
+                            @input="${(e) => { this.joinCode = e.target.value; this.joinError = ''; }}"
+                            placeholder="Zadejte 6-místný kód..."
+                            class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                        >
+                        ${this.joinError ? html`<p class="text-red-500 text-sm mt-1">${this.joinError}</p>` : ''}
+                    </div>
+
+                    <div class="flex justify-end gap-3">
+                        <button @click="${this._closeJoinClassModal}" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium">
+                            Zrušit
+                        </button>
+                        <button
+                            @click="${this._submitJoinClass}"
+                            ?disabled="${this.isJoining || !this.joinCode}"
+                            class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium flex items-center gap-2"
+                        >
+                            ${this.isJoining ? html`<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>` : ''}
+                            Připojit se
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    _closeJoinClassModal() {
+        this.isJoinClassModalOpen = false;
+        this.joinCode = '';
+        this.joinError = '';
+        this.isJoining = false;
+    }
+
+    async _submitJoinClass() {
+        if (!this.joinCode) return;
+
+        this.isJoining = true;
+        this.joinError = '';
+
+        try {
+            const joinClass = httpsCallable(functions, 'joinClass');
+            const result = await joinClass({ joinCode: this.joinCode });
+
+            this._closeJoinClassModal();
+            // Success alert
+            alert(`Úspěšně jste se připojili k třídě ${result.data.groupName}!`);
+
+        } catch (error) {
+            console.error("Error joining class:", error);
+            this.joinError = error.message || "Nepodařilo se připojit k třídě. Zkontrolujte kód.";
+        } finally {
+            this.isJoining = false;
+        }
     }
 
     renderNavItem(id, label, iconPath) {
@@ -159,7 +241,7 @@ class StudentDashboard extends LitElement {
                 return html`
                     <student-classes-view
                         .user="${this.user}"
-                        @request-join-class="${(e) => console.log('Join requested:', e.detail)}"
+                        @request-join-class="${() => this.isJoinClassModalOpen = true}"
                         @class-selected="${(e) => {
                             this.selectedClassId = e.detail.groupId;
                         }}">
