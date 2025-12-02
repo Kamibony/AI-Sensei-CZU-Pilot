@@ -90,7 +90,7 @@ export class ProfessorClassesView extends LitElement {
                     return;
                 }
 
-                await addDoc(collection(firebaseInit.db, 'groups'), {
+                const docRef = await addDoc(collection(firebaseInit.db, 'groups'), {
                     name: className.trim(),
                     ownerId: user.uid,
                     joinCode: this._generateJoinCode(),
@@ -98,6 +98,9 @@ export class ProfessorClassesView extends LitElement {
                     createdAt: serverTimestamp()
                 });
                 showToast(translationService.t('classes.created_success'));
+
+                // Automatically redirect to the new class detail view
+                this._navigateToClass(docRef.id);
             } catch (error) {
                 console.error("Error creating class:", error);
                 showToast(translationService.t('professor.error_create_class'), true);

@@ -109,7 +109,12 @@ export class AiGeneratorPanel extends LitElement {
     async _handleGeneration(e) {
         e.preventDefault();
         const promptInput = this.querySelector('#prompt-input');
-        const userPrompt = promptInput ? promptInput.value.trim() : '';
+        let userPrompt = promptInput ? promptInput.value.trim() : '';
+
+        // Mock RAG: Inject lesson text content if available
+        if (this.lesson && this.lesson.text_content) {
+            userPrompt += `\n\nContext: ${this.lesson.text_content}. Based on this context, generate the following content.`;
+        }
 
         if (promptInput && !userPrompt && this.contentType !== 'presentation') {
              const topicInput = this.querySelector('#prompt-input-topic');

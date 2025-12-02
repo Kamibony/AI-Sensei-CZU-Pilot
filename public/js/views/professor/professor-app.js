@@ -47,14 +47,22 @@ export class ProfessorApp extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._fetchLessons();
-        this.addEventListener('navigate', this._handleNavigation);
-        document.addEventListener('add-lesson-to-timeline', this._handleAddToTimeline.bind(this));
+        // Bind methods once
+        this._boundHandleNavigation = this._handleNavigation.bind(this);
+        this._boundHandleAddToTimeline = this._handleAddToTimeline.bind(this);
+        this._boundHandleHashChange = this._handleHashChange.bind(this);
+
+        this.addEventListener('navigate', this._boundHandleNavigation);
+        document.addEventListener('add-lesson-to-timeline', this._boundHandleAddToTimeline);
+        window.addEventListener('hashchange', this._boundHandleHashChange);
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
-        this.removeEventListener('navigate', this._handleNavigation);
-        document.removeEventListener('add-lesson-to-timeline', this._handleAddToTimeline.bind(this));
+        this.removeEventListener('navigate', this._boundHandleNavigation);
+        document.removeEventListener('add-lesson-to-timeline', this._boundHandleAddToTimeline);
+        window.removeEventListener('hashchange', this._boundHandleHashChange);
+        window.removeEventListener('navigate', this._boundHandleNavigation);
     }
 
     firstUpdated() {
@@ -63,25 +71,64 @@ export class ProfessorApp extends LitElement {
         const navContainer = document.getElementById('main-nav');
         if (navContainer) {
             navContainer.innerHTML = '<app-navigation></app-navigation>';
-            // Listen for events from the nav component which will bubble up if we attach listener to document/window or the nav itself
-            // Since <app-navigation> is in #main-nav (outside this component), events won't bubble to this component naturally via shadow DOM composition if strictly separate.
-            // But 'navigate' event is composed: true, bubbles: true.
-            // However, #main-nav is a sibling of #role-content-wrapper (where this app lives).
-            // Events bubble up the DOM tree. #main-nav -> body -> window.
-            // ProfessorApp is in #role-content-wrapper -> body -> window.
-            // So ProfessorApp won't see the event unless it listens on window/document.
-
-            // Wait, I already added `this.addEventListener('navigate', ...)` in connectedCallback.
-            // But `this` is ProfessorApp.
-            // The event originates in #main-nav.
-            // So I need to listen on window or document.
         }
 
-        // Add global listener for navigation from outside
-        window.addEventListener('navigate', this._handleNavigation.bind(this));
+        // Add global listener for navigation from outside (like from app-navigation)
+        window.addEventListener('navigate', this._boundHandleNavigation);
 
         const logoutBtn = document.getElementById('logout-btn-nav');
         if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+
+        // Initial Route Check
+        this._handleHashChange();
+    }
+
+    _handleHashChange() {
+        const hash = window.location.hash.slice(1); // remove '#'
+        if (!hash) {
+            // Default view if no hash
+            if (this._currentView !== 'dashboard') {
+                this._showProfessorContent('dashboard');
+            }
+            return;
+        }
+
+        // Parse hash and search params (e.g. #class-detail?groupId=XYZ)
+        // Since browser puts search params after hash only if we handle it manually or url is like ...#hash?query
+        // Standard URL structure: /path?query#hash.
+        // But SPAs often do /path#view?query.
+        // Let's assume the format is #view?key=value
+        const [view, queryStr] = hash.split('?');
+        const params = new URLSearchParams(queryStr);
+        const data = {};
+        for (const [key, value] of params.entries()) {
+            data[key] = value;
+        }
+
+        // Special handling for editor which accepts lesson object usually, but via URL might accept ID
+        // For now, we support passing IDs via URL parameters
+        // Example: #class-detail?groupId=123
+        // Example: #student-profile?studentId=abc
+
+        // If data is empty but we have some standard keys implied by view
+        if (view === 'class-detail' && data.groupId) {
+             this._showProfessorContent(view, data);
+        } else if (view === 'student-profile' && data.studentId) {
+             this._showProfessorContent(view, data.studentId); // Profile view expects string ID as data
+        } else if (view === 'editor') {
+             // Editor might need complex object, but if we just have ID or nothing (new), handle it
+             // If navigating via URL to editor, we might not have the full lesson object.
+             // The editor component handles internal state if just ID is passed or if nothing is passed.
+             this._showProfessorContent(view, data.id ? { id: data.id } : null);
+        } else {
+             this._showProfessorContent(view, data);
+        }
+
+        // Sync navigation component state
+        const nav = document.querySelector('app-navigation');
+        if (nav) {
+            nav.activeView = view;
+        }
     }
 
     async _fetchLessons() {
@@ -111,13 +158,41 @@ export class ProfessorApp extends LitElement {
     }
 
     _handleNavigation(e) {
+        const { view, ...data } = e.detail;
+
+        // Push to History
+        let newHash = `#${view}`;
+        const params = new URLSearchParams();
+
+        if (data) {
+            // Map common data keys to URL params
+            if (data.groupId) params.set('groupId', data.groupId);
+            if (data.studentId) params.set('studentId', data.studentId);
+            // Add other keys if needed, but avoid large objects
+            if (typeof data === 'string') {
+                 // Special case where data is just an ID (like student-profile)
+                 // But wait, student-profile usually expects 'data' to be studentId string in some calls
+                 // In _showProfessorContent below for student-profile, it expects data to be studentId
+                 if (view === 'student-profile') params.set('studentId', data);
+            }
+        }
+
+        const paramStr = params.toString();
+        if (paramStr) {
+            newHash += `?${paramStr}`;
+        }
+
+        // Only push if different to avoid redundant history entries
+        if (window.location.hash !== newHash) {
+             history.pushState(null, '', newHash);
+        }
+
         // Update the navigation component active state if it exists
         const nav = document.querySelector('app-navigation');
         if (nav) {
-            nav.activeView = e.detail.view;
+            nav.activeView = view;
         }
 
-        const { view, ...data } = e.detail;
         this._showProfessorContent(view, data);
     }
 
