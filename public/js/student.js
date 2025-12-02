@@ -186,7 +186,11 @@ class StudentDashboard extends LitElement {
                         <student-class-detail
                             .groupId="${this.selectedClassId}"
                             .studentId="${this.user.uid}"
-                            @back-to-classes="${() => this.selectedClassId = null}">
+                            @back-to-classes="${() => this.selectedClassId = null}"
+                            @lesson-selected="${(e) => {
+                                this.selectedLessonId = e.detail.lessonId;
+                                this.currentView = 'lessons';
+                            }}">
                         </student-class-detail>
                     `;
                 }

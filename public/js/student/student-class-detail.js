@@ -98,6 +98,7 @@ export class StudentClassDetail extends LitElement {
     }
 
     _handleLessonClick(lessonId) {
+        // Dispatch event to open lesson detail
         const event = new CustomEvent('lesson-selected', {
             detail: { lessonId: lessonId },
             bubbles: true,
