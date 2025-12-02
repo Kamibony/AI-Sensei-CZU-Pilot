@@ -130,7 +130,7 @@ export class AiGeneratorPanel extends LitElement {
         try {
             const selectedFiles = getSelectedFiles();
             const filePaths = selectedFiles.map(f => f.fullPath);
-            const promptData = { userPrompt: userPrompt || '' };
+            const promptData = { userPrompt: userPrompt || '', isMagic: true };
 
             const slottedElements = this.querySelectorAll('[slot="ai-inputs"]');
             slottedElements.forEach(el => {
