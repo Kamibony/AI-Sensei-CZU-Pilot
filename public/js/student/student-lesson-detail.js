@@ -2,7 +2,7 @@
 
 import { LitElement, html, nothing } from 'https://cdn.skypack.dev/lit';
 import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import confetti from 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js';
+import confetti from 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.module.mjs';
 import * as firebaseInit from '../firebase-init.js';
 import { showToast } from '../utils.js';
 import { renderPresentation } from './presentation-handler.js';
