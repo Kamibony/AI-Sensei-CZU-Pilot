@@ -106,5 +106,10 @@ service cloud.firestore {
       // Aktualizovať záznam môže iba jeho vlastník (potrebné pre dokončenie uploadu).
       allow update: if (isSignedIn() && resource.data.ownerId == request.auth.uid);
     }
+
+    // Systémové nastavenia (AI Config)
+    match /system_settings/{settingId} {
+      allow read, write: if isProfessor();
+    }
   }
 }

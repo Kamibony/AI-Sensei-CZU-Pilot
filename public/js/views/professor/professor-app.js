@@ -13,6 +13,7 @@ import './professor-student-profile-view.js';
 import './professor-interactions-view.js';
 import './professor-analytics-view.js';
 import './admin-user-management-view.js';
+import './admin-settings-view.js';
 import './app-navigation.js'; // New Navigation Component
 
 // New Class-Centric Views
@@ -197,7 +198,7 @@ export class ProfessorApp extends LitElement {
     }
 
     _showProfessorContent(view, data = null) {
-        const fullWidthViews = ['dashboard', 'class-detail', 'students', 'student-profile', 'interactions', 'analytics', 'media', 'editor', 'classes', 'admin'];
+        const fullWidthViews = ['dashboard', 'class-detail', 'students', 'student-profile', 'interactions', 'analytics', 'media', 'editor', 'classes', 'admin', 'admin-settings'];
         this._sidebarVisible = !fullWidthViews.includes(view);
         if (view === 'timeline') this._fetchLessons(); // Keep for legacy nav
         this._currentView = view;
@@ -274,6 +275,7 @@ export class ProfessorApp extends LitElement {
             case 'interactions': return html`<professor-interactions-view class="flex flex-grow h-full"></professor-interactions-view>`;
             case 'analytics': return html`<professor-analytics-view class="h-full flex flex-col"></professor-analytics-view>`;
             case 'admin': return html`<admin-user-management-view class="h-full flex flex-col"></admin-user-management-view>`;
+            case 'admin-settings': return html`<admin-settings-view class="h-full flex flex-col"></admin-settings-view>`;
             case 'chat': return html`<div><h2>Chat s ${this._currentData.studentId}</h2></div>`;
             case 'class-settings': return html`<div><h2>Nastavení třídy ${this._currentData.groupId}</h2></div>`;
             default: return html`<professor-dashboard-view class="h-full flex flex-col"></professor-dashboard-view>`;

@@ -206,9 +206,13 @@ export class AppNavigation extends LitElement {
                 <div class="nav-section">
                     <div class="nav-section-label">Admin</div>
                     <ul class="nav-list">
+                        <button class="nav-item ${this.activeView === 'admin-settings' ? 'active' : ''}" @click=${() => this._navigateTo('admin-settings')}>
+                            <span class="icon">🛠️</span>
+                            <span>Administrace</span>
+                        </button>
                         <button class="nav-item ${this.activeView === 'admin' ? 'active' : ''}" @click=${() => this._navigateTo('admin')}>
                             <span class="icon">⚙️</span>
-                            <span>Admin Panel</span>
+                            <span>Správa uživatelů</span>
                         </button>
                     </ul>
                 </div>
