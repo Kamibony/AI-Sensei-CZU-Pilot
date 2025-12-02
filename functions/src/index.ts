@@ -1054,6 +1054,10 @@ throw new HttpsError("internal", "Nepodarilo sa pripraviť nahrávanie.");
 // 3. Generovanie Signed URL
 const storage = getStorage();
 // Použijeme predvolený bucket projektu
+if (!STORAGE_BUCKET) {
+logger.error("STORAGE_BUCKET is undefined. Check environment variables.");
+throw new HttpsError("internal", "Internal server configuration error: STORAGE_BUCKET missing.");
+}
 const bucket = storage.bucket(STORAGE_BUCKET);
 const file = bucket.file(filePath);
 
@@ -1062,19 +1066,22 @@ version: "v4" as const,
 action: "write" as const,
 expires: Date.now() + 15 * 60 * 1000, // 15 minút platnosť
 contentType: contentType, // Vynútime presný typ obsahu
-metadata: {
-ownerId: userId,
-firestoreDocId: docId
-}
 };
 
 try {
 const [url] = await file.getSignedUrl(options);
 // Vrátime klientovi všetko, čo potrebuje
 return { signedUrl: url, docId: docId, filePath: filePath };
-} catch (error) {
+} catch (error: any) {
 logger.error("Chyba pri generovaní Signed URL:", error);
-throw new HttpsError("internal", "Nepodarilo sa vygenerovať URL na nahrávanie.");
+logger.error("Error details:", {
+    message: error.message,
+    code: error.code,
+    stack: error.stack,
+    bucket: STORAGE_BUCKET,
+    filePath: filePath
+});
+throw new HttpsError("internal", `Nepodarilo sa vygenerovať URL na nahrávanie: ${error.message}`);
 }
 });
 
