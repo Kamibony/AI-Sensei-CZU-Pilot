@@ -103,6 +103,10 @@ export class LoginView extends LitElement {
             const registerUserWithRole = httpsCallable(functions, 'registerUserWithRole');
             await registerUserWithRole({ email, password, role });
             await signInWithEmailAndPassword(auth, email, password);
+            // Force refresh token to get the new custom claims (role) immediately
+            if (auth.currentUser) {
+                await auth.currentUser.getIdToken(true);
+            }
             showToast(translationService.t('auth.success_register'), 'success');
         } catch (error) {
             console.error("Error during registration:", error);

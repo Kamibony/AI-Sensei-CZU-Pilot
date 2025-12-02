@@ -32,10 +32,11 @@ export async function initializeFirebase() {
         console.warn("Could not load auto-config. Using hardcoded local config for ai-sensei-czu-pilot.", e);
         
         // 2. Fallback (hardcoded) local configuration
+        const isProd = window.location.hostname.includes('ai-sensei-prod');
         const localConfig = {
             projectId: "ai-sensei-czu-pilot",
             appId: "1:812602866730:web:efde142d2becc4b66b9753", // Can be dummy
-            storageBucket: "ai-sensei-czu-pilot.appspot.com",
+            storageBucket: isProd ? "ai-sensei-prod.firebasestorage.app" : "ai-sensei-czu-pilot.appspot.com",
             apiKey: "dummy-key",
             authDomain: "ai-sensei-czu-pilot.firebaseapp.com",
             messagingSenderId: "dummy-sender-id",
