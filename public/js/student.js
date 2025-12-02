@@ -184,9 +184,9 @@ class StudentDashboard extends LitElement {
                 if (this.selectedClassId) {
                     return html`
                         <student-class-detail
-                            .classId="${this.selectedClassId}"
+                            .groupId="${this.selectedClassId}"
                             .studentId="${this.user.uid}"
-                            @back="${() => this.selectedClassId = null}">
+                            @back-to-classes="${() => this.selectedClassId = null}">
                         </student-class-detail>
                     `;
                 }
