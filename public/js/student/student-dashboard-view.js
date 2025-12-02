@@ -108,17 +108,17 @@ export class StudentDashboardView extends LitElement {
                         <p class="text-slate-500 mt-1">Vítejte ve svém studijním centru.</p>
                     </div>
                     <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100">
-                        <span class="text-2xl">🔥</span>
+                        <span class="text-2xl animate-pulse">🔥</span>
                         <div>
                             <p class="text-xs text-slate-500 uppercase font-bold tracking-wider">Streak</p>
-                            <p class="font-bold text-slate-900">${this.streak} dní</p>
+                            <p class="font-bold text-orange-600">${this.streak} dní</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Hero Section: Recent Lesson -->
                 ${this.recentLesson ? html`
-                    <div class="relative bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 text-white shadow-xl shadow-indigo-200 overflow-hidden group cursor-pointer transition-transform hover:scale-[1.01]"
+                    <div class="relative bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 text-white shadow-xl shadow-indigo-200 overflow-hidden group cursor-pointer transform transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl"
                          @click="${() => this._navigateTo('lessons', this.recentLesson.id)}">
                         <div class="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
 
@@ -129,7 +129,7 @@ export class StudentDashboardView extends LitElement {
                             <h2 class="text-3xl md:text-4xl font-bold mb-3 max-w-2xl">${this.recentLesson.title}</h2>
                             ${this.recentLesson.subtitle ? html`<p class="text-indigo-100 text-lg mb-8 max-w-xl line-clamp-2">${this.recentLesson.subtitle}</p>` : html`<div class="mb-8"></div>`}
 
-                            <button class="bg-white text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-colors shadow-lg shadow-black/5 flex items-center gap-2">
+                            <button class="bg-white text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-all shadow-lg shadow-black/5 flex items-center gap-2 active:scale-95">
                                 Otevřít lekci
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
@@ -149,7 +149,7 @@ export class StudentDashboardView extends LitElement {
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <!-- My Lessons Card -->
                     <div @click="${() => this._navigateTo('lessons')}"
-                         class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg hover:shadow-slate-200 transition-all cursor-pointer group">
+                         class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 transform transition-all duration-300 hover:-translate-y-1 hover:shadow-xl cursor-pointer group">
                         <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
                         </div>
@@ -159,7 +159,7 @@ export class StudentDashboardView extends LitElement {
 
                     <!-- My Classes Card -->
                     <div @click="${() => this._navigateTo('classes')}"
-                         class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg hover:shadow-slate-200 transition-all cursor-pointer group">
+                         class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 transform transition-all duration-300 hover:-translate-y-1 hover:shadow-xl cursor-pointer group">
                         <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
                         </div>
