@@ -11,6 +11,8 @@ export class AdminUserManagementView extends LitElement {
         _isLoading: { state: true, type: Boolean },
         _updatingUserId: { state: true, type: String },
         _currentUser: { state: true, type: Object },
+        _searchQuery: { state: true, type: String },
+        _currentPage: { state: true, type: Number },
     };
 
     constructor() {
@@ -19,6 +21,9 @@ export class AdminUserManagementView extends LitElement {
         this._isLoading = true;
         this._updatingUserId = null;
         this._currentUser = getAuth().currentUser;
+        this._searchQuery = '';
+        this._currentPage = 1;
+        this._itemsPerPage = 10;
     }
 
     createRenderRoot() { return this; }
@@ -66,6 +71,15 @@ export class AdminUserManagementView extends LitElement {
         }
     }
 
+    _handleSearchInput(e) {
+        this._searchQuery = e.target.value.toLowerCase();
+        this._currentPage = 1; // Reset to first page on search
+    }
+
+    _handlePageChange(newPage) {
+        this._currentPage = newPage;
+    }
+
     renderUserRow(user) {
         const isCurrentUser = user.id === this._currentUser.uid;
         const isUpdating = this._updatingUserId === user.id;
@@ -107,15 +121,23 @@ export class AdminUserManagementView extends LitElement {
     }
 
     render() {
+        const filteredUsers = this._users.filter(user =>
+            (user.email || '').toLowerCase().includes(this._searchQuery)
+        );
+
+        const totalPages = Math.ceil(filteredUsers.length / this._itemsPerPage);
+        const startIndex = (this._currentPage - 1) * this._itemsPerPage;
+        const visibleUsers = filteredUsers.slice(startIndex, startIndex + this._itemsPerPage);
+
         let content;
         if (this._isLoading) {
             content = html`<p class="text-center p-8 text-slate-400">Načítám uživatele...</p>`;
-        } else if (this._users.length === 0) {
+        } else if (filteredUsers.length === 0) {
             content = html`<p class="text-center p-8 text-slate-500">Nebyly nalezeni žádní uživatelé.</p>`;
         } else {
             content = html`
                 <div class="space-y-4">
-                    ${this._users.map(user => this.renderUserRow(user))}
+                    ${visibleUsers.map(user => this.renderUserRow(user))}
                 </div>
             `;
         }
@@ -128,7 +150,42 @@ export class AdminUserManagementView extends LitElement {
                 </header>
                 <div class="flex-grow overflow-y-auto p-4 md:p-6 bg-slate-50">
                     <div class="w-full px-6">
+
+                        <!-- Search Input -->
+                        <div class="mb-6 max-w-2xl mx-auto">
+                            <input
+                                type="text"
+                                placeholder="Hľadať podľa emailu..."
+                                .value="${this._searchQuery}"
+                                @input="${this._handleSearchInput}"
+                                class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm"
+                            >
+                        </div>
+
                         ${content}
+
+                        <!-- Pagination -->
+                        ${totalPages > 1 ? html`
+                            <div class="flex justify-center items-center space-x-4 mt-8 pb-4">
+                                <button
+                                    @click="${() => this._handlePageChange(this._currentPage - 1)}"
+                                    .disabled="${this._currentPage === 1}"
+                                    class="px-4 py-2 border border-slate-300 rounded-md text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                                >
+                                    Previous
+                                </button>
+                                <span class="text-sm text-slate-600 font-medium">
+                                    Strana ${this._currentPage} z ${totalPages}
+                                </span>
+                                <button
+                                    @click="${() => this._handlePageChange(this._currentPage + 1)}"
+                                    .disabled="${this._currentPage === totalPages}"
+                                    class="px-4 py-2 border border-slate-300 rounded-md text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             </div>

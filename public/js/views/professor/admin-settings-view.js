@@ -99,14 +99,19 @@ export class AdminSettingsView extends LitElement {
                             </h2>
                             <div class="space-y-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">Výchozí počet slidů</label>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                        <span>📊</span> Výchozí počet slidů
+                                    </label>
                                     <input type="number"
                                            name="presentation_slides"
                                            .value=${this._settings.presentation_slides}
                                            @input=${this._handleInputChange}
                                            min="1" max="20"
                                            class="w-full rounded-xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                    <p class="text-xs text-slate-500 mt-1">Určuje, kolik slidů se vygeneruje, pokud uživatel nezadá jinak.</p>
+                                    <div class="flex items-start gap-2 mt-1">
+                                        <span class="text-xs">📊</span>
+                                        <p class="text-xs text-slate-500">Ovplyvní dĺžku generovanej prezentácie. Určuje, kolik slidů se vygeneruje, pokud uživatel nezadá jinak.</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -119,7 +124,9 @@ export class AdminSettingsView extends LitElement {
                             </h2>
                             <div class="space-y-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">Výchozí instrukce pro strukturu</label>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                        <span>📝</span> Výchozí instrukce pro strukturu
+                                    </label>
                                     <textarea
                                            name="text_instructions"
                                            .value=${this._settings.text_instructions}
