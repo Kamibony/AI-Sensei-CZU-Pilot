@@ -5,7 +5,9 @@ const { HttpsError } = require("firebase-functions/v2/https");
 
 // --- KONFIGURACE MODELU ---
 const LOCATION = "europe-west1";
-const STORAGE_BUCKET = "ai-sensei-czu-pilot.firebasestorage.app"; // Fallback bucket
+const PROJECT_ID = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+const FIREBASE_CONFIG = process.env.FIREBASE_CONFIG ? JSON.parse(process.env.FIREBASE_CONFIG) : {};
+const STORAGE_BUCKET = process.env.STORAGE_BUCKET || FIREBASE_CONFIG.storageBucket || (PROJECT_ID === "ai-sensei-prod" ? "ai-sensei-prod.firebasestorage.app" : "ai-sensei-czu-pilot.firebasestorage.app");
 
 // Lazy loading global variables
 let vertex_ai: any = null;
