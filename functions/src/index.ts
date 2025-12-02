@@ -17,7 +17,10 @@ const fetch = require("node-fetch");
 // const pdf = require("pdf-parse");
 
 const DEPLOY_REGION = "europe-west1";
-const STORAGE_BUCKET = "ai-sensei-czu-pilot.firebasestorage.app";
+// Dynamically determine storage bucket based on environment
+const FIREBASE_CONFIG = process.env.FIREBASE_CONFIG ? JSON.parse(process.env.FIREBASE_CONFIG) : {};
+const PROJECT_ID = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+const STORAGE_BUCKET = FIREBASE_CONFIG.storageBucket || (PROJECT_ID === "ai-sensei-prod" ? "ai-sensei-prod.firebasestorage.app" : "ai-sensei-czu-pilot.firebasestorage.app");
 
 initializeApp();
 const db = getFirestore();
@@ -1000,6 +1003,13 @@ exports.onUserCreate = onDocumentCreated({document: "users/{userId}", region: DE
     const userId = event.params.userId;
 
     try {
+        // Check if user already has a claim (e.g. set by registerUserWithRole)
+        const user = await getAuth().getUser(userId);
+        if (user.customClaims && user.customClaims.role) {
+            logger.log(`User ${userId} already has role ${user.customClaims.role}. Skipping default assignment.`);
+            return;
+        }
+
         await getAuth().setCustomUserClaims(userId, { role: role });
         logger.log(`Custom claim set for user ${userId}: role=${role}`);
     } catch (error) {
