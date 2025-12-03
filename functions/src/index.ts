@@ -87,9 +87,12 @@ exports.generateContent = onCall({
                             `Neplatný počet slidů. Zadejte prosím kladné číslo (dostali jsme '${promptData.slide_count || ""}').`
                         );
                     }
+
+                    // Capture presentation style
+                    const style = promptData.presentation_style_selector ? `Visual Style: ${promptData.presentation_style_selector}.` : "";
                     
                     // 3. Ak je všetko v poriadku, použijeme finálne číslo v prompte
-                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${requestedCount} slidy. Odpověď musí být JSON objekt s klíčem 'slides', ktorý obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů). ${langInstruction}`;
+                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${requestedCount} slidy. ${style} Odpověď musí být JSON objekt s klíčem 'slides', ktorý obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů). ${langInstruction}`;
                     logger.log(`Final prompt will use ${requestedCount} slides.`);
                     
                     break;
@@ -113,7 +116,7 @@ exports.generateContent = onCall({
                     break;
                 case "post":
                      const epCount = promptData.episode_count || promptData.episodeCount || 3;
-                     finalPrompt = `Vytvoř sérii ${epCount} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string). ${langInstruction}`;
+                     finalPrompt = `Vytvoř sérii ${epCount} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string). ${langInstruction} Ensure the response is valid minified JSON. Do not output markdown code blocks.`;
                      break;
                  case "comic":
                     // Just rely on global append
