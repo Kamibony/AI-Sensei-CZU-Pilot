@@ -7,10 +7,10 @@ import {
     updateDoc,
     arrayUnion,
     getDocs
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast } from '../../utils.js';
 import './student-classes-view.js';
 import './student-lesson-list.js';
@@ -80,7 +80,7 @@ class StudentDashboard extends LitElement {
                                     <p class="text-xs text-slate-500">Študent</p>
                                 </div>
                             </div>
-                            <button @click="${this.handleLogout}" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            <button @click="${() => this.handleLogout()}" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
                                 </svg>
@@ -115,7 +115,7 @@ class StudentDashboard extends LitElement {
                 <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up p-6">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-xl font-bold text-slate-900">Připojit se k třídě</h3>
-                        <button @click="${this._closeJoinClassModal}" class="text-slate-400 hover:text-slate-600 transition-colors">
+                        <button @click="${() => this._closeJoinClassModal()}" class="text-slate-400 hover:text-slate-600 transition-colors">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
                     </div>
@@ -133,11 +133,11 @@ class StudentDashboard extends LitElement {
                     </div>
 
                     <div class="flex justify-end gap-3">
-                        <button @click="${this._closeJoinClassModal}" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium">
+                        <button @click="${() => this._closeJoinClassModal()}" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium">
                             Zrušit
                         </button>
                         <button
-                            @click="${this._submitJoinClass}"
+                            @click="${() => this._submitJoinClass()}"
                             ?disabled="${this.isJoining || !this.joinCode}"
                             class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium flex items-center gap-2"
                         >
@@ -158,7 +158,8 @@ class StudentDashboard extends LitElement {
     }
 
     async _submitJoinClass() {
-        // OPRAVA: Používame priamo premennú, žiadne getElementById
+        console.log("Submit Join Class clicked. Code:", this.joinCode);
+        
         if (!this.joinCode) {
             showToast('Zadejte prosím kód třídy', true);
             return;
@@ -170,16 +171,22 @@ class StudentDashboard extends LitElement {
         try {
             // Skúsime najprv Callable funkciu (Cloud Function)
             try {
+                if (!functions) {
+                    console.warn("Firebase functions not initialized yet.");
+                    throw new Error("Functions not ready");
+                }
                 const joinClass = httpsCallable(functions, 'joinClass');
                 const result = await joinClass({ joinCode: this.joinCode });
+                
+                console.log("Cloud function success:", result);
                 alert(`Úspěšně jste se připojili k třídě ${result.data.groupName}!`);
                 this._closeJoinClassModal();
                 showToast('Úspěšně jste se připojili k třídě!');
-                // Voliteľné: reload alebo refresh tried
+                // Reload window to refresh classes list properly
+                window.location.reload(); 
                 return;
             } catch (err) {
-               // Fallback: Priame volanie Firestore ak Cloud Function nefunguje
-               console.warn("Cloud function failed/not available, trying direct Firestore:", err);
+               console.warn("Cloud function failed/not available, trying direct Firestore fallback:", err);
                await this._handleJoinClassDirect(this.joinCode);
             }
 
@@ -193,7 +200,8 @@ class StudentDashboard extends LitElement {
 
     // Fallback metóda pre priame pripojenie
     async _handleJoinClassDirect(code) {
-        // OPRAVA: Query poľa 'joinCode' (admin generuje joinCode, nie code)
+        console.log("Attempting direct Firestore join...");
+        // Query poľa 'joinCode'
         const groupsRef = collection(db, "groups");
         const q = query(groupsRef, where("joinCode", "==", code)); 
         const querySnapshot = await getDocs(q);
@@ -204,6 +212,7 @@ class StudentDashboard extends LitElement {
 
         const groupDoc = querySnapshot.docs[0];
         const groupId = groupDoc.id;
+        console.log("Found group:", groupId);
 
         // Update student document
         const studentRef = doc(db, "students", this.user.uid);
@@ -211,17 +220,15 @@ class StudentDashboard extends LitElement {
             memberOfGroups: arrayUnion(groupId)
         });
         
-        // Update group document (ak to pravidlá povoľujú)
-        const groupRef = doc(db, "groups", groupId);
-        // Poznámka: Toto môže zlyhať na pravidlách, ak študent nemá právo update na group
-        // Ale v pravidlách sme to zatiaľ nemenili pre študentov, takže to môže byť riskantné
-        // Cloud Function je preferovaná cesta.
+        // Update group document (ak to pravidlá povoľujú - zvyčajne nie, ale fallback skúsime)
+        // const groupRef = doc(db, "groups", groupId);
         // await updateDoc(groupRef, {
         //      studentIds: arrayUnion(this.user.uid)
         // });
 
         this._closeJoinClassModal();
         showToast('Úspěšně jste se připojili k třídě!');
+        window.location.reload();
     }
 
     renderNavItem(id, label, iconPath) {
