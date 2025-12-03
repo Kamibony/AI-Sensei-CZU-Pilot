@@ -4,6 +4,8 @@ export class TranslationService {
         this.currentLanguage = localStorage.getItem('app_language') || 'cs';
         this.translations = {};
         this.isLoaded = false;
+        // === OPRAVA: Vrátenie poľa pre poslucháčov ===
+        this.listeners = [];
     }
 
     async init() {
@@ -11,6 +13,7 @@ export class TranslationService {
         await this.loadTranslations(this.currentLanguage);
         this.isLoaded = true;
         console.log(`TranslationService: Initialized with language '${this.currentLanguage}'`);
+        this.notifyListeners();
     }
 
     async loadTranslations(lang) {
@@ -26,6 +29,7 @@ export class TranslationService {
             this.currentLanguage = lang;
             
             console.log(`TranslationService: Loaded ${Object.keys(this.translations).length} root keys for language '${lang}'`);
+            this.notifyListeners();
         } catch (error) {
             console.error('TranslationService error:', error);
             // Fallback na CS ak zlyhá načítanie (napr. neexistujúci súbor)
@@ -50,7 +54,21 @@ export class TranslationService {
         return value;
     }
 
-    // === NOVÁ METÓDA PRE PREPNUTIE JAZYKA ===
+    // === OPRAVA: Vrátená metóda subscribe, ktorú StudentDashboard vyžaduje ===
+    subscribe(callback) {
+        this.listeners.push(callback);
+        // Return unsubscribe function
+        return () => {
+            this.listeners = this.listeners.filter(cb => cb !== callback);
+        };
+    }
+
+    // === OPRAVA: Vrátená metóda notifyListeners ===
+    notifyListeners() {
+        this.listeners.forEach(cb => cb(this.currentLanguage));
+    }
+
+    // === NOVÁ METÓDA PRE PREPNUTIE JAZYKA (s reloadom) ===
     async changeLanguage(newLang) {
         if (newLang === this.currentLanguage) return;
 
@@ -60,7 +78,6 @@ export class TranslationService {
         localStorage.setItem('app_language', newLang);
         
         // 2. Reload stránky zabezpečí, že sa všetko načíta nanovo a čisto v novom jazyku
-        // (Vrátane backend volaní, ktoré môžu závisieť od jazyka)
         window.location.reload();
     }
 }
