@@ -2,6 +2,7 @@
 
 import { LitElement, html, nothing } from 'https://cdn.skypack.dev/lit';
 import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import confetti from 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/+esm';
 import * as firebaseInit from '../firebase-init.js';
 import { showToast } from '../utils.js';
 import { renderPresentation } from './presentation-handler.js';
@@ -137,6 +138,8 @@ export class StudentLessonDetail extends LitElement {
 
             // Success - State is already updated optimistically
             console.log(`Progress saved successfully to ${path}`);
+
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
 
         } catch (e) {
             console.error(`Error saving progress to ${path}:`, e);

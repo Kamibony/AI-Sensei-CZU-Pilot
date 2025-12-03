@@ -109,7 +109,12 @@ export class AiGeneratorPanel extends LitElement {
     async _handleGeneration(e) {
         e.preventDefault();
         const promptInput = this.querySelector('#prompt-input');
-        const userPrompt = promptInput ? promptInput.value.trim() : '';
+        let userPrompt = promptInput ? promptInput.value.trim() : '';
+
+        // Mock RAG: Inject lesson text content if available
+        if (this.lesson && this.lesson.text_content) {
+            userPrompt += `\n\nContext: ${this.lesson.text_content}. Based on this context, generate the following content.`;
+        }
 
         if (promptInput && !userPrompt && this.contentType !== 'presentation') {
              const topicInput = this.querySelector('#prompt-input-topic');
@@ -125,7 +130,7 @@ export class AiGeneratorPanel extends LitElement {
         try {
             const selectedFiles = getSelectedFiles();
             const filePaths = selectedFiles.map(f => f.fullPath);
-            const promptData = { userPrompt: userPrompt || '' };
+            const promptData = { userPrompt: userPrompt || '', isMagic: true };
 
             const slottedElements = this.querySelectorAll('[slot="ai-inputs"]');
             slottedElements.forEach(el => {
@@ -274,7 +279,23 @@ export class AiGeneratorPanel extends LitElement {
             </div>` : nothing}
             <div class="flex justify-between items-start mb-6"><h2 class="text-3xl font-extrabold text-slate-800">${this.viewTitle}</h2>${hasContent ? html`<button @click=${this._handleDeleteGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnDestructive} px-4 py-2 text-sm">${this._isLoading?'...':'🗑️ Smazat'} ${!isText?'a nové':''}</button>`:nothing}</div>
             <div class="bg-white p-6 rounded-2xl shadow-lg">
-                ${hasContent ? html`${this._renderEditableContent(this.contentType, this.lesson[this.fieldToUpdate])}${isText?html`<div class="text-right mt-4"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?'Ukládám...':'💾 ' + translationService.t('editor.btn_save_section')}</button></div>`:nothing}`
+                ${hasContent ? html`
+                    ${this._renderEditableContent(this.contentType, this.lesson[this.fieldToUpdate])}
+
+                    <div class="flex flex-wrap items-center justify-between mt-6 gap-4 border-t border-slate-100 pt-4">
+                        <button @click=${this._handleDeleteGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnSecondary} px-4 py-2 text-sm font-medium border border-slate-200 shadow-sm hover:border-slate-300">
+                            🔄 Pregenerovať
+                        </button>
+
+                        ${isText ? html`
+                            <div class="flex-grow max-w-xs">
+                                <button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">
+                                    ${this._isSaving?'Ukládám...':'💾 ' + translationService.t('editor.btn_save_section')}
+                                </button>
+                            </div>
+                        ` : nothing}
+                    </div>
+                `
                 : html`
                     <p class="text-slate-500 mb-6">${this.description}</p>
                     ${this._createDocumentSelectorUI()}

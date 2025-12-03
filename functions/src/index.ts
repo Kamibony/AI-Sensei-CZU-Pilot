@@ -56,6 +56,10 @@ exports.generateContent = onCall({
         throw new HttpsError("invalid-argument", "Missing contentType or promptData.");
     }
     try {
+        // Načítanie konfigurácie pre magický režim
+        const configSnap = await db.collection('system_settings').doc('ai_config').get();
+        const config = configSnap.exists ? configSnap.data() : {};
+
         let finalPrompt = promptData.userPrompt;
         const language = promptData.language || "cs";
         const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards"].includes(contentType);
@@ -109,6 +113,27 @@ exports.generateContent = onCall({
                     break;
             }
         }
+
+        // Aplikujeme pravidlá LEN pre magické generovanie
+        if (promptData.isMagic) {
+            if (contentType === "text" && config.magic_text_rules) {
+                finalPrompt += `\n\n[SYSTEM INSTRUCTION]: ${config.magic_text_rules}`;
+            }
+            else if (contentType === "presentation" && config.magic_presentation_slides) {
+                // Prepíšeme requestedCount na hodnotu z configu
+                const magicSlides = parseInt(config.magic_presentation_slides) || 8;
+                const regex = /s přesně \d+ slidy/;
+                if (regex.test(finalPrompt)) {
+                    finalPrompt = finalPrompt.replace(regex, `s přesně ${magicSlides} slidy`);
+                } else {
+                    finalPrompt += `\n\n[SYSTEM INSTRUCTION]: Vytvoř prezentaci s přesně ${magicSlides} slidy.`;
+                }
+            }
+            else if ((contentType === "quiz" || contentType === "test") && config.magic_test_questions) {
+                 finalPrompt += `\n\n[SYSTEM INSTRUCTION]: Vytvoř přesně ${config.magic_test_questions} otázek.`;
+            }
+        }
+
         // RAG Pipeline Logic
         if (filePaths && filePaths.length > 0) {
             // RAG-based response

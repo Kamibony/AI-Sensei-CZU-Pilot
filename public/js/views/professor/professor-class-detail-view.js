@@ -183,6 +183,39 @@ export class ProfessorClassDetailView extends LitElement {
         });
     }
 
+    _generateJoinCode() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let result = '';
+        for (let i = 0; i < 6; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
+
+    async _regenerateCode() {
+        if (!confirm("Opravdu chcete vygenerovat nový kód? Starý kód přestane platit.")) return;
+
+        try {
+            const newCode = this._generateJoinCode();
+            await updateDoc(doc(firebaseInit.db, 'groups', this.groupId), {
+                joinCode: newCode
+            });
+            showToast("Nový kód byl vygenerován.");
+        } catch (e) {
+            console.error("Error regenerating code:", e);
+            showToast("Chyba při generování kódu.", true);
+        }
+    }
+
+    _copyCode() {
+        if (!this._group?.joinCode) return;
+        navigator.clipboard.writeText(this._group.joinCode).then(() => {
+            showToast("Kód zkopírován do schránky.");
+        }).catch(() => {
+            showToast("Kopírování selhalo.", true);
+        });
+    }
+
     async _handleRenameClass() {
         const newName = prompt("Zadejte nový název třídy:", this._group.name);
         if (newName && newName.trim() !== "") {
@@ -321,13 +354,24 @@ export class ProfessorClassDetailView extends LitElement {
                     <div class="flex items-end justify-between">
                         <div>
                             <h1 class="text-3xl font-extrabold text-slate-800 leading-tight">${this._group.name}</h1>
-                            <div class="flex items-center mt-2 space-x-4">
-                                <div class="flex items-center text-slate-500 text-sm">
-                                    <span class="mr-2">Kód:</span>
-                                    <code class="bg-slate-100 px-2 py-0.5 rounded font-mono font-bold text-slate-700">${this._group.joinCode}</code>
+                            <div class="flex items-center mt-2 space-x-4 flex-wrap gap-y-2">
+                                <div class="flex items-center text-slate-500 text-sm bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+                                    <span class="mr-2 font-medium text-indigo-800">Kód:</span>
+                                    <code class="font-mono font-bold text-lg text-indigo-700 mr-3 select-all">${this._group.joinCode}</code>
+                                    <div class="flex items-center border-l border-indigo-200 pl-2 space-x-1">
+                                        <button @click=${this._copyCode} class="p-1 text-indigo-500 hover:text-indigo-800 hover:bg-indigo-100 rounded transition-colors" title="Kopírovat">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                        </button>
+                                        <button @click=${this._regenerateCode} class="p-1 text-indigo-500 hover:text-indigo-800 hover:bg-indigo-100 rounded transition-colors" title="Vygenerovat nový">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                        </button>
+                                    </div>
                                 </div>
-                                <div class="text-slate-400 text-sm">|</div>
-                                <div class="text-slate-500 text-sm">${this._students.length} ${translationService.t('common.students_count')}</div>
+                                <div class="hidden sm:block text-slate-300 text-sm">|</div>
+                                <div class="text-slate-500 text-sm font-medium flex items-center">
+                                    <span class="bg-slate-100 text-slate-600 px-2 py-1 rounded-md mr-2">${this._students.length}</span>
+                                    ${translationService.t('common.students_count')}
+                                </div>
                             </div>
                         </div>
                     </div>

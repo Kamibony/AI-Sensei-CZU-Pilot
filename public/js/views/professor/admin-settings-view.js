@@ -1,0 +1,175 @@
+import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import * as firebaseInit from '../../firebase-init.js';
+import { showToast } from '../../utils.js';
+
+export class AdminSettingsView extends LitElement {
+    static properties = {
+        _settings: { state: true, type: Object },
+        _isLoading: { state: true, type: Boolean },
+    };
+
+    constructor() {
+        super();
+        this._settings = {
+            presentation_slides: 8,
+            text_instructions: "Rozsah 300 slov. Rozdělte text do logických odstavců. Používejte nadpisy pro lepší orientaci.",
+            test_questions: 10
+        };
+        this._isLoading = true;
+    }
+
+    createRenderRoot() { return this; }
+
+    connectedCallback() {
+        super.connectedCallback();
+        this._fetchSettings();
+    }
+
+    async _fetchSettings() {
+        this._isLoading = true;
+        try {
+            const docRef = doc(firebaseInit.db, 'system_settings', 'ai_config');
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                // Merge loaded settings with defaults to ensure all fields exist
+                this._settings = { ...this._settings, ...docSnap.data() };
+            }
+        } catch (error) {
+            console.error("Error fetching AI config:", error);
+            showToast("Nepodařilo se načíst nastavení AI.", true);
+        } finally {
+            this._isLoading = false;
+        }
+    }
+
+    _handleInputChange(e) {
+        const field = e.target.name;
+        let value = e.target.value;
+
+        if (e.target.type === 'number') {
+            value = parseInt(value, 10);
+        }
+
+        this._settings = {
+            ...this._settings,
+            [field]: value
+        };
+    }
+
+    async _saveSettings() {
+        this._isLoading = true;
+        try {
+            const docRef = doc(firebaseInit.db, 'system_settings', 'ai_config');
+            await setDoc(docRef, this._settings);
+            showToast("Nastavení bylo úspěšně uloženo.");
+        } catch (error) {
+            console.error("Error saving AI config:", error);
+            showToast("Chyba při ukládání nastavení.", true);
+        } finally {
+            this._isLoading = false;
+        }
+    }
+
+    render() {
+        if (this._isLoading) {
+            return html`
+                <div class="flex items-center justify-center h-full">
+                    <div class="text-slate-500">Načítám nastavení...</div>
+                </div>
+            `;
+        }
+
+        return html`
+            <div class="h-full flex flex-col bg-slate-50 overflow-hidden">
+                <header class="p-6 border-b border-slate-200 bg-white flex-shrink-0">
+                    <h1 class="text-2xl font-bold text-slate-800">Administrace systému</h1>
+                    <p class="text-slate-500 mt-1">Globální nastavení pro generování obsahu pomocí AI.</p>
+                </header>
+
+                <div class="flex-grow overflow-y-auto p-6">
+                    <div class="max-w-3xl mx-auto space-y-8">
+
+                        <!-- Sekce Prezentace -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
+                                <span class="bg-indigo-100 text-indigo-600 p-2 rounded-lg mr-3">📊</span>
+                                Prezentace
+                            </h2>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                        <span>📊</span> Výchozí počet slidů
+                                    </label>
+                                    <input type="number"
+                                           name="presentation_slides"
+                                           .value=${this._settings.presentation_slides}
+                                           @input=${this._handleInputChange}
+                                           min="1" max="20"
+                                           class="w-full rounded-xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                    <div class="flex items-start gap-2 mt-1">
+                                        <span class="text-xs">📊</span>
+                                        <p class="text-xs text-slate-500">Ovplyvní dĺžku generovanej prezentácie. Určuje, kolik slidů se vygeneruje, pokud uživatel nezadá jinak.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sekce Text -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
+                                <span class="bg-blue-100 text-blue-600 p-2 rounded-lg mr-3">📝</span>
+                                Textové materiály
+                            </h2>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                        <span>📝</span> Výchozí instrukce pro strukturu
+                                    </label>
+                                    <textarea
+                                           name="text_instructions"
+                                           .value=${this._settings.text_instructions}
+                                           @input=${this._handleInputChange}
+                                           rows="4"
+                                           class="w-full rounded-xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></textarea>
+                                    <p class="text-xs text-slate-500 mt-1">Prompt, který definuje formátování a styl generovaného textu.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sekce Testy -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
+                                <span class="bg-green-100 text-green-600 p-2 rounded-lg mr-3">✅</span>
+                                Testy a Kvízy
+                            </h2>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Výchozí počet otázek</label>
+                                    <input type="number"
+                                           name="test_questions"
+                                           .value=${this._settings.test_questions}
+                                           @input=${this._handleInputChange}
+                                           min="1" max="50"
+                                           class="w-full rounded-xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Akce -->
+                        <div class="flex justify-end pt-4">
+                            <button @click=${this._saveSettings}
+                                    class="bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
+                                Uložit nastavení
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+customElements.define('admin-settings-view', AdminSettingsView);
