@@ -8,9 +8,15 @@ service firebase.storage {
 
     // Helper function to safely check for ownership via file metadata
     function isOwner(fileResource) {
-      return fileResource.metadata != null &&
+      return (fileResource.metadata != null &&
              'ownerId' in fileResource.metadata &&
-             fileResource.metadata.ownerId == request.auth.uid;
+             fileResource.metadata.ownerId == request.auth.uid);
+    }
+
+    // Helper to check ownership via Firestore lookup (fallback if metadata is missing)
+    function isOwnerViaFirestore(fileId) {
+      return firestore.exists(/databases/(default)/documents/fileMetadata/$(fileId)) &&
+             firestore.get(/databases/(default)/documents/fileMetadata/$(fileId)).data.ownerId == request.auth.uid;
     }
 
     match /public-assets/{allPaths=**} {
@@ -26,8 +32,8 @@ service firebase.storage {
       // CREATE is disallowed. Uploads must use signed URLs.
       allow create: if false;
 
-      // DELETE is allowed for the owner or the legacy admin
-      allow delete: if (isProfessor() && isOwner(resource))
+      // DELETE is allowed for the owner, the legacy admin, OR if the user owns the Firestore record
+      allow delete: if (isProfessor() && (isOwner(resource) || isOwnerViaFirestore(fileId)))
                     || request.auth.token.email == 'profesor@profesor.cz';
     }
 
