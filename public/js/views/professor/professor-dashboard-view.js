@@ -2,11 +2,15 @@ import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/li
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
-import { translationService } from '../../utils/translation-service.js';
+// === NOVÉ IMPORTY PRE SYSTÉMOVÉ PREKLADY ===
+import { translationService, SUPPORTED_LANGUAGES } from '../../utils/translation-service.js';
+import { Localized } from '../../utils/localization-mixin.js';
+// ===========================================
 import { baseStyles } from '../../shared-styles.js';
 import { handleLogout } from '../../auth.js';
 
-export class ProfessorDashboardView extends LitElement {
+// Použijeme Mixin: extends Localized(LitElement)
+export class ProfessorDashboardView extends Localized(LitElement) {
     static properties = {
         _classes: { state: true, type: Array },
         _students: { state: true, type: Array },
@@ -30,17 +34,14 @@ export class ProfessorDashboardView extends LitElement {
     }
 
     connectedCallback() {
-        super.connectedCallback();
+        super.connectedCallback(); // Mixin zabezpečí odber prekladov
         this._fetchDashboardData();
-        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
+        // Už nepotrebujeme manuálny subscribe na translationService
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         this.unsubscribes.forEach(unsub => unsub());
-        if (this._langUnsubscribe) {
-            this._langUnsubscribe();
-        }
     }
 
     _fetchDashboardData() {
@@ -105,7 +106,7 @@ export class ProfessorDashboardView extends LitElement {
                 createdAt: serverTimestamp(),
                 studentIds: []
             });
-            showToast(translationService.t('common.saved'));
+            showToast(this.t('common.saved')); // Použitie this.t() z Mixinu
             this._showCreateClassModal = false;
             this._newClassName = "";
         } catch (error) {
@@ -114,21 +115,24 @@ export class ProfessorDashboardView extends LitElement {
         }
     }
 
+    // === OPRAVENÁ A MODERNIZOVANÁ METÓDA ===
     async _handleLanguageChange(e) {
-        await translationService.setLanguage(e.target.value);
-        window.location.reload();
+        // Voláme novú metódu 'changeLanguage' zo služby
+        await translationService.changeLanguage(e.target.value);
     }
 
     render() {
-        const t = (key) => translationService.t(key);
+        // Skratka pre preklady (vďaka Mixinu môžeme použiť this.t)
+        const t = (key) => this.t(key);
+        
         if (this._isLoading) {
              return html`<div class="flex justify-center items-center h-full min-h-screen"><p class="text-xl text-slate-400 animate-pulse">${t('common.loading')}</p></div>`;
         }
 
         const user = firebaseInit.auth.currentUser;
         const userName = user?.displayName || user?.email || 'Profesore';
+        const currentLang = translationService.currentLanguage;
 
-        // UPRAVENÝ LAYOUT: Odstránené 'mx-auto' a 'max-w-7xl', aby sa obsah natiahol a zmizla medzera
         return html`
             <div class="w-full p-6 md:p-8 space-y-8">
                 
@@ -146,11 +150,15 @@ export class ProfessorDashboardView extends LitElement {
                         <div class="h-8 w-px bg-slate-200 mx-1"></div>
 
                         <div class="relative group">
-                            <select @change=${this._handleLanguageChange} class="appearance-none bg-transparent font-medium text-sm text-slate-600 hover:text-indigo-600 focus:outline-none cursor-pointer pr-4 py-1">
-                                <option value="cs" ?selected=${translationService.currentLanguage === 'cs'}>CZ</option>
-                                <option value="sk" ?selected=${translationService.currentLanguage === 'sk'}>SK</option>
-                                <option value="en" ?selected=${translationService.currentLanguage === 'en'}>EN</option>
-                                <option value="pt-br" ?selected=${translationService.currentLanguage === 'pt-br'}>BR</option>
+                            <select 
+                                @change=${this._handleLanguageChange} 
+                                class="appearance-none bg-transparent font-medium text-sm text-slate-600 hover:text-indigo-600 focus:outline-none cursor-pointer pr-4 py-1"
+                            >
+                                ${SUPPORTED_LANGUAGES.map(lang => html`
+                                    <option value="${lang.code}" ?selected=${currentLang === lang.code}>
+                                        ${lang.flag} ${lang.code.toUpperCase()}
+                                    </option>
+                                `)}
                             </select>
                         </div>
 
