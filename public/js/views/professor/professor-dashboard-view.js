@@ -2,14 +2,11 @@ import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/li
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
-// === NOVÉ IMPORTY PRE SYSTÉMOVÉ PREKLADY ===
 import { translationService, SUPPORTED_LANGUAGES } from '../../utils/translation-service.js';
 import { Localized } from '../../utils/localization-mixin.js';
-// ===========================================
 import { baseStyles } from '../../shared-styles.js';
 import { handleLogout } from '../../auth.js';
 
-// Použijeme Mixin: extends Localized(LitElement)
 export class ProfessorDashboardView extends Localized(LitElement) {
     static properties = {
         _classes: { state: true, type: Array },
@@ -34,9 +31,8 @@ export class ProfessorDashboardView extends Localized(LitElement) {
     }
 
     connectedCallback() {
-        super.connectedCallback(); // Mixin zabezpečí odber prekladov
+        super.connectedCallback();
         this._fetchDashboardData();
-        // Už nepotrebujeme manuálny subscribe na translationService
     }
 
     disconnectedCallback() {
@@ -92,7 +88,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
     async _submitCreateClass() {
         const className = this._newClassName.trim();
         if (!className) {
-            showToast('Zadejte název třídy', true);
+            showToast(this.t('professor.enter_class_name'), true);
             return;
         }
         const user = firebaseInit.auth.currentUser;
@@ -106,23 +102,20 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                 createdAt: serverTimestamp(),
                 studentIds: []
             });
-            showToast(this.t('common.saved')); // Použitie this.t() z Mixinu
+            showToast(this.t('common.saved'));
             this._showCreateClassModal = false;
             this._newClassName = "";
         } catch (error) {
             console.error("Error creating class:", error);
-            showToast('Chyba při vytváření třídy', true);
+            showToast(this.t('common.error'), true);
         }
     }
 
-    // === OPRAVENÁ A MODERNIZOVANÁ METÓDA ===
     async _handleLanguageChange(e) {
-        // Voláme novú metódu 'changeLanguage' zo služby
         await translationService.changeLanguage(e.target.value);
     }
 
     render() {
-        // Skratka pre preklady (vďaka Mixinu môžeme použiť this.t)
         const t = (key) => this.t(key);
         
         if (this._isLoading) {
@@ -138,8 +131,8 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                 
                 <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Učitelský panel</h1>
-                        <p class="text-slate-500 mt-1">Dobré ráno, ${userName} 👋</p>
+                        <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">${t('professor.dashboard_title')}</h1>
+                        <p class="text-slate-500 mt-1">${t('professor.welcome_back')}, ${userName} 👋</p>
                     </div>
 
                     <div class="flex items-center gap-3 bg-white p-2 pr-4 rounded-full shadow-sm border border-slate-100">
@@ -162,7 +155,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                             </select>
                         </div>
 
-                        <button @click=${handleLogout} class="text-slate-400 hover:text-red-500 transition-colors p-1" title="Odhlásit se">
+                        <button @click=${handleLogout} class="text-slate-400 hover:text-red-500 transition-colors p-1" title="${t('common.logout')}">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
                         </button>
                     </div>
@@ -171,7 +164,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                 <section>
                     <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
                         <span class="bg-purple-100 text-purple-600 p-1.5 rounded-lg">✨</span> 
-                        Tvůrčí studio
+                        ${t('professor.creative_studio')}
                     </h2>
 
                     <div class="bg-white rounded-3xl p-1 shadow-sm border border-slate-200">
@@ -182,8 +175,8 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                                 <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-purple-200 mb-4 group-hover:scale-110 transition-transform">
                                     ✨
                                 </div>
-                                <h3 class="font-bold text-slate-900 group-hover:text-purple-700 transition-colors">Magický Generátor</h3>
-                                <p class="text-sm text-slate-500 mt-1 leading-relaxed">Vytvořte kompletní lekci z PDF souboru během vteřiny.</p>
+                                <h3 class="font-bold text-slate-900 group-hover:text-purple-700 transition-colors">${t('professor.magic_generator')}</h3>
+                                <p class="text-sm text-slate-500 mt-1 leading-relaxed">${t('professor.magic_generator_desc')}</p>
                             </div>
 
                             <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
@@ -191,8 +184,8 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                                 <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-indigo-200 group-hover:text-indigo-600 transition-colors">
                                     📝
                                 </div>
-                                <h3 class="font-bold text-slate-900 group-hover:text-indigo-700 transition-colors">Vytvořit manuálně</h3>
-                                <p class="text-sm text-slate-500 mt-1 leading-relaxed">Začněte s prázdnou lekcí a poskládejte ji sami.</p>
+                                <h3 class="font-bold text-slate-900 group-hover:text-indigo-700 transition-colors">${t('professor.manual_create')}</h3>
+                                <p class="text-sm text-slate-500 mt-1 leading-relaxed">${t('professor.manual_create_desc')}</p>
                             </div>
 
                             <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
@@ -201,10 +194,10 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                                     📚
                                 </div>
                                 <div class="flex justify-between items-center">
-                                    <h3 class="font-bold text-slate-900 group-hover:text-blue-700 transition-colors">Knihovna lekcí</h3>
+                                    <h3 class="font-bold text-slate-900 group-hover:text-blue-700 transition-colors">${t('professor.lesson_library')}</h3>
                                     <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-full">${this._stats.totalLessons}</span>
                                 </div>
-                                <p class="text-sm text-slate-500 mt-1 leading-relaxed">Přehled a úprava všech vašich existujících lekcí.</p>
+                                <p class="text-sm text-slate-500 mt-1 leading-relaxed">${t('professor.lesson_library_desc')}</p>
                             </div>
 
                             <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group rounded-r-3xl"
@@ -212,8 +205,8 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                                 <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-orange-200 group-hover:text-orange-600 transition-colors">
                                     📁
                                 </div>
-                                <h3 class="font-bold text-slate-900 group-hover:text-orange-700 transition-colors">Média & Soubory</h3>
-                                <p class="text-sm text-slate-500 mt-1 leading-relaxed">Správce nahraných dokumentů a multimédií.</p>
+                                <h3 class="font-bold text-slate-900 group-hover:text-orange-700 transition-colors">${t('professor.media_files')}</h3>
+                                <p class="text-sm text-slate-500 mt-1 leading-relaxed">${t('professor.media_files_desc')}</p>
                             </div>
 
                         </div>
@@ -224,10 +217,10 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                     <div class="flex items-center justify-between mb-4">
                         <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <span class="bg-blue-100 text-blue-600 p-1.5 rounded-lg">👥</span>
-                            Přehled managementu
+                            ${t('professor.management_overview')}
                         </h2>
                         <button class="text-sm font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors" @click=${() => this._showCreateClassModal = true}>
-                            + Nová třída
+                            + ${t('professor.new_class')}
                         </button>
                     </div>
 
@@ -240,8 +233,8 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                                 </div>
                                 <span class="text-3xl font-extrabold text-slate-900">${this._stats.totalStudents}</span>
                             </div>
-                            <h3 class="font-bold text-slate-700">Moji studenti</h3>
-                            <p class="text-xs text-slate-400 mt-1">Aktivní ve vašich třídách</p>
+                            <h3 class="font-bold text-slate-700">${t('professor.my_students')}</h3>
+                            <p class="text-xs text-slate-400 mt-1">${t('professor.active_in_classes')}</p>
                         </div>
 
                         <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group"
@@ -252,8 +245,8 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                                 </div>
                                 <span class="text-3xl font-extrabold text-slate-900">${this._stats.totalClasses}</span>
                             </div>
-                            <h3 class="font-bold text-slate-700">Moje třídy</h3>
-                            <p class="text-xs text-slate-400 mt-1">Spravovat skupiny a kódy</p>
+                            <h3 class="font-bold text-slate-700">${t('professor.my_classes')}</h3>
+                            <p class="text-xs text-slate-400 mt-1">${t('professor.manage_groups')}</p>
                         </div>
 
                         <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group"
@@ -262,10 +255,10 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                                 <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                                 </div>
-                                <span class="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded">Novinka</span>
+                                <span class="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded">${t('common.new')}</span>
                             </div>
-                            <h3 class="font-bold text-slate-700">Analytika výuky</h3>
-                            <p class="text-xs text-slate-400 mt-1">Přehled aktivity studentů</p>
+                            <h3 class="font-bold text-slate-700">${t('professor.analytics')}</h3>
+                            <p class="text-xs text-slate-400 mt-1">${t('professor.activity_overview')}</p>
                         </div>
                     </div>
                 </section>
@@ -278,12 +271,13 @@ export class ProfessorDashboardView extends Localized(LitElement) {
 
     _renderCreateClassModal() {
         if (!this._showCreateClassModal) return null;
+        const t = (key) => this.t(key);
 
         return html`
             <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
                 <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm transform transition-all scale-100">
-                    <h3 class="text-xl font-bold mb-1 text-slate-900">Vytvořit novou třídu</h3>
-                    <p class="text-sm text-slate-500 mb-6">Zadejte název pro identifikaci skupiny.</p>
+                    <h3 class="text-xl font-bold mb-1 text-slate-900">${t('professor.create_new_class')}</h3>
+                    <p class="text-sm text-slate-500 mb-6">${t('professor.create_class_desc')}</p>
                     
                     <input
                         type="text"
@@ -295,8 +289,8 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                         autofocus
                     >
                     <div class="flex justify-end gap-3">
-                        <button class="px-4 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors" @click=${() => this._showCreateClassModal = false}>Zrušit</button>
-                        <button class="px-6 py-2 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all transform active:scale-95" @click=${this._submitCreateClass}>Uložit</button>
+                        <button class="px-4 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors" @click=${() => this._showCreateClassModal = false}>${t('common.cancel')}</button>
+                        <button class="px-6 py-2 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all transform active:scale-95" @click=${this._submitCreateClass}>${t('common.save')}</button>
                     </div>
                 </div>
             </div>
