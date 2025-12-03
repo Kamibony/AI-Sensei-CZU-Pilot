@@ -9,7 +9,7 @@ import { callGenerateContent } from '../../../gemini-api.js';
 import { translationService } from '../../../utils/translation-service.js';
 
 const btnBase = "px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
-const btnPrimary = `${btnBase} bg-green-700 text-white hover:bg-green-800 w-full`; // Added w-full
+const btnPrimary = `${btnBase} bg-green-700 text-white hover:bg-green-800 w-full`;
 // === REDESIGNED AI BUTTON ===
 const btnGenerate = `px-6 py-3 rounded-full font-bold bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all flex items-center ai-glow border border-white/20`;
 const btnSecondary = `${btnBase} bg-slate-200 text-slate-700 hover:bg-slate-300`;
@@ -33,7 +33,8 @@ export class AiGeneratorPanel extends LitElement {
         _uploadStatusMsg: { state: true, type: String },
         _uploadStatusType: { state: true, type: String },
         _showBanner: { state: true, type: Boolean },
-        onSave: { type: Function } // Callback when user clicks save here
+        _filesCount: { state: true, type: Number }, // Nový state na sledovanie počtu súborov
+        onSave: { type: Function }
     };
 
     constructor() {
@@ -42,7 +43,7 @@ export class AiGeneratorPanel extends LitElement {
         this.viewTitle = "AI Generátor"; 
         this.promptPlaceholder = "Zadejte prompt...";
         this.description = "Popis chybí."; 
-        this.inputsConfig = []; // Defaultne prázdne
+        this.inputsConfig = []; 
         this._generationOutput = null;
         this._isLoading = false; 
         this._isSaving = false;
@@ -51,21 +52,32 @@ export class AiGeneratorPanel extends LitElement {
         this._uploadStatusMsg = ''; 
         this._uploadStatusType = '';
         this._showBanner = true;
+        this._filesCount = 0;
     }
 
     createRenderRoot() { return this; }
 
     updated(changedProperties) {
         if (this.lesson && (changedProperties.has('lesson') || !changedProperties.has('lesson'))) {
+            // Log pre debugovanie toku súborov
+            const filePaths = this.lesson?.ragFilePaths || [];
+            if (changedProperties.has('lesson')) {
+                console.log(`[AiGeneratorPanel] Lesson updated via prop. Found ${filePaths.length} RAG files.`);
+            }
+
+            // Aktualizujeme interný counter pre UI
+            this._filesCount = filePaths.length;
+
             setTimeout(() => {
-                 loadSelectedFiles(this.lesson?.ragFilePaths || []);
+                 // Načítame súbory do globálneho upload-handlera
+                 loadSelectedFiles(filePaths);
+                 // Renderujeme read-only zoznam
                  renderSelectedFiles(`selected-files-list-rag-${this.contentType}`);
             }, 0);
         }
     }
 
     _handleInlineUpload(e) {
-        // Disabled inline upload in this panel
         console.warn("Inline upload is disabled here. Use Lesson Settings.");
     }
 
@@ -76,19 +88,32 @@ export class AiGeneratorPanel extends LitElement {
     }
 
     _createDocumentSelectorUI() {
-        // Read-only list, management moved to LessonEditor Step 1
         const listId = `selected-files-list-rag-${this.contentType}`;
+        const hasFiles = this._filesCount > 0;
+
         return html`
-            <div class="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+            <div class="mb-6 p-4 rounded-xl border ${hasFiles ? 'bg-slate-50 border-slate-200' : 'bg-orange-50 border-orange-200'}">
                 <div class="flex justify-between items-center mb-3">
-                    <h3 class="font-semibold text-slate-700">Kontext pro AI (RAG)</h3>
-                    <span class="text-xs text-slate-400 bg-white px-2 py-1 rounded border border-slate-200">Read-Only</span>
+                    <h3 class="font-semibold ${hasFiles ? 'text-slate-700' : 'text-orange-800'}">
+                        ${hasFiles ? '📚 Kontext pro AI (RAG)' : '⚠️ Žádné soubory pro kontext'}
+                    </h3>
+                    <span class="text-xs ${hasFiles ? 'text-slate-500' : 'text-orange-600'} bg-white px-2 py-1 rounded border ${hasFiles ? 'border-slate-200' : 'border-orange-200'}">
+                        ${this._filesCount} souborů
+                    </span>
                 </div>
+                
                 <div class="mb-1">
                      <ul id="${listId}" class="text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-200 min-h-[50px]">
                         <li>${translationService.t('common.no_files_selected')}</li>
                     </ul>
                 </div>
+
+                ${!hasFiles ? html`
+                    <p class="text-xs text-orange-700 mt-2 font-bold">
+                        ⚠️ Pozor: Bez nahraných souborů může AI halucinovat (vymýšlet si fakta).
+                    </p>
+                ` : nothing}
+                
                 <p class="text-xs text-slate-400 mt-2">
                     ℹ️ Soubory spravujete v kroku 1 "Základy".
                 </p>
@@ -96,7 +121,9 @@ export class AiGeneratorPanel extends LitElement {
      }
 
     _openRagModal(e) {
+        // ... (Modal logic - Read Only here mostly)
         e.preventDefault();
+        // ... (Zvyšok logiky ponechávame, aj keď je to read-only, môže slúžiť na náhľad)
         const modal = document.getElementById('media-library-modal');
         if (!modal) return;
         loadSelectedFiles(this.lesson?.ragFilePaths || []);
@@ -115,10 +142,8 @@ export class AiGeneratorPanel extends LitElement {
         document.getElementById('modal-close-btn')?.addEventListener('click', close);
      }
 
-    // === NOVÁ FUNKCIA: Renderovanie inputov na základe configu ===
     _renderDynamicInputs() {
         if (!this.inputsConfig || this.inputsConfig.length === 0) {
-            // Fallback na starý slot, ak nemáme config (pre spätnú kompatibilitu)
             return html`<slot name="ai-inputs"></slot>`;
         }
 
@@ -157,24 +182,42 @@ export class AiGeneratorPanel extends LitElement {
 
     async _handleGeneration(e) {
         e.preventDefault();
+        
+        // 1. Získanie aktuálne vybraných súborov
+        const selectedFiles = getSelectedFiles();
+        const filePaths = selectedFiles.map(f => f.fullPath);
+
+        // === 2. KRITICKÁ KONTROLA (GUARDRAIL) ===
+        // Ak používateľ nemá vybrané súbory, musíme ho varovať
+        if (filePaths.length === 0) {
+            const confirmed = confirm(
+                "⚠️ UPOZORNĚNÍ: Nemáte vybrané žádné soubory pro kontext (RAG).\n\n" +
+                "AI bude generovat obsah pouze na základě vašeho promptu. To může vést k nepřesnostem nebo 'halucinacím'.\n\n" +
+                "Doporučujeme vrátit se do sekce 'Základy' a nahrát studijní materiály.\n\n" +
+                "Chcete přesto pokračovat bez souborů?"
+            );
+            
+            if (!confirmed) {
+                // Používateľ zrušil akciu
+                return; 
+            }
+        }
+        // ========================================
+
         const promptInput = this.querySelector('#prompt-input');
-        
-        // Špeciálna logika pre input témy, ktorý sa líši podľa typu obsahu
         const topicInput = this.querySelector('#prompt-input-topic');
-        let userPrompt = '';
         
+        let userPrompt = '';
         if (this.contentType === 'presentation' && topicInput) {
              userPrompt = topicInput.value.trim();
         } else if (promptInput) {
              userPrompt = promptInput.value.trim();
         }
 
-        // Mock RAG: Inject lesson text content if available
         if (this.lesson && this.lesson.text_content) {
             userPrompt += `\n\nContext: ${this.lesson.text_content}. Based on this context, generate the following content.`;
         }
 
-        // Validácia povinného promptu (okrem podcastu, ktorý má default)
         if (!userPrompt && this.contentType !== 'post' && this.contentType !== 'presentation') {
             const fallbackInput = this.querySelector('#prompt-input-topic');
             if (!fallbackInput || !fallbackInput.value.trim()) {
@@ -191,26 +234,17 @@ export class AiGeneratorPanel extends LitElement {
         this._generationOutput = null;
 
         try {
-            const selectedFiles = getSelectedFiles();
-            const filePaths = selectedFiles.map(f => f.fullPath);
             const promptData = { userPrompt: userPrompt || this.promptPlaceholder, isMagic: true };
 
-            // === 1. ZBER DÁT Z DYNAMICKÝCH INPUTOV (NOVÉ) ===
             if (this.inputsConfig && this.inputsConfig.length > 0) {
                 this.inputsConfig.forEach(conf => {
                     const el = this.querySelector(`#${conf.id}`);
                     if (el) {
-                        // Backend zvyčajne očakáva snake_case
-                        // Premenujeme id (napr. questionCount -> question_count), ak je v configu camelCase, 
-                        // ale ideálne by už ID v configu malo byť správne.
-                        // Pre istotu urobíme rovnakú konverziu ako pri starom systéme:
                         const key = conf.id.replace(/-/g, '_').replace('_input', ''); 
                         promptData[key] = el.value;
                     }
                 });
-            } 
-            // === 2. ZBER DÁT ZO STARÝCH SLOTOV (BACKWARD COMPATIBILITY) ===
-            else {
+            } else {
                 const slottedElements = this.querySelectorAll('[slot="ai-inputs"]');
                 slottedElements.forEach(el => {
                     if (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName) && el.id) {
@@ -223,7 +257,6 @@ export class AiGeneratorPanel extends LitElement {
                 });
             }
 
-            // Špecifická validácia pre prezentáciu
             if (this.contentType === 'presentation') {
                 const count = parseInt(promptData.slide_count, 10);
                 if (!count || count <= 0) {
@@ -233,32 +266,16 @@ export class AiGeneratorPanel extends LitElement {
                 }
             }
 
-            // Fallback pre Podcast, ak prompt chýba
             if (this.contentType === 'post' && !userPrompt) promptData.userPrompt = this.promptPlaceholder;
 
-            // === OPRAVA PRE MANUÁLNE GENEROVANIE TESTOV A KVÍZOV ===
-            // Explicitne pridáme parametre do promptu, aby ich AI neignorovala, 
-            // aj keď backend teraz už parametre číta, toto je poistka pre textovú kvalitu promptu.
             if (['test', 'quiz'].includes(this.contentType)) {
-                // Konverzia ID: question-count-input -> question_count
                 const count = promptData.question_count || promptData.question_count_input;
-                if (count) {
-                    promptData.userPrompt += `\n\nInstrukce: Vytvoř přesně ${count} otázek.`;
-                }
-                
-                // Difficulty
+                if (count) promptData.userPrompt += `\n\nInstrukce: Vytvoř přesně ${count} otázek.`;
                 const diff = promptData.difficulty_select || promptData.difficulty;
-                if (diff) {
-                     promptData.userPrompt += `\nObtížnost: ${diff}.`;
-                }
-                
-                // Type
+                if (diff) promptData.userPrompt += `\nObtížnost: ${diff}.`;
                 const type = promptData.type_select || promptData.question_types;
-                if (type) {
-                     promptData.userPrompt += `\nTyp otázek: ${type}.`;
-                }
+                if (type) promptData.userPrompt += `\nTyp otázek: ${type}.`;
             }
-            // =======================================================
 
             const result = await callGenerateContent({ contentType: this.contentType, promptData, filePaths });
             if (!result || result.error) throw new Error(result?.error || "AI nevrátila žádná data.");
@@ -307,7 +324,6 @@ export class AiGeneratorPanel extends LitElement {
             const currentRagFiles = getSelectedFiles().map(f => f.fullPath);
 
             if (!this.lesson || !this.lesson.id) {
-                // SCENÁR: Nová lekcia, voláme addDoc
                 const lessonData = {
                     title: "Nová lekce (AI)",
                     status: "Naplánováno",
@@ -319,7 +335,6 @@ export class AiGeneratorPanel extends LitElement {
                 };
 
                 const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonData);
-
                 alert("Nová lekce byla úspěšně vytvořena s AI obsahem!");
 
                  this.dispatchEvent(new CustomEvent('lesson-created', {
@@ -328,9 +343,7 @@ export class AiGeneratorPanel extends LitElement {
                     composed: true
                 }));
 
-
             } else {
-                // SCENÁR: Existujúca lekcia, voláme updateDoc
                 await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
                     [this.fieldToUpdate]: dataToSave,
                     ragFilePaths: currentRagFiles,
@@ -399,6 +412,7 @@ export class AiGeneratorPanel extends LitElement {
                 `
                 : html`
                     <p class="text-slate-500 mb-6">${this.description}</p>
+                    
                     ${this._createDocumentSelectorUI()}
                     
                     <div class="mt-6 pt-6 border-t border-slate-100">
