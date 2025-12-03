@@ -6,35 +6,53 @@ export class TranslationService {
     }
 
     async init() {
+        console.log('TranslationService: Initializing...');
         await this.loadTranslations(this.currentLanguage);
     }
 
     async loadTranslations(lang) {
         try {
-            // FIX: Použitie absolútnej cesty /locales/... zabezpečí načítanie z koreňa webu
-            // bez ohľadu na to, či si na /student, /professor alebo inej podstránke.
-            const response = await fetch(`/locales/${lang}.json`);
+            // 1. Použijeme absolútnu cestu od koreňa webu
+            // 2. Pridáme časovú pečiatku (?v=...), aby sme obišli cache prehliadača
+            const url = `/locales/${lang}.json?v=${new Date().getTime()}`;
             
-            if (!response.ok) throw new Error(`Failed to load ${lang}`);
+            console.log(`TranslationService: Fetching translations from: ${url}`);
+            
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                throw new Error(`Failed to load ${lang} (Status: ${response.status})`);
+            }
+
             this.translations = await response.json();
+            console.log(`TranslationService: Loaded ${Object.keys(this.translations).length} root keys for language '${lang}'`);
+
             this.currentLanguage = lang;
             localStorage.setItem('app_language', lang);
             this.notifyListeners();
         } catch (error) {
             console.error('Translation error:', error);
-            // Fallback na CS, ak zlyhá načítanie a nie sme už na CS
+            
+            // Fallback na češtinu, ak zlyhá iný jazyk
             if (lang !== 'cs') {
+                console.log("TranslationService: Attempting fallback to 'cs'...");
                 await this.loadTranslations('cs');
             }
         }
     }
 
     t(key) {
+        if (!key) return '';
+        
         const keys = key.split('.');
         let value = this.translations;
+        
         for (const k of keys) {
             value = value?.[k];
+            if (value === undefined) break;
         }
+        
+        // Ak sa preklad nenašiel, vrátime pôvodný kľúč
         return value || key;
     }
 
@@ -45,7 +63,7 @@ export class TranslationService {
 
     subscribe(callback) {
         this.listeners.push(callback);
-        // Return unsubscribe function
+        // Vrátime funkciu na odhlásenie (unsubscribe)
         return () => {
             this.listeners = this.listeners.filter(cb => cb !== callback);
         };
