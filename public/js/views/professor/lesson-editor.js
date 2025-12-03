@@ -126,7 +126,23 @@ export class LessonEditor extends LitElement {
                 // Same lesson or Draft->Saved transition. Preserve View Mode.
                 // But update files if they changed (e.g. upload complete)
                 if (JSON.stringify(oldLesson?.ragFilePaths) !== JSON.stringify(newLesson?.ragFilePaths)) {
-                     loadSelectedFiles(newLesson?.ragFilePaths || []);
+
+                     // Safeguard: Check global state before wiping
+                     const currentGlobalFiles = getSelectedFiles();
+                     const newFiles = newLesson?.ragFilePaths || [];
+
+                     // If we are about to wipe files (newFiles is empty) but we have files in global state,
+                     // and it's the same lesson context, assume it's a state glitch and PROTECT the files.
+                     if (newFiles.length === 0 && currentGlobalFiles.length > 0) {
+                          console.warn("LessonEditor: Safeguard triggered! Preventing file wipe in willUpdate.", {
+                              global: currentGlobalFiles,
+                              new: newFiles
+                          });
+                          // Do NOT wipe global state
+                     } else {
+                          console.log("LessonEditor: Syncing files from lesson state to global:", newFiles);
+                          loadSelectedFiles(newFiles);
+                     }
                 }
             }
         }
@@ -189,6 +205,7 @@ export class LessonEditor extends LitElement {
     }
 
     _switchToHub() {
+         console.log("LessonEditor: Switching to Hub. Current viewMode:", this._viewMode);
          // Validate Step 1 if coming from settings
          if (this._viewMode === 'settings') {
              const titleInput = this.renderRoot.querySelector('#lesson-title-input');
@@ -199,7 +216,9 @@ export class LessonEditor extends LitElement {
                  return;
              }
              // Save basic info to local state
-             this.lesson = { ...this.lesson, ...this._getDetails() };
+             const details = this._getDetails();
+             console.log("LessonEditor: Captured details before switch:", details);
+             this.lesson = { ...this.lesson, ...details };
          }
          this._viewMode = 'hub';
          this._selectedContentType = null;
@@ -233,6 +252,7 @@ export class LessonEditor extends LitElement {
 
         // OPRAVA: Získanie aktuálnych súborov z globálneho nahrávača
         const ragFilePaths = getSelectedFiles();
+        console.log("LessonEditor: _getDetails captured files:", ragFilePaths);
 
         return { 
             title, 
