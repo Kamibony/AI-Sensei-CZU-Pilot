@@ -3,20 +3,23 @@ import {
     collection,
     query,
     where,
+    onSnapshot,
     doc,
+    getDoc,
+    orderBy,
     updateDoc,
     arrayUnion,
     getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast } from './utils.js';
 import './student/student-classes-view.js';
 import './student/student-lesson-list.js';
 import './student/student-lesson-detail.js';
 import './student/student-class-detail.js';
-// import './student/student-dashboard-view.js'; // Odstránené, pretože dashboard je definovaný tu
+import './student/student-dashboard-view.js';
 
 class StudentDashboard extends LitElement {
     static properties = {
@@ -25,8 +28,8 @@ class StudentDashboard extends LitElement {
         selectedLessonId: { type: String },
         selectedClassId: { type: String },
         isSidebarOpen: { type: Boolean },
-        // Zjednotený názov premennej pre modal
-        isJoinClassModalOpen: { type: Boolean },
+        isJoinModalOpen: { type: Boolean },
+        // --- PRIDANÉ PRE FORMULÁR ---
         joinCode: { type: String },
         joinError: { type: String },
         isJoining: { type: Boolean }
@@ -39,9 +42,8 @@ class StudentDashboard extends LitElement {
         this.selectedLessonId = null;
         this.selectedClassId = null;
         this.isSidebarOpen = false;
-        
-        // Inicializácia stavu
-        this.isJoinClassModalOpen = false;
+        this.isJoinModalOpen = false;
+        // --- INICIALIZÁCIA ---
         this.joinCode = '';
         this.joinError = '';
         this.isJoining = false;
@@ -84,7 +86,7 @@ class StudentDashboard extends LitElement {
                                     <p class="text-xs text-slate-500">Študent</p>
                                 </div>
                             </div>
-                            <button @click="${() => this.handleLogout()}" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            <button @click="${this.handleLogout}" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
                                 </svg>
@@ -108,7 +110,7 @@ class StudentDashboard extends LitElement {
                     </div>
                 </main>
 
-                ${this.isJoinClassModalOpen ? this.renderJoinClassModal() : ''}
+                ${this.isJoinModalOpen ? this.renderJoinClassModal() : ''}
             </div>
         `;
     }
@@ -119,7 +121,7 @@ class StudentDashboard extends LitElement {
                 <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up p-6">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-xl font-bold text-slate-900">Připojit se k třídě</h3>
-                        <button @click="${() => this._closeJoinClassModal()}" class="text-slate-400 hover:text-slate-600 transition-colors">
+                        <button @click="${this._closeJoinClassModal}" class="text-slate-400 hover:text-slate-600 transition-colors">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
                     </div>
@@ -130,6 +132,7 @@ class StudentDashboard extends LitElement {
                             type="text"
                             .value="${this.joinCode}"
                             @input="${(e) => { this.joinCode = e.target.value; this.joinError = ''; }}"
+                            @keypress="${(e) => e.key === 'Enter' && this._submitJoinClass()}"
                             placeholder="Zadejte 6-místný kód..."
                             class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                         >
@@ -137,7 +140,7 @@ class StudentDashboard extends LitElement {
                     </div>
 
                     <div class="flex justify-end gap-3">
-                        <button @click="${() => this._closeJoinClassModal()}" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium">
+                        <button @click="${this._closeJoinClassModal}" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium">
                             Zrušit
                         </button>
                         <button
@@ -155,7 +158,7 @@ class StudentDashboard extends LitElement {
     }
 
     _closeJoinClassModal() {
-        this.isJoinClassModalOpen = false;
+        this.isJoinModalOpen = false;
         this.joinCode = '';
         this.joinError = '';
         this.isJoining = false;
@@ -171,23 +174,18 @@ class StudentDashboard extends LitElement {
         this.joinError = '';
 
         try {
-            // 1. Skusíme Cloud Function (preferované)
+            // Skúsime najprv Cloud Function
             try {
-                if (functions) {
-                    const joinClass = httpsCallable(functions, 'joinClass');
-                    const result = await joinClass({ joinCode: this.joinCode });
-                    
-                    this._closeJoinClassModal();
-                    alert(`Úspěšně jste se připojili k třídě ${result.data.groupName}!`);
-                    window.location.reload();
-                    return;
-                }
+                const joinClass = httpsCallable(functions, 'joinClass');
+                const result = await joinClass({ joinCode: this.joinCode });
+                
+                this._closeJoinClassModal();
+                showToast(`Úspěšně jste se připojili k třídě ${result.data.groupName}!`);
+                return;
             } catch (err) {
                console.warn("Cloud function failed, trying direct Firestore fallback:", err);
+               await this._handleJoinClassDirect(this.joinCode);
             }
-
-            // 2. Fallback: Priame volanie Firestore
-            await this._handleJoinClassDirect(this.joinCode);
 
         } catch (error) {
             console.error("Error joining class:", error);
@@ -197,8 +195,8 @@ class StudentDashboard extends LitElement {
         }
     }
 
+    // Fallback: Priame volanie Firestore (upravené na query joinCode)
     async _handleJoinClassDirect(code) {
-        // Query poľa 'joinCode'
         const groupsRef = collection(db, "groups");
         const q = query(groupsRef, where("joinCode", "==", code)); 
         const querySnapshot = await getDocs(q);
@@ -217,7 +215,6 @@ class StudentDashboard extends LitElement {
 
         this._closeJoinClassModal();
         showToast('Úspěšně jste se připojili k třídě!');
-        window.location.reload();
     }
 
     renderNavItem(id, label, iconPath) {
@@ -281,7 +278,7 @@ class StudentDashboard extends LitElement {
                 return html`
                     <student-classes-view
                         .user="${this.user}"
-                        @request-join-class="${() => { console.log('Opening modal'); this.isJoinClassModalOpen = true; }}" 
+                        @request-join-class="${(e) => this.isJoinModalOpen = true}"
                         @class-selected="${(e) => {
                             this.selectedClassId = e.detail.groupId;
                         }}">
@@ -289,24 +286,16 @@ class StudentDashboard extends LitElement {
                 `;
             case 'dashboard':
             default:
-                // Jednoduchý dashboard bez externej závislosti
                 return html`
-                    <div class="text-center py-12">
-                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Vitajte, ${this.user.email}</h2>
-                        <p class="text-slate-500">Vyberte si lekciu alebo triedu z menu vľavo.</p>
-                        <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-                            <div @click="${() => this.currentView = 'classes'}" class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all">
-                                <div class="text-4xl mb-3">🏫</div>
-                                <h3 class="font-bold text-lg">Moje Triedy</h3>
-                                <p class="text-sm text-slate-500">Pripojte sa k triede alebo si pozrite úlohy.</p>
-                            </div>
-                            <div @click="${() => this.currentView = 'lessons'}" class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all">
-                                <div class="text-4xl mb-3">📚</div>
-                                <h3 class="font-bold text-lg">Moje Lekcie</h3>
-                                <p class="text-sm text-slate-500">Pokračujte v štúdiu tam, kde ste prestali.</p>
-                            </div>
-                        </div>
-                    </div>
+                    <student-dashboard-view
+                        .user="${this.user}"
+                        @navigate="${(e) => {
+                            this.currentView = e.detail.view;
+                            if (e.detail.lessonId) {
+                                this.selectedLessonId = e.detail.lessonId;
+                            }
+                        }}">
+                    </student-dashboard-view>
                 `;
         }
     }
