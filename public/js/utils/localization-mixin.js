@@ -1,36 +1,39 @@
 import { translationService } from './translation-service.js';
 
-/**
- * Mixin, ktorý automaticky pripojí komponent k prekladom.
- * Použitie: class MyComponent extends Localized(LitElement) { ... }
- */
 export const Localized = (superClass) => class extends superClass {
     
+    // Definujeme internú reaktívnu property.
+    // Keď sa táto hodnota zmení, LitElement AUTOMATICKY prekreslí komponent.
+    static get properties() {
+        return {
+            _currentLang: { state: true }
+        };
+    }
+
     constructor() {
         super();
         this._langUnsubscribe = null;
+        // Nastavíme počiatočnú hodnotu
+        this._currentLang = translationService.currentLanguage;
     }
 
     connectedCallback() {
         super.connectedCallback();
-        // Automatický odber zmien
-        this._langUnsubscribe = translationService.subscribe(() => {
-            this.requestUpdate(); // LitElement prekreslí komponent
+        // Prihlásime sa na odber zmien
+        this._langUnsubscribe = translationService.subscribe((newLang) => {
+            console.log(`Mixin: Language update received -> ${newLang}`);
+            this._currentLang = newLang; // Zmena tejto property spustí render()
+            this.requestUpdate(); // Pre istotu poistka
         });
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
-        // Automatické odhlásenie (prevencia memory leaks)
         if (this._langUnsubscribe) {
             this._langUnsubscribe();
         }
     }
 
-    /**
-     * Skratka pre preklad priamo v šablóne.
-     * Použitie: ${this.t('common.hello')}
-     */
     t(key) {
         return translationService.t(key);
     }
