@@ -1,4 +1,3 @@
-// public/js/views/professor/editor/ai-generator-panel.js
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { doc, updateDoc, deleteField, serverTimestamp, addDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../../firebase-init.js';
@@ -24,6 +23,7 @@ export class AiGeneratorPanel extends LitElement {
         fieldToUpdate: { type: String },
         promptPlaceholder: { type: String },
         description: { type: String },
+        // === NOVÉ: Konfigurácia inputov pre Configuration-Driven UI ===
         inputsConfig: { type: Array },
         _generationOutput: { state: true },
         _isLoading: { state: true, type: Boolean },
@@ -38,10 +38,18 @@ export class AiGeneratorPanel extends LitElement {
 
     constructor() {
         super();
-        this.lesson = null; this.viewTitle = "AI Generátor"; this.promptPlaceholder = "Zadejte prompt...";
-        this.description = "Popis chybí."; this.inputsConfig = []; this._generationOutput = null;
-        this._isLoading = false; this._isSaving = false;
-        this._isUploading = false; this._uploadProgress = 0; this._uploadStatusMsg = ''; this._uploadStatusType = '';
+        this.lesson = null; 
+        this.viewTitle = "AI Generátor"; 
+        this.promptPlaceholder = "Zadejte prompt...";
+        this.description = "Popis chybí."; 
+        this.inputsConfig = []; // Defaultne prázdne
+        this._generationOutput = null;
+        this._isLoading = false; 
+        this._isSaving = false;
+        this._isUploading = false; 
+        this._uploadProgress = 0; 
+        this._uploadStatusMsg = ''; 
+        this._uploadStatusType = '';
         this._showBanner = true;
     }
 
@@ -107,22 +115,76 @@ export class AiGeneratorPanel extends LitElement {
         document.getElementById('modal-close-btn')?.addEventListener('click', close);
      }
 
+    // === NOVÁ FUNKCIA: Renderovanie inputov na základe configu ===
+    _renderDynamicInputs() {
+        if (!this.inputsConfig || this.inputsConfig.length === 0) {
+            // Fallback na starý slot, ak nemáme config (pre spätnú kompatibilitu)
+            return html`<slot name="ai-inputs"></slot>`;
+        }
+
+        return html`
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                ${this.inputsConfig.map(input => html`
+                    <div class="${input.fullWidth ? 'col-span-full' : ''}">
+                        <label class="block font-medium text-slate-600 text-sm mb-1" for="${input.id}">
+                            ${input.label}
+                        </label>
+                        ${input.type === 'select' 
+                            ? html`
+                                <select 
+                                    id="${input.id}" 
+                                    class="w-full border-slate-300 rounded-lg p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                                >
+                                    ${input.options.map(opt => html`
+                                        <option value="${opt}" ?selected="${opt === input.default}">${opt}</option>
+                                    `)}
+                                </select>`
+                            : html`
+                                <input 
+                                    id="${input.id}" 
+                                    type="${input.type}" 
+                                    class="w-full border-slate-300 rounded-lg p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                    value="${input.default || ''}"
+                                    min="${input.min || ''}"
+                                    max="${input.max || ''}"
+                                >`
+                        }
+                    </div>
+                `)}
+            </div>
+        `;
+    }
+
     async _handleGeneration(e) {
         e.preventDefault();
         const promptInput = this.querySelector('#prompt-input');
-        let userPrompt = promptInput ? promptInput.value.trim() : '';
+        
+        // Špeciálna logika pre input témy, ktorý sa líši podľa typu obsahu
+        const topicInput = this.querySelector('#prompt-input-topic');
+        let userPrompt = '';
+        
+        if (this.contentType === 'presentation' && topicInput) {
+             userPrompt = topicInput.value.trim();
+        } else if (promptInput) {
+             userPrompt = promptInput.value.trim();
+        }
 
         // Mock RAG: Inject lesson text content if available
         if (this.lesson && this.lesson.text_content) {
             userPrompt += `\n\nContext: ${this.lesson.text_content}. Based on this context, generate the following content.`;
         }
 
-        if (promptInput && !userPrompt && this.contentType !== 'presentation') {
-             const topicInput = this.querySelector('#prompt-input-topic');
-             if (!topicInput || !topicInput.value.trim()) {
+        // Validácia povinného promptu (okrem podcastu, ktorý má default)
+        if (!userPrompt && this.contentType !== 'post' && this.contentType !== 'presentation') {
+            const fallbackInput = this.querySelector('#prompt-input-topic');
+            if (!fallbackInput || !fallbackInput.value.trim()) {
                  alert("Prosím, zadejte text do promptu nebo téma.");
                  return;
-             }
+            }
+        }
+        if (this.contentType === 'presentation' && !userPrompt) {
+             alert("Prosím, zadejte téma prezentace.");
+             return;
         }
 
         this._isLoading = true;
@@ -131,34 +193,37 @@ export class AiGeneratorPanel extends LitElement {
         try {
             const selectedFiles = getSelectedFiles();
             const filePaths = selectedFiles.map(f => f.fullPath);
-            const promptData = { userPrompt: userPrompt || '', isMagic: true };
+            const promptData = { userPrompt: userPrompt || this.promptPlaceholder, isMagic: true };
 
-            const slottedElements = this.querySelectorAll('[slot="ai-inputs"]');
-            slottedElements.forEach(el => {
-                if (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName) && el.id) {
-                    promptData[el.id.replace(/-/g, '_').replace('_input', '')] = el.value;
-                }
-                const nestedInputs = el.querySelectorAll('input, select, textarea');
-                nestedInputs.forEach(input => {
-                    if (input.id) promptData[input.id.replace(/-/g, '_').replace('_input', '')] = input.value;
-                });
-            });
-
+            // === 1. ZBER DÁT Z DYNAMICKÝCH INPUTOV (NOVÉ) ===
             if (this.inputsConfig && this.inputsConfig.length > 0) {
-                this.inputsConfig.forEach(config => {
-                    const el = this.renderRoot.querySelector(`#${config.id}`);
+                this.inputsConfig.forEach(conf => {
+                    const el = this.querySelector(`#${conf.id}`);
                     if (el) {
-                         promptData[config.id.replace(/-/g, '_').replace('_input', '')] = el.value;
+                        // Backend zvyčajne očakáva snake_case
+                        // Premenujeme id (napr. questionCount -> question_count), ak je v configu camelCase, 
+                        // ale ideálne by už ID v configu malo byť správne.
+                        // Pre istotu urobíme rovnakú konverziu ako pri starom systéme:
+                        const key = conf.id.replace(/-/g, '_').replace('_input', ''); 
+                        promptData[key] = el.value;
                     }
                 });
+            } 
+            // === 2. ZBER DÁT ZO STARÝCH SLOTOV (BACKWARD COMPATIBILITY) ===
+            else {
+                const slottedElements = this.querySelectorAll('[slot="ai-inputs"]');
+                slottedElements.forEach(el => {
+                    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName) && el.id) {
+                        promptData[el.id.replace(/-/g, '_').replace('_input', '')] = el.value;
+                    }
+                    const nestedInputs = el.querySelectorAll('input, select, textarea');
+                    nestedInputs.forEach(input => {
+                        if (input.id) promptData[input.id.replace(/-/g, '_').replace('_input', '')] = input.value;
+                    });
+                });
             }
 
-            if (this.contentType === 'presentation') {
-                 const topicInput = this.querySelector('#prompt-input-topic');
-                 if (topicInput) promptData.userPrompt = topicInput.value.trim();
-            }
-            if (this.contentType === 'post' && !userPrompt) promptData.userPrompt = this.promptPlaceholder;
-
+            // Špecifická validácia pre prezentáciu
             if (this.contentType === 'presentation') {
                 const count = parseInt(promptData.slide_count, 10);
                 if (!count || count <= 0) {
@@ -168,8 +233,12 @@ export class AiGeneratorPanel extends LitElement {
                 }
             }
 
+            // Fallback pre Podcast, ak prompt chýba
+            if (this.contentType === 'post' && !userPrompt) promptData.userPrompt = this.promptPlaceholder;
+
             // === OPRAVA PRE MANUÁLNE GENEROVANIE TESTOV A KVÍZOV ===
-            // Explicitne pridáme parametre do promptu, aby ich AI neignorovala
+            // Explicitne pridáme parametre do promptu, aby ich AI neignorovala, 
+            // aj keď backend teraz už parametre číta, toto je poistka pre textovú kvalitu promptu.
             if (['test', 'quiz'].includes(this.contentType)) {
                 // Konverzia ID: question-count-input -> question_count
                 const count = promptData.question_count || promptData.question_count_input;
@@ -177,15 +246,16 @@ export class AiGeneratorPanel extends LitElement {
                     promptData.userPrompt += `\n\nInstrukce: Vytvoř přesně ${count} otázek.`;
                 }
                 
-                // Difficulty select (ID: difficulty-select -> difficulty_select OR difficulty -> difficulty)
-                const difficulty = promptData.difficulty || promptData.difficulty_select;
-                if (difficulty) {
-                     promptData.userPrompt += `\nObtížnost: ${difficulty}.`;
+                // Difficulty
+                const diff = promptData.difficulty_select || promptData.difficulty;
+                if (diff) {
+                     promptData.userPrompt += `\nObtížnost: ${diff}.`;
                 }
                 
-                // Type select
-                if (promptData.type_select) {
-                     promptData.userPrompt += `\nTyp otázek: ${promptData.type_select}.`;
+                // Type
+                const type = promptData.type_select || promptData.question_types;
+                if (type) {
+                     promptData.userPrompt += `\nTyp otázek: ${type}.`;
                 }
             }
             // =======================================================
@@ -250,11 +320,8 @@ export class AiGeneratorPanel extends LitElement {
 
                 const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonData);
 
-                // Po úspešnom vytvorení presmerujeme alebo aktualizujeme stav
-                // Pre jednoduchosť zatiaľ len zobrazíme alert a necháme na hlavnom view, aby sa obnovil
                 alert("Nová lekce byla úspěšně vytvořena s AI obsahem!");
 
-                // Idealne by bolo dispatchnut event, ktory by sposobil refresh a otvorenie novej lekcie
                  this.dispatchEvent(new CustomEvent('lesson-created', {
                     detail: { newLessonId: docRef.id },
                     bubbles: true,
@@ -309,7 +376,9 @@ export class AiGeneratorPanel extends LitElement {
                 <button @click=${() => this._showBanner = false} class="absolute top-2 right-2 text-blue-400 hover:text-blue-700 text-lg font-bold">&times;</button>
                 <p><strong>💡 ${translationService.t('editor.ai_tip_title')}</strong> ${translationService.t('editor.ai_tip_desc')}</p>
             </div>` : nothing}
+            
             <div class="flex justify-between items-start mb-6"><h2 class="text-3xl font-extrabold text-slate-800">${this.viewTitle}</h2>${hasContent ? html`<button @click=${this._handleDeleteGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnDestructive} px-4 py-2 text-sm">${this._isLoading?'...':'🗑️ Smazat'} ${!isText?'a nové':''}</button>`:nothing}</div>
+            
             <div class="bg-white p-6 rounded-2xl shadow-lg">
                 ${hasContent ? html`
                     ${this._renderEditableContent(this.contentType, this.lesson[this.fieldToUpdate])}
@@ -331,33 +400,24 @@ export class AiGeneratorPanel extends LitElement {
                 : html`
                     <p class="text-slate-500 mb-6">${this.description}</p>
                     ${this._createDocumentSelectorUI()}
+                    
                     <div class="mt-6 pt-6 border-t border-slate-100">
-                        ${this.inputsConfig && this.inputsConfig.length > 0 ? html`
-                            <div class="bg-slate-50 p-4 rounded-lg mb-4">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    ${this.inputsConfig.map(input => html`
-                                        <div>
-                                            <label class="block font-medium text-slate-600 text-sm">${input.label}</label>
-                                            ${input.type === 'select' ? html`
-                                                <select id="${input.id}" class="w-full border-slate-300 rounded-lg p-2 mt-1">
-                                                    ${input.options.map(opt => html`<option ?selected=${opt === input.default}>${opt}</option>`)}
-                                                </select>
-                                            ` : html`
-                                                <input id="${input.id}" type="${input.type}" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="${input.default}">
-                                            `}
-                                        </div>
-                                    `)}
-                                </div>
-                            </div>
-                        ` : html`<slot name="ai-inputs"></slot>`}
+                        ${this._renderDynamicInputs()}
+
                         ${this.contentType === 'presentation' ? html`<label class="block font-medium text-slate-600">Téma prezentace</label><input id="prompt-input-topic" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1 mb-4" placeholder=${this.promptPlaceholder}>`:html`<textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder=${this.promptPlaceholder}></textarea>`}
+                        
                         <div class="flex items-center justify-end mt-4">
                             <button @click=${this._handleGeneration} ?disabled=${this._isLoading||this._isSaving || this._isUploading} class="${btnGenerate}">
                                 ${this._isLoading ? html`<div class="spinner mr-2"></div> Generuji...` : html`<span class="text-xl mr-2">✨</span> Vygenerovat pomocí AI`}
                             </button>
                         </div>
                     </div>
-                    <div id="generation-output" class="mt-6 border-t pt-6 text-slate-700 prose max-w-none">${this._isLoading?html`<div class="p-8 text-center pulse-loader text-slate-500">🤖 AI přemýšlí...</div>`:''}${this._generationOutput?this._renderStaticContent(this.contentType, this._generationOutput):(!this._isLoading?html`<div class="text-center p-8 text-slate-400">Obsah se vygeneruje zde...</div>`:'')}</div>
+                    
+                    <div id="generation-output" class="mt-6 border-t pt-6 text-slate-700 prose max-w-none">
+                        ${this._isLoading?html`<div class="p-8 text-center pulse-loader text-slate-500">🤖 AI přemýšlí...</div>`:''}
+                        ${this._generationOutput?this._renderStaticContent(this.contentType, this._generationOutput):(!this._isLoading?html`<div class="text-center p-8 text-slate-400">Obsah se vygeneruje zde...</div>`:'')}
+                    </div>
+                    
                     ${(this._generationOutput&&!this._generationOutput.error)?html`<div class="text-right mt-4"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?'Ukládám...':'💾 ' + translationService.t('editor.btn_save_section')}</button></div>`:nothing}
                 `}
             </div>`;
