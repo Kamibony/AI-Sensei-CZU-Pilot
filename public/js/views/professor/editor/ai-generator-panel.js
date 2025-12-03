@@ -93,6 +93,11 @@ export class AiGeneratorPanel extends LitElement {
                 } else {
                     // Update counter even if no reload needed
                     this._filesCount = filesInGlobalMemory.length;
+
+                    // FIX: Ensure UI is rendered even if no reload was needed (data matches)
+                    setTimeout(() => {
+                        renderSelectedFiles(`selected-files-list-rag-${this.contentType}`);
+                    }, 0);
                 }
             }
         }

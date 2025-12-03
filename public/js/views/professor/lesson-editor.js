@@ -111,7 +111,22 @@ export class LessonEditor extends LitElement {
             const isNavigationToDraft = oldLesson?.id && !newLesson?.id;
 
             if (isFirstLoad || isDifferentLessonId || isNavigationToDraft) {
-                 loadSelectedFiles(newLesson?.ragFilePaths || []);
+                 // Prevent redundant reloads/wipes if the lesson state matches global state
+                 const currentFiles = getSelectedFiles();
+                 const newFiles = newLesson?.ragFilePaths || [];
+
+                 // CRITICAL FIX: Detect creation flow (unsaved -> saved)
+                 // If we have local files but incoming lesson (just created) has none, trust local files.
+                 const isCreationTransition = !oldLesson?.id && newLesson?.id;
+                 const wouldWipeData = newFiles.length === 0 && currentFiles.length > 0;
+
+                 if (JSON.stringify(currentFiles) !== JSON.stringify(newFiles)) {
+                     if (isCreationTransition && wouldWipeData) {
+                         // Preserve local state, do not overwrite with empty array
+                     } else {
+                        loadSelectedFiles(newFiles);
+                     }
+                 }
                  this._currentStep = 1;
 
                  // Hub Logic: Existing ID -> Hub, No ID -> Settings
