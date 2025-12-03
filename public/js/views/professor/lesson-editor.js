@@ -231,7 +231,15 @@ export class LessonEditor extends LitElement {
         const subtitle = this.renderRoot.querySelector('#lesson-subtitle-input')?.value.trim() || '';
         const assignedToGroups = Array.from(this.renderRoot.querySelectorAll('input[name="group-assignment"]:checked')).map(cb => cb.value);
 
-        return { title, subtitle, assignedToGroups };
+        // OPRAVA: Získanie aktuálnych súborov z globálneho nahrávača
+        const ragFilePaths = getSelectedFiles();
+
+        return { 
+            title, 
+            subtitle, 
+            assignedToGroups,
+            ragFilePaths // <--- TOTO zabezpečí uloženie súborov pri prechode do Hubu
+        };
     }
 
     async _handleSaveLesson() {
