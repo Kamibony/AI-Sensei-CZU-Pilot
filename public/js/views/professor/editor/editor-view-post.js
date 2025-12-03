@@ -19,17 +19,10 @@ export class EditorViewPost extends LitElement {
                 contentType="post"
                 fieldToUpdate="podcast_script"
                 description="Vytvořte sérii podcastových skriptů. Můžete vybrat dokumenty (RAG)."
-                .promptPlaceholder=${defaultPrompt}>
-                
-                <div slot="ai-inputs" class="bg-slate-50 p-4 rounded-lg mb-4">
-                    <h4 class="font-bold text-slate-800 mb-3">🎙️ Generátor Podcastové Série</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block font-medium text-slate-600 text-sm">Počet epizod</label>
-                            <input id="episode-count-input" type="number" class="w-full border-slate-300 rounded-lg p-2 mt-1" value="3">
-                        </div>
-                    </div>
-                </div>
+                .promptPlaceholder=${defaultPrompt}
+                .inputsConfig=${[
+                    { id: 'episode_count', type: 'number', label: 'Počet epizod', default: 3 }
+                ]}>
             </ai-generator-panel>
         `;
     }

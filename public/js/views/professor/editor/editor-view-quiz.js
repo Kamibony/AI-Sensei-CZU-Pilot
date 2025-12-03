@@ -17,7 +17,11 @@ export class EditorViewQuiz extends LitElement {
                 contentType="quiz"
                 fieldToUpdate="quiz"
                 description="Vytvořte rychlý kvíz. Můžete vybrat dokumenty (RAG)."
-                promptPlaceholder="Např. 'Vytvoř 3 otázky s výběrem ze 4 možností...'">
+                promptPlaceholder="Např. 'Vytvoř 3 otázky s výběrem ze 4 možností...'"
+                .inputsConfig=${[
+                    { id: 'question_count', type: 'number', label: 'Počet otázek', default: 5 },
+                    { id: 'difficulty', type: 'select', label: 'Obtížnost', options: ['Lehká', 'Střední', 'Těžká'], default: 'Střední' }
+                ]}>
             </ai-generator-panel>
         `;
     }
