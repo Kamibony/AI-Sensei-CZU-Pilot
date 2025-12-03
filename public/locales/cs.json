@@ -42,7 +42,16 @@
     "auth": {
         "login_title": "Přihlášení",
         "login_google": "Přihlásit se přes Google",
-        "logout": "Odhlásit se"
+        "logout": "Odhlásit se",
+        "role_selection": "Výběr role",
+        "branding_title_1": "Vítejte v",
+        "branding_title_2": "AI Sensei",
+        "branding_desc": "Inteligentní výukový asistent",
+        "community_join": "Připojte se ke komunitě",
+        "role_professor": "Profesor",
+        "role_professor_desc": "Vytvářejte a spravujte lekce",
+        "role_student": "Student",
+        "role_student_desc": "Studujte a plňte úkoly"
     },
     "nav": {
         "dashboard": "Nástěnka",
