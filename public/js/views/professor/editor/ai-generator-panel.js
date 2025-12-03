@@ -1,16 +1,13 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { doc, updateDoc, deleteField, serverTimestamp, addDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../../firebase-init.js';
-// showToast už nepoužívame pre bežné veci, ale import necháme pre kritické chyby ak by bolo treba
 import { showToast } from '../../../utils.js';
-// DÔLEŽITÉ: Kompletný zoznam importov z upload-handler.js
 import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles, processAndStoreFile, addSelectedFile } from '../../../upload-handler.js';
 import { callGenerateContent } from '../../../gemini-api.js';
 import { translationService } from '../../../utils/translation-service.js';
 
 const btnBase = "px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
 const btnPrimary = `${btnBase} bg-green-700 text-white hover:bg-green-800 w-full`;
-// === REDESIGNED AI BUTTON ===
 const btnGenerate = `px-6 py-3 rounded-full font-bold bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all flex items-center ai-glow border border-white/20`;
 const btnSecondary = `${btnBase} bg-slate-200 text-slate-700 hover:bg-slate-300`;
 const btnDestructive = `${btnBase} bg-red-100 text-red-700 hover:bg-red-200`;
@@ -23,7 +20,6 @@ export class AiGeneratorPanel extends LitElement {
         fieldToUpdate: { type: String },
         promptPlaceholder: { type: String },
         description: { type: String },
-        // === NOVÉ: Konfigurácia inputov pre Configuration-Driven UI ===
         inputsConfig: { type: Array },
         _generationOutput: { state: true },
         _isLoading: { state: true, type: Boolean },
@@ -33,7 +29,7 @@ export class AiGeneratorPanel extends LitElement {
         _uploadStatusMsg: { state: true, type: String },
         _uploadStatusType: { state: true, type: String },
         _showBanner: { state: true, type: Boolean },
-        _filesCount: { state: true, type: Number }, // Nový state na sledovanie počtu súborov
+        _filesCount: { state: true, type: Number },
         onSave: { type: Function }
     };
 
@@ -57,23 +53,48 @@ export class AiGeneratorPanel extends LitElement {
 
     createRenderRoot() { return this; }
 
+    // === OPRAVENÁ METÓDA PRE SYNCHRONIZÁCIU SÚBOROV ===
     updated(changedProperties) {
-        if (this.lesson && (changedProperties.has('lesson') || !changedProperties.has('lesson'))) {
-            // Log pre debugovanie toku súborov
-            const filePaths = this.lesson?.ragFilePaths || [];
-            if (changedProperties.has('lesson')) {
-                console.log(`[AiGeneratorPanel] Lesson updated via prop. Found ${filePaths.length} RAG files.`);
+        // Kontrolujeme, či sa zmenila lekcia, alebo či sme sa práve vykreslili
+        if (this.lesson || changedProperties.has('lesson')) {
+            
+            // 1. Zistíme, čo máme v globálnej pamäti (z Kroku 1)
+            const filesInGlobalMemory = getSelectedFiles();
+            
+            // 2. Zistíme, čo je uložené v objekte lekcie (z databázy)
+            const filesInLesson = this.lesson?.ragFilePaths || [];
+
+            // === KRITICKÁ OPRAVA LOGIKY ===
+            // Ak je toto NOVÁ lekcia (v databáze nemá súbory), ale v pamäti (z Kroku 1) niečo je,
+            // tak dáme prednosť pamäti a NEPREPÍŠEME ju prázdnym poľom.
+            
+            if (filesInLesson.length === 0 && filesInGlobalMemory.length > 0) {
+                // Sme v režime tvorby novej lekcie -> Dôverujeme globálnej pamäti
+                this._filesCount = filesInGlobalMemory.length;
+                
+                // Len prekreslíme zoznam v UI, aby bol viditeľný
+                setTimeout(() => {
+                    renderSelectedFiles(`selected-files-list-rag-${this.contentType}`);
+                }, 0);
+
+            } else {
+                // Sme v režime editácie existujúcej lekcie (alebo je pamäť prázdna) -> Dôverujeme lekcii
+                // Táto vetva sa spustí len ak má lekcia uložené súbory, alebo ak nemáme v pamäti nič.
+                
+                // Optimalizácia: Nerobíme to, ak sa nič nezmenilo
+                const shouldReload = JSON.stringify(filesInGlobalMemory.map(f=>f.fullPath)) !== JSON.stringify(filesInLesson);
+                
+                if (shouldReload || filesInGlobalMemory.length === 0) {
+                     this._filesCount = filesInLesson.length;
+                     setTimeout(() => {
+                        loadSelectedFiles(filesInLesson);
+                        renderSelectedFiles(`selected-files-list-rag-${this.contentType}`);
+                     }, 0);
+                } else {
+                    // Update counter even if no reload needed
+                    this._filesCount = filesInGlobalMemory.length;
+                }
             }
-
-            // Aktualizujeme interný counter pre UI
-            this._filesCount = filePaths.length;
-
-            setTimeout(() => {
-                 // Načítame súbory do globálneho upload-handlera
-                 loadSelectedFiles(filePaths);
-                 // Renderujeme read-only zoznam
-                 renderSelectedFiles(`selected-files-list-rag-${this.contentType}`);
-            }, 0);
         }
     }
 
@@ -121,17 +142,22 @@ export class AiGeneratorPanel extends LitElement {
      }
 
     _openRagModal(e) {
-        // ... (Modal logic - Read Only here mostly)
         e.preventDefault();
-        // ... (Zvyšok logiky ponechávame, aj keď je to read-only, môže slúžiť na náhľad)
         const modal = document.getElementById('media-library-modal');
         if (!modal) return;
-        loadSelectedFiles(this.lesson?.ragFilePaths || []);
+        
+        // Pri otvorení modálu rešpektujeme aktuálny stav
+        // (netreba volať loadSelectedFiles, lebo už sú v pamäti)
         renderMediaLibraryFiles("main-course", "modal-media-list");
         modal.classList.remove('hidden');
         
         const close = () => { modal.classList.add('hidden'); cleanup(); };
-        const confirm = () => { renderSelectedFiles(`selected-files-list-rag-${this.contentType}`); close(); };
+        const confirm = () => { 
+            // Po potvrdení aktualizujeme UI
+            this._filesCount = getSelectedFiles().length;
+            renderSelectedFiles(`selected-files-list-rag-${this.contentType}`); 
+            close(); 
+        };
         const cleanup = () => {
              document.getElementById('modal-confirm-btn')?.removeEventListener('click', confirm);
              document.getElementById('modal-cancel-btn')?.removeEventListener('click', close);
@@ -183,26 +209,19 @@ export class AiGeneratorPanel extends LitElement {
     async _handleGeneration(e) {
         e.preventDefault();
         
-        // 1. Získanie aktuálne vybraných súborov
+        // 1. Získanie aktuálne vybraných súborov (TERAZ UŽ SPRÁVNE Z PAMÄTE)
         const selectedFiles = getSelectedFiles();
         const filePaths = selectedFiles.map(f => f.fullPath);
 
-        // === 2. KRITICKÁ KONTROLA (GUARDRAIL) ===
-        // Ak používateľ nemá vybrané súbory, musíme ho varovať
+        // 2. Kontrola
         if (filePaths.length === 0) {
             const confirmed = confirm(
                 "⚠️ UPOZORNĚNÍ: Nemáte vybrané žádné soubory pro kontext (RAG).\n\n" +
-                "AI bude generovat obsah pouze na základě vašeho promptu. To může vést k nepřesnostem nebo 'halucinacím'.\n\n" +
-                "Doporučujeme vrátit se do sekce 'Základy' a nahrát studijní materiály.\n\n" +
+                "AI bude generovat obsah pouze na základě vašeho promptu.\n\n" +
                 "Chcete přesto pokračovat bez souborů?"
             );
-            
-            if (!confirmed) {
-                // Používateľ zrušil akciu
-                return; 
-            }
+            if (!confirmed) return; 
         }
-        // ========================================
 
         const promptInput = this.querySelector('#prompt-input');
         const topicInput = this.querySelector('#prompt-input-topic');
@@ -277,6 +296,7 @@ export class AiGeneratorPanel extends LitElement {
                 if (type) promptData.userPrompt += `\nTyp otázek: ${type}.`;
             }
 
+            // VOLANIE API - TERAZ UŽ S filePaths
             const result = await callGenerateContent({ contentType: this.contentType, promptData, filePaths });
             if (!result || result.error) throw new Error(result?.error || "AI nevrátila žádná data.");
             this._generationOutput = (this.contentType === 'text' && result.text) ? result.text : result;
@@ -321,6 +341,7 @@ export class AiGeneratorPanel extends LitElement {
                 };
             }
 
+            // === VŽDY UKLADÁME AKTUÁLNY STAV SÚBOROV Z UI (PRETOŽE MÔŽU BYŤ ZMENENÉ) ===
             const currentRagFiles = getSelectedFiles().map(f => f.fullPath);
 
             if (!this.lesson || !this.lesson.id) {
