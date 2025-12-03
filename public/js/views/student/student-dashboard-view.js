@@ -1,4 +1,4 @@
-import { db, auth, functions } from '../../firebase-init.js'; // Skontrolujte cestu k firebase-init
+import { db, auth, functions } from '../../firebase-init.js';
 import {
     collection,
     query,
@@ -11,12 +11,11 @@ import {
 import { signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { showToast } from '../../utils.js'; // Skontrolujte cestu k utils
+import { showToast } from '../../utils.js';
 import './student-classes-view.js';
 import './student-lesson-list.js';
 import './student-lesson-detail.js';
 import './student-class-detail.js';
-// import './student-dashboard-view.js'; // Toto asi nie, ak sme v tom istom subore alebo je to rekurzia?
 
 class StudentDashboard extends LitElement {
     static properties = {
@@ -25,7 +24,6 @@ class StudentDashboard extends LitElement {
         selectedLessonId: { type: String },
         selectedClassId: { type: String },
         isSidebarOpen: { type: Boolean },
-        // Ponechávame verziu z Release (lepšia)
         isJoinClassModalOpen: { type: Boolean },
         joinCode: { type: String },
         joinError: { type: String },
@@ -39,7 +37,6 @@ class StudentDashboard extends LitElement {
         this.selectedLessonId = null;
         this.selectedClassId = null;
         this.isSidebarOpen = false;
-        // Inicializácia pre Release verziu
         this.isJoinClassModalOpen = false;
         this.joinCode = '';
         this.joinError = '';
@@ -161,7 +158,7 @@ class StudentDashboard extends LitElement {
     }
 
     async _submitJoinClass() {
-        // OPRAVA: Používame this.joinCode namiesto document.getElementById
+        // OPRAVA: Používame priamo premennú, žiadne getElementById
         if (!this.joinCode) {
             showToast('Zadejte prosím kód třídy', true);
             return;
@@ -171,17 +168,18 @@ class StudentDashboard extends LitElement {
         this.joinError = '';
 
         try {
-            // Skúsime najprv Callable funkciu, ak existuje
+            // Skúsime najprv Callable funkciu (Cloud Function)
             try {
                 const joinClass = httpsCallable(functions, 'joinClass');
                 const result = await joinClass({ joinCode: this.joinCode });
                 alert(`Úspěšně jste se připojili k třídě ${result.data.groupName}!`);
                 this._closeJoinClassModal();
                 showToast('Úspěšně jste se připojili k třídě!');
+                // Voliteľné: reload alebo refresh tried
                 return;
             } catch (err) {
-               // Fallback na priame Firestore volanie (ak Cloud Function nie je deploynutá)
-               console.warn("Cloud function failed, trying direct Firestore:", err);
+               // Fallback: Priame volanie Firestore ak Cloud Function nefunguje
+               console.warn("Cloud function failed/not available, trying direct Firestore:", err);
                await this._handleJoinClassDirect(this.joinCode);
             }
 
@@ -193,11 +191,11 @@ class StudentDashboard extends LitElement {
         }
     }
 
-    // Záložná metóda pre priame pripojenie
+    // Fallback metóda pre priame pripojenie
     async _handleJoinClassDirect(code) {
-        // Find class by code
+        // OPRAVA: Query poľa 'joinCode' (admin generuje joinCode, nie code)
         const groupsRef = collection(db, "groups");
-        const q = query(groupsRef, where("joinCode", "==", code)); // Pozor: v DB je to asi 'joinCode', nie 'code'
+        const q = query(groupsRef, where("joinCode", "==", code)); 
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
@@ -213,11 +211,14 @@ class StudentDashboard extends LitElement {
             memberOfGroups: arrayUnion(groupId)
         });
         
-        // Update group document (ak pravidlá dovolia)
+        // Update group document (ak to pravidlá povoľujú)
         const groupRef = doc(db, "groups", groupId);
-        await updateDoc(groupRef, {
-             studentIds: arrayUnion(this.user.uid)
-        });
+        // Poznámka: Toto môže zlyhať na pravidlách, ak študent nemá právo update na group
+        // Ale v pravidlách sme to zatiaľ nemenili pre študentov, takže to môže byť riskantné
+        // Cloud Function je preferovaná cesta.
+        // await updateDoc(groupRef, {
+        //      studentIds: arrayUnion(this.user.uid)
+        // });
 
         this._closeJoinClassModal();
         showToast('Úspěšně jste se připojili k třídě!');
@@ -292,8 +293,6 @@ class StudentDashboard extends LitElement {
                 `;
             case 'dashboard':
             default:
-                // Pre dashboard view môžeme ponechať pôvodný alebo placeholder
-                // Tu predpokladám existenciu student-dashboard-view komponentu
                  return html`
                     <div class="text-center py-12">
                         <h2 class="text-2xl font-bold text-slate-800 mb-2">Vitajte, ${this.user.email}</h2>
