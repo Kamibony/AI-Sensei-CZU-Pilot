@@ -2,7 +2,7 @@ import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@
 import { showToast } from '../../utils.js';
 import { loadSelectedFiles, renderSelectedFiles, initializeCourseMediaUpload, getSelectedFiles, renderMediaLibraryFiles } from '../../upload-handler.js';
 import { callGenerateContent } from '../../gemini-api.js';
-import { doc, updateDoc, serverTimestamp, addDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, updateDoc, serverTimestamp, addDoc, collection, getDocs, query, where, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { StudentLessonDetail } from '../../student/student-lesson-detail.js';
 import { translationService } from '../../utils/translation-service.js';
@@ -337,6 +337,19 @@ export class LessonEditor extends LitElement {
             return;
         }
 
+        // --- FETCH ADMIN SETTINGS (Fix for Admin Panel) ---
+        let aiConfig = { presentation_slides: 5, test_questions: 5, text_instructions: "" };
+        try {
+            const configRef = doc(firebaseInit.db, 'system_settings', 'ai_config');
+            const configSnap = await getDoc(configRef);
+            if (configSnap.exists()) {
+                aiConfig = { ...aiConfig, ...configSnap.data() };
+            }
+        } catch (error) {
+            console.warn("Could not load AI config, using defaults:", error);
+        }
+        // ---------------------------------------------------
+
         const typesToGenerate = ['text', 'presentation', 'quiz', 'test', 'post', 'comic', 'flashcards', 'mindmap'];
         let generatedTypes = [];
 
@@ -353,6 +366,17 @@ export class LessonEditor extends LitElement {
 
                 let specificPrompt = `Téma lekce: ${this.lesson.title}. ${this.lesson.subtitle || ''}`;
                 let episodeCount = undefined;
+
+                // Apply Admin Settings to Prompts
+                if (type === 'text' && aiConfig.text_instructions) {
+                    specificPrompt += `\n\nInstrukce pro strukturu a styl: ${aiConfig.text_instructions}`;
+                }
+
+                if (type === 'quiz' || type === 'test') {
+                    // Use configured question count
+                    const qCount = aiConfig.test_questions || 5;
+                    specificPrompt += ` Vytvoř přesně ${qCount} otázek.`;
+                }
 
                 if (type === 'post') {
                     // Force 1 episode for Magic flow by sending explicit count to backend
@@ -375,10 +399,10 @@ export class LessonEditor extends LitElement {
                      specificPrompt = `Vytvoř strukturu mentální mapy k tématu: ${this.lesson.title}. Výstup musí být POUZE validní kód pro Mermaid.js (typ graph TD). Nepoužívej markdown bloky, jen čistý text diagramu.`;
                 }
 
-                // Build Prompt Data with Language
+                // Build Prompt Data with Language and Admin Settings for Slides
                 const promptData = {
                     userPrompt: specificPrompt,
-                    slide_count: 5, // Default for magic
+                    slide_count: aiConfig.presentation_slides || 5, // Use config or default
                     episode_count: episodeCount,
                     language: contentLang
                 };
@@ -716,10 +740,8 @@ export class LessonEditor extends LitElement {
         const t = (key) => translationService.t(key);
         return html`
             <div class="h-full bg-white overflow-y-auto">
-                <!-- Zen Mode Container -->
                 <div class="px-6 py-12 flex flex-col h-full">
 
-                    <!-- Simple Header -->
                     <header class="flex items-center justify-between mb-8">
                         <button @click=${this._handleBackClick} class="group flex items-center text-sm font-medium text-slate-400 hover:text-slate-900 transition-colors">
                             <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center mr-2 group-hover:bg-slate-100 transition-colors">
@@ -732,11 +754,9 @@ export class LessonEditor extends LitElement {
 
                     <div class="flex-grow relative">
 
-                        <!-- === SETTINGS VIEW (Old Step 1) === -->
                         <div class="${this._viewMode === 'settings' ? 'block' : 'hidden'} animate-fade-in space-y-8">
                              <h2 class="text-3xl font-bold text-slate-900">${t('editor.settings_title')}</h2>
 
-                             <!-- INLINED SETTINGS FORM WITH FLOATING LABELS -->
                              <div class="space-y-6 bg-white p-1 rounded-2xl">
                                 <div class="relative">
                                     <input type="text" id="lesson-title-input"
@@ -781,7 +801,6 @@ export class LessonEditor extends LitElement {
                                 </div>
                              </div>
 
-                            <!-- File Upload Zone -->
                             <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center transition-all hover:border-indigo-300 hover:bg-indigo-50/30 group" id="course-media-upload-area">
                                 <div class="mb-4">
                                     <span class="text-4xl group-hover:scale-110 transition-transform inline-block">📄</span>
@@ -801,7 +820,6 @@ export class LessonEditor extends LitElement {
                                 <ul id="course-media-list-container" class="mt-4 text-left max-w-md mx-auto space-y-2"></ul>
                             </div>
 
-                            <!-- Action Buttons -->
                             <div class="flex flex-col sm:flex-row gap-4 justify-center pt-8">
                                 <button @click=${this._handleMagicGeneration} ?disabled=${this._isLoading}
                                     class="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center text-lg">
@@ -815,10 +833,8 @@ export class LessonEditor extends LitElement {
                             </div>
                         </div>
 
-                        <!-- === HUB VIEW (New Main Menu) === -->
                         <div class="${this._viewMode === 'hub' ? 'block' : 'hidden'} animate-fade-in flex flex-col h-full">
 
-                            <!-- Hub Header -->
                             <div class="text-center mb-10 relative">
                                 <h1 class="text-3xl font-bold text-slate-900 mb-2">${this.lesson?.title || t('professor.new_lesson_card')}</h1>
 
@@ -828,7 +844,6 @@ export class LessonEditor extends LitElement {
                                         ${t('editor.hub_edit_details')}
                                     </button>
 
-                                    <!-- Status Toggle -->
                                     <button @click=${this._toggleStatus}
                                         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer border ${this.lesson?.status === 'published' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}">
                                         <span class="w-2 h-2 rounded-full mr-2 ${this.lesson?.status === 'published' ? 'bg-green-500' : 'bg-slate-400'}"></span>
@@ -856,7 +871,6 @@ export class LessonEditor extends LitElement {
                                         <div @click=${() => this._switchToEditor(type.id)}
                                              class="group cursor-pointer bg-white rounded-3xl border border-slate-100 p-8 transition-all duration-300 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-100/50 hover:-translate-y-1 relative overflow-hidden flex flex-col items-center justify-center min-h-[220px]">
 
-                                            <!-- Visibility Toggle -->
                                             <div @click=${(e) => this._toggleSectionVisibility(e, type.id)}
                                                  class="absolute top-4 right-4 p-2 rounded-full shadow-sm z-10 transition-colors ${isVisible ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'}"
                                                  title="${isVisible ? t('common.visible_tooltip') : t('common.hidden_tooltip')}">
@@ -898,7 +912,6 @@ export class LessonEditor extends LitElement {
                                 })}
                             </div>
 
-                            <!-- FIX 3: Navigation Clarity (Hub Footer) -->
                             <div class="mt-16 flex justify-center pb-8">
                                 <button @click=${this._handleBackClick}
                                     class="group relative inline-flex items-center justify-center px-10 py-5 text-lg font-bold text-slate-700 transition-all duration-200 bg-white border border-slate-200 rounded-full hover:bg-slate-50 shadow-lg shadow-slate-200/50 hover:shadow-slate-300/50 hover:-translate-y-1">
@@ -908,7 +921,6 @@ export class LessonEditor extends LitElement {
                             </div>
                         </div>
 
-                        <!-- === EDITOR VIEW === -->
                         <div class="${this._viewMode === 'editor' ? 'block' : 'hidden'} h-full animate-fade-in flex flex-col">
                             <div class="mb-6 flex items-center justify-end w-full px-6">
                                 <h3 class="font-bold text-slate-800 text-lg flex items-center">
@@ -917,19 +929,16 @@ export class LessonEditor extends LitElement {
                                 </h3>
                             </div>
 
-                            <!-- Active Editor Content -->
                             <div id="active-editor-content" class="flex-grow bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 p-1 overflow-hidden w-full px-6">
                                 <div class="h-full overflow-y-auto custom-scrollbar">
                                      ${this.renderEditorContent(this._selectedContentType)}
                                 </div>
                             </div>
 
-                            <!-- Footer inside Editor (REMOVED as per FIX 3) -->
-                        </div>
+                            </div>
                     </div>
                 </div>
 
-                <!-- STUDENT PREVIEW MODAL -->
                 ${this._showStudentPreview ? html`
                     <div class="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
                         <div class="relative w-full h-full max-w-sm max-h-[85vh] flex flex-col">
@@ -937,9 +946,7 @@ export class LessonEditor extends LitElement {
                                 ${t('common.close')} <span class="text-2xl ml-2">×</span>
                             </button>
 
-                            <!-- Mobile Frame -->
                             <div class="w-full h-full bg-white border-8 border-slate-900 rounded-[3rem] overflow-hidden shadow-2xl relative flex flex-col">
-                                <!-- Mobile Status Bar Simulation -->
                                 <div class="h-7 bg-slate-900 w-full flex justify-between items-center px-6">
                                     <span class="text-[10px] text-white font-mono">9:41</span>
                                     <div class="flex space-x-1">
@@ -948,14 +955,12 @@ export class LessonEditor extends LitElement {
                                     </div>
                                 </div>
 
-                                <!-- Content -->
                                 <div class="flex-grow overflow-y-auto bg-slate-50 custom-scrollbar">
                                     <student-lesson-detail
                                         .lessonData=${this.lesson}>
                                     </student-lesson-detail>
                                 </div>
 
-                                <!-- Mobile Home Indicator -->
                                 <div class="h-1 bg-slate-900 w-full flex justify-center items-end pb-2">
                                      <div class="w-1/3 h-1 bg-slate-200 rounded-full opacity-20"></div>
                                 </div>
@@ -964,7 +969,6 @@ export class LessonEditor extends LitElement {
                     </div>
                 ` : ''}
 
-                <!-- FIX 2: Magic Progress Overlay -->
                 ${this._isLoading && this._viewMode === 'settings' ? html`
                     <div class="fixed inset-0 z-[110] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-6 animate-fade-in">
                         <div class="max-w-md w-full text-center">
@@ -999,7 +1003,6 @@ export class LessonEditor extends LitElement {
                     </div>
                 ` : ''}
 
-                <!-- Success Modal -->
                 ${this._showSuccessModal ? html`
                     <div class="fixed inset-0 z-[120] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
                         <div class="bg-white rounded-3xl p-8 shadow-2xl max-w-sm w-full text-center transform scale-100 transition-transform duration-300">
