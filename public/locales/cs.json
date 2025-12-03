@@ -36,7 +36,8 @@
         "app_init_error": "Chyba inicializace aplikace",
         "app_setting_account": "Nastavuji účet...",
         "app_role_error": "Nepodařilo se získat roli uživatele.",
-        "app_loading": "Spouštím aplikaci..."
+        "app_loading": "Spouštím aplikaci...",
+        "days": "dní"
     },
     "auth": {
         "login_title": "Přihlášení",
@@ -76,19 +77,42 @@
         "new_lesson_card": "Nová lekce"
     },
     "student": {
-        "portal_title": "Študentský portál",
-        "overview": "Prehľad",
-        "my_lessons": "Moje Lekcie",
-        "my_classes": "Moje Triedy",
-        "welcome": "Vitajte",
-        "select_instruction": "Vyberte si lekciu alebo triedu z menu vľavo.",
+        "portal_title": "Studentský portál",
+        "overview": "Přehled",
+        "my_lessons": "Moje lekce",
+        "my_classes": "Moje třídy",
+        "role_label": "Student",
+        "welcome": "Vítejte",
+        "select_instruction": "Vyberte si lekci nebo třídu z menu vlevo.",
+        "classes_card_title": "Moje třídy",
+        "classes_card_desc": "Připojte se k třídě nebo si prohlédněte úkoly.",
+        "lessons_card_title": "Moje lekce",
+        "lessons_card_desc": "Pokračujte ve studiu tam, kde jste přestali.",
         "join_class": "Připojit se k třídě",
         "enter_code": "Zadejte kód třídy, který jste obdrželi od učitele.",
         "code_placeholder": "Kód třídy",
         "join_btn": "Připojit se",
+        "cancel_btn": "Zrušit",
         "join_success": "Úspěšně jste se připojili k třídě",
         "join_error": "Chyba při připojování k třídě",
-        "class_not_found": "Třída s tímto kódem nebyla nalezena"
+        "class_not_found": "Třída s tímto kódem nebyla nalezena",
+        "dashboard": {
+            "welcome_subtitle": "Vítejte ve svém studijním centru.",
+            "streak": "Streak",
+            "continue_learning": "Pokračovat ve výuce",
+            "open_lesson": "Otevřít lekci",
+            "no_recent_lessons": "Zatím žádné lekce",
+            "no_recent_lessons_desc": "Až se připojíte k nějaké třídě, uvidíte zde nejnovější lekci.",
+            "lessons_desc": "Procházet všechny dostupné materiály",
+            "classes_desc": "Správa tříd a skupin",
+            "agenda": "Agenda",
+            "agenda_desc": "Nadcházející úkoly (již brzy)"
+        },
+        "greetings": {
+            "morning": "Dobré ráno",
+            "day": "Dobrý den",
+            "evening": "Dobrý večer"
+        }
     },
     "editor": {
         "settings_title": "Nastavení lekce",

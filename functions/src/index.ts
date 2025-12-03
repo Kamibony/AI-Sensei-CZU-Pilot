@@ -99,7 +99,17 @@ exports.generateContent = onCall({
                     finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number). ${langInstruction}`;
                     break;
                 case "test":
-                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${promptData.questionCount || 5} otázkami. Obtížnost: ${promptData.difficulty || "Střední"}. Typy otázek: ${promptData.questionTypes || "Mix"}. Odpověď musí být JSON objekt s klíčem 'questions', ktorý obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number). ${langInstruction}`;
+                    // OPRAVA: Mapovanie premenných z frontendu (snake_case) a fallbacky
+                    // Frontend posiela 'question_count', backend čakal 'questionCount'
+                    const testCount = parseInt(promptData.question_count || promptData.questionCount || "5", 10);
+                    
+                    // Frontend posiela 'difficulty_select', backend čakal 'difficulty'
+                    const testDifficulty = promptData.difficulty_select || promptData.difficulty || "Střední";
+                    
+                    // Frontend posiela 'type_select', backend čakal 'questionTypes'
+                    const testTypes = promptData.type_select || promptData.questionTypes || "Mix";
+
+                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${testCount} otázkami. Obtížnost: ${testDifficulty}. Typy otázek: ${testTypes}. Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number). ${langInstruction}`;
                     break;
                 case "post":
                      const epCount = promptData.episode_count || promptData.episodeCount || 3;
