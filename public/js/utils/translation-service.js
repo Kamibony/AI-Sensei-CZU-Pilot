@@ -11,7 +11,9 @@ export class TranslationService {
 
     async loadTranslations(lang) {
         try {
-            const response = await fetch(`/locales/${lang}.json`);
+            // Use absolute path from root for robustness in SPA/Firebase rewrites
+            const url = `/locales/${lang}.json`;
+            const response = await fetch(url);
             if (!response.ok) throw new Error(`Failed to load ${lang}`);
             this.translations = await response.json();
             this.currentLanguage = lang;
