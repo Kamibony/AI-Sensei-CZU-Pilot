@@ -158,6 +158,27 @@ export class AiGeneratorPanel extends LitElement {
                 }
             }
 
+            // === OPRAVA PRE MANUÁLNE GENEROVANIE TESTOV A KVÍZOV ===
+            // Explicitne pridáme parametre do promptu, aby ich AI neignorovala
+            if (['test', 'quiz'].includes(this.contentType)) {
+                // Konverzia ID: question-count-input -> question_count
+                const count = promptData.question_count || promptData.question_count_input;
+                if (count) {
+                    promptData.userPrompt += `\n\nInstrukce: Vytvoř přesně ${count} otázek.`;
+                }
+                
+                // Difficulty select (ID: difficulty-select -> difficulty_select)
+                if (promptData.difficulty_select) {
+                     promptData.userPrompt += `\nObtížnost: ${promptData.difficulty_select}.`;
+                }
+                
+                // Type select
+                if (promptData.type_select) {
+                     promptData.userPrompt += `\nTyp otázek: ${promptData.type_select}.`;
+                }
+            }
+            // =======================================================
+
             const result = await callGenerateContent({ contentType: this.contentType, promptData, filePaths });
             if (!result || result.error) throw new Error(result?.error || "AI nevrátila žádná data.");
             this._generationOutput = (this.contentType === 'text' && result.text) ? result.text : result;
@@ -303,7 +324,6 @@ export class AiGeneratorPanel extends LitElement {
                         <slot name="ai-inputs"></slot>
                         ${this.contentType === 'presentation' ? html`<label class="block font-medium text-slate-600">Téma prezentace</label><input id="prompt-input-topic" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1 mb-4" placeholder=${this.promptPlaceholder}>`:html`<textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder=${this.promptPlaceholder}></textarea>`}
                         <div class="flex items-center justify-end mt-4">
-                            <!-- Updated Button -->
                             <button @click=${this._handleGeneration} ?disabled=${this._isLoading||this._isSaving || this._isUploading} class="${btnGenerate}">
                                 ${this._isLoading ? html`<div class="spinner mr-2"></div> Generuji...` : html`<span class="text-xl mr-2">✨</span> Vygenerovat pomocí AI`}
                             </button>
