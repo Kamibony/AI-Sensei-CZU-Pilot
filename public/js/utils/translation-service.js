@@ -11,9 +11,10 @@ export class TranslationService {
 
     async loadTranslations(lang) {
         try {
-            // Use absolute path from root for robustness in SPA/Firebase rewrites
-            const url = `/locales/${lang}.json`;
-            const response = await fetch(url);
+            // FIX: Použitie absolútnej cesty /locales/... zabezpečí načítanie z koreňa webu
+            // bez ohľadu na to, či si na /student, /professor alebo inej podstránke.
+            const response = await fetch(`/locales/${lang}.json`);
+            
             if (!response.ok) throw new Error(`Failed to load ${lang}`);
             this.translations = await response.json();
             this.currentLanguage = lang;
@@ -21,7 +22,7 @@ export class TranslationService {
             this.notifyListeners();
         } catch (error) {
             console.error('Translation error:', error);
-            // Fallback to CS if loading fails and we are not already on CS
+            // Fallback na CS, ak zlyhá načítanie a nie sme už na CS
             if (lang !== 'cs') {
                 await this.loadTranslations('cs');
             }
