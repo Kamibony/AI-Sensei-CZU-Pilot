@@ -37,21 +37,14 @@
         "app_setting_account": "Nastavuji účet...",
         "app_role_error": "Nepodařilo se získat roli uživatele.",
         "app_loading": "Spouštím aplikaci...",
-        "days": "dní"
+        "days": "dní",
+        "new": "Novinka",
+        "logout": "Odhlásit se"
     },
     "auth": {
         "login_title": "Přihlášení",
         "login_google": "Přihlásit se přes Google",
-        "logout": "Odhlásit se",
-        "role_selection": "Výběr role",
-        "branding_title_1": "Vítejte v",
-        "branding_title_2": "AI Sensei",
-        "branding_desc": "Inteligentní výukový asistent",
-        "community_join": "Připojte se ke komunitě",
-        "role_professor": "Profesor",
-        "role_professor_desc": "Vytvářejte a spravujte lekce",
-        "role_student": "Student",
-        "role_student_desc": "Studujte a plňte úkoly"
+        "logout": "Odhlásit se"
     },
     "nav": {
         "dashboard": "Nástěnka",
@@ -64,26 +57,43 @@
         "library": "Knihovna lekcí",
         "media": "Média & Soubory",
         "editor": "Editor lekcí",
-        "admin": "Administrace"
+        "admin": "Administrace",
+        "settings": "Nastavení"
     },
     "professor": {
+        "dashboard_title": "Učitelský panel",
         "welcome": "Dobré ráno",
+        "welcome_back": "Vítejte zpět",
         "new_class_btn": "+ Nová třída",
+        "new_class": "Nová třída",
+        "create_new_class": "Vytvořit novou třídu",
+        "create_class_desc": "Zadejte název pro identifikaci skupiny.",
+        "enter_class_name": "Zadejte název třídy",
         "my_students": "Moji studenti",
         "active_students": "Aktivní ve vašich třídách",
+        "active_in_classes": "Aktivní ve vašich třídách",
         "my_classes": "Moje třídy",
         "manage_groups": "Spravovat skupiny a kódy",
         "teaching_analytics": "Analytika výuky",
+        "analytics": "Analytika výuky",
         "activity_overview": "Přehled aktivity studentů",
+        "creative_studio": "Tvůrčí studio",
         "magic_generator": "Magický Generátor",
+        "magic_generator_desc": "Vytvořte kompletní lekci z PDF souboru během vteřiny.",
         "magic_desc": "Vytvořte kompletní lekci z PDF souboru během vteřiny.",
         "manual_create": "Vytvořit manuálně",
+        "manual_create_desc": "Začněte s prázdnou lekcí a poskládejte ji sami.",
         "manual_desc": "Začněte s prázdnou lekcí a poskládejte ji sami.",
         "lesson_library": "Knihovna lekcí",
+        "lesson_library_desc": "Přehled a úprava všech vašich existujících lekcí.",
         "library_desc": "Přehled a úprava všech vašich existujících lekcí.",
         "media_manager": "Média & Soubory",
+        "media_files": "Média & Soubory",
+        "media_files_desc": "Správce nahraných dokumentů a multimédií.",
         "media_desc": "Správce nahraných dokumentů a multimédií.",
-        "new_lesson_card": "Nová lekce"
+        "management_overview": "Přehled managementu",
+        "new_lesson_card": "Nová lekce",
+        "profile_image_alt": "Profilový obrázek"
     },
     "student": {
         "portal_title": "Studentský portál",
