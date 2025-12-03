@@ -1,226 +1,334 @@
-import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as firebaseInit from '../../firebase-init.js';
-import { translationService } from '../../utils/translation-service.js';
-import { showToast } from '../../utils.js'; // Pridaný import pre showToast
+import { db, auth, functions } from '../../firebase-init.js';
+import {
+    collection,
+    query,
+    where,
+    doc,
+    updateDoc,
+    arrayUnion,
+    getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { showToast } from '../../utils.js';
+import './student-classes-view.js';
+import './student-lesson-list.js';
+import './student-lesson-detail.js';
+import './student-class-detail.js';
 
-export class StudentDashboardView extends LitElement {
+class StudentDashboard extends LitElement {
     static properties = {
-        _studentName: { type: String, state: true },
-        _studentStreak: { type: Number, state: true },
-        _recentLesson: { type: Object, state: true }, // Len jedna najnovšia pre Hero sekciu
-        _stats: { type: Object, state: true }, // Počty pre karty
-        _isLoading: { type: Boolean, state: true }
+        user: { type: Object },
+        currentView: { type: String },
+        selectedLessonId: { type: String },
+        selectedClassId: { type: String },
+        isSidebarOpen: { type: Boolean },
+        isJoinClassModalOpen: { type: Boolean },
+        joinCode: { type: String },
+        joinError: { type: String },
+        isJoining: { type: Boolean }
     };
-
-    createRenderRoot() { return this; }
 
     constructor() {
         super();
-        this._studentName = '';
-        this._studentStreak = 0;
-        this._recentLesson = null;
-        this._stats = { classes: 0, lessons: 0 };
-        this._isLoading = true;
-        this._studentUnsubscribe = null;
+        this.user = null;
+        this.currentView = 'dashboard';
+        this.selectedLessonId = null;
+        this.selectedClassId = null;
+        this.isSidebarOpen = false;
+        this.isJoinClassModalOpen = false;
+        this.joinCode = '';
+        this.joinError = '';
+        this.isJoining = false;
     }
 
-    connectedCallback() {
-        super.connectedCallback();
-        this._fetchData();
-        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
-    }
-
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        if (this._studentUnsubscribe) this._studentUnsubscribe();
-        if (this._langUnsubscribe) this._langUnsubscribe();
-    }
-
-    async _fetchData() {
-        const user = firebaseInit.auth.currentUser;
-        if (!user) return;
-
-        const userDocRef = doc(firebaseInit.db, "students", user.uid);
-        this._studentUnsubscribe = onSnapshot(userDocRef, async (docSnapshot) => {
-            if (docSnapshot.exists()) {
-                const data = docSnapshot.data();
-                this._studentName = data.name || 'Studente';
-                this._studentStreak = data.streak || 0;
-                
-                const groupIds = data.memberOfGroups || [];
-                this._stats = { ...this._stats, classes: groupIds.length };
-
-                if (groupIds.length > 0) {
-                    await this._fetchDashboardData(groupIds);
-                } else {
-                    this._isLoading = false;
-                }
-            }
-        });
-    }
-
-    async _fetchDashboardData(groupIds) {
-        try {
-            // Firestore limit pre 'in'/'array-contains-any' je 30
-            const safeGroups = groupIds.slice(0, 30);
-
-            // 1. Získať najnovšiu lekciu pre Hero sekciu
-            // POZOR: Toto vyžaduje index (assignedToGroups + createdAt). Ak chýba, chytíme chybu.
-            const qLesson = query(
-                collection(firebaseInit.db, "lessons"),
-                where("assignedToGroups", "array-contains-any", safeGroups),
-                orderBy("createdAt", "desc"),
-                limit(1)
-            );
-
-            const lessonSnap = await getDocs(qLesson);
-            if (!lessonSnap.empty) {
-                const doc = lessonSnap.docs[0];
-                this._recentLesson = { id: doc.id, ...doc.data() };
-            }
-
-            // 2. Získať počet lekcií (orientačne) - pre odznak na karte
-            // Robíme to isté query ale bez limitu (alebo limit 50 pre performance) len na zistenie počtu
-            const qCount = query(
-                collection(firebaseInit.db, "lessons"),
-                where("assignedToGroups", "array-contains-any", safeGroups),
-                limit(50) 
-            );
-            const countSnap = await getDocs(qCount);
-            this._stats = { ...this._stats, lessons: countSnap.size };
-
-        } catch (error) {
-            console.warn("Dashboard data fetch error (Index chýba?):", error);
-        } finally {
-            this._isLoading = false;
-        }
-    }
-
-    _navigateTo(view, detail = {}) {
-        this.dispatchEvent(new CustomEvent('navigate', { 
-            detail: { view, ...detail },
-            bubbles: true, 
-            composed: true 
-        }));
-
-        // Fallback pre router (student.js), ktorý počúva na konkrétne eventy
-        if (view === 'lessons') document.dispatchEvent(new CustomEvent('back-to-list'));
-        if (view === 'classes') document.dispatchEvent(new CustomEvent('back-to-classes'));
-        if (view === 'lesson-detail') {
-            this.dispatchEvent(new CustomEvent('lesson-selected', { 
-                detail: { lessonId: detail.lessonId }, 
-                bubbles: true, 
-                composed: true 
-            }));
-        }
+    createRenderRoot() {
+        return this;
     }
 
     render() {
-        const t = (key) => translationService.t(key);
-        
-        if (this._isLoading) {
-             return html`<div class="flex justify-center items-center h-full min-h-[50vh]"><div class="spinner w-12 h-12 border-4 border-indigo-600 rounded-full animate-spin border-t-transparent"></div></div>`;
-        }
-
-        const firstName = this._studentName.split(' ')[0];
+        if (!this.user) return html`<div>Loading...</div>`;
 
         return html`
-            <div class="w-full p-6 md:p-8 space-y-8 max-w-5xl mx-auto">
-
-                <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Můj přehled</h1>
-                        <p class="text-slate-500 mt-1">Vítej zpět, ${firstName}! 👋</p>
-                    </div>
-                    
-                    ${this._studentStreak > 0 ? html`
-                        <div class="inline-flex items-center gap-2 bg-orange-50 text-orange-600 px-4 py-2 rounded-full font-bold shadow-sm border border-orange-100">
-                            <span>🔥</span> ${this._studentStreak} Dní v řadě
+            <div class="h-full overflow-hidden bg-slate-50 flex relative">
+                <nav class="fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200 z-50 transform transition-transform duration-200 ease-in-out ${this.isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0">
+                    <div class="flex flex-col h-full">
+                        <div class="p-6 border-b border-slate-200">
+                            <h1 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                                <span class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-lg">S</span>
+                                AI Sensei
+                            </h1>
+                            <p class="text-sm text-slate-500 mt-1">Študentský portál</p>
                         </div>
-                    ` : nothing}
-                </header>
 
-                ${this._recentLesson ? html`
-                    <section @click=${() => this._navigateTo('lesson-detail', { lessonId: this._recentLesson.id })}
-                             class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-xl shadow-indigo-200 transition-all hover:shadow-2xl hover:-translate-y-1 cursor-pointer group">
-                        
-                        <div class="absolute top-0 right-0 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl -mr-16 -mt-16"></div>
-                        
-                        <div class="relative p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                            <div class="space-y-3">
-                                <div class="inline-flex items-center space-x-2 bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border border-white/10 backdrop-blur-sm">
-                                    <span>▶️ ${t('student_dashboard.jump_back')}</span>
+                        <div class="flex-1 overflow-y-auto py-6 px-3">
+                            <div class="space-y-1">
+                                ${this.renderNavItem('dashboard', 'Prehľad', 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6')}
+                                ${this.renderNavItem('lessons', 'Moje Lekcie', 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253')}
+                                ${this.renderNavItem('classes', 'Moje Triedy', 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4')}
+                            </div>
+                        </div>
+
+                        <div class="p-4 border-t border-slate-200">
+                            <div class="flex items-center gap-3 mb-4 px-2">
+                                <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
+                                    ${this.user.email[0].toUpperCase()}
                                 </div>
-                                <h2 class="text-2xl md:text-4xl font-bold leading-tight group-hover:text-indigo-100 transition-colors">
-                                    ${this._recentLesson.title}
-                                </h2>
-                                <p class="text-indigo-100 opacity-90 max-w-xl text-sm md:text-base line-clamp-2">
-                                    ${this._recentLesson.subtitle || 'Vraťte se k učení tam, kde jste přestali.'}
-                                </p>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-slate-900 truncate">${this.user.email}</p>
+                                    <p class="text-xs text-slate-500">Študent</p>
+                                </div>
                             </div>
-                            
-                            <div class="flex-shrink-0 bg-white text-indigo-600 rounded-full w-16 h-16 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                                <svg class="w-8 h-8 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                            </div>
-                        </div>
-                    </section>
-                ` : html`
-                    <div class="bg-slate-100 rounded-3xl p-8 text-center border-2 border-dashed border-slate-200">
-                        <p class="text-slate-500 font-medium">Zatím nemáte žádné aktivní lekce.</p>
-                        <button @click=${() => this._navigateTo('classes')} class="text-indigo-600 font-bold hover:underline mt-2">Zkontrolovat třídy</button>
-                    </div>
-                `}
-
-                <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    
-                    <div @click=${() => this._navigateTo('lessons')}
-                         class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-indigo-200 transition-all cursor-pointer group flex flex-col min-h-[220px]">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                                📖
-                            </div>
-                            ${this._stats.lessons > 0 ? html`<span class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold">${this._stats.lessons}</span>` : ''}
-                        </div>
-                        <h3 class="text-xl font-bold text-slate-800 mb-2">Moje lekce</h3>
-                        <p class="text-sm text-slate-500 mb-4 flex-grow">Kompletní knihovna vašich studijních materiálů a úkolů.</p>
-                        <div class="pt-4 border-t border-slate-50 flex items-center text-sm font-bold text-indigo-600 group-hover:translate-x-2 transition-transform">
-                            Otevřít knihovnu →
+                            <button @click="${() => this.handleLogout()}" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                </svg>
+                                Odhlásiť sa
+                            </button>
                         </div>
                     </div>
+                </nav>
 
-                    <div @click=${() => this._navigateTo('classes')}
-                         class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-blue-200 transition-all cursor-pointer group flex flex-col min-h-[220px]">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                                🏫
-                            </div>
-                            ${this._stats.classes > 0 ? html`<span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">${this._stats.classes}</span>` : ''}
-                        </div>
-                        <h3 class="text-xl font-bold text-slate-800 mb-2">Moje třídy</h3>
-                        <p class="text-sm text-slate-500 mb-4 flex-grow">Přehled kurzů, učitelů a možnost připojit se k nové třídě.</p>
-                        <div class="pt-4 border-t border-slate-50 flex items-center text-sm font-bold text-blue-600 group-hover:translate-x-2 transition-transform">
-                            Spravovat třídy →
-                        </div>
+                <div class="fixed top-0 left-0 p-4 z-40 md:hidden">
+                    <button @click="${() => this.isSidebarOpen = !this.isSidebarOpen}" class="p-2 bg-white rounded-lg shadow-sm border border-slate-200">
+                        <svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <main class="flex-1 md:ml-64 h-full overflow-y-auto transition-all duration-200">
+                    <div class="p-8 max-w-7xl mx-auto">
+                        ${this.renderContent()}
                     </div>
+                </main>
 
-                    <div @click=${() => showToast("Agenda se připravuje 📅")}
-                         class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-amber-200 transition-all cursor-pointer group flex flex-col min-h-[220px]">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                                📅
-                            </div>
-                        </div>
-                        <h3 class="text-xl font-bold text-slate-800 mb-2">Agenda</h3>
-                        <p class="text-sm text-slate-500 mb-4 flex-grow">Váš rozvrh, termíny úkolů a důležité události.</p>
-                        <div class="pt-4 border-t border-slate-50 flex items-center text-sm font-bold text-amber-600 group-hover:translate-x-2 transition-transform">
-                            Zobrazit plán →
-                        </div>
-                    </div>
-
-                </section>
+                ${this.isJoinClassModalOpen ? this.renderJoinClassModal() : ''}
             </div>
         `;
     }
+
+    renderJoinClassModal() {
+        return html`
+            <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" @click="${(e) => { if(e.target === e.currentTarget) this._closeJoinClassModal(); }}">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-slate-900">Připojit se k třídě</h3>
+                        <button @click="${() => this._closeJoinClassModal()}" class="text-slate-400 hover:text-slate-600 transition-colors">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Kód třídy</label>
+                        <input
+                            type="text"
+                            .value="${this.joinCode}"
+                            @input="${(e) => { this.joinCode = e.target.value; this.joinError = ''; }}"
+                            placeholder="Zadejte 6-místný kód..."
+                            class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                        >
+                        ${this.joinError ? html`<p class="text-red-500 text-sm mt-1">${this.joinError}</p>` : ''}
+                    </div>
+
+                    <div class="flex justify-end gap-3">
+                        <button @click="${() => this._closeJoinClassModal()}" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium">
+                            Zrušit
+                        </button>
+                        <button
+                            @click="${() => this._submitJoinClass()}"
+                            ?disabled="${this.isJoining || !this.joinCode}"
+                            class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium flex items-center gap-2"
+                        >
+                            ${this.isJoining ? html`<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>` : ''}
+                            Připojit se
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    _closeJoinClassModal() {
+        this.isJoinClassModalOpen = false;
+        this.joinCode = '';
+        this.joinError = '';
+        this.isJoining = false;
+    }
+
+    async _submitJoinClass() {
+        console.log("Submit Join Class clicked. Code:", this.joinCode);
+        
+        if (!this.joinCode) {
+            showToast('Zadejte prosím kód třídy', true);
+            return;
+        }
+
+        this.isJoining = true;
+        this.joinError = '';
+
+        try {
+            // Skúsime najprv Callable funkciu (Cloud Function)
+            try {
+                if (!functions) {
+                    console.warn("Firebase functions not initialized yet.");
+                    throw new Error("Functions not ready");
+                }
+                const joinClass = httpsCallable(functions, 'joinClass');
+                const result = await joinClass({ joinCode: this.joinCode });
+                
+                console.log("Cloud function success:", result);
+                alert(`Úspěšně jste se připojili k třídě ${result.data.groupName}!`);
+                this._closeJoinClassModal();
+                showToast('Úspěšně jste se připojili k třídě!');
+                // Reload window to refresh classes list properly
+                window.location.reload(); 
+                return;
+            } catch (err) {
+               console.warn("Cloud function failed/not available, trying direct Firestore fallback:", err);
+               await this._handleJoinClassDirect(this.joinCode);
+            }
+
+        } catch (error) {
+            console.error("Error joining class:", error);
+            this.joinError = error.message || "Nepodařilo se připojit k třídě. Zkontrolujte kód.";
+        } finally {
+            this.isJoining = false;
+        }
+    }
+
+    // Fallback metóda pre priame pripojenie
+    async _handleJoinClassDirect(code) {
+        console.log("Attempting direct Firestore join...");
+        // Query poľa 'joinCode'
+        const groupsRef = collection(db, "groups");
+        const q = query(groupsRef, where("joinCode", "==", code)); 
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            throw new Error('Třída s tímto kódem nebyla nalezena');
+        }
+
+        const groupDoc = querySnapshot.docs[0];
+        const groupId = groupDoc.id;
+        console.log("Found group:", groupId);
+
+        // Update student document
+        const studentRef = doc(db, "students", this.user.uid);
+        await updateDoc(studentRef, {
+            memberOfGroups: arrayUnion(groupId)
+        });
+        
+        // Update group document (ak to pravidlá povoľujú - zvyčajne nie, ale fallback skúsime)
+        // const groupRef = doc(db, "groups", groupId);
+        // await updateDoc(groupRef, {
+        //      studentIds: arrayUnion(this.user.uid)
+        // });
+
+        this._closeJoinClassModal();
+        showToast('Úspěšně jste se připojili k třídě!');
+        window.location.reload();
+    }
+
+    renderNavItem(id, label, iconPath) {
+        const isActive = this.currentView === id;
+        return html`
+            <button
+                @click="${() => {
+                    this.currentView = id;
+                    this.isSidebarOpen = false;
+                    this.selectedLessonId = null;
+                    this.selectedClassId = null;
+                }}"
+                class="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    isActive
+                    ? 'bg-indigo-50 text-indigo-700'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }"
+            >
+                <svg class="w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"></path>
+                </svg>
+                ${label}
+            </button>
+        `;
+    }
+
+    renderContent() {
+        switch (this.currentView) {
+            case 'lessons':
+                if (this.selectedLessonId) {
+                    return html`
+                        <student-lesson-detail
+                            .lessonId="${this.selectedLessonId}"
+                            .studentId="${this.user.uid}"
+                            @back-to-list="${() => this.selectedLessonId = null}">
+                        </student-lesson-detail>
+                    `;
+                }
+                return html`
+                    <student-lesson-list
+                        .user="${this.user}"
+                        @lesson-selected="${(e) => {
+                            this.selectedLessonId = e.detail.lessonId;
+                        }}">
+                    </student-lesson-list>
+                `;
+            case 'classes':
+                if (this.selectedClassId) {
+                    return html`
+                        <student-class-detail
+                            .groupId="${this.selectedClassId}"
+                            .studentId="${this.user.uid}"
+                            @back-to-classes="${() => this.selectedClassId = null}"
+                            @lesson-selected="${(e) => {
+                                this.selectedLessonId = e.detail.lessonId;
+                                this.currentView = 'lessons';
+                            }}">
+                        </student-class-detail>
+                    `;
+                }
+                return html`
+                    <student-classes-view
+                        .user="${this.user}"
+                        @request-join-class="${() => this.isJoinClassModalOpen = true}"
+                        @class-selected="${(e) => {
+                            this.selectedClassId = e.detail.groupId;
+                        }}">
+                    </student-classes-view>
+                `;
+            case 'dashboard':
+            default:
+                 return html`
+                    <div class="text-center py-12">
+                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Vitajte, ${this.user.email}</h2>
+                        <p class="text-slate-500">Vyberte si lekciu alebo triedu z menu.</p>
+                    </div>
+                `;
+        }
+    }
+
+    async handleLogout() {
+        try {
+            sessionStorage.removeItem('userRole');
+            await signOut(auth);
+            window.location.reload();
+        } catch (error) {
+            console.error('Logout failed:', error);
+        }
+    }
 }
-customElements.define('student-dashboard-view', StudentDashboardView);
+
+customElements.define('student-dashboard', StudentDashboard);
+
+export function initStudentApp(user) {
+    const app = document.createElement('student-dashboard');
+    app.user = user;
+
+    const container = document.getElementById('role-content-wrapper');
+    if (container) {
+        container.innerHTML = '';
+        container.appendChild(app);
+    }
+}
