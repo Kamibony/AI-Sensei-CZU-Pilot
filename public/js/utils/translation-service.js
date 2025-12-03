@@ -1,77 +1,76 @@
+// Konfigurácia podporovaných jazykov - JEDINÉ MIESTO PRE ÚPRAVU
+export const SUPPORTED_LANGUAGES = [
+    { code: 'cs', name: 'Čeština', flag: '🇨🇿' },
+    { code: 'pt-br', name: 'Português', flag: '🇧🇷' },
+    { code: 'en', name: 'English', flag: '🇬🇧' },
+    // Sem v budúcnosti pridáte ďalšie: { code: 'de', name: 'Deutsch', flag: '🇩🇪' }
+];
+
 export class TranslationService {
     constructor() {
-        // Načítame uložený jazyk, alebo použijeme default 'cs'
         this.currentLanguage = localStorage.getItem('app_language') || 'cs';
         this.translations = {};
-        this.isLoaded = false;
         this.listeners = [];
+        this.isLoaded = false;
     }
 
     async init() {
         if (this.isLoaded) return;
         await this.loadTranslations(this.currentLanguage);
         this.isLoaded = true;
-        console.log(`TranslationService: Initialized with language '${this.currentLanguage}'`);
-        this.notifyListeners();
     }
 
+    /**
+     * Načíta preklady pre daný jazyk.
+     * Vracia Promise, aby UI vedelo čakať (napr. zobraziť spinner).
+     */
     async loadTranslations(lang) {
+        // Validácia, či jazyk podporujeme
+        const isSupported = SUPPORTED_LANGUAGES.some(l => l.code === lang);
+        if (!isSupported) {
+            console.warn(`Language '${lang}' not supported, falling back to 'cs'`);
+            lang = 'cs';
+        }
+
         try {
-            // Pridanie časovej pečiatky zabraňuje cachovaniu JSON súboru
-            const response = await fetch(`/locales/${lang}.json?v=${new Date().getTime()}`);
-            if (!response.ok) throw new Error(`Failed to load translations for ${lang}`);
+            // Timestamp ?v=... zabraňuje cachovaniu starých JSONov
+            const response = await fetch(`/locales/${lang}.json?v=${Date.now()}`);
+            if (!response.ok) throw new Error(`HTTP error ${response.status}`);
             
             this.translations = await response.json();
-            
-            // Uložíme do localStorage pre budúce návštevy
-            localStorage.setItem('app_language', lang);
             this.currentLanguage = lang;
+            localStorage.setItem('app_language', lang);
             
+            // Oznámime všetkým komponentom zmenu
             this.notifyListeners();
+            console.log(`TranslationService: Switched to '${lang}'`);
         } catch (error) {
-            console.error('TranslationService error:', error);
-            // Fallback na CS ak zlyhá načítanie
-            if (lang !== 'cs') {
-                console.warn('Falling back to default language (cs)');
-                await this.loadTranslations('cs');
-            }
+            console.error(`TranslationService: Failed to load '${lang}'`, error);
+            if (lang !== 'cs') await this.loadTranslations('cs');
         }
+    }
+
+    /**
+     * Hlavná funkcia pre zmenu jazyka z UI.
+     * Už nevyžaduje reload stránky, ale podporuje ho, ak je treba.
+     */
+    async changeLanguage(lang) {
+        if (lang === this.currentLanguage) return;
+        await this.loadTranslations(lang);
+        // Voliteľné: Ak chcete zachovať "Hard Reload" pre istotu, odkomentujte toto:
+        // window.location.reload(); 
     }
 
     t(key) {
         const keys = key.split('.');
         let value = this.translations;
-        
         for (const k of keys) {
-            if (value && value[k]) {
-                value = value[k];
-            } else {
-                return key; // Vráti kľúč, ak preklad neexistuje
-            }
+            if (value && value[k]) value = value[k];
+            else return key;
         }
         return value;
     }
 
-    // === ZJEDNOTENIE METÓD ===
-
-    // 1. Štandardná zmena jazyka (používa Dashboard)
-    async setLanguage(lang) {
-        if (lang === this.currentLanguage) return;
-        await this.loadTranslations(lang);
-    }
-
-    // 2. Zmena jazyka s vynúteným reloadom (používa Header)
-    async changeLanguage(newLang) {
-        if (newLang === this.currentLanguage) return;
-        
-        console.log(`TranslationService: Switching language to '${newLang}'...`);
-        // Uložíme a reloadneme
-        localStorage.setItem('app_language', newLang);
-        window.location.reload();
-    }
-
-    // === POSLUCHÁČI (PRE ŠTUDENTOV) ===
-    
     subscribe(callback) {
         this.listeners.push(callback);
         return () => {
