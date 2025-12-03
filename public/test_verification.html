@@ -1,0 +1,69 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Generator Panel Verification</title>
+    <!-- Tailwind CSS -->
+    <link href="/styles.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js": "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js": "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js": "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js": "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js"
+        }
+    }
+    </script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto space-y-8">
+        <div>
+            <h1 class="text-2xl font-bold mb-4">Quiz View (Config Driven)</h1>
+            <div id="quiz-container"></div>
+        </div>
+
+        <div>
+            <h1 class="text-2xl font-bold mb-4">Podcast View (Config Driven)</h1>
+            <div id="podcast-container"></div>
+        </div>
+
+        <div>
+             <h1 class="text-2xl font-bold mb-4">Test View (Legacy Slot Fallback)</h1>
+             <div id="test-container"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeFirebase } from '/js/firebase-init.js';
+
+        // Initialize Firebase (connects to emulators)
+        await initializeFirebase();
+        console.log("Firebase initialized");
+
+        // Import components
+        import { EditorViewQuiz } from '/js/views/professor/editor/editor-view-quiz.js';
+        import { EditorViewPost } from '/js/views/professor/editor/editor-view-post.js';
+        import { EditorViewTest } from '/js/views/professor/editor/editor-view-test.js';
+
+        // Helper to render
+        const render = (ComponentClass, containerId) => {
+            const el = new ComponentClass();
+            el.lesson = { title: "Test Lesson", id: "test-id" }; // Mock lesson
+            document.getElementById(containerId).appendChild(el);
+        };
+
+        render(EditorViewQuiz, 'quiz-container');
+        render(EditorViewPost, 'podcast-container');
+        render(EditorViewTest, 'test-container');
+
+        console.log("Components rendered");
+    </script>
+</body>
+</html>
