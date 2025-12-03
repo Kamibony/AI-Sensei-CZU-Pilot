@@ -15,7 +15,7 @@ import { signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-aut
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast } from './utils.js';
-import { translationService } from './utils/translation-service.js'; // Import prekladov
+import { translationService } from './utils/translation-service.js'; // Import translation service
 import './student/student-classes-view.js';
 import './student/student-lesson-list.js';
 import './student/student-lesson-detail.js';
@@ -151,7 +151,7 @@ class StudentDashboard extends LitElement {
                             .value="${this.joinCode}"
                             @input="${(e) => { this.joinCode = e.target.value; this.joinError = ''; }}"
                             @keypress="${(e) => e.key === 'Enter' && this._submitJoinClass()}"
-                            placeholder="${t('student.code_placeholder')}..."
+                            placeholder="${t('student.enter_code')}..."
                             class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                         >
                         ${this.joinError ? html`<p class="text-red-500 text-sm mt-1">${this.joinError}</p>` : ''}
