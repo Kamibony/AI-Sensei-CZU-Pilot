@@ -15,7 +15,7 @@ import { signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-aut
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast } from './utils.js';
-import { translationService } from './utils/translation-service.js'; // Import translation service
+import { translationService } from './utils/translation-service.js'; // Import prekladov
 import './student/student-classes-view.js';
 import './student/student-lesson-list.js';
 import './student/student-lesson-detail.js';
@@ -30,6 +30,7 @@ class StudentDashboard extends LitElement {
         selectedClassId: { type: String },
         isSidebarOpen: { type: Boolean },
         isJoinModalOpen: { type: Boolean },
+        // Premenné pre formulár (zachovaná funkčnosť)
         joinCode: { type: String },
         joinError: { type: String },
         isJoining: { type: Boolean }
@@ -52,7 +53,7 @@ class StudentDashboard extends LitElement {
         return this;
     }
 
-    // --- Pridané pre reaktivitu na zmenu jazyka ---
+    // --- Sledovanie zmeny jazyka ---
     connectedCallback() {
         super.connectedCallback();
         this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
@@ -64,13 +65,13 @@ class StudentDashboard extends LitElement {
             this._langUnsubscribe();
         }
     }
-    // ----------------------------------------------
+    // -------------------------------
 
     render() {
-        if (!this.user) return html`<div>${translationService.t('common.loading')}</div>`;
-        
         // Skratka pre preklady
         const t = (key) => translationService.t(key);
+
+        if (!this.user) return html`<div>${t('common.loading')}</div>`;
 
         return html`
             <div class="h-full overflow-hidden bg-slate-50 flex relative">
@@ -145,7 +146,6 @@ class StudentDashboard extends LitElement {
 
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-slate-700 mb-1">${t('student.code_placeholder')}</label>
-                        <p class="text-xs text-slate-500 mb-2">${t('student.enter_code')}</p>
                         <input
                             type="text"
                             .value="${this.joinCode}"
@@ -197,11 +197,7 @@ class StudentDashboard extends LitElement {
             const result = await joinClass({ joinCode: this.joinCode });
 
             this._closeJoinClassModal();
-            // Success alert
-            alert(`${t('student.join_success')} ${result.data.groupName}!`);
-            
-            // Reload to refresh classes list
-            // window.location.reload(); 
+            showToast(`${t('student.join_success')} ${result.data.groupName}!`);
 
         } catch (error) {
             console.error("Error joining class:", error);
@@ -282,22 +278,15 @@ class StudentDashboard extends LitElement {
             default:
                 const t = (key) => translationService.t(key);
                 return html`
-                    <div class="text-center py-12">
-                        <h2 class="text-2xl font-bold text-slate-800 mb-2">${t('student.welcome')}, ${this.user.email}</h2>
-                        <p class="text-slate-500">${t('student.select_instruction')}</p>
-                        <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-                            <div @click="${() => this.currentView = 'classes'}" class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all">
-                                <div class="text-4xl mb-3">🏫</div>
-                                <h3 class="font-bold text-lg">${t('student.classes_card_title')}</h3>
-                                <p class="text-sm text-slate-500">${t('student.classes_card_desc')}</p>
-                            </div>
-                            <div @click="${() => this.currentView = 'lessons'}" class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all">
-                                <div class="text-4xl mb-3">📚</div>
-                                <h3 class="font-bold text-lg">${t('student.lessons_card_title')}</h3>
-                                <p class="text-sm text-slate-500">${t('student.lessons_card_desc')}</p>
-                            </div>
-                        </div>
-                    </div>
+                    <student-dashboard-view
+                        .user="${this.user}"
+                        @navigate="${(e) => {
+                            this.currentView = e.detail.view;
+                            if (e.detail.lessonId) {
+                                this.selectedLessonId = e.detail.lessonId;
+                            }
+                        }}">
+                    </student-dashboard-view>
                 `;
         }
     }
