@@ -3,9 +3,9 @@ import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/li
 import { collection, query, where, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
-import { translationService } from '../../utils/translation-service.js';
+import { Localized } from '../../utils/localization-mixin.js';
 
-export class ProfessorStudentsView extends LitElement {
+export class ProfessorStudentsView extends Localized(LitElement) {
     static properties = {
         _students: { state: true, type: Array },
         _isLoading: { state: true, type: Boolean },
@@ -26,15 +26,11 @@ export class ProfessorStudentsView extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._initializeListeners();
-        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         this._unsubscribeListeners.forEach(item => item.unsub());
-        if (this._langUnsubscribe) {
-            this._langUnsubscribe();
-        }
     }
 
     _createBatchedStudentListeners(groupIds) {
@@ -68,7 +64,7 @@ export class ProfessorStudentsView extends LitElement {
                 this._isLoading = false;
             }, (error) => {
                 console.error("Error fetching students batch:", error);
-                showToast(translationService.t('students_view.fetch_batch_error'), true);
+                showToast(this.t('students_view.fetch_batch_error'), true);
             });
             this._unsubscribeListeners.push({ id: 'students', unsub });
         }
@@ -98,7 +94,7 @@ export class ProfessorStudentsView extends LitElement {
             this._createBatchedStudentListeners(groupIds);
         }, (error) => {
             console.error("Error fetching professor's groups:", error);
-            showToast(translationService.t('students_view.fetch_groups_error'), true);
+            showToast(this.t('students_view.fetch_groups_error'), true);
             this._isLoading = false;
         });
         this._unsubscribeListeners.push({ id: 'groups', unsub: unsubGroups });
@@ -127,7 +123,6 @@ export class ProfessorStudentsView extends LitElement {
     }
 
     renderStudentCard(student) {
-        const t = (key) => translationService.t(key);
         const initials = (student.name || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 
         // Use consistent color hashing logic if desired, or random.
@@ -155,21 +150,21 @@ export class ProfessorStudentsView extends LitElement {
 
                 <!-- Info -->
                 <div class="flex-grow min-w-0">
-                     <h3 class="text-lg font-bold text-slate-900 truncate group-hover:text-indigo-600 transition-colors" title="${student.name || t('students_view.name_missing')}">
-                        ${student.name || t('students_view.name_missing')}
+                     <h3 class="text-lg font-bold text-slate-900 truncate group-hover:text-indigo-600 transition-colors" title="${student.name || this.t('students_view.name_missing')}">
+                        ${student.name || this.t('students_view.name_missing')}
                     </h3>
                      <p class="text-sm text-slate-500 truncate mt-0.5" title="${student.email}">${student.email}</p>
 
                      <div class="flex items-center mt-2 space-x-2">
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${student.telegramChatId ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}">
-                            ${student.telegramChatId ? t('students_view.telegram_connected') : t('students_view.telegram_disconnected')}
+                            ${student.telegramChatId ? this.t('students_view.telegram_connected') : this.t('students_view.telegram_disconnected')}
                         </span>
                      </div>
                 </div>
 
                 <!-- Actions: Chat Button -->
                 <button class="flex-shrink-0 p-3 rounded-full bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors border border-transparent hover:border-indigo-100"
-                        title="${t('students_view.chat_tooltip')}"
+                        title="${this.t('students_view.chat_tooltip')}"
                         @click=${(e) => { e.stopPropagation(); this._navigateToProfile(student.id); /* Navigate to chat tab logic handled in profile view */ }}>
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
                 </button>
@@ -178,7 +173,6 @@ export class ProfessorStudentsView extends LitElement {
     }
 
     render() {
-        const t = (key) => translationService.t(key);
         const filteredStudents = this._filteredStudents;
         let content;
 
@@ -193,13 +187,13 @@ export class ProfessorStudentsView extends LitElement {
                     <div class="inline-flex items-center justify-center w-16 h-16 bg-slate-100 rounded-full mb-4 text-slate-400">
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                     </div>
-                    <p class="text-slate-500 font-medium">${t('students_view.none_registered')}</p>
+                    <p class="text-slate-500 font-medium">${this.t('students_view.none_registered')}</p>
                 </div>
             `;
         } else if (filteredStudents.length === 0) {
              content = html`
                 <div class="col-span-full text-center p-12">
-                    <p class="text-slate-500">${t('students_view.no_results')}</p>
+                    <p class="text-slate-500">${this.t('students_view.no_results')}</p>
                 </div>
              `;
         } else {
@@ -213,8 +207,8 @@ export class ProfessorStudentsView extends LitElement {
             <div class="h-full flex flex-col bg-slate-50">
                 <header class="bg-white p-6 border-b border-slate-200">
                     <div class="text-center">
-                        <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${t('students_view.title')}</h1>
-                        <p class="text-slate-500 mt-1 font-medium">${t('students_view.subtitle')}</p>
+                        <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${this.t('students_view.title')}</h1>
+                        <p class="text-slate-500 mt-1 font-medium">${this.t('students_view.subtitle')}</p>
                     </div>
                 </header>
 
@@ -228,7 +222,7 @@ export class ProfessorStudentsView extends LitElement {
                                     <svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                                 </div>
                                 <input type="search"
-                                       placeholder="${t('students_view.search_placeholder')}"
+                                       placeholder="${this.t('students_view.search_placeholder')}"
                                        .value=${this._searchTerm}
                                        @input=${this._handleSearchInput}
                                        class="block w-full pl-12 pr-4 py-4 bg-white/90 backdrop-blur-md border border-slate-200 text-slate-700 placeholder-slate-400 rounded-full shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
