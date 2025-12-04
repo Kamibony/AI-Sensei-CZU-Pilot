@@ -2,9 +2,9 @@ import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@
 import { doc, onSnapshot, collection, query, where, updateDoc, arrayUnion, arrayRemove, getDocs, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
-import { translationService } from '../../utils/translation-service.js';
+import { Localized } from '../../utils/localization-mixin.js';
 
-export class ProfessorClassDetailView extends LitElement {
+export class ProfessorClassDetailView extends Localized(LitElement) {
     static properties = {
         groupId: { type: String },
         _group: { state: true },
@@ -38,13 +38,11 @@ export class ProfessorClassDetailView extends LitElement {
         if (this.groupId) {
             this._fetchData();
         }
-        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         this.unsubscribes.forEach(unsub => unsub());
-        if (this._langUnsubscribe) this._langUnsubscribe();
     }
 
     _fetchData() {
@@ -193,40 +191,40 @@ export class ProfessorClassDetailView extends LitElement {
     }
 
     async _regenerateCode() {
-        if (!confirm("Opravdu chcete vygenerovat nový kód? Starý kód přestane platit.")) return;
+        if (!confirm(this.t('class.regenerate_confirm'))) return;
 
         try {
             const newCode = this._generateJoinCode();
             await updateDoc(doc(firebaseInit.db, 'groups', this.groupId), {
                 joinCode: newCode
             });
-            showToast("Nový kód byl vygenerován.");
+            showToast(this.t('class.code_generated'));
         } catch (e) {
             console.error("Error regenerating code:", e);
-            showToast("Chyba při generování kódu.", true);
+            showToast(this.t('class.code_generated_error') || this.t('common.error'), true);
         }
     }
 
     _copyCode() {
         if (!this._group?.joinCode) return;
         navigator.clipboard.writeText(this._group.joinCode).then(() => {
-            showToast("Kód zkopírován do schránky.");
+            showToast(this.t('common.code_copied'));
         }).catch(() => {
-            showToast("Kopírování selhalo.", true);
+            showToast(this.t('common.copy_failed'), true);
         });
     }
 
     async _handleRenameClass() {
-        const newName = prompt("Zadejte nový název třídy:", this._group.name);
+        const newName = prompt(this.t('class.rename_prompt'), this._group.name);
         if (newName && newName.trim() !== "") {
             try {
                 await updateDoc(doc(firebaseInit.db, 'groups', this.groupId), {
                     name: newName.trim()
                 });
-                showToast("Třída byla přejmenována.");
+                showToast(this.t('class.renamed_success'));
             } catch (e) {
                 console.error(e);
-                showToast("Chyba při přejmenování.", true);
+                showToast(`${this.t('common.error')}: ${e.message}`, true);
             }
         }
     }
@@ -241,7 +239,7 @@ export class ProfessorClassDetailView extends LitElement {
             const activeLessonsCount = snapshot.size;
 
             if (activeLessonsCount > 0) {
-                if (!confirm(`Třída má přiřazené lekce (${activeLessonsCount}). Chcete je odpojit a třídu smazat?`)) {
+                if (!confirm(this.t('class.delete_confirm_lessons', { count: activeLessonsCount }))) {
                     return;
                 }
 
@@ -260,29 +258,29 @@ export class ProfessorClassDetailView extends LitElement {
                 await batch.commit();
 
             } else {
-                 if (!confirm("Opravdu chcete tuto třídu SMAZAT? Tato akce je nevratná.")) return;
+                 if (!confirm(this.t('class.delete_confirm'))) return;
                  await deleteDoc(doc(firebaseInit.db, 'groups', this.groupId));
             }
 
-            showToast("Třída byla smazána.");
+            showToast(this.t('class.deleted_success'));
             this._navigateBack();
 
         } catch (e) {
             console.error("Error deleting class:", e);
-            showToast("Chyba při mazání třídy.", true);
+            showToast(`${this.t('common.error')}: ${e.message}`, true);
         }
     }
 
     async _handleRemoveStudent(studentId) {
-        if (confirm("Opravdu chcete odebrat tohoto studenta ze třídy?")) {
+        if (confirm(this.t('class.remove_student_confirm'))) {
             try {
                 await updateDoc(doc(firebaseInit.db, 'groups', this.groupId), {
                     studentIds: arrayRemove(studentId)
                 });
-                showToast("Student byl odebrán ze třídy.");
+                showToast(this.t('class.student_removed'));
             } catch (e) {
                 console.error(e);
-                showToast("Chyba při odebírání studenta.", true);
+                showToast(`${this.t('common.error')}: ${e.message}`, true);
             }
         }
     }
@@ -293,25 +291,25 @@ export class ProfessorClassDetailView extends LitElement {
             await updateDoc(lessonRef, {
                 assignedToGroups: arrayUnion(this.groupId)
             });
-            showToast("Lekce byla úspěšně přiřazena.");
+            showToast(this.t('class.lesson_assigned'));
             this._showLessonSelector = false;
         } catch (e) {
             console.error(e);
-            showToast("Chyba při přiřazování lekce.", true);
+            showToast(`${this.t('common.error')}: ${e.message}`, true);
         }
     }
 
     async _removeLessonAssignment(lessonId) {
-         if (confirm("Opravdu chcete odebrat tuto lekci ze třídy?")) {
+         if (confirm(this.t('class.remove_lesson_confirm'))) {
             try {
                 const lessonRef = doc(firebaseInit.db, 'lessons', lessonId);
                 await updateDoc(lessonRef, {
                     assignedToGroups: arrayRemove(this.groupId)
                 });
-                showToast("Lekce byla odebrána.");
+                showToast(this.t('class.lesson_removed'));
             } catch (e) {
                 console.error(e);
-                showToast("Chyba při odebírání lekce.", true);
+                showToast(`${this.t('common.error')}: ${e.message}`, true);
             }
         }
     }
@@ -326,11 +324,11 @@ export class ProfessorClassDetailView extends LitElement {
 
     render() {
         if (this._isLoading && !this._group) {
-            return html`<div class="flex justify-center items-center h-full"><p class="text-xl text-slate-500">${translationService.t('common.loading')}</p></div>`;
+            return html`<div class="flex justify-center items-center h-full"><p class="text-xl text-slate-500">${this.t('common.loading')}</p></div>`;
         }
 
         if (!this._group) {
-             return html`<div class="p-8 text-center text-red-500">Třída nenalezena.</div>`;
+             return html`<div class="p-8 text-center text-red-500">${this.t('class.not_found')}</div>`;
         }
 
         return html`
@@ -340,13 +338,13 @@ export class ProfessorClassDetailView extends LitElement {
                     <div class="flex items-center justify-between mb-4">
                         <button @click=${this._navigateBack} class="text-slate-500 hover:text-indigo-600 flex items-center transition-colors">
                             <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                            ${translationService.t('common.back')}
+                            ${this.t('common.back')}
                         </button>
                         <div class="flex space-x-2">
-                             <button @click=${this._handleRenameClass} class="p-2 text-slate-400 hover:text-indigo-600 rounded-full hover:bg-slate-100" title="Přejmenovat">
+                             <button @click=${this._handleRenameClass} class="p-2 text-slate-400 hover:text-indigo-600 rounded-full hover:bg-slate-100" title="${this.t('common.edit')}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                             </button>
-                            <button @click=${this._handleDeleteClass} class="p-2 text-slate-400 hover:text-red-600 rounded-full hover:bg-red-50" title="Smazat třídu">
+                            <button @click=${this._handleDeleteClass} class="p-2 text-slate-400 hover:text-red-600 rounded-full hover:bg-red-50" title="${this.t('common.delete')}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                             </button>
                         </div>
@@ -356,13 +354,13 @@ export class ProfessorClassDetailView extends LitElement {
                             <h1 class="text-3xl font-extrabold text-slate-800 leading-tight">${this._group.name}</h1>
                             <div class="flex items-center mt-2 space-x-4 flex-wrap gap-y-2">
                                 <div class="flex items-center text-slate-500 text-sm bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
-                                    <span class="mr-2 font-medium text-indigo-800">Kód:</span>
+                                    <span class="mr-2 font-medium text-indigo-800">${this.t('class.code_label')}</span>
                                     <code class="font-mono font-bold text-lg text-indigo-700 mr-3 select-all">${this._group.joinCode}</code>
                                     <div class="flex items-center border-l border-indigo-200 pl-2 space-x-1">
-                                        <button @click=${this._copyCode} class="p-1 text-indigo-500 hover:text-indigo-800 hover:bg-indigo-100 rounded transition-colors" title="Kopírovat">
+                                        <button @click=${this._copyCode} class="p-1 text-indigo-500 hover:text-indigo-800 hover:bg-indigo-100 rounded transition-colors" title="${this.t('classes.copy_code_tooltip')}">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                                         </button>
-                                        <button @click=${this._regenerateCode} class="p-1 text-indigo-500 hover:text-indigo-800 hover:bg-indigo-100 rounded transition-colors" title="Vygenerovat nový">
+                                        <button @click=${this._regenerateCode} class="p-1 text-indigo-500 hover:text-indigo-800 hover:bg-indigo-100 rounded transition-colors" title="${this.t('common.edit')}">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                                         </button>
                                     </div>
@@ -370,7 +368,7 @@ export class ProfessorClassDetailView extends LitElement {
                                 <div class="hidden sm:block text-slate-300 text-sm">|</div>
                                 <div class="text-slate-500 text-sm font-medium flex items-center">
                                     <span class="bg-slate-100 text-slate-600 px-2 py-1 rounded-md mr-2">${this._students.length}</span>
-                                    ${translationService.t('common.students_count')}
+                                    ${this.t('common.students_count')}
                                 </div>
                             </div>
                         </div>
@@ -382,15 +380,15 @@ export class ProfessorClassDetailView extends LitElement {
                     <nav class="flex space-x-8">
                         <button @click=${() => this._activeTab = 'students'}
                                 class="${this._activeTab === 'students' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'} py-4 border-b-2 font-medium transition-colors flex items-center">
-                            <span class="mr-2">👥</span> ${translationService.t('nav.students')}
+                            <span class="mr-2">👥</span> ${this.t('nav.students')}
                         </button>
                         <button @click=${() => this._activeTab = 'lessons'}
                                 class="${this._activeTab === 'lessons' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'} py-4 border-b-2 font-medium transition-colors flex items-center">
-                            <span class="mr-2">📚</span> ${translationService.t('professor.stats_lessons')}
+                            <span class="mr-2">📚</span> ${this.t('professor.stats_lessons')}
                         </button>
                         <button @click=${() => this._activeTab = 'grades'}
                                 class="${this._activeTab === 'grades' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'} py-4 border-b-2 font-medium transition-colors flex items-center">
-                            <span class="mr-2">📊</span> ${translationService.t('class.tab_grades')}
+                            <span class="mr-2">📊</span> ${this.t('class.tab_grades')}
                         </button>
                     </nav>
                 </div>
@@ -415,7 +413,7 @@ export class ProfessorClassDetailView extends LitElement {
             return html`
                 <div class="text-center p-12 bg-white rounded-2xl shadow-sm border border-slate-100">
                     <div class="text-slate-300 text-5xl mb-4">👥</div>
-                    <h3 class="text-lg font-bold text-slate-700">${translationService.t('students_view.none_registered')}</h3>
+                    <h3 class="text-lg font-bold text-slate-700">${this.t('students_view.none_registered')}</h3>
                 </div>
             `;
         }
@@ -425,23 +423,23 @@ export class ProfessorClassDetailView extends LitElement {
                 <table class="min-w-full divide-y divide-slate-200">
                     <thead class="bg-slate-50">
                         <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">${translationService.t('auth.email_label')}</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">${this.t('auth.email_label')}</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Email</th>
-                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Akce</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">${this.t('class.actions')}</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-slate-200">
                         ${this._students.map(student => html`
                             <tr>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-slate-900">${student.name || translationService.t('students_view.name_missing')}</div>
+                                    <div class="text-sm font-medium text-slate-900">${student.name || this.t('students_view.name_missing')}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-slate-500">${student.email || '---'}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <button @click=${() => this._handleRemoveStudent(student.id)} class="text-red-600 hover:text-red-900 hover:bg-red-50 px-3 py-1 rounded transition-colors">
-                                        ❌ Odebrat
+                                        ❌ ${this.t('class.remove')}
                                     </button>
                                 </td>
                             </tr>
@@ -456,14 +454,14 @@ export class ProfessorClassDetailView extends LitElement {
         return html`
             <div class="space-y-6">
                 <div class="flex justify-between items-center">
-                    <h2 class="text-xl font-bold text-slate-800">Přiřazené Lekce</h2>
+                    <h2 class="text-xl font-bold text-slate-800">${this.t('class.assigned_lessons')}</h2>
                     <button @click=${() => this._showLessonSelector = true} class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center">
-                        <span class="mr-2">➕</span> Přiřadit lekci
+                        <span class="mr-2">➕</span> ${this.t('class.assign_lesson_btn')}
                     </button>
                 </div>
 
                 ${this._assignedLessons.length === 0
-                    ? html`<div class="text-center p-12 bg-white rounded-2xl border border-slate-100 text-slate-500">Tato třída nemá přiřazené žádné lekce.</div>`
+                    ? html`<div class="text-center p-12 bg-white rounded-2xl border border-slate-100 text-slate-500">${this.t('class.no_assigned_lessons')}</div>`
                     : html`
                         <div class="grid gap-4">
                             ${this._assignedLessons.map(lesson => html`
@@ -477,7 +475,7 @@ export class ProfessorClassDetailView extends LitElement {
                                             <p class="text-xs text-slate-500">${lesson.subtitle || ''}</p>
                                         </div>
                                     </div>
-                                    <button @click=${() => this._removeLessonAssignment(lesson.id)} class="text-slate-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors" title="Odebrat lekci">
+                                    <button @click=${() => this._removeLessonAssignment(lesson.id)} class="text-slate-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors" title="${this.t('class.remove')}">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                     </button>
                                 </div>
@@ -490,8 +488,6 @@ export class ProfessorClassDetailView extends LitElement {
     }
 
     _renderGradesTab() {
-        const t = (key) => translationService.t(key);
-
         // Filter lessons that have quiz or test
         const gradableLessons = this._assignedLessons.filter(l => l.quiz || l.test);
 
@@ -499,8 +495,8 @@ export class ProfessorClassDetailView extends LitElement {
              return html`
                 <div class="text-center p-12 bg-white rounded-2xl shadow-sm border border-slate-100">
                     <div class="text-slate-300 text-5xl mb-4">📊</div>
-                    <h3 class="text-lg font-bold text-slate-700">${t('class.no_grades')}</h3>
-                    <p class="text-slate-500">Žádné přiřazené lekce nemají testy nebo kvízy.</p>
+                    <h3 class="text-lg font-bold text-slate-700">${this.t('class.no_grades')}</h3>
+                    <p class="text-slate-500">${this.t('class.no_gradable_lessons')}</p>
                 </div>
             `;
         }
@@ -511,7 +507,7 @@ export class ProfessorClassDetailView extends LitElement {
                     <thead class="bg-slate-50">
                         <tr>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-50 z-10 border-r border-slate-200">
-                                ${t('class.table_student')}
+                                ${this.t('class.table_student')}
                             </th>
                             ${gradableLessons.map(lesson => html`
                                 <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider min-w-[120px]">
@@ -524,7 +520,7 @@ export class ProfessorClassDetailView extends LitElement {
                         ${this._students.map(student => html`
                             <tr class="hover:bg-slate-50 transition-colors">
                                 <td class="px-6 py-4 whitespace-nowrap sticky left-0 bg-white border-r border-slate-200 font-medium text-slate-900">
-                                    ${student.name || t('students_view.name_missing')}
+                                    ${student.name || this.t('students_view.name_missing')}
                                 </td>
                                 ${gradableLessons.map(lesson => {
                                     // Find submission for this student and lesson
@@ -568,14 +564,14 @@ export class ProfessorClassDetailView extends LitElement {
             <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50" @click=${(e) => { if(e.target === e.currentTarget) this._showLessonSelector = false }}>
                 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col m-4">
                     <div class="p-6 border-b border-slate-100 flex justify-between items-center">
-                        <h3 class="text-xl font-bold text-slate-800">Vyberte lekci k přiřazení</h3>
+                        <h3 class="text-xl font-bold text-slate-800">${this.t('class.select_lesson_modal')}</h3>
                         <button @click=${() => this._showLessonSelector = false} class="text-slate-400 hover:text-slate-600">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
                     </div>
                     <div class="overflow-y-auto p-6 flex-grow space-y-2">
                         ${availableLessons.length === 0
-                            ? html`<p class="text-center text-slate-500 py-8">Nemáte žádné další lekce k přiřazení.</p>`
+                            ? html`<p class="text-center text-slate-500 py-8">${this.t('class.no_more_lessons')}</p>`
                             : availableLessons.map(lesson => html`
                                 <button @click=${() => this._assignLesson(lesson.id)} class="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all group">
                                     <div class="flex justify-between items-center">
