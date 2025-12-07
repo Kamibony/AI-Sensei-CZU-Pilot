@@ -7,6 +7,21 @@ import './views/login-view.js'; // Import component definition
 import { showToast, showGlobalSpinner, hideGlobalSpinner } from './utils.js';
 import { translationService } from './utils/translation-service.js';
 
+// Pomocná funkcia na čakanie na rolu (Backoff strategy)
+async function waitForUserRole(user, maxAttempts = 10) {
+    for (let i = 0; i < maxAttempts; i++) {
+        // Vynútime refresh tokenu zo servera
+        const tokenResult = await user.getIdTokenResult(true);
+        if (tokenResult.claims.role) {
+            return tokenResult.claims.role;
+        }
+        console.log(`Čakanie na priradenie roly... pokus ${i + 1}/${maxAttempts}`);
+        // Čakáme 2 sekundy pred ďalším pokusom
+        await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    return null;
+}
+
 async function main() {
     try {
         await translationService.init();
@@ -18,38 +33,19 @@ async function main() {
         return;
     }
 
-    // initAuth removed - logic moved to LoginView
-
     onAuthStateChanged(auth, async (user) => {
         if (user) {
+            // Zobrazíme loading ihneď, lebo získavanie roly môže trvať
+            showGlobalSpinner(translationService.t('common.app_setting_account'));
+
             let tokenResult = await user.getIdTokenResult();
             let userRole = tokenResult.claims.role;
 
             // Ak rola chýba, predpokladáme, že je to nová registrácia
-            // a funkcia na serveri ešte len beží.
+            // a funkcia na serveri ešte len beží. Spustíme čakanie.
             if (!userRole) {
-                console.warn("User role is missing, attempting to refresh token...");
-
-                // Zobrazíme nejaký globálny spinner/loading
-                showGlobalSpinner(translationService.t('common.app_setting_account'));
-
-                // Začneme "poll" (dopytovať sa) na nový token
-                // Použijeme parameter 'true' na vynútenie obnovy
-
-                // Skúsime to 3-krát, s 3-sekundovým oneskorením
-                for (let i = 0; i < 3; i++) {
-                    await new Promise(resolve => setTimeout(resolve, 3000)); // Počkáme 3 sekundy
-
-                    tokenResult = await user.getIdTokenResult(true); // Vynútime refresh
-                    userRole = tokenResult.claims.role;
-
-                    if (userRole) break; // Ak rolu máme, končíme
-
-                    console.log(`Token refresh attempt ${i + 1} failed to get role.`);
-                }
-
-                // Skryjeme spinner
-                hideGlobalSpinner();
+                console.warn("User role is missing, waiting for backend...");
+                userRole = await waitForUserRole(user);
             }
 
             // Fallback for the original admin if role is still missing
@@ -58,7 +54,10 @@ async function main() {
                  console.log("Applying legacy admin fallback role.");
             }
 
-            // Teraz (po prípadnom čakaní) skontrolujeme rolu znova
+            // Skryjeme spinner
+            hideGlobalSpinner();
+
+            // Teraz skontrolujeme rolu
             if (userRole === 'professor') {
                 sessionStorage.setItem('userRole', userRole);
                 renderMainLayout();
