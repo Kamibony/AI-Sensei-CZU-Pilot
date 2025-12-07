@@ -12,6 +12,7 @@ import { signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-aut
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast } from '../../utils.js';
+import { translationService } from '../../utils/translation-service.js'; // Import translation service
 import './student-classes-view.js';
 import './student-lesson-list.js';
 import './student-lesson-detail.js';
@@ -48,7 +49,8 @@ class StudentDashboard extends LitElement {
     }
 
     render() {
-        if (!this.user) return html`<div>Loading...</div>`;
+        const t = (key) => translationService.t(key);
+        if (!this.user) return html`<div>${t('common.loading')}</div>`;
 
         return html`
             <div class="h-full overflow-hidden bg-slate-50 flex relative">
@@ -170,25 +172,21 @@ class StudentDashboard extends LitElement {
 
         try {
             // Skúsime najprv Callable funkciu (Cloud Function)
-            try {
-                if (!functions) {
-                    console.warn("Firebase functions not initialized yet.");
-                    throw new Error("Functions not ready");
-                }
-                const joinClass = httpsCallable(functions, 'joinClass');
-                const result = await joinClass({ joinCode: this.joinCode });
-                
-                console.log("Cloud function success:", result);
-                alert(`Úspěšně jste se připojili k třídě ${result.data.groupName}!`);
-                this._closeJoinClassModal();
-                showToast('Úspěšně jste se připojili k třídě!');
-                // Reload window to refresh classes list properly
-                window.location.reload(); 
-                return;
-            } catch (err) {
-               console.warn("Cloud function failed/not available, trying direct Firestore fallback:", err);
-               await this._handleJoinClassDirect(this.joinCode);
+            if (!functions) {
+                console.warn("Firebase functions not initialized yet.");
+                throw new Error("Functions not ready");
             }
+            const joinClass = httpsCallable(functions, 'joinClass');
+            const result = await joinClass({ joinCode: this.joinCode });
+            
+            console.log("Cloud function success:", result);
+            
+            this._closeJoinClassModal();
+            showToast(`Úspěšně jste se připojili k třídě ${result.data.groupName}!`);
+            
+            // Soft-refresh: prepneme na view 'classes', čímž sa znova načíta zoznam
+            this.currentView = 'classes';
+            this.requestUpdate();
 
         } catch (error) {
             console.error("Error joining class:", error);
@@ -196,39 +194,6 @@ class StudentDashboard extends LitElement {
         } finally {
             this.isJoining = false;
         }
-    }
-
-    // Fallback metóda pre priame pripojenie
-    async _handleJoinClassDirect(code) {
-        console.log("Attempting direct Firestore join...");
-        // Query poľa 'joinCode'
-        const groupsRef = collection(db, "groups");
-        const q = query(groupsRef, where("joinCode", "==", code)); 
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-            throw new Error('Třída s tímto kódem nebyla nalezena');
-        }
-
-        const groupDoc = querySnapshot.docs[0];
-        const groupId = groupDoc.id;
-        console.log("Found group:", groupId);
-
-        // Update student document
-        const studentRef = doc(db, "students", this.user.uid);
-        await updateDoc(studentRef, {
-            memberOfGroups: arrayUnion(groupId)
-        });
-        
-        // Update group document (ak to pravidlá povoľujú - zvyčajne nie, ale fallback skúsime)
-        // const groupRef = doc(db, "groups", groupId);
-        // await updateDoc(groupRef, {
-        //      studentIds: arrayUnion(this.user.uid)
-        // });
-
-        this._closeJoinClassModal();
-        showToast('Úspěšně jste se připojili k třídě!');
-        window.location.reload();
     }
 
     renderNavItem(id, label, iconPath) {
