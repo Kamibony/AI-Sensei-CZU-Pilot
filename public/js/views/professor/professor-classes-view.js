@@ -8,6 +8,8 @@ export class ProfessorClassesView extends LitElement {
     static properties = {
         _classes: { state: true, type: Array },
         _isLoading: { state: true, type: Boolean },
+        _isCreateModalOpen: { state: true, type: Boolean },
+        _newClassName: { state: true, type: String }
     };
 
     constructor() {
@@ -15,6 +17,8 @@ export class ProfessorClassesView extends LitElement {
         this._classes = [];
         this._isLoading = true;
         this.classesUnsubscribe = null;
+        this._isCreateModalOpen = false;
+        this._newClassName = '';
     }
 
     createRenderRoot() { return this; }
@@ -68,43 +72,55 @@ export class ProfessorClassesView extends LitElement {
         return result;
     }
 
-    async _handleCreateClass() {
-        const className = prompt(translationService.t('dashboard.enter_class_name'), "");
-        if (className && className.trim() !== "") {
-            const user = firebaseInit.auth.currentUser;
-            if (!user) {
-                showToast(translationService.t('classes.login_required_create'), true);
+    _openCreateModal() {
+        this._newClassName = '';
+        this._isCreateModalOpen = true;
+    }
+
+    _closeCreateModal() {
+        this._isCreateModalOpen = false;
+    }
+
+    async _submitCreateClass() {
+        const className = this._newClassName.trim();
+        if (!className) {
+            showToast(translationService.t('professor.enter_class_name'), true);
+            return;
+        }
+        const user = firebaseInit.auth.currentUser;
+        if (!user) {
+            showToast(translationService.t('classes.login_required_create'), true);
+            return;
+        }
+
+        try {
+            // Unique Name Check
+            const q = query(
+                collection(firebaseInit.db, 'groups'),
+                where("ownerId", "==", user.uid),
+                where("name", "==", className)
+            );
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                showToast("Třída s tímto názvem již existuje.", true);
                 return;
             }
 
-            try {
-                // Unique Name Check
-                const q = query(
-                    collection(firebaseInit.db, 'groups'),
-                    where("ownerId", "==", user.uid),
-                    where("name", "==", className.trim())
-                );
-                const querySnapshot = await getDocs(q);
-                if (!querySnapshot.empty) {
-                    showToast("Třída s tímto názvem již existuje.", true);
-                    return;
-                }
+            const docRef = await addDoc(collection(firebaseInit.db, 'groups'), {
+                name: className,
+                ownerId: user.uid,
+                joinCode: this._generateJoinCode(),
+                studentIds: [],
+                createdAt: serverTimestamp()
+            });
+            showToast(translationService.t('classes.created_success'));
 
-                const docRef = await addDoc(collection(firebaseInit.db, 'groups'), {
-                    name: className.trim(),
-                    ownerId: user.uid,
-                    joinCode: this._generateJoinCode(),
-                    studentIds: [],
-                    createdAt: serverTimestamp()
-                });
-                showToast(translationService.t('classes.created_success'));
-
-                // Automatically redirect to the new class detail view
-                this._navigateToClass(docRef.id);
-            } catch (error) {
-                console.error("Error creating class:", error);
-                showToast(translationService.t('professor.error_create_class'), true);
-            }
+            this._closeCreateModal();
+            // Automatically redirect to the new class detail view
+            this._navigateToClass(docRef.id);
+        } catch (error) {
+            console.error("Error creating class:", error);
+            showToast(translationService.t('professor.error_create_class'), true);
         }
     }
 
@@ -128,13 +144,13 @@ export class ProfessorClassesView extends LitElement {
     render() {
         const t = (key) => translationService.t(key);
         return html`
-            <div class="h-full flex flex-col bg-slate-50">
+            <div class="h-full flex flex-col bg-slate-50 relative">
                 <header class="bg-white p-6 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                         <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${t('classes.manage_title')}</h1>
                         <p class="text-slate-500 mt-1 font-medium">${t('classes.manage_desc')}</p>
                     </div>
-                    <button @click=${this._handleCreateClass} class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-6 rounded-full flex items-center shadow-lg shadow-indigo-200 transition-all transform hover:scale-105">
+                    <button @click=${this._openCreateModal} class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-6 rounded-full flex items-center shadow-lg shadow-indigo-200 transition-all transform hover:scale-105">
                         <span class="mr-2">➕</span> ${t('classes.create_new')}
                     </button>
                 </header>
@@ -149,6 +165,29 @@ export class ProfessorClassesView extends LitElement {
                             : this._renderClassesGrid()}
                     </div>
                 </div>
+
+                ${this._isCreateModalOpen ? html`
+                    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" @click=${(e) => { if(e.target === e.currentTarget) this._closeCreateModal(); }}>
+                        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100 animate-fade-in-up">
+                            <h3 class="text-xl font-bold text-slate-900 mb-2">${t('professor.create_new_class')}</h3>
+                            <p class="text-sm text-slate-500 mb-4">Zadejte název pro novou třídu.</p>
+                            
+                            <input
+                                type="text"
+                                class="w-full border-2 border-slate-200 rounded-xl p-3 mb-6 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all font-bold text-slate-700"
+                                placeholder="Např. 4.A Fyzika"
+                                .value=${this._newClassName}
+                                @input=${e => this._newClassName = e.target.value}
+                                @keypress=${e => e.key === 'Enter' && this._submitCreateClass()}
+                                autofocus
+                            >
+                            <div class="flex justify-end gap-3">
+                                <button class="px-4 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors" @click=${this._closeCreateModal}>${t('common.cancel')}</button>
+                                <button class="px-6 py-2 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all transform active:scale-95" @click=${this._submitCreateClass}>${t('common.save')}</button>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
             </div>
         `;
     }
@@ -163,7 +202,7 @@ export class ProfessorClassesView extends LitElement {
                     </div>
                     <h3 class="text-2xl font-bold text-slate-800 mb-3">${t('dashboard.no_classes_title')}</h3>
                     <p class="text-slate-500 mb-8 max-w-md mx-auto leading-relaxed">${t('dashboard.no_classes_desc')}</p>
-                    <button @click=${this._handleCreateClass} class="text-indigo-600 font-bold hover:text-indigo-800 hover:underline text-lg">
+                    <button @click=${this._openCreateModal} class="text-indigo-600 font-bold hover:text-indigo-800 hover:underline text-lg">
                         ${t('dashboard.create_first_class')} &rarr;
                     </button>
                 </div>
@@ -199,19 +238,16 @@ export class ProfessorClassesView extends LitElement {
             <div @click=${() => this._navigateToClass(cls.id)}
                  class="bg-white rounded-2xl border border-slate-100 shadow-lg hover:shadow-xl transition-all duration-300 p-6 relative group cursor-pointer h-full flex flex-col">
 
-                <!-- Action: Copy Code (Absolute top-right) -->
                 <button @click=${(e) => this._copyJoinCode(e, cls.joinCode)}
                         class="absolute top-5 right-5 p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors opacity-80 hover:opacity-100"
                         title="${t('classes.copy_code_tooltip')}">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                 </button>
 
-                <!-- Icon -->
                 <div class="w-16 h-16 rounded-2xl bg-gradient-to-br ${bgGradient} text-white flex items-center justify-center text-2xl font-bold shadow-md shadow-slate-200 mb-6 transform group-hover:scale-105 transition-transform duration-300">
                     ${initials}
                 </div>
 
-                <!-- Content -->
                 <div class="flex-grow">
                     <h3 class="text-xl font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors line-clamp-1">${cls.name}</h3>
                     <div class="flex items-center text-slate-500 text-sm font-medium">
@@ -220,7 +256,6 @@ export class ProfessorClassesView extends LitElement {
                     </div>
                 </div>
 
-                <!-- Code (kept for utility but subtle) -->
                 <div class="mt-6 pt-4 border-t border-slate-50 flex items-center justify-between opacity-70 group-hover:opacity-100 transition-opacity">
                      <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">${t('classes.join_code_label')}</span>
                      <code class="font-mono text-sm font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded select-all">${cls.joinCode}</code>
