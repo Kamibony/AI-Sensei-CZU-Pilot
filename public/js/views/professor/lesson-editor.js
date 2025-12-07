@@ -101,49 +101,23 @@ export class LessonEditor extends LitElement {
             const oldLesson = changedProperties.get('lesson');
             const newLesson = this.lesson;
 
-            // FIX 1: Stop View Resets
-            // Only reset state if we switched to a COMPLETELY DIFFERENT lesson ID.
-            // Transitions from "Draft" (no ID) to "Saved" (ID) should PRESERVE state to avoid jumping.
-            // Updates to the same lesson ID should PRESERVE state.
+            // Resetujeme len ak sa zmenilo ID (úplne iná lekcia)
+            const isDifferentLesson = oldLesson?.id !== newLesson?.id;
 
-            const isFirstLoad = !oldLesson;
-            const isDifferentLessonId = oldLesson?.id && newLesson?.id && oldLesson.id !== newLesson.id;
-            const isNavigationToDraft = oldLesson?.id && !newLesson?.id;
-
-            if (isFirstLoad || isDifferentLessonId || isNavigationToDraft) {
-                 loadSelectedFiles(newLesson?.ragFilePaths || []);
-                 this._currentStep = 1;
-
-                 // Hub Logic: Existing ID -> Hub, No ID -> Settings
-                 if (newLesson?.id) {
-                     this._viewMode = 'hub';
-                     this._selectedContentType = null;
-                 } else {
-                     this._viewMode = 'settings';
-                     this._selectedContentType = 'text';
-                 }
-            } else {
-                // Same lesson or Draft->Saved transition. Preserve View Mode.
-                // But update files if they changed (e.g. upload complete)
-                if (JSON.stringify(oldLesson?.ragFilePaths) !== JSON.stringify(newLesson?.ragFilePaths)) {
-
-                     // Safeguard: Check global state before wiping
-                     const currentGlobalFiles = getSelectedFiles();
-                     const newFiles = newLesson?.ragFilePaths || [];
-
-                     // If we are about to wipe files (newFiles is empty) but we have files in global state,
-                     // and it's the same lesson context, assume it's a state glitch and PROTECT the files.
-                     if (newFiles.length === 0 && currentGlobalFiles.length > 0) {
-                          console.warn("LessonEditor: Safeguard triggered! Preventing file wipe in willUpdate.", {
-                              global: currentGlobalFiles,
-                              new: newFiles
-                          });
-                          // Do NOT wipe global state
-                     } else {
-                          console.log("LessonEditor: Syncing files from lesson state to global:", newFiles);
-                          loadSelectedFiles(newFiles);
-                     }
+            if (isDifferentLesson) {
+                loadSelectedFiles(newLesson?.ragFilePaths || []);
+                this._currentStep = 1;
+                if (newLesson?.id) {
+                    this._viewMode = 'hub';
+                    this._selectedContentType = null;
+                } else {
+                    this._viewMode = 'settings';
+                    this._selectedContentType = 'text';
                 }
+            } 
+            // Ak je to tá istá lekcia, len aktualizujeme súbory ak treba, ale neresetujeme viewMode
+            else if (newLesson?.ragFilePaths && JSON.stringify(oldLesson?.ragFilePaths) !== JSON.stringify(newLesson.ragFilePaths)) {
+                 loadSelectedFiles(newLesson.ragFilePaths);
             }
         }
     }
@@ -768,9 +742,9 @@ export class LessonEditor extends LitElement {
         const t = (key) => translationService.t(key);
         return html`
             <div class="h-full bg-white overflow-y-auto">
-                <div class="px-6 py-12 flex flex-col h-full">
+                <div class="px-6 py-8 flex flex-col h-full">
 
-                    <header class="flex items-center justify-between mb-8">
+                    <header class="flex items-center justify-between mb-6">
                         <button @click=${this._handleBackClick} class="group flex items-center text-sm font-medium text-slate-400 hover:text-slate-900 transition-colors">
                             <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center mr-2 group-hover:bg-slate-100 transition-colors">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
@@ -782,76 +756,86 @@ export class LessonEditor extends LitElement {
 
                     <div class="flex-grow relative">
 
-                        <div class="${this._viewMode === 'settings' ? 'block' : 'hidden'} animate-fade-in space-y-8">
-                             <h2 class="text-3xl font-bold text-slate-900">${t('editor.settings_title')}</h2>
+                        <div class="${this._viewMode === 'settings' ? 'block' : 'hidden'} animate-fade-in space-y-6">
+                             
+                             <div class="flex justify-between items-end mb-4">
+                                <h2 class="text-3xl font-bold text-slate-900">${t('editor.settings_title')}</h2>
+                             </div>
 
-                             <div class="space-y-6 bg-white p-1 rounded-2xl">
-                                <div class="relative">
-                                    <input type="text" id="lesson-title-input"
-                                        class="block px-2.5 pb-2.5 pt-4 w-full text-4xl font-extrabold text-slate-900 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
-                                        placeholder=" "
-                                        .value="${this.lesson?.title || ''}" />
-                                    <label for="lesson-title-input"
-                                        class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
-                                        ${t('editor.label_title')}
-                                    </label>
+                             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start h-full">
+                                
+                                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-full">
+                                    <h3 class="font-bold text-slate-700 mb-4 flex items-center">1. Základní údaje</h3>
+                                    <div class="space-y-6">
+                                        <div class="relative">
+                                            <input type="text" id="lesson-title-input"
+                                                class="block px-2.5 pb-2.5 pt-4 w-full text-lg font-bold text-slate-900 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
+                                                placeholder=" "
+                                                .value="${this.lesson?.title || ''}" />
+                                            <label for="lesson-title-input"
+                                                class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
+                                                ${t('editor.label_title')}
+                                            </label>
+                                        </div>
+
+                                        <div class="relative">
+                                            <input type="text" id="lesson-subtitle-input"
+                                                class="block px-2.5 pb-2.5 pt-4 w-full text-md text-slate-600 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
+                                                placeholder=" "
+                                                .value="${this.lesson?.subtitle || ''}" />
+                                            <label for="lesson-subtitle-input"
+                                                class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
+                                                ${t('editor.label_subtitle')}
+                                            </label>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div class="relative mt-4">
-                                    <input type="text" id="lesson-subtitle-input"
-                                        class="block px-2.5 pb-2.5 pt-4 w-full text-xl text-slate-600 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
-                                        placeholder=" "
-                                        .value="${this.lesson?.subtitle || ''}" />
-                                    <label for="lesson-subtitle-input"
-                                        class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
-                                        ${t('editor.label_subtitle')}
-                                    </label>
-                                    <p class="text-xs text-slate-400 mt-1 pl-3">💡 ${t('editor.label_subtitle_tip')}</p>
-                                </div>
-
-                                <div class="pt-4">
-                                    <label class="block font-medium text-slate-600 mb-2">${t('editor.assign_class')}:</label>
-                                    <div class="space-y-2 border rounded-lg p-3 bg-slate-50 max-h-40 overflow-y-auto">
+                                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-full">
+                                    <h3 class="font-bold text-slate-700 mb-4 flex items-center">2. Přiřadit třídě</h3>
+                                    <div class="space-y-2 border rounded-lg p-3 bg-slate-50 max-h-60 overflow-y-auto custom-scrollbar">
                                         ${this._groups.length > 0 ? this._groups.map(group => html`
-                                            <div class="flex items-center">
+                                            <div class="flex items-center p-2 hover:bg-white rounded transition-colors">
                                                 <input type="checkbox"
                                                     id="group-${group.id}"
                                                     name="group-assignment"
                                                     value="${group.id}"
                                                     .checked=${this.lesson?.assignedToGroups?.includes(group.id) || false}
-                                                    class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                                <label for="group-${group.id}" class="ml-3 text-sm text-gray-700">${group.name}</label>
+                                                    class="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+                                                <label for="group-${group.id}" class="ml-3 text-sm font-medium text-gray-700 cursor-pointer w-full">${group.name}</label>
                                             </div>
                                         `) : html`
                                             <p class="text-xs text-slate-500">${translationService.t('lesson.no_classes')}</p>
                                         `}
                                     </div>
                                 </div>
+
+                                <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center transition-all hover:border-indigo-300 hover:bg-indigo-50/30 group h-full flex flex-col justify-center relative" id="course-media-upload-area">
+                                    <h3 class="font-bold text-slate-700 mb-2">3. Podklady (Súbory)</h3>
+                                    <div class="mb-2">
+                                        <span class="text-3xl group-hover:scale-110 transition-transform inline-block">📄</span>
+                                    </div>
+                                    
+                                    <div class="flex gap-2 justify-center mb-4">
+                                        <button class="pointer-events-none bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm group-hover:text-indigo-600 group-hover:border-indigo-200">
+                                            ${t('common.files_select')}
+                                        </button>
+                                        <button @click=${this._openRagModal} class="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm hover:text-indigo-600 hover:border-indigo-200 hover:bg-slate-50 transition-all">
+                                            📂 ${t('common.files_library')}
+                                        </button>
+                                    </div>
+                                    
+                                    <input type="file" id="course-media-file-input" class="hidden" multiple accept=".pdf,.txt,.docx,.pptx">
+
+                                    <div id="upload-progress-container" class="hidden mt-2 w-full"></div>
+                                    <ul id="course-media-list-container" class="text-left text-xs space-y-1 max-h-32 overflow-y-auto w-full px-2"></ul>
+                                </div>
                              </div>
 
-                            <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center transition-all hover:border-indigo-300 hover:bg-indigo-50/30 group" id="course-media-upload-area">
-                                <div class="mb-4">
-                                    <span class="text-4xl group-hover:scale-110 transition-transform inline-block">📄</span>
-                                </div>
-                                <h3 class="text-lg font-bold text-slate-700">${t('common.files_rag_title')}</h3>
-                                <p class="text-sm text-slate-500 mb-6">${t('common.files_rag_help')}</p>
-
-                                <input type="file" id="course-media-file-input" class="hidden" multiple accept=".pdf,.txt,.docx,.pptx">
-                                <button class="pointer-events-none bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm group-hover:text-indigo-600 group-hover:border-indigo-200">
-                                    ${t('common.files_select')}
-                                </button>
-                                <button @click=${this._openRagModal} class="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm hover:text-indigo-600 hover:border-indigo-200 hover:bg-slate-50 transition-all ml-4">
-                                    📂 ${t('common.files_library')}
-                                </button>
-
-                                <div id="upload-progress-container" class="hidden mt-4 max-w-md mx-auto"></div>
-                                <ul id="course-media-list-container" class="mt-4 text-left max-w-md mx-auto space-y-2"></ul>
-                            </div>
-
-                            <div class="flex flex-col sm:flex-row gap-4 justify-center pt-8">
+                             <div class="flex flex-col sm:flex-row gap-4 justify-center pt-4 border-t border-slate-100 mt-4">
                                 <button @click=${this._handleMagicGeneration} ?disabled=${this._isLoading}
-                                    class="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center text-lg">
-                                    ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> ${t('common.loading')}` : html`${t('lesson.magic_btn')}`}
+                                    class="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center text-lg transform active:scale-95">
+                                    ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> ${t('common.loading')}` : html`✨ ${t('lesson.magic_btn')}`}
                                 </button>
 
                                 <button @click=${this._switchToHub} ?disabled=${this._isLoading}
