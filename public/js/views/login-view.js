@@ -1,5 +1,5 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { signInWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { auth, functions } from '../firebase-init.js';
 import { showToast } from '../utils.js';
@@ -92,6 +92,12 @@ export class LoginView extends LitElement {
         e.preventDefault();
         const email = this.renderRoot.querySelector('#register-email').value;
         const password = this.renderRoot.querySelector('#register-password').value;
+        const name = this.renderRoot.querySelector('#register-name').value;
+
+        if (!name || name.trim().length < 2) {
+            this._error = "Uveďte prosím své celé jméno.";
+            return;
+        }
 
         // Role is determined by _selectedRole state
         const role = this._selectedRole;
@@ -101,8 +107,15 @@ export class LoginView extends LitElement {
 
         try {
             const registerUserWithRole = httpsCallable(functions, 'registerUserWithRole');
-            await registerUserWithRole({ email, password, role });
-            await signInWithEmailAndPassword(auth, email, password);
+            await registerUserWithRole({ email, password, role, displayName: name });
+            
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            
+            // Okamžitá aktualizácia profilu
+            await updateProfile(userCredential.user, {
+                displayName: name
+            });
+
             // Force refresh token to get the new custom claims (role) immediately
             if (auth.currentUser) {
                 await auth.currentUser.getIdToken(true);
@@ -140,7 +153,6 @@ export class LoginView extends LitElement {
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Professor Card -->
                     <button @click=${() => this._selectRole('professor')}
                         class="bg-white p-6 rounded-2xl border-2 border-slate-100 shadow-xl shadow-slate-200/50 hover:border-indigo-500 hover:shadow-indigo-500/20 hover:-translate-y-1 transition-all duration-300 text-left group h-full flex flex-col justify-between">
                         <div>
@@ -155,7 +167,6 @@ export class LoginView extends LitElement {
                         </div>
                     </button>
 
-                    <!-- Student Card -->
                     <button @click=${() => this._selectRole('student')}
                         class="bg-white p-6 rounded-2xl border-2 border-slate-100 shadow-xl shadow-slate-200/50 hover:border-green-500 hover:shadow-green-500/20 hover:-translate-y-1 transition-all duration-300 text-left group h-full flex flex-col justify-between">
                         <div>
@@ -192,7 +203,6 @@ export class LoginView extends LitElement {
                      <p class="text-slate-500 mt-2">${this._isRegistering ? '' : t('auth.welcome_desc')}</p>
                 </div>
 
-                <!-- Login Form -->
                 <div class="${this._isRegistering ? 'hidden' : 'block'} animate-fade-in">
                     <form @submit=${this._handleLogin} class="space-y-5">
                         <div class="space-y-1">
@@ -226,9 +236,15 @@ export class LoginView extends LitElement {
                     </div>
                 </div>
 
-                <!-- Register Form -->
                 <div class="${this._isRegistering ? 'block' : 'hidden'} animate-fade-in">
                     <form @submit=${this._handleRegister} class="space-y-5">
+                        
+                        <div class="space-y-1">
+                            <label for="register-name" class="text-sm font-medium text-slate-700">Jméno a příjmení</label>
+                            <input type="text" id="register-name" placeholder="Jan Novák" autocomplete="name" required
+                                class="${isProfessor ? 'focus:ring-indigo-500' : 'focus:ring-green-500'} w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:border-transparent transition-all">
+                        </div>
+
                         <div class="space-y-1">
                             <label for="register-email" class="text-sm font-medium text-slate-700">${t('auth.email_label')}</label>
                             <input type="email" id="register-email" placeholder="${t('auth.email_placeholder')}" autocomplete="email" required
@@ -239,8 +255,6 @@ export class LoginView extends LitElement {
                             <input type="password" id="register-password" placeholder="${t('auth.password_placeholder')}" autocomplete="new-password" required
                                 class="${isProfessor ? 'focus:ring-indigo-500' : 'focus:ring-green-500'} w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:border-transparent transition-all">
                         </div>
-
-                        <!-- Role is implied by _selectedRole, no checkbox needed -->
 
                         ${this._error ? html`
                         <div class="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center gap-2">
@@ -261,7 +275,6 @@ export class LoginView extends LitElement {
                     </div>
                 </div>
 
-                <!-- Footer -->
                 <p class="text-center text-xs text-slate-400 mt-8">
                     ${t('auth.footer_rights')}
                 </p>
@@ -274,9 +287,7 @@ export class LoginView extends LitElement {
 
         return html`
         <div class="min-h-screen w-full flex font-['Plus_Jakarta_Sans']">
-            <!-- Left Side - Branding (Hidden on mobile) -->
             <div class="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-indigo-900 to-slate-900 overflow-hidden items-center justify-center">
-                <!-- Abstract Background Shapes -->
                 <div class="absolute top-0 left-0 w-full h-full opacity-20">
                      <div class="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-500 blur-[100px]"></div>
                      <div class="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-blue-600 blur-[100px]"></div>
@@ -306,7 +317,6 @@ export class LoginView extends LitElement {
                 </div>
             </div>
 
-            <!-- Right Side - Content -->
             <div class="w-full lg:w-1/2 flex flex-col items-center justify-center p-8 bg-white relative">
                 ${!this._selectedRole ? this.renderRoleSelection() : this.renderLoginForm()}
             </div>
