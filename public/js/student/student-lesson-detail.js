@@ -1,5 +1,3 @@
-// Súbor: public/js/student/student-lesson-detail.js
-
 import { LitElement, html, nothing } from 'https://cdn.skypack.dev/lit';
 import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import confetti from 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/+esm';
@@ -8,7 +6,6 @@ import { showToast } from '../utils.js';
 import { renderPresentation } from './presentation-handler.js';
 import { translationService } from '../utils/translation-service.js';
 
-// Musíme importovať všetky komponenty, ktoré tento komponent bude renderovať
 import './quiz-component.js';
 import './test-component.js';
 import './podcast-component.js';
@@ -16,7 +13,6 @@ import './chat-panel.js';
 import './flashcards-component.js';
 import './mindmap-component.js';
 
-// Presunutá funkcia z student.js
 function normalizeLessonData(rawData) {
     const normalized = { ...rawData };
     normalized.youtube_link = rawData.youtube_link || rawData.videoUrl || null;
@@ -64,7 +60,6 @@ export class StudentLessonDetail extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
-        // Subscribe to language changes
         this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
         this._initProgressTracking();
     }
@@ -99,7 +94,6 @@ export class StudentLessonDetail extends LitElement {
     async _markSectionComplete(sectionId) {
         if (!sectionId) return;
 
-        // Critical Check: Ensure User is Authenticated
         const user = firebaseInit.auth.currentUser;
         if (!user) {
             console.error("Critical Error: User not authenticated in _markSectionComplete");
@@ -112,21 +106,17 @@ export class StudentLessonDetail extends LitElement {
              return;
         }
 
-        // Check if already completed to avoid redundant updates
         const currentCompleted = this._progress.completedSections || [];
         if (currentCompleted.includes(sectionId)) return;
 
-        // 1. Optimistic Update (Immediate Visual Feedback)
         const newCompleted = [...currentCompleted, sectionId];
 
-        // Update local state immediately to trigger re-render
         this._progress = {
             ...this._progress,
             completedSections: newCompleted
         };
-        this.requestUpdate(); // Force UI update
+        this.requestUpdate();
 
-        // 2. Background Firebase Update
         const path = `students/${user.uid}/progress/${this.lessonId}`;
         const progressRef = doc(firebaseInit.db, path);
 
@@ -136,15 +126,11 @@ export class StudentLessonDetail extends LitElement {
                 lastUpdated: new Date()
             }, { merge: true });
 
-            // Success - State is already updated optimistically
             console.log(`Progress saved successfully to ${path}`);
-
             confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
 
         } catch (e) {
             console.error(`Error saving progress to ${path}:`, e);
-
-            // Rollback on error
             this._progress = {
                 ...this._progress,
                 completedSections: currentCompleted
@@ -155,24 +141,35 @@ export class StudentLessonDetail extends LitElement {
     }
 
     willUpdate(changedProperties) {
-        // If lessonData is passed as a property, use it directly for live preview.
         if (changedProperties.has('lessonData') && this.lessonData) {
             this.lessonData = normalizeLessonData(this.lessonData);
             this._buildAvailableTabs();
             this.isLoading = false;
             this._viewMode = 'hub';
         }
-        // Otherwise, if lessonId is passed, fetch from Firestore as usual.
         else if (changedProperties.has('lessonId') && this.lessonId && !this.lessonData) {
             this._fetchLessonDetail();
-            this._initProgressTracking(); // Re-init tracking if lessonId changes
+            this._initProgressTracking();
+        }
+    }
+
+    // NOVÉ: Lifecycle metóda pre bezpečné vykreslenie prezentácie
+    async updated(changedProperties) {
+        super.updated(changedProperties);
+        if (this.activeTabId === 'presentation') {
+            await this.updateComplete;
+            const container = this.renderRoot.querySelector('#presentation-container');
+            if (container && this.lessonData?.presentation) {
+                container.innerHTML = '';
+                renderPresentation(container, this.lessonData.presentation);
+            }
         }
     }
 
     async _fetchLessonDetail() {
         this.isLoading = true;
         this.lessonData = null;
-        this._viewMode = 'hub'; // Reset to hub on new lesson
+        this._viewMode = 'hub';
         try {
             const docRef = doc(firebaseInit.db, "lessons", this.lessonId);
             const docSnap = await getDoc(docRef);
@@ -214,29 +211,9 @@ export class StudentLessonDetail extends LitElement {
     }
 
     _buildAvailableTabs() {
-        // Build tab list with metadata for the Hub
         const tabs = [];
-
-        // Helper to add tabs
         const addTab = (id, name, icon, description, colorClass) => {
-             // Check visibility logic:
-             // If visible_sections is undefined => All visible by default (legacy)
-             // If defined => Only if included
-             // NOTE: 'ai-assistant' and 'professor-chat' are always visible for now, or could have their own logic.
-             // For content types (text, video, etc.), we check the visibility.
-
              let isVisible = true;
-
-             // Mapping tab ID to content ID used in editor visibility
-             // text -> text
-             // video -> video
-             // presentation -> presentation
-             // podcast -> post (special mapping)
-             // quiz -> quiz
-             // test -> test
-             // flashcards -> flashcards
-             // mindmap -> mindmap
-
              const editorIdMap = {
                  'text': 'text',
                  'video': 'video',
@@ -247,14 +224,10 @@ export class StudentLessonDetail extends LitElement {
                  'flashcards': 'flashcards',
                  'mindmap': 'mindmap'
              };
-
              const editorId = editorIdMap[id];
-
-             // If it's a content tab, check visibility
              if (editorId && this.lessonData.visible_sections) {
                  isVisible = this.lessonData.visible_sections.includes(editorId);
              }
-
              if (isVisible) {
                  tabs.push({ id, name, icon, description, colorClass });
              }
@@ -262,29 +235,21 @@ export class StudentLessonDetail extends LitElement {
 
         if (this.lessonData.text_content)
             addTab('text', translationService.t('content_types.text'), '📝', translationService.t('content_types.text_desc'), 'bg-blue-50 text-blue-600');
-
         if (this.lessonData.youtube_link)
             addTab('video', translationService.t('content_types.video'), '🎬', translationService.t('content_types.video_desc'), 'bg-red-50 text-red-600');
-
         if (this.lessonData.presentation)
             addTab('presentation', translationService.t('content_types.presentation'), '📊', translationService.t('content_types.presentation_desc'), 'bg-orange-50 text-orange-600');
-
         if (this.lessonData.podcast_script)
             addTab('podcast', translationService.t('content_types.audio'), '🎙️', translationService.t('content_types.audio_desc'), 'bg-purple-50 text-purple-600');
-
         if (this.lessonData.quiz)
             addTab('quiz', translationService.t('content_types.quiz'), '❓', translationService.t('content_types.quiz_desc'), 'bg-green-50 text-green-600');
-
         if (this.lessonData.test)
             addTab('test', translationService.t('content_types.test'), '📝', translationService.t('content_types.test_desc'), 'bg-emerald-50 text-emerald-600');
-
         if (this.lessonData.flashcards)
             addTab('flashcards', translationService.t('content_types.flashcards'), '🗂️', translationService.t('content_types.flashcards_desc'), 'bg-yellow-50 text-yellow-600');
-
         if (this.lessonData.mindmap)
             addTab('mindmap', translationService.t('content_types.mindmap'), '🧠', translationService.t('content_types.mindmap_desc'), 'bg-pink-50 text-pink-600');
 
-        // Always available tools (for now, unless we want to hide them too)
         addTab('ai-assistant', 'AI Asistent', '🤖', 'Zeptejte se umělé inteligence', 'bg-indigo-50 text-indigo-600');
         addTab('professor-chat', 'Konzultace', '💬', 'Napište profesorovi', 'bg-slate-50 text-slate-600');
         
@@ -303,7 +268,6 @@ export class StudentLessonDetail extends LitElement {
     }
 
     _handleBackToHub() {
-        // Stop podcast if playing
         if (window.speechSynthesis && window.speechSynthesis.speaking) {
             window.speechSynthesis.cancel();
         }
@@ -331,16 +295,13 @@ export class StudentLessonDetail extends LitElement {
     }
 
     _renderHub() {
-        // Calculate progress
         const totalContentTabs = this.availableTabs.filter(t => !['ai-assistant', 'professor-chat'].includes(t.id)).length;
         const completedCount = this._progress?.completedSections?.length || 0;
-        // Ensure we don't show more than total (in case of legacy data or mismatches)
         const displayCompleted = Math.min(completedCount, totalContentTabs);
         const progressPercent = totalContentTabs > 0 ? Math.round((displayCompleted / totalContentTabs) * 100) : 0;
 
         return html`
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <!-- Header -->
                 <div class="mb-8">
                     <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                         <div>
@@ -351,7 +312,6 @@ export class StudentLessonDetail extends LitElement {
                             ${this.lessonData.subtitle ? html`<p class="text-lg text-slate-500 max-w-3xl">${this.lessonData.subtitle}</p>` : ''}
                         </div>
 
-                        <!-- Progress Widget -->
                         ${totalContentTabs > 0 ? html`
                             <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 min-w-[200px]">
                                 <div class="flex justify-between items-center mb-2">
@@ -366,7 +326,6 @@ export class StudentLessonDetail extends LitElement {
                     </div>
                 </div>
 
-                <!-- Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     ${this.availableTabs.map(tab => {
                         const isCompleted = this._progress?.completedSections?.includes(tab.id);
@@ -407,7 +366,6 @@ export class StudentLessonDetail extends LitElement {
 
         return html`
             <div class="flex flex-col min-h-screen bg-slate-50">
-                <!-- Sticky Header -->
                 <div class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
                     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
                         <button @click=${this._handleBackToHub} class="flex items-center text-slate-600 hover:text-indigo-600 font-medium transition-colors">
@@ -420,13 +378,12 @@ export class StudentLessonDetail extends LitElement {
                             ${activeTab ? activeTab.name : ''}
                         </div>
 
-                        <div class="w-8"></div> <!-- Spacer for centering -->
+                        <div class="w-8"></div>
                     </div>
                 </div>
 
-                <!-- Content Area -->
-                <div class="flex-grow max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
-                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 md:p-8 min-h-[500px]">
+                <div class="flex-grow max-w-5xl mx-auto w-full px-2 sm:px-6 lg:px-8 py-4 sm:py-8">
+                    <div class="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 p-4 sm:p-8 min-h-[500px]">
                         ${this._renderTabContent()}
                     </div>
                 </div>
@@ -434,53 +391,22 @@ export class StudentLessonDetail extends LitElement {
         `;
     }
 
-    _renderCompletionButton(sectionId, label = "Dokončit") {
-        const isCompleted = this._progress?.completedSections?.includes(sectionId);
-
-        return html`
-            <div class="mt-12 flex justify-center">
-                <button
-                    @click=${() => this._markSectionComplete(sectionId)}
-                    ?disabled=${isCompleted}
-                    class="px-8 py-3 rounded-full font-bold shadow-lg transition-all transform active:scale-95 flex items-center gap-2
-                    ${isCompleted
-                        ? 'bg-green-100 text-green-700 cursor-default shadow-none border border-green-200'
-                        : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-200 hover:-translate-y-1'}"
-                >
-                    ${isCompleted
-                        ? html`<span>Hotovo</span> <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`
-                        : html`<span>${label}</span> <span>✅</span>`}
-                </button>
-            </div>
-        `;
-    }
-
     _renderTabContent() {
-        // `renderPresentation` je špeciálny prípad, lebo manipuluje s DOM, musíme mu dať kontajner
         if (this.activeTabId === 'presentation') {
-            // Počkáme, kým sa tento div vyrenderuje, a potom doň vložíme prezentáciu
-            setTimeout(() => {
-                const contentArea = this.querySelector('#presentation-container');
-                if (contentArea) {
-                    renderPresentation(contentArea, this.lessonData.presentation);
-                }
-            }, 0);
             return html`
-                <div id="presentation-container"></div>
+                <div id="presentation-container" class="min-h-[400px]"></div>
                 ${this._renderCompletionButton('presentation', 'Prezentace prostudována')}
             `;
         }
         
-        // Ostatné prípady
         switch (this.activeTabId) {
             case 'text':
-                // ==== ZMENA: Použijeme marked.parse() na prevod Markdown na HTML ====
                 if (typeof marked === 'undefined') {
                     console.error("Knižnica marked.js nie je načítaná!");
                     return html`<p class="text-red-500">Chyba: Nepodarilo sa spracovať formátovanie textu.</p>`;
                 }
                 const textContentDiv = document.createElement('div');
-                textContentDiv.className = "prose prose-indigo max-w-none prose-lg"; // Added prose-indigo and prose-lg
+                textContentDiv.className = "prose prose-indigo max-w-none prose-lg";
                 textContentDiv.innerHTML = marked.parse(this.lessonData.text_content || ''); 
                 return html`
                     ${textContentDiv}
