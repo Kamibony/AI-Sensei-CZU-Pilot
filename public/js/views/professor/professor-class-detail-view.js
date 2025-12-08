@@ -14,7 +14,9 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
         _activeTab: { state: true, type: String },
         _isLoading: { state: true, type: Boolean },
         _showLessonSelector: { state: true, type: Boolean },
-        _grades: { state: true, type: Array } // Array of submissions
+        _grades: { state: true, type: Array }, // Array of submissions
+        _isRenameModalOpen: { state: true, type: Boolean },
+        _renameInputVal: { state: true, type: String }
     };
 
     constructor() {
@@ -28,6 +30,8 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
         this._isLoading = true;
         this._showLessonSelector = false;
         this._grades = [];
+        this._isRenameModalOpen = false;
+        this._renameInputVal = '';
         this.unsubscribes = [];
     }
 
@@ -214,14 +218,20 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
         });
     }
 
-    async _handleRenameClass() {
-        const newName = prompt(this.t('class.rename_prompt'), this._group.name);
-        if (newName && newName.trim() !== "") {
+    _handleRenameClass() {
+        this._renameInputVal = this._group.name;
+        this._isRenameModalOpen = true;
+    }
+
+    async _submitRenameClass() {
+        const newName = this._renameInputVal.trim();
+        if (newName && newName !== "") {
             try {
                 await updateDoc(doc(firebaseInit.db, 'groups', this.groupId), {
-                    name: newName.trim()
+                    name: newName
                 });
                 showToast(this.t('class.renamed_success'));
+                this._isRenameModalOpen = false;
             } catch (e) {
                 console.error(e);
                 showToast(`${this.t('common.error')}: ${e.message}`, true);
@@ -404,6 +414,28 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
 
                 <!-- Lesson Selector Modal -->
                 ${this._showLessonSelector ? this._renderLessonSelector() : ''}
+
+                <!-- Rename Modal -->
+                ${this._isRenameModalOpen ? html`
+                    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" @click=${(e) => { if(e.target === e.currentTarget) this._isRenameModalOpen = false }}>
+                        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm transform transition-all scale-100 animate-fade-in-up">
+                            <h3 class="text-xl font-bold mb-4 text-slate-900">${this.t('class.rename_prompt')}</h3>
+
+                            <input
+                                type="text"
+                                class="w-full border-2 border-slate-200 rounded-xl p-3 mb-6 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all font-bold text-slate-700"
+                                .value=${this._renameInputVal}
+                                @input=${e => this._renameInputVal = e.target.value}
+                                @keypress=${e => e.key === 'Enter' && this._submitRenameClass()}
+                                autofocus
+                            >
+                            <div class="flex justify-end gap-3">
+                                <button class="px-4 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors" @click=${() => this._isRenameModalOpen = false}>${this.t('common.cancel')}</button>
+                                <button class="px-6 py-2 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all transform active:scale-95" @click=${this._submitRenameClass}>${this.t('common.save')}</button>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
             </div>
         `;
     }

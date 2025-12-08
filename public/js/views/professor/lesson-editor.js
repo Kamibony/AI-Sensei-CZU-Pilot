@@ -101,10 +101,30 @@ export class LessonEditor extends LitElement {
             const oldLesson = changedProperties.get('lesson');
             const newLesson = this.lesson;
 
-            // Resetujeme len ak sa zmenilo ID (úplne iná lekcia)
-            const isDifferentLesson = oldLesson?.id !== newLesson?.id;
+            const oldId = oldLesson?.id;
+            const newId = newLesson?.id;
 
-            if (isDifferentLesson) {
+            // Smart Reset Logic:
+            // 1. If switching from one valid ID to another valid ID -> Reset (Different Lesson)
+            // 2. If loading for the first time (old is undefined) and new has ID -> Reset (Opening existing)
+            // 3. If saving a draft (old.id undefined -> new.id defined) -> DO NOT RESET
+            // 4. If creating new (old.id defined -> new.id undefined) -> Reset (New Lesson)
+
+            let shouldReset = false;
+
+            if (!oldLesson && newLesson) {
+                // First load. If it's a specific lesson (has ID) or new draft, treat as init.
+                shouldReset = true;
+            } else if (oldLesson && newLesson) {
+                if (oldId && newId && oldId !== newId) {
+                    shouldReset = true; // Switching lessons
+                } else if (oldId && !newId) {
+                    shouldReset = true; // Switching to new draft
+                }
+                // Explicitly: if (!oldId && newId) -> Draft saved. NO RESET.
+            }
+
+            if (shouldReset) {
                 loadSelectedFiles(newLesson?.ragFilePaths || []);
                 this._currentStep = 1;
                 if (newLesson?.id) {
@@ -115,7 +135,7 @@ export class LessonEditor extends LitElement {
                     this._selectedContentType = 'text';
                 }
             } 
-            // Ak je to tá istá lekcia, len aktualizujeme súbory ak treba, ale neresetujeme viewMode
+            // Ak je to tá istá lekcia, len aktualizujeme súbory ak treba
             else if (newLesson?.ragFilePaths && JSON.stringify(oldLesson?.ragFilePaths) !== JSON.stringify(newLesson.ragFilePaths)) {
                  loadSelectedFiles(newLesson.ragFilePaths);
             }
@@ -157,8 +177,11 @@ export class LessonEditor extends LitElement {
     }
 
     updated(changedProperties) {
-        // Only re-initialize upload if we specifically switched TO Step 1
-        if (changedProperties.has('_currentStep') && this._currentStep === 1) {
+        // Re-initialize upload whenever we are in 'settings' view and relevant properties changed
+        const viewModeChanged = changedProperties.has('_viewMode');
+        const stepChanged = changedProperties.has('_currentStep');
+
+        if ((viewModeChanged || stepChanged) && this._viewMode === 'settings') {
             setTimeout(() => {
                 initializeCourseMediaUpload('main-course', () => {
                      const currentFiles = getSelectedFiles();
@@ -741,59 +764,63 @@ export class LessonEditor extends LitElement {
     render() {
         const t = (key) => translationService.t(key);
         return html`
-            <div class="h-full bg-white overflow-y-auto">
-                <div class="px-6 py-8 flex flex-col h-full">
+            <div class="h-full bg-white flex flex-col overflow-hidden">
+                <!-- Header (Fixed) -->
+                <div class="flex-none px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white z-10">
+                    <button @click=${this._handleBackClick} class="group flex items-center text-sm font-medium text-slate-400 hover:text-slate-900 transition-colors">
+                        <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center mr-2 group-hover:bg-slate-100 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                        </div>
+                        ${t('common.close')}
+                    </button>
+                    ${this.lesson?.id ? html`<span class="text-xs font-mono text-slate-300 uppercase tracking-widest">${t('common.id')}: ${this.lesson.id.substring(0,6)}</span>` : ''}
+                </div>
 
-                    <header class="flex items-center justify-between mb-6">
-                        <button @click=${this._handleBackClick} class="group flex items-center text-sm font-medium text-slate-400 hover:text-slate-900 transition-colors">
-                            <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center mr-2 group-hover:bg-slate-100 transition-colors">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                            </div>
-                            ${t('common.close')}
-                        </button>
-                        ${this.lesson?.id ? html`<span class="text-xs font-mono text-slate-300 uppercase tracking-widest">${t('common.id')}: ${this.lesson.id.substring(0,6)}</span>` : ''}
-                    </header>
+                <!-- Main Content (Scrollable Area) -->
+                <div class="flex-grow overflow-hidden relative">
 
-                    <div class="flex-grow relative">
+                    <!-- SETTINGS VIEW (3-Column Fixed) -->
+                    <div class="${this._viewMode === 'settings' ? 'flex' : 'hidden'} flex-col h-full animate-fade-in">
 
-                        <div class="${this._viewMode === 'settings' ? 'block' : 'hidden'} animate-fade-in space-y-6">
-                             
-                             <div class="flex justify-between items-end mb-4">
-                                <h2 class="text-3xl font-bold text-slate-900">${t('editor.settings_title')}</h2>
-                             </div>
+                         <div class="flex-none px-6 py-4">
+                            <h2 class="text-3xl font-bold text-slate-900">${t('editor.settings_title')}</h2>
+                         </div>
 
-                             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start h-full">
-                                
-                                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-full">
-                                    <h3 class="font-bold text-slate-700 mb-4 flex items-center">1. Základní údaje</h3>
-                                    <div class="space-y-6">
-                                        <div class="relative">
-                                            <input type="text" id="lesson-title-input"
-                                                class="block px-2.5 pb-2.5 pt-4 w-full text-lg font-bold text-slate-900 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
-                                                placeholder=" "
-                                                .value="${this.lesson?.title || ''}" />
-                                            <label for="lesson-title-input"
-                                                class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
-                                                ${t('editor.label_title')}
-                                            </label>
-                                        </div>
+                         <div class="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 px-6 pb-4 overflow-hidden min-h-0">
 
-                                        <div class="relative">
-                                            <input type="text" id="lesson-subtitle-input"
-                                                class="block px-2.5 pb-2.5 pt-4 w-full text-md text-slate-600 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
-                                                placeholder=" "
-                                                .value="${this.lesson?.subtitle || ''}" />
-                                            <label for="lesson-subtitle-input"
-                                                class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
-                                                ${t('editor.label_subtitle')}
-                                            </label>
-                                        </div>
+                            <!-- Column 1: Basic Info -->
+                            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-full flex flex-col overflow-hidden">
+                                <h3 class="font-bold text-slate-700 mb-4 flex-none">1. Základní údaje</h3>
+                                <div class="flex-grow overflow-y-auto custom-scrollbar pr-2 space-y-6">
+                                    <div class="relative">
+                                        <input type="text" id="lesson-title-input"
+                                            class="block px-2.5 pb-2.5 pt-4 w-full text-lg font-bold text-slate-900 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
+                                            placeholder=" "
+                                            .value="${this.lesson?.title || ''}" />
+                                        <label for="lesson-title-input"
+                                            class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
+                                            ${t('editor.label_title')}
+                                        </label>
+                                    </div>
+
+                                    <div class="relative">
+                                        <input type="text" id="lesson-subtitle-input"
+                                            class="block px-2.5 pb-2.5 pt-4 w-full text-md text-slate-600 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
+                                            placeholder=" "
+                                            .value="${this.lesson?.subtitle || ''}" />
+                                        <label for="lesson-subtitle-input"
+                                            class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
+                                            ${t('editor.label_subtitle')}
+                                        </label>
                                     </div>
                                 </div>
+                            </div>
 
-                                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-full">
-                                    <h3 class="font-bold text-slate-700 mb-4 flex items-center">2. Přiřadit třídě</h3>
-                                    <div class="space-y-2 border rounded-lg p-3 bg-slate-50 max-h-60 overflow-y-auto custom-scrollbar">
+                            <!-- Column 2: Classes -->
+                            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-full flex flex-col overflow-hidden">
+                                <h3 class="font-bold text-slate-700 mb-4 flex-none">2. Přiřadit třídě</h3>
+                                <div class="flex-grow overflow-y-auto custom-scrollbar pr-2">
+                                     <div class="space-y-2">
                                         ${this._groups.length > 0 ? this._groups.map(group => html`
                                             <div class="flex items-center p-2 hover:bg-white rounded transition-colors">
                                                 <input type="checkbox"
@@ -807,10 +834,13 @@ export class LessonEditor extends LitElement {
                                         `) : html`
                                             <p class="text-xs text-slate-500">${translationService.t('lesson.no_classes')}</p>
                                         `}
-                                    </div>
+                                     </div>
                                 </div>
+                            </div>
 
-                                <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center transition-all hover:border-indigo-300 hover:bg-indigo-50/30 group h-full flex flex-col justify-center relative" id="course-media-upload-area">
+                            <!-- Column 3: Files -->
+                            <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-6 transition-all hover:border-indigo-300 hover:bg-indigo-50/30 group h-full flex flex-col overflow-hidden relative" id="course-media-upload-area">
+                                <div class="flex-none text-center">
                                     <h3 class="font-bold text-slate-700 mb-2">3. Podklady (Súbory)</h3>
                                     <div class="mb-2">
                                         <span class="text-3xl group-hover:scale-110 transition-transform inline-block">📄</span>
@@ -828,25 +858,31 @@ export class LessonEditor extends LitElement {
                                     <input type="file" id="course-media-file-input" class="hidden" multiple accept=".pdf,.txt,.docx,.pptx">
 
                                     <div id="upload-progress-container" class="hidden mt-2 w-full"></div>
-                                    <ul id="course-media-list-container" class="text-left text-xs space-y-1 max-h-32 overflow-y-auto w-full px-2"></ul>
                                 </div>
-                             </div>
 
-                             <div class="flex flex-col sm:flex-row gap-4 justify-center pt-4 border-t border-slate-100 mt-4">
-                                <button @click=${this._handleMagicGeneration} ?disabled=${this._isLoading}
-                                    class="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center text-lg transform active:scale-95">
-                                    ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> ${t('common.loading')}` : html`✨ ${t('lesson.magic_btn')}`}
-                                </button>
-
-                                <button @click=${this._switchToHub} ?disabled=${this._isLoading}
-                                    class="flex-1 py-4 px-6 rounded-xl bg-white border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-center text-lg">
-                                    ${t('editor.btn_continue_content')} <span class="ml-2">→</span>
-                                </button>
+                                <div class="flex-grow overflow-y-auto custom-scrollbar mt-4 w-full">
+                                     <ul id="course-media-list-container" class="text-left text-xs space-y-1 w-full px-2"></ul>
+                                </div>
                             </div>
+                         </div>
+
+                         <!-- Footer Buttons (Fixed) -->
+                         <div class="flex-none px-6 py-4 border-t border-slate-100 bg-white z-10 flex flex-col sm:flex-row gap-4 justify-center">
+                            <button @click=${this._handleMagicGeneration} ?disabled=${this._isLoading}
+                                class="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center text-lg transform active:scale-95">
+                                ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> ${t('common.loading')}` : html`✨ ${t('lesson.magic_btn')}`}
+                            </button>
+
+                            <button @click=${this._switchToHub} ?disabled=${this._isLoading}
+                                class="flex-1 py-4 px-6 rounded-xl bg-white border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-center text-lg">
+                                ${t('editor.btn_continue_content')} <span class="ml-2">→</span>
+                            </button>
                         </div>
+                    </div>
 
-                        <div class="${this._viewMode === 'hub' ? 'block' : 'hidden'} animate-fade-in flex flex-col h-full">
-
+                    <!-- HUB VIEW (Scrollable) -->
+                    <div class="${this._viewMode === 'hub' ? 'block' : 'hidden'} h-full overflow-y-auto animate-fade-in custom-scrollbar">
+                        <div class="px-6 py-8">
                             <div class="text-center mb-10 relative">
                                 <h1 class="text-3xl font-bold text-slate-900 mb-2">${this.lesson?.title || t('professor.new_lesson_card')}</h1>
 
@@ -868,15 +904,12 @@ export class LessonEditor extends LitElement {
                                 </button>
                             </div>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full px-6">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
                                 ${this.contentTypes.map(type => {
                                     // Check if content exists
                                     const hasContent = this.lesson && ((type.id === 'text' && this.lesson.text_content) || (type.id !== 'text' && this.lesson[type.id]));
                                     // Check visibility logic:
-                                    // If visible_sections is undefined => All visible by default (legacy)
-                                    // If defined => Only if included
                                     const isVisible = !this.lesson?.visible_sections || this.lesson.visible_sections.includes(type.id);
-
                                     const stats = this._getContentStats(type);
 
                                     return html`
@@ -887,10 +920,6 @@ export class LessonEditor extends LitElement {
                                                  class="absolute top-4 right-4 p-2 rounded-full shadow-sm z-10 transition-colors ${isVisible ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'}"
                                                  title="${isVisible ? t('common.visible_tooltip') : t('common.hidden_tooltip')}">
                                                 <span class="text-lg leading-none">${isVisible ? '👁️' : '👁️‍🗨️'}</span>
-                                            </div>
-
-                                            <div class="absolute top-0 left-0 p-5 opacity-0 group-hover:opacity-100 transition-all transform -translate-x-2 group-hover:translate-x-0">
-                                                <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
                                             </div>
 
                                             <div class="w-20 h-20 rounded-2xl bg-slate-50 flex items-center justify-center text-4xl shadow-sm mb-4 group-hover:scale-110 transition-transform duration-300 group-hover:bg-indigo-50">
@@ -932,23 +961,24 @@ export class LessonEditor extends LitElement {
                                 </button>
                             </div>
                         </div>
-
-                        <div class="${this._viewMode === 'editor' ? 'block' : 'hidden'} h-full animate-fade-in flex flex-col">
-                            <div class="mb-6 flex items-center justify-end w-full px-6">
-                                <h3 class="font-bold text-slate-800 text-lg flex items-center">
-                                    <span class="mr-2 text-2xl">${this.contentTypes.find(t => t.id === this._selectedContentType)?.icon}</span>
-                                    ${this.contentTypes.find(t => t.id === this._selectedContentType)?.label}
-                                </h3>
-                            </div>
-
-                            <div id="active-editor-content" class="flex-grow bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 p-1 overflow-hidden w-full px-6">
-                                <div class="h-full overflow-y-auto custom-scrollbar">
-                                     ${this.renderEditorContent(this._selectedContentType)}
-                                </div>
-                            </div>
-
-                            </div>
                     </div>
+
+                    <!-- EDITOR VIEW (Full Height) -->
+                    <div class="${this._viewMode === 'editor' ? 'flex' : 'hidden'} flex-col h-full animate-fade-in">
+                         <!-- Editor Content -->
+                         <div class="flex-none mb-6 px-6 pt-6 flex items-center justify-end">
+                            <h3 class="font-bold text-slate-800 text-lg flex items-center">
+                                <span class="mr-2 text-2xl">${this.contentTypes.find(t => t.id === this._selectedContentType)?.icon}</span>
+                                ${this.contentTypes.find(t => t.id === this._selectedContentType)?.label}
+                            </h3>
+                         </div>
+                         <div id="active-editor-content" class="flex-grow bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 p-1 mx-6 mb-6 overflow-hidden flex flex-col">
+                             <div class="h-full overflow-y-auto custom-scrollbar">
+                                 ${this.renderEditorContent(this._selectedContentType)}
+                             </div>
+                         </div>
+                    </div>
+
                 </div>
 
                 ${this._showStudentPreview ? html`
