@@ -565,7 +565,13 @@ export class LessonEditor extends LitElement {
     }
 
     _handleBackClick() {
-        // Updated Nav: Go to Timeline (Library) instead of Dashboard
+        // 1. If deep inside an editor (e.g. Presentation), just go back to Hub
+        if (this._viewMode === 'editor') {
+            this._switchToHub();
+            return;
+        }
+
+        // 2. Otherwise (if in Hub or Settings), leave the lesson editor entirely
         this.dispatchEvent(new CustomEvent('navigate', {
             detail: { view: 'timeline' },
             bubbles: true,
