@@ -11,6 +11,7 @@ const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 const cors = require("cors");
 const fetch = require("node-fetch");
+const textToSpeech = require('@google-cloud/text-to-speech'); // Import pre TTS
 
 // Lazy load heavy dependencies
 // const GeminiAPI = require("./gemini-api.js");
@@ -44,10 +45,89 @@ async function sendTelegramMessage(chatId: number, text: string) {
     }
 }
 
+// NOVÁ FUNKCIA: Generovanie profesionálneho audia (MP3) pomocou Google Cloud TTS
+exports.generatePodcastAudio = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validácia a Autorizácia
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Len profesor môže generovať audio.");
+    }
+
+    const { lessonId, text, language } = request.data;
+    if (!lessonId || !text) {
+        throw new HttpsError("invalid-argument", "Chýba ID lekcie alebo text.");
+    }
+
+    try {
+        logger.log(`Starting audio generation for lesson ${lessonId}...`);
+
+        // 2. Inicializácia klienta
+        const client = new textToSpeech.TextToSpeechClient();
+
+        // 3. Konfigurácia požiadavky
+        const requestPayload = {
+            input: { text: text },
+            // Výber hlasu: Použijeme kvalitný 'Neural2' alebo 'Wavenet' hlas
+            voice: {
+                languageCode: language || 'cs-CZ',
+                // Skvelý český hlas (Wavenet-A je žena, Wavenet-B je muž)
+                name: (language === 'pt-br') ? 'pt-BR-Neural2-B' : 'cs-CZ-Wavenet-A'
+            },
+            audioConfig: {
+                audioEncoding: 'MP3',
+                speakingRate: 1.0,
+                pitch: 0.0
+            },
+        };
+
+        // 4. Volanie Google API
+        const [response] = await client.synthesizeSpeech(requestPayload);
+        const audioBuffer = response.audioContent;
+
+        if (!audioBuffer) {
+            throw new HttpsError("internal", "Google TTS nevrátil žiadne audio dáta.");
+        }
+
+        logger.log("Audio generated successfully. Uploading to Storage...");
+
+        // 5. Uloženie do Firebase Storage
+        const bucket = getStorage().bucket(STORAGE_BUCKET);
+        const filePath = `podcasts/${lessonId}.mp3`;
+        const file = bucket.file(filePath);
+
+        await file.save(audioBuffer, {
+            metadata: {
+                contentType: 'audio/mpeg',
+                metadata: {
+                    lessonId: lessonId,
+                    generatedBy: request.auth.uid
+                }
+            }
+        });
+
+        logger.log(`Audio uploaded to ${filePath}. Updating Firestore...`);
+
+        // 7. Aktualizácia dokumentu lekcie
+        await db.collection("lessons").doc(lessonId).update({
+            podcast_audio_path: filePath, // Uložíme cestu k súboru
+            podcast_generated_at: FieldValue.serverTimestamp()
+        });
+
+        return { success: true, storagePath: filePath };
+
+    } catch (error: any) {
+        logger.error("Error generating podcast audio:", error);
+        throw new HttpsError("internal", `Audio generation failed: ${error.message}`);
+    }
+});
+
 // ZJEDNOTENÁ FUNKCIA PRE VŠETKY AI OPERÁCIE
 exports.generateContent = onCall({
     region: DEPLOY_REGION,
-    timeoutSeconds: 300, // <-- ZMENENÉ (5 minút)
+    timeoutSeconds: 300, // (5 minút)
     memory: "1GiB",
     cors: true
 }, async (request: CallableRequest) => {
@@ -71,7 +151,6 @@ exports.generateContent = onCall({
         if (isJson) {
             switch(contentType) {
                 case "presentation":
-                    // ===== APLIKOVANÁ ZMENA: Prísna kontrola namiesto predvolenej hodnoty =====
                     
                     logger.log("Generating presentation, received slide_count:", promptData.slide_count);
                     
@@ -96,7 +175,6 @@ exports.generateContent = onCall({
                     logger.log(`Final prompt will use ${requestedCount} slides.`);
                     
                     break;
-                    // ===== KONIEC ZMENY =====
 
                 case "quiz":
                     finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number). ${langInstruction}`;
@@ -1121,7 +1199,7 @@ throw new HttpsError("internal", "Nepodarilo sa vygenerovať URL na nahrávanie.
 // 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí (S DETAILNÝM LOGOVANÍM)
 exports.finalizeUpload = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     if (!request.auth) {
-        throw new HttpsError("unauthenticated", "Musíte byť prihlásený.");
+        throw new HttpsError("unauthenticated", "Musíte být prihlásený.");
     }
 
     const { docId, filePath } = request.data;
