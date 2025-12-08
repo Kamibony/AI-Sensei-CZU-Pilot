@@ -939,7 +939,7 @@ exports.joinClass = onCall({ region: DEPLOY_REGION }, async (request: CallableRe
 
 exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, async (request: CallableRequest) => {
     logger.log("registerUserWithRole called", { data: request.data });
-    const { email, password, role } = request.data;
+    const { email, password, role, displayName } = request.data;
 
     // Validate role
     if (role !== "professor" && role !== "student") {
@@ -955,6 +955,7 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, asy
         const userRecord = await getAuth().createUser({
             email: email,
             password: password,
+            displayName: displayName || ""
         });
         const userId = userRecord.uid;
 
@@ -966,6 +967,7 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, asy
         await userDocRef.set({
             email: email,
             role: role,
+            name: displayName || "", // Save name to users collection
             createdAt: FieldValue.serverTimestamp(),
         });
 
@@ -976,7 +978,7 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, asy
                 email: email,
                 role: "student", // Redundant but kept for consistency
                 createdAt: FieldValue.serverTimestamp(),
-                name: "" // Empty name for consistency
+                name: displayName || "" // Save name to students collection
             });
         }
 
