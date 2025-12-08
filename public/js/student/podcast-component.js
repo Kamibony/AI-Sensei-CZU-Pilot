@@ -1,17 +1,19 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { getStorage, ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { translationService } from '../utils/translation-service.js';
 
 export class PodcastComponent extends LitElement {
     static properties = {
-        podcastData: { type: Object },
+        podcastData: { type: Object }, // Obsahuje text skriptu
+        audioPath: { type: String },   // Cesta k MP3 v Storage (z lessonData.podcast_audio_path)
+        
+        _audioUrl: { state: true },
         _isPlaying: { state: true },
-        _currentEpisodeIndex: { state: true },
+        _currentTime: { state: true },
+        _duration: { state: true },
         _playbackRate: { state: true },
-        _voices: { state: true },
-        _selectedVoiceIndex: { state: true },
-        _progress: { state: true },
-        _currentSentenceIndex: { state: true }, // Sledujeme vetu
-        _sentences: { state: true } // Rozkúskovaný text
+        _isLoading: { state: true },
+        _error: { state: true }
     };
 
     static styles = css`
@@ -25,338 +27,216 @@ export class PodcastComponent extends LitElement {
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             max-width: 800px;
             margin: 0 auto;
-            position: relative;
-            overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        .player-header { text-align: center; margin-bottom: 2rem; position: relative; z-index: 10; }
+        .player-header { text-align: center; margin-bottom: 2rem; }
         .episode-title { 
             font-size: 1.5rem; font-weight: 800; margin-bottom: 0.5rem; 
             background: linear-gradient(to right, #e0e7ff, #a5b4fc); 
             -webkit-background-clip: text; -webkit-text-fill-color: transparent; 
         }
-        .podcast-meta { color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; }
-
-        /* Vizualizér */
-        .visualizer-container {
-            height: 60px; display: flex; align-items: center; justify-content: center; gap: 4px; margin: 2rem 0;
+        .status-badge { 
+            display: inline-block; padding: 4px 12px; border-radius: 99px; 
+            font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
+            background: rgba(99, 102, 241, 0.2); color: #a5b4fc; margin-bottom: 10px;
         }
-        .bar {
-            width: 6px; background: #6366f1; border-radius: 99px; height: 10%; transition: height 0.15s ease;
-            box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
-        }
-        .bar.animating { animation: bounce 1s infinite ease-in-out; }
-        .bar:nth-child(odd) { animation-duration: 0.7s; }
-        .bar:nth-child(2n) { animation-duration: 1.1s; }
-        .bar:nth-child(3n) { animation-duration: 0.9s; }
-        @keyframes bounce { 0%, 100% { height: 15%; opacity: 0.5; } 50% { height: 100%; opacity: 1; background: #a5b4fc; } }
 
         /* Controls */
-        .controls { display: flex; align-items: center; justify-content: center; gap: 2rem; margin-bottom: 2rem; position: relative; z-index: 10; }
+        .controls { display: flex; align-items: center; justify-content: center; gap: 2rem; margin-bottom: 2rem; }
         button { background: none; border: none; cursor: pointer; color: white; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
-        .btn-main { width: 72px; height: 72px; border-radius: 50%; background: #6366f1; box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4); }
-        .btn-main:hover { transform: scale(1.05); background: #4f46e5; box-shadow: 0 15px 35px rgba(99, 102, 241, 0.6); }
-        .btn-secondary { color: #94a3b8; padding: 10px; border-radius: 50%; }
-        .btn-secondary:hover { color: white; background: rgba(255,255,255,0.1); }
-        .speed-control { font-size: 0.85rem; font-weight: 700; width: 42px; height: 42px; border: 2px solid #334155; border-radius: 12px; color: #cbd5e1; }
-        .speed-control:hover { border-color: #6366f1; color: white; background: rgba(99, 102, 241, 0.1); }
-
-        /* Progress */
-        .progress-container { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-bottom: 2.5rem; position: relative; cursor: pointer; }
-        .progress-bar { height: 100%; background: linear-gradient(90deg, #6366f1, #a5b4fc); border-radius: 3px; position: relative; transition: width 0.3s ease; }
-        .progress-thumb { position: absolute; right: -6px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; background: white; border-radius: 50%; box-shadow: 0 0 15px rgba(255,255,255,0.5); }
-
-        /* Script & Playlist */
-        .content-area { display: grid; gap: 1.5rem; }
-        .playlist { background: rgba(0,0,0,0.2); border-radius: 16px; padding: 1rem; border: 1px solid rgba(255,255,255,0.05); }
-        .playlist-item { display: flex; align-items: center; padding: 0.75rem 1rem; border-radius: 10px; cursor: pointer; transition: all 0.2s; color: #94a3b8; }
-        .playlist-item:hover { background: rgba(255,255,255,0.05); color: white; }
-        .playlist-item.active { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; font-weight: 600; }
         
+        .btn-main { 
+            width: 72px; height: 72px; border-radius: 50%; background: #6366f1; 
+            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4); 
+        }
+        .btn-main:hover:not(:disabled) { transform: scale(1.05); background: #4f46e5; }
+        .btn-main:disabled { background: #334155; cursor: not-allowed; box-shadow: none; }
+
+        .btn-seek { color: #94a3b8; }
+        .btn-seek:hover { color: white; }
+
+        .speed-control { 
+            font-size: 0.85rem; font-weight: 700; width: 42px; height: 42px; 
+            border: 2px solid #334155; border-radius: 12px; color: #cbd5e1; 
+        }
+        .speed-control:hover { border-color: #6366f1; color: white; }
+
+        /* Progress Bar */
+        .progress-wrapper { margin-bottom: 2rem; }
+        .time-info { display: flex; justify-content: space-between; font-size: 0.8rem; color: #94a3b8; margin-top: 8px; font-variant-numeric: tabular-nums; }
+        
+        input[type=range] {
+            width: 100%; -webkit-appearance: none; background: transparent; cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 16px; width: 16px; border-radius: 50%; background: #fff; cursor: pointer;
+            -webkit-appearance: none; margin-top: -5px; box-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+
         .script-container {
             padding: 1.5rem; background: rgba(255,255,255,0.03); border-radius: 16px;
-            max-height: 250px; overflow-y: auto; font-size: 1rem; line-height: 1.7; color: #cbd5e1;
+            max-height: 200px; overflow-y: auto; font-size: 0.95rem; line-height: 1.7; color: #cbd5e1;
             border: 1px solid rgba(255,255,255,0.05);
-            scroll-behavior: smooth;
         }
-        .script-sentence { padding: 2px 4px; border-radius: 4px; transition: all 0.3s; }
-        .script-sentence.active { background: rgba(99, 102, 241, 0.2); color: white; box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.4); }
         
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-        ::-webkit-scrollbar-track { background: transparent; }
+        /* Loading/Error States */
+        .loading-pulse { animation: pulse 2s infinite; opacity: 0.7; }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+        .error-msg { color: #ef4444; text-align: center; padding: 1rem; background: rgba(239,68,68,0.1); border-radius: 12px; }
     `;
 
     constructor() {
         super();
         this._isPlaying = false;
-        this._currentEpisodeIndex = 0;
-        this._currentSentenceIndex = 0;
+        this._currentTime = 0;
+        this._duration = 0;
         this._playbackRate = 1.0;
-        this._voices = [];
-        this._selectedVoiceIndex = 0;
-        this._utterance = null;
-        this._sentences = [];
+        this._isLoading = false;
+        this._audio = new Audio();
+        
+        // Bind audio events
+        this._audio.addEventListener('loadedmetadata', () => {
+            this._duration = this._audio.duration;
+            this._isLoading = false;
+        });
+        this._audio.addEventListener('timeupdate', () => {
+            this._currentTime = this._audio.currentTime;
+        });
+        this._audio.addEventListener('ended', () => {
+            this._isPlaying = false;
+            this.dispatchEvent(new CustomEvent('podcast-completed', { bubbles: true, composed: true }));
+        });
+        this._audio.addEventListener('play', () => this._isPlaying = true);
+        this._audio.addEventListener('pause', () => this._isPlaying = false);
     }
 
     connectedCallback() {
         super.connectedCallback();
-        // Load voices robustly
-        this._loadVoices();
-        if (window.speechSynthesis) {
-            window.speechSynthesis.onvoiceschanged = () => this._loadVoices();
-            // Safety cleanup on init
-            window.speechSynthesis.cancel();
+        if (this.audioPath) {
+            this._loadAudioUrl();
         }
-        // Prepare first episode
-        this._prepareEpisode(0);
+    }
+
+    updated(changedProperties) {
+        if (changedProperties.has('audioPath') && this.audioPath) {
+            this._loadAudioUrl();
+        }
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
-        window.speechSynthesis.cancel();
+        this._audio.pause();
+        this._audio.src = "";
     }
 
-    _loadVoices() {
-        const allVoices = window.speechSynthesis.getVoices();
-        if (allVoices.length === 0) return;
-
-        // Prioritize CS/SK, high quality
-        this._voices = allVoices.sort((a, b) => {
-            const scoreA = (a.lang.includes('cs') || a.lang.includes('sk') ? 10 : 0) + (a.name.includes('Google') ? 1 : 0);
-            const scoreB = (b.lang.includes('cs') || b.lang.includes('sk') ? 10 : 0) + (b.name.includes('Google') ? 1 : 0);
-            return scoreB - scoreA;
-        });
-
-        // Set default if found
-        const currentLang = translationService.currentLanguage || 'cs';
-        const defaultIndex = this._voices.findIndex(v => v.lang.toLowerCase().includes(currentLang));
-        if (defaultIndex !== -1) this._selectedVoiceIndex = defaultIndex;
-    }
-
-    get episodes() {
-        // Robust data parsing
-        let data = this.podcastData;
-        if (!data) return [];
-        
-        // Handle stringified JSON from Firestore
-        if (typeof data === 'string') {
-            try { data = JSON.parse(data); } catch(e) { /* Raw string */ }
+    async _loadAudioUrl() {
+        this._isLoading = true;
+        this._error = null;
+        try {
+            const storage = getStorage();
+            const storageRef = ref(storage, this.audioPath);
+            const url = await getDownloadURL(storageRef);
+            this._audioUrl = url;
+            this._audio.src = url;
+            // Note: We don't auto-play to respect browser policies, user must click play
+        } catch (error) {
+            console.error("Error loading podcast audio:", error);
+            this._error = "Nepodarilo sa načítať audio súbor. Možno ešte nebol vygenerovaný.";
+            this._isLoading = false;
         }
-
-        // Support array, object with episodes, or single object
-        if (Array.isArray(data)) return data;
-        if (data.episodes && Array.isArray(data.episodes)) return data.episodes;
-        if (data.title && data.script) return [data];
-        
-        // Fallback for raw text
-        return [{ title: translationService.t('podcast.episode_default'), script: typeof data === 'string' ? data : "No content" }];
-    }
-
-    _prepareEpisode(index) {
-        if (!this.episodes[index]) return;
-        
-        // Clean markdown and split into sentences
-        const rawScript = this.episodes[index].script || "";
-        const cleanText = rawScript.replace(/[*#_`]/g, ''); // Remove markdown
-        
-        // Split by punctuation but keep delimiters to be smart
-        // Regex: Split by . ! ? but exclude common abbreviations if possible (simplified here)
-        this._sentences = cleanText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleanText];
-        
-        // Filter empty
-        this._sentences = this._sentences.map(s => s.trim()).filter(s => s.length > 0);
-        
-        this._currentEpisodeIndex = index;
-        this._currentSentenceIndex = 0;
-        this._progress = 0;
     }
 
     _togglePlay() {
-        if (this._isPlaying) {
-            this._pause();
-        } else {
-            this._play();
-        }
+        if (this._isPlaying) this._audio.pause();
+        else this._audio.play();
     }
 
-    _play() {
-        if (this._sentences.length === 0) return;
-
-        // If paused, resume
-        if (window.speechSynthesis.paused && this._isPlaying) {
-            window.speechSynthesis.resume();
-            return;
-        }
-
-        // Safety: ensure speaking is true
-        this._isPlaying = true;
-        this._speakNextSentence();
+    _seek(e) {
+        const time = Number(e.target.value);
+        this._audio.currentTime = time;
+        this._currentTime = time;
     }
 
-    _speakNextSentence() {
-        // Check if finished
-        if (this._currentSentenceIndex >= this._sentences.length) {
-            this._isPlaying = false;
-            // Auto-next episode?
-            if (this._currentEpisodeIndex < this.episodes.length - 1) {
-                setTimeout(() => this._selectEpisode(this._currentEpisodeIndex + 1), 1000);
-            } else {
-                this.dispatchEvent(new CustomEvent('podcast-completed', { bubbles: true, composed: true }));
-            }
-            return;
-        }
-
-        // CANCEL any pending speech to prevent stacking/freezing
-        window.speechSynthesis.cancel();
-
-        const text = this._sentences[this._currentSentenceIndex];
-        const utterance = new SpeechSynthesisUtterance(text);
-
-        if (this._voices[this._selectedVoiceIndex]) {
-            utterance.voice = this._voices[this._selectedVoiceIndex];
-        }
-        utterance.rate = this._playbackRate;
-
-        // Events
-        utterance.onend = () => {
-            // Only proceed if we are still "playing" (user didn't pause)
-            if (this._isPlaying) {
-                this._currentSentenceIndex++;
-                this._speakNextSentence();
-                this._scrollToActiveSentence();
-            }
-        };
-
-        utterance.onerror = (e) => {
-            console.error("TTS Error:", e);
-            // Ignore interruption errors, log others
-            if (e.error !== 'interrupted' && e.error !== 'canceled') {
-                this._isPlaying = false; 
-            }
-        };
-
-        window.speechSynthesis.speak(utterance);
-    }
-
-    _pause() {
-        this._isPlaying = false;
-        window.speechSynthesis.cancel(); // Better than pause() for browser stability
+    _skip(seconds) {
+        this._audio.currentTime = Math.min(Math.max(this._audio.currentTime + seconds, 0), this._duration);
     }
 
     _changeSpeed() {
         const rates = [1.0, 1.25, 1.5, 2.0];
         const idx = rates.indexOf(this._playbackRate);
         this._playbackRate = rates[(idx + 1) % rates.length];
-        
-        // If playing, restart current sentence with new speed
-        if (this._isPlaying) {
-            this._speakNextSentence();
-        }
+        this._audio.playbackRate = this._playbackRate;
     }
 
-    _selectEpisode(index) {
-        this._pause();
-        this._prepareEpisode(index);
-        this.requestUpdate(); // Force re-render
-        
-        // Auto-play after switch
-        setTimeout(() => this._play(), 500);
-    }
-
-    _scrollToActiveSentence() {
-        const container = this.shadowRoot.querySelector('.script-container');
-        const activeEl = this.shadowRoot.querySelector('.script-sentence.active');
-        if (container && activeEl) {
-            // Scroll to keep active sentence in view
-            const top = activeEl.offsetTop - container.offsetTop - (container.clientHeight / 2) + (activeEl.clientHeight / 2);
-            container.scrollTo({ top: top, behavior: 'smooth' });
-        }
+    _formatTime(seconds) {
+        if (!seconds || isNaN(seconds)) return "0:00";
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}:${s.toString().padStart(2, '0')}`;
     }
 
     render() {
         const t = (key) => translationService.t(key);
-        const currentEp = this.episodes[this._currentEpisodeIndex] || {};
-        const progress = this._sentences.length > 0 ? (this._currentSentenceIndex / this._sentences.length) * 100 : 0;
+        // Fallback ak audio ešte nie je vygenerované
+        if (!this.audioPath) {
+            return html`
+                <div class="podcast-player" style="text-align: center; padding: 3rem;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🎧</div>
+                    <h3 style="margin-bottom: 0.5rem; font-weight: bold;">Podcast nie je pripravený</h3>
+                    <p style="color: #94a3b8; font-size: 0.9rem;">Profesor musí najprv vygenerovať audio verziu lekcie.</p>
+                    <div class="script-container" style="margin-top: 1.5rem; text-align: left;">
+                        ${this.podcastData?.script || typeof this.podcastData === 'string' ? this.podcastData : ''}
+                    </div>
+                </div>
+            `;
+        }
 
         return html`
             <div class="podcast-player">
                 <div class="player-header">
-                    <div class="podcast-meta">AI PODCAST • ${this._playbackRate}x Speed</div>
-                    <h2 class="episode-title">${currentEp.title || "Epizoda"}</h2>
+                    <span class="status-badge">Professional Audio</span>
+                    <h2 class="episode-title">${this.podcastData?.title || translationService.t('content_types.audio')}</h2>
                 </div>
 
-                <div class="visualizer-container">
-                    ${Array.from({ length: 16 }).map((_, i) => html`
-                        <div class="bar ${this._isPlaying ? 'animating' : ''}" 
-                             style="height: ${this._isPlaying ? Math.max(15, Math.random() * 100) + '%' : '15%'}; animation-delay: ${i * 0.05}s">
-                        </div>
-                    `)}
-                </div>
+                ${this._error ? html`<div class="error-msg">${this._error}</div>` : ''}
 
-                <div class="progress-container" @click=${(e) => {
-                    const rect = e.target.getBoundingClientRect();
-                    const percent = (e.clientX - rect.left) / rect.width;
-                    this._currentSentenceIndex = Math.floor(percent * this._sentences.length);
-                    if(this._isPlaying) this._speakNextSentence();
-                    else this.requestUpdate();
-                }}>
-                    <div class="progress-bar" style="width: ${progress}%">
-                        <div class="progress-thumb"></div>
+                <div class="progress-wrapper">
+                    <input type="range" min="0" max="${this._duration || 100}" .value="${this._currentTime}" 
+                           @input=${this._seek} ?disabled=${this._isLoading}>
+                    <div class="time-info">
+                        <span>${this._formatTime(this._currentTime)}</span>
+                        <span>${this._formatTime(this._duration)}</span>
                     </div>
                 </div>
 
                 <div class="controls">
                     <button class="speed-control" @click=${this._changeSpeed}>${this._playbackRate}x</button>
 
-                    <button class="btn-secondary" 
-                            @click=${() => this._currentEpisodeIndex > 0 ? this._selectEpisode(this._currentEpisodeIndex - 1) : null} 
-                            ?disabled=${this._currentEpisodeIndex === 0}>
-                        <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                    <button class="btn-seek" @click=${() => this._skip(-10)} title="-10s">
+                        <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" /></svg>
                     </button>
 
-                    <button class="btn-main" @click=${this._togglePlay}>
-                        ${this._isPlaying 
-                            ? html`<svg width="36" height="36" fill="white" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>`
-                            : html`<svg width="36" height="36" fill="white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`
+                    <button class="btn-main ${this._isLoading ? 'loading-pulse' : ''}" 
+                            @click=${this._togglePlay} ?disabled=${this._isLoading || !!this._error}>
+                        ${this._isLoading 
+                            ? html`<span style="font-size: 1.5rem;">⌛</span>`
+                            : this._isPlaying 
+                                ? html`<svg width="32" height="32" fill="white" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>`
+                                : html`<svg width="32" height="32" fill="white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`
                         }
                     </button>
 
-                    <button class="btn-secondary" 
-                            @click=${() => this._currentEpisodeIndex < this.episodes.length - 1 ? this._selectEpisode(this._currentEpisodeIndex + 1) : null} 
-                            ?disabled=${this._currentEpisodeIndex >= this.episodes.length - 1}>
-                        <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                    <button class="btn-seek" @click=${() => this._skip(10)} title="+10s">
+                        <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z" /></svg>
                     </button>
                 </div>
 
-                <div class="content-area">
-                    <div class="script-container">
-                        ${this._sentences.map((sent, i) => html`
-                            <span class="script-sentence ${i === this._currentSentenceIndex ? 'active' : ''}"
-                                  @click=${() => {
-                                      this._currentSentenceIndex = i;
-                                      if(this._isPlaying) this._speakNextSentence();
-                                      else this.requestUpdate();
-                                  }}>
-                                ${sent}
-                            </span>
-                        `)}
-                    </div>
-
-                    ${this.episodes.length > 1 ? html`
-                        <div class="playlist">
-                            ${this.episodes.map((ep, i) => html`
-                                <div class="playlist-item ${i === this._currentEpisodeIndex ? 'active' : ''}" 
-                                     @click=${() => this._selectEpisode(i)}>
-                                    <span style="width: 24px; font-weight: bold; opacity: 0.5;">${i+1}</span>
-                                    <span>${ep.title}</span>
-                                    ${i === this._currentEpisodeIndex && this._isPlaying ? html`<span style="margin-left: auto;">🔊</span>` : ''}
-                                </div>
-                            `)}
-                        </div>
-                    ` : ''}
+                <div class="script-container custom-scrollbar">
+                    ${this.podcastData?.script || typeof this.podcastData === 'string' ? this.podcastData : ''}
                 </div>
             </div>
         `;
