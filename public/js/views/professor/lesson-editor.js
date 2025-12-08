@@ -779,104 +779,106 @@ export class LessonEditor extends LitElement {
                 <!-- Main Content (Scrollable Area) -->
                 <div class="flex-grow overflow-hidden relative">
 
-                    <!-- SETTINGS VIEW (3-Column Fixed) -->
-                    <div class="${this._viewMode === 'settings' ? 'flex' : 'hidden'} flex-col h-full animate-fade-in">
+                    <!-- SETTINGS VIEW (Full-Width Layout) -->
+                    <div class="${this._viewMode === 'settings' ? 'flex' : 'hidden'} flex-col h-full animate-fade-in bg-slate-50 overflow-y-auto custom-scrollbar">
 
-                         <div class="flex-none px-6 py-4">
-                            <h2 class="text-3xl font-bold text-slate-900">${t('editor.settings_title')}</h2>
-                         </div>
+                        <!-- Hero Section -->
+                        <div class="bg-white border-b border-slate-200 px-8 py-12 flex-none shadow-sm">
+                            <div class="max-w-5xl mx-auto space-y-6">
+                                <!-- Title Input -->
+                                <div>
+                                    <input type="text" id="lesson-title-input"
+                                        class="block w-full text-4xl font-extrabold text-slate-900 bg-transparent border-none p-0 focus:ring-0 placeholder-slate-300"
+                                        placeholder="${t('editor.label_title')}"
+                                        .value="${this.lesson?.title || ''}" />
+                                </div>
 
-                         <div class="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 px-6 pb-4 overflow-hidden min-h-0">
+                                <!-- Subtitle Input -->
+                                <div>
+                                    <input type="text" id="lesson-subtitle-input"
+                                        class="block w-full text-xl text-slate-500 bg-transparent border-none p-0 focus:ring-0 placeholder-slate-300"
+                                        placeholder="${t('editor.label_subtitle')}"
+                                        .value="${this.lesson?.subtitle || ''}" />
+                                </div>
 
-                            <!-- Column 1: Basic Info -->
-                            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-full flex flex-col overflow-hidden">
-                                <h3 class="font-bold text-slate-700 mb-4 flex-none">1. Základní údaje</h3>
-                                <div class="flex-grow overflow-y-auto custom-scrollbar pr-2 space-y-6">
-                                    <div class="relative">
-                                        <input type="text" id="lesson-title-input"
-                                            class="block px-2.5 pb-2.5 pt-4 w-full text-lg font-bold text-slate-900 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
-                                            placeholder=" "
-                                            .value="${this.lesson?.title || ''}" />
-                                        <label for="lesson-title-input"
-                                            class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
-                                            ${t('editor.label_title')}
-                                        </label>
-                                    </div>
+                                <!-- Action Area -->
+                                <div class="pt-6 flex gap-4">
+                                    <button @click=${this._handleMagicGeneration} ?disabled=${this._isLoading}
+                                        class="py-4 px-8 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-lg shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center text-lg transform active:scale-95">
+                                        ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> ${t('common.loading')}` : html`✨ ${t('lesson.magic_btn')}`}
+                                    </button>
 
-                                    <div class="relative">
-                                        <input type="text" id="lesson-subtitle-input"
-                                            class="block px-2.5 pb-2.5 pt-4 w-full text-md text-slate-600 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
-                                            placeholder=" "
-                                            .value="${this.lesson?.subtitle || ''}" />
-                                        <label for="lesson-subtitle-input"
-                                            class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
-                                            ${t('editor.label_subtitle')}
-                                        </label>
-                                    </div>
+                                    <button @click=${this._switchToHub} ?disabled=${this._isLoading}
+                                        class="py-4 px-8 rounded-full bg-white border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-center text-lg">
+                                        ${t('editor.btn_continue_content')} <span class="ml-2">→</span>
+                                    </button>
                                 </div>
                             </div>
+                        </div>
 
-                            <!-- Column 2: Classes -->
-                            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-full flex flex-col overflow-hidden">
-                                <h3 class="font-bold text-slate-700 mb-4 flex-none">2. Přiřadit třídě</h3>
-                                <div class="flex-grow overflow-y-auto custom-scrollbar pr-2">
-                                     <div class="space-y-2">
-                                        ${this._groups.length > 0 ? this._groups.map(group => html`
-                                            <div class="flex items-center p-2 hover:bg-white rounded transition-colors">
-                                                <input type="checkbox"
-                                                    id="group-${group.id}"
-                                                    name="group-assignment"
-                                                    value="${group.id}"
-                                                    .checked=${this.lesson?.assignedToGroups?.includes(group.id) || false}
-                                                    class="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
-                                                <label for="group-${group.id}" class="ml-3 text-sm font-medium text-gray-700 cursor-pointer w-full">${group.name}</label>
+                        <!-- Configuration Grid -->
+                        <div class="p-8 flex-grow">
+                            <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+
+                                <!-- Column 1: Classes -->
+                                <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col h-[500px]">
+                                    <h3 class="font-bold text-slate-800 text-xl mb-6 flex items-center">
+                                        <span class="bg-indigo-100 text-indigo-600 w-8 h-8 rounded-lg flex items-center justify-center mr-3 text-sm">1</span>
+                                        ${translationService.t('lesson.assign_class_title') || 'Přiřadit třídě'}
+                                    </h3>
+                                    <div class="flex-grow overflow-y-auto custom-scrollbar pr-2">
+                                        <div class="space-y-3">
+                                            ${this._groups.length > 0 ? this._groups.map(group => html`
+                                                <label class="flex items-center p-4 border border-slate-100 rounded-xl hover:bg-slate-50 hover:border-indigo-100 transition-all cursor-pointer group">
+                                                    <input type="checkbox"
+                                                        id="group-${group.id}"
+                                                        name="group-assignment"
+                                                        value="${group.id}"
+                                                        .checked=${this.lesson?.assignedToGroups?.includes(group.id) || false}
+                                                        class="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 transition-colors">
+                                                    <span class="ml-3 text-base font-medium text-slate-600 group-hover:text-slate-900 transition-colors">${group.name}</span>
+                                                </label>
+                                            `) : html`
+                                                <div class="text-center py-10 text-slate-400">
+                                                    <p>${translationService.t('lesson.no_classes')}</p>
+                                                </div>
+                                            `}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Column 2: Files -->
+                                <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl p-8 transition-all hover:border-indigo-300 hover:bg-indigo-50/30 group flex flex-col h-[500px] relative" id="course-media-upload-area">
+                                    <div class="flex-none text-center">
+                                        <h3 class="font-bold text-slate-800 text-xl mb-2 flex items-center justify-center">
+                                            <span class="bg-indigo-100 text-indigo-600 w-8 h-8 rounded-lg flex items-center justify-center mr-3 text-sm">2</span>
+                                            Podklady (Súbory)
+                                        </h3>
+                                        <div class="my-6">
+                                            <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm text-4xl group-hover:scale-110 transition-transform duration-300">
+                                                📄
                                             </div>
-                                        `) : html`
-                                            <p class="text-xs text-slate-500">${translationService.t('lesson.no_classes')}</p>
-                                        `}
-                                     </div>
+                                        </div>
+
+                                        <div class="flex gap-3 justify-center mb-8">
+                                            <button class="pointer-events-none bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm group-hover:text-indigo-600 group-hover:border-indigo-200 transition-colors">
+                                                ${t('common.files_select')}
+                                            </button>
+                                            <button @click=${this._openRagModal} class="bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:text-indigo-600 hover:border-indigo-200 hover:bg-slate-50 transition-all">
+                                                📂 ${t('common.files_library')}
+                                            </button>
+                                        </div>
+
+                                        <input type="file" id="course-media-file-input" class="hidden" multiple accept=".pdf,.txt,.docx,.pptx">
+
+                                        <div id="upload-progress-container" class="hidden mt-2 w-full"></div>
+                                    </div>
+
+                                    <div class="flex-grow overflow-y-auto custom-scrollbar mt-2 w-full bg-white rounded-xl border border-slate-100 p-2">
+                                         <ul id="course-media-list-container" class="text-left text-sm space-y-1 w-full"></ul>
+                                    </div>
                                 </div>
                             </div>
-
-                            <!-- Column 3: Files -->
-                            <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-6 transition-all hover:border-indigo-300 hover:bg-indigo-50/30 group h-full flex flex-col overflow-hidden relative" id="course-media-upload-area">
-                                <div class="flex-none text-center">
-                                    <h3 class="font-bold text-slate-700 mb-2">3. Podklady (Súbory)</h3>
-                                    <div class="mb-2">
-                                        <span class="text-3xl group-hover:scale-110 transition-transform inline-block">📄</span>
-                                    </div>
-                                    
-                                    <div class="flex gap-2 justify-center mb-4">
-                                        <button class="pointer-events-none bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm group-hover:text-indigo-600 group-hover:border-indigo-200">
-                                            ${t('common.files_select')}
-                                        </button>
-                                        <button @click=${this._openRagModal} class="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm hover:text-indigo-600 hover:border-indigo-200 hover:bg-slate-50 transition-all">
-                                            📂 ${t('common.files_library')}
-                                        </button>
-                                    </div>
-                                    
-                                    <input type="file" id="course-media-file-input" class="hidden" multiple accept=".pdf,.txt,.docx,.pptx">
-
-                                    <div id="upload-progress-container" class="hidden mt-2 w-full"></div>
-                                </div>
-
-                                <div class="flex-grow overflow-y-auto custom-scrollbar mt-4 w-full">
-                                     <ul id="course-media-list-container" class="text-left text-xs space-y-1 w-full px-2"></ul>
-                                </div>
-                            </div>
-                         </div>
-
-                         <!-- Footer Buttons (Fixed) -->
-                         <div class="flex-none px-6 py-4 border-t border-slate-100 bg-white z-10 flex flex-col sm:flex-row gap-4 justify-center">
-                            <button @click=${this._handleMagicGeneration} ?disabled=${this._isLoading}
-                                class="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center text-lg transform active:scale-95">
-                                ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> ${t('common.loading')}` : html`✨ ${t('lesson.magic_btn')}`}
-                            </button>
-
-                            <button @click=${this._switchToHub} ?disabled=${this._isLoading}
-                                class="flex-1 py-4 px-6 rounded-xl bg-white border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-center text-lg">
-                                ${t('editor.btn_continue_content')} <span class="ml-2">→</span>
-                            </button>
                         </div>
                     </div>
 
