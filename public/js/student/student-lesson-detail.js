@@ -153,7 +153,6 @@ export class StudentLessonDetail extends LitElement {
         }
     }
 
-    // NOVÉ: Lifecycle metóda pre bezpečné vykreslenie prezentácie
     async updated(changedProperties) {
         super.updated(changedProperties);
         if (this.activeTabId === 'presentation') {
@@ -387,6 +386,28 @@ export class StudentLessonDetail extends LitElement {
                         ${this._renderTabContent()}
                     </div>
                 </div>
+            </div>
+        `;
+    }
+
+    // --- TÁTO METÓDA CHÝBALA A TERAZ JE DOPLNENÁ ---
+    _renderCompletionButton(sectionId, label = "Dokončit") {
+        const isCompleted = this._progress?.completedSections?.includes(sectionId);
+
+        return html`
+            <div class="mt-12 flex justify-center">
+                <button
+                    @click=${() => this._markSectionComplete(sectionId)}
+                    ?disabled=${isCompleted}
+                    class="px-8 py-3 rounded-full font-bold shadow-lg transition-all transform active:scale-95 flex items-center gap-2
+                    ${isCompleted
+                        ? 'bg-green-100 text-green-700 cursor-default shadow-none border border-green-200'
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-200 hover:-translate-y-1'}"
+                >
+                    ${isCompleted
+                        ? html`<span>Hotovo</span> <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`
+                        : html`<span>${label}</span> <span>✅</span>`}
+                </button>
             </div>
         `;
     }
