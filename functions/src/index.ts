@@ -171,7 +171,7 @@ exports.generateContent = onCall({
                     const style = promptData.presentation_style_selector ? `Visual Style: ${promptData.presentation_style_selector}.` : "";
                     
                     // 3. Ak je všetko v poriadku, použijeme finálne číslo v prompte
-                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${requestedCount} slidy. ${style} Odpověď musí být JSON objekt s klíčem 'slides', ktorý obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů). ${langInstruction}`;
+                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${requestedCount} slidy. ${style} Odpověď musí být JSON objekt s klíčem 'slides', ktorý obsahuje pole objektů, kde každý objekt má klíče 'title' (string), 'points' (pole stringů) a 'visual_idea' (string - popis obrázku pro tento slide, např. 'Schéma buňky' nebo 'Foto historické budovy'). ${langInstruction}`;
                     logger.log(`Final prompt will use ${requestedCount} slides.`);
                     
                     break;

@@ -61,7 +61,7 @@ class StudentDashboard extends LitElement {
                                 <span class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-lg">S</span>
                                 AI Sensei
                             </h1>
-                            <p class="text-sm text-slate-500 mt-1">Študentský portál</p>
+                            <p class="text-sm text-slate-500 mt-1">${t('student.portal_title')}</p>
                         </div>
 
                         <div class="flex-1 overflow-y-auto py-6 px-3">
