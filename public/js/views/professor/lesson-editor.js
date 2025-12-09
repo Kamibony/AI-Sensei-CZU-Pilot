@@ -404,10 +404,10 @@ export class LessonEditor extends LitElement {
                 }
 
                 if (type === 'post') {
-                    // Force 1 episode for Magic flow by sending explicit count to backend
+                    // Force 3 episodes for Magic flow by sending explicit count to backend
                     // Keep prompt simple (Topic) so backend wrapper works correctly
                     specificPrompt = `${this.lesson.title}. ${this.lesson.subtitle || ''}. Formát: Rozhovor moderátora a experta. Délka cca 5 minut. Detailní scénář.`;
-                    episodeCount = 1;
+                    episodeCount = 3;
                 }
 
                 if (type === 'comic') {

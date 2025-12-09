@@ -1,4 +1,5 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { translationService } from '../../../utils/translation-service.js';
 import './ai-generator-panel.js';
 
 export class EditorViewPost extends LitElement {
@@ -9,7 +10,7 @@ export class EditorViewPost extends LitElement {
     createRenderRoot() { return this; }
 
     render() {
-        const defaultPrompt = `Prozkoumej klíčové koncepty z lekce "${this.lesson?.title || 'aktuální lekce'}"`;
+        const defaultPrompt = translationService.t('editor.post_default_prompt', { title: this.lesson?.title || 'aktuální lekce' });
         
         const podcastConfig = [
             {
