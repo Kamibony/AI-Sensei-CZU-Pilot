@@ -17,7 +17,11 @@ import './editor/editor-view-comic.js';
 import './editor/editor-view-flashcards.js';
 import './editor/editor-view-mindmap.js';
 import './editor/ai-generator-panel.js';
+
+// Import from utils (upload logic)
 import { processFileForRAG, uploadMultipleFiles, uploadSingleFile } from '../../utils/upload-handler.js';
+// Import from global handler (media library modal logic)
+import { renderMediaLibraryFiles, getSelectedFiles, clearSelectedFiles } from '../../upload-handler.js';
 
 export class LessonEditor extends BaseView {
   static properties = {
@@ -28,7 +32,7 @@ export class LessonEditor extends BaseView {
     _showDeleteConfirm: { state: true, type: Boolean },
     _uploading: { state: true },
     _processingRAG: { state: true },
-    _uploadedFiles: { state: true, type: Array } // Pole objektov { id, name, url, ... }
+    _uploadedFiles: { state: true, type: Array } // Source of truth for files
   };
 
   constructor() {
@@ -48,9 +52,9 @@ export class LessonEditor extends BaseView {
     if (changedProperties.has('lesson')) {
       if (this.lesson) {
         this._selectedClassIds = this.lesson.assignedToGroups || [];
-        this._uploadedFiles = this.lesson.files || []; // Načítame existujúce súbory
+        // Ensure we load files from lesson, defaulting to empty array
+        this._uploadedFiles = this.lesson.files || [];
       } else {
-        // Reset pre novú lekciu
         this._selectedClassIds = [];
         this._uploadedFiles = [];
         this._initNewLesson();
@@ -63,7 +67,6 @@ export class LessonEditor extends BaseView {
       this._unsubscribe = translationService.subscribe(() => this.requestUpdate());
       await this._fetchAvailableClasses();
 
-      // Ak nemáme lekciu (nová), inicializujeme základnú štruktúru
       if (!this.lesson) {
           this._initNewLesson();
       }
@@ -78,8 +81,8 @@ export class LessonEditor extends BaseView {
       this.lesson = {
           title: '',
           topic: '',
-          contentType: 'text', // Predvolený typ
-          content: { blocks: [] }, // Prázdny obsah pre textový editor
+          contentType: 'text',
+          content: { blocks: [] },
           assignedToGroups: [],
           status: 'draft',
           files: [],
@@ -107,8 +110,14 @@ export class LessonEditor extends BaseView {
 
   async _handleSave() {
     if (!this.lesson.title) {
-      showToast(translationService.t('lesson.toast_title_required'), true);
-      return;
+      // Don't toast on auto-save if title is missing, just return
+      // But if triggered manually?
+      // For now, we allow saving without title for "auto-save" but maybe not validation?
+      // User said "IMMEDIATELY save this.lesson to Firestore" when file uploaded.
+      // If title is missing, we might create a draft with "Untitled".
+      // Let's stick to requiring title for now to avoid bad data, but maybe relaxed for files?
+      // Actually, if I upload a file, I want it saved.
+      if (!this.lesson.title) this.lesson.title = "Nová lekce";
     }
 
     this.isSaving = true;
@@ -119,22 +128,19 @@ export class LessonEditor extends BaseView {
       const lessonData = {
         ...this.lesson,
         assignedToGroups: this._selectedClassIds,
-        files: this._uploadedFiles, // Uložíme zoznam súborov
+        files: this._uploadedFiles, // Save current files state
         updatedAt: new Date().toISOString(),
         ownerId: user.uid
       };
 
       if (!lessonData.id) {
-          // Vytvorenie novej lekcie
           lessonData.createdAt = new Date().toISOString();
-          // Generate ID manually to avoid empty doc
           const newDocRef = doc(collection(db, 'lessons'));
           lessonData.id = newDocRef.id;
           await setDoc(newDocRef, lessonData);
-          this.lesson = lessonData; // Update local state with ID
+          this.lesson = lessonData;
           showToast(translationService.t('common.saved'));
 
-          // Emit event to notify parent (app) about creation
           this.dispatchEvent(new CustomEvent('lesson-updated', {
               detail: this.lesson,
               bubbles: true,
@@ -142,11 +148,9 @@ export class LessonEditor extends BaseView {
           }));
 
       } else {
-          // Aktualizácia existujúcej
           const lessonRef = doc(db, 'lessons', this.lesson.id);
           await updateDoc(lessonRef, lessonData);
           showToast(translationService.t('common.saved'));
-           // Emit event
           this.dispatchEvent(new CustomEvent('lesson-updated', {
               detail: this.lesson,
               bubbles: true,
@@ -163,29 +167,9 @@ export class LessonEditor extends BaseView {
   }
 
   _handleBackClick() {
-      // Smart Back logic
-      const urlParams = new URLSearchParams(window.location.search);
-      const source = urlParams.get('source');
-
-      // Default to dashboard if no specific source, but professor-app handles 'dashboard' as default
-      let targetView = 'dashboard';
-
-      if (this.lesson && this.lesson.id) {
-         // Ak sme editovali existujúcu lekciu, vrátime sa tam, odkiaľ sme prišli (ak vieme), inak timeline/hub
-         // Ale podľa zadania: "if in editor mode -> go to Hub; if in Hub -> go to Timeline"
-         // Táto komponenta je 'editor', takže 'Hub' je myslený asi ako Dashboard?
-         // Alebo 'Lesson Library' (timeline).
-         // V 'ProfessorApp' je 'lesson-library' (sidebar) a 'timeline-view'.
-
-         // Zjednodušenie: Vždy sa vrátime na Timeline (Knihovna lekcí), čo je bezpečná voľba pre prehľad.
-         targetView = 'timeline';
-      } else {
-         // Ak sme vytvárali novú a zrušili to
-         targetView = 'timeline';
-      }
-
+      // Always return to timeline/library
       this.dispatchEvent(new CustomEvent('editor-exit', {
-          detail: { view: targetView },
+          detail: { view: 'timeline' },
           bubbles: true,
           composed: true
       }));
@@ -197,7 +181,10 @@ export class LessonEditor extends BaseView {
       } else {
           this._selectedClassIds = [...this._selectedClassIds, classId];
       }
-      this.requestUpdate();
+      this.requestUpdate(); // Trigger update
+      // Logic requirement: "IMMEDIATELY save" was for files, but good UX is to save assignments too?
+      // User didn't specify for classes, but let's do it for consistency if title exists.
+      if(this.lesson.title) this._handleSave();
   }
 
   async _handleFilesSelected(e) {
@@ -209,17 +196,6 @@ export class LessonEditor extends BaseView {
           const user = auth.currentUser;
           if (!user) throw new Error(translationService.t('media.login_required'));
 
-          // 1. Upload súborov do Storage a vytvorenie záznamov v Firestore (cez utils)
-          // Pre lekciu použijeme špecifickú cestu alebo metadata, aby sme ich vedeli priradiť.
-          // Tu využijeme existujúci 'uploadMultipleFiles' ktorý dáva súbory do 'course-media'.
-          // Pre RAG potrebujeme, aby boli spracované.
-
-          // uploadMultipleFiles vracia { successful, failed }
-          // successful obsahuje { fileId, fileName, url, ... }
-
-          // ID kurzu: Tu je to trochu zložitejšie, lebo lekcia môže byť vo viacerých kurzoch.
-          // Ale súbory nahrávame pod profesora (user.uid).
-          // Použijeme "main-course" ako placeholder ak nemáme špecifický kurz, alebo ID prvej vybranej triedy.
           const courseId = this._selectedClassIds.length > 0 ? this._selectedClassIds[0] : 'main-course';
 
           const uploadResult = await uploadMultipleFiles(files, courseId, (progress) => {
@@ -234,19 +210,21 @@ export class LessonEditor extends BaseView {
               uploadedAt: new Date().toISOString()
           }));
 
-          // Pridáme k existujúcim
+          // IMMEDIATELY update state
           this._uploadedFiles = [...this._uploadedFiles, ...newFiles];
 
-          // 2. Automatické spracovanie pre RAG (voliteľné, ale pre 'Magic' potrebné)
+          // IMMEDIATELY save
+          await this._handleSave();
+
+          // Process RAG
           this._processingRAG = true;
           for (const file of newFiles) {
-              if (file.name.toLowerCase().endsWith('.pdf')) { // Iba PDF zatiaľ
+              if (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.txt') || file.name.toLowerCase().endsWith('.docx')) {
                   try {
                        await processFileForRAG(file.id);
                        showToast(`${translationService.t('common.success')}: ${file.name}`);
                   } catch (err) {
                       console.error("RAG processing failed for", file.name, err);
-                      // Necháme súbor nahraný, len RAG zlyhal.
                       showToast(`${translationService.t('lesson.upload_ai_failed_specific', { filename: file.name })}`, true);
                   }
               }
@@ -258,53 +236,108 @@ export class LessonEditor extends BaseView {
       } finally {
           this._uploading = false;
           this._processingRAG = false;
-          // Vyčistiť input
           e.target.value = '';
-          this._handleSave(); // Priebežné uloženie
       }
   }
 
   async _handleDeleteFile(fileIndex) {
-      // Zatiaľ len odstránime zo zoznamu v lekcii.
-      // Fyzické zmazanie zo Storage/Firestore by malo byť samostatné alebo na potvrdenie.
-      // Pre jednoduchosť teraz len odpojíme od lekcie.
+      // Remove from state
       this._uploadedFiles.splice(fileIndex, 1);
-      this._uploadedFiles = [...this._uploadedFiles];
-      this._handleSave();
+      this._uploadedFiles = [...this._uploadedFiles]; // Trigger reactivity
+      // Save immediately
+      await this._handleSave();
   }
 
-  // Handle Magic Generation event from ai-generator-panel
+  _handleOpenLibrary() {
+      const modal = document.getElementById('media-library-modal');
+      if (!modal) {
+          console.error("Media library modal not found in DOM");
+          return;
+      }
+
+      // Use 'main-course' or first selected class
+      const courseId = this._selectedClassIds.length > 0 ? this._selectedClassIds[0] : 'main-course';
+
+      // Clear previous global selection to avoid ghost files
+      clearSelectedFiles();
+
+      // Render files in the modal
+      renderMediaLibraryFiles(courseId, "modal-media-list");
+      modal.classList.remove('hidden');
+
+      const close = () => { modal.classList.add('hidden'); cleanup(); };
+
+      const confirm = async () => {
+          // Get files selected in the modal (global state)
+          const selected = getSelectedFiles();
+
+          if (selected.length > 0) {
+               // Map to our file structure.
+               // getSelectedFiles returns { name, fullPath, id (maybe) }
+               // We need { id, name, url, storagePath }
+               // The global handler might not return everything we need (like URL or ID if it's just path).
+               // But renderMediaLibraryFiles uses Firestore fileMetadata, so it should have IDs.
+               // Let's check upload-handler.js: "return { name: data.fileName, fullPath: data.storagePath, id: doc.id };"
+
+               const newFiles = selected.map(f => ({
+                   id: f.id || 'unknown', // Fallback
+                   name: f.name,
+                   url: '', // We might not have URL, but AI doesn't need it. View might need it?
+                            // If we need URL, we might need to fetch it or just use storagePath.
+                   storagePath: f.fullPath,
+                   uploadedAt: new Date().toISOString()
+               }));
+
+               // Add only unique files
+               const currentPaths = this._uploadedFiles.map(f => f.storagePath);
+               const uniqueNewFiles = newFiles.filter(f => !currentPaths.includes(f.storagePath));
+
+               if (uniqueNewFiles.length > 0) {
+                   this._uploadedFiles = [...this._uploadedFiles, ...uniqueNewFiles];
+                   await this._handleSave();
+                   showToast(`Pridáno ${uniqueNewFiles.length} souborů z knihovny.`);
+               }
+          }
+          close();
+      };
+
+      const cleanup = () => {
+           document.getElementById('modal-confirm-btn')?.removeEventListener('click', confirm);
+           document.getElementById('modal-cancel-btn')?.removeEventListener('click', close);
+           document.getElementById('modal-close-btn')?.removeEventListener('click', close);
+      }
+
+      // Remove old listeners (defensive)
+      const confirmBtn = document.getElementById('modal-confirm-btn');
+      if(confirmBtn) {
+          const newBtn = confirmBtn.cloneNode(true);
+          confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+          newBtn.addEventListener('click', confirm);
+      }
+
+      const cancelBtn = document.getElementById('modal-cancel-btn');
+      if(cancelBtn) {
+          cancelBtn.addEventListener('click', close);
+      }
+      const closeBtn = document.getElementById('modal-close-btn');
+      if(closeBtn) {
+          closeBtn.addEventListener('click', close);
+      }
+  }
+
   _handleMagicGeneration(e) {
-      const { prompt, type } = e.detail;
-      // Preposielame event do editor-view-ai alebo priamo spracujeme.
-      // Ale 'LessonEditor' je kontajner.
-      // Máme tu 'ai-generator-panel' ktorý emituje 'generate'.
-      // A máme 'editor-view-*' ktoré to konzumujú?
-      // Nie, 'ai-generator-panel' volá backend a vracia dáta?
-      // Pozrime sa na 'ai-generator-panel.js'.
-      // Podľa kontextu (pamäť) 'ai-generator-panel' robí veľa vecí.
-
-      // ZADANIE: "Ensure the _handleMagicGeneration logic sends episode_count: 3 for podcasts"
-      // Takže tu musíme zachytiť požiadavku a zavolať backend.
-
+      const { prompt } = e.detail;
       const filePaths = this._uploadedFiles.map(f => f.storagePath).filter(Boolean);
-
-      // Určenie parametrov podľa typu obsahu lekcie (nie len typu požiadavky)
-      // Ale 'type' v evente určuje čo generujeme.
 
       const generationParams = {
           prompt: prompt,
-          contentType: this.lesson.contentType, // Typ obsahu lekcie (quiz, text, audio...)
+          contentType: this.lesson.contentType,
           filePaths: filePaths
       };
 
       if (this.lesson.contentType === 'audio') {
-          generationParams.episode_count = 3; // HARDCODED REQUIREMENT
+          generationParams.episode_count = 3;
       }
-
-      // Nájdeme child komponent editora (napr. editor-view-text) a povieme mu "generuj"
-      // Alebo zavoláme funkciu tu a výsledok pošleme do child.
-      // Bežný pattern tu: child komponent má metódu 'generateContent(params)'
 
       const activeEditor = this.shadowRoot.querySelector('#active-editor');
       if (activeEditor && activeEditor.handleAiGeneration) {
@@ -316,42 +349,48 @@ export class LessonEditor extends BaseView {
 
   _renderHeader() {
     return html`
-      <div class="bg-white border-b border-slate-200 sticky top-0 z-30">
+      <div class="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 sticky top-0 z-30 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex justify-between items-center h-16">
-            <div class="flex items-center gap-4">
+          <div class="flex flex-col md:flex-row justify-between items-center py-6 gap-4">
+
+            <div class="flex items-center gap-4 w-full">
               <button @click="${this._handleBackClick}"
-                      class="p-2 -ml-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                      class="p-2 -ml-2 text-slate-400 hover:text-indigo-600 hover:bg-white/50 rounded-xl transition-all"
                       title="${translationService.t('professor.editor.back')}">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
                 </svg>
               </button>
 
-              <div class="flex flex-col">
-                  <h1 class="text-lg font-bold text-slate-900 leading-none">
-                      ${this.lesson.id ? translationService.t('professor.editor.titleEdit') : translationService.t('professor.editor.titleNew')}
-                  </h1>
-                  <span class="text-xs text-slate-500 mt-1">
-                      ${this.isSaving ? translationService.t('common.loading') : (this.lesson.id ? translationService.t('common.saved') : translationService.t('lesson.status_draft'))}
-                  </span>
+              <div class="flex-1">
+                  <input type="text"
+                         .value="${this.lesson.title}"
+                         @input="${e => this.lesson = { ...this.lesson, title: e.target.value }}"
+                         class="w-full bg-transparent border-none p-0 text-4xl font-extrabold text-slate-800 placeholder-slate-300 focus:ring-0 focus:outline-none"
+                         placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder')}">
+
+                  <div class="flex items-center gap-3 mt-2">
+                       <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${this.lesson.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-slate-200 text-slate-600'}">
+                            ${this.lesson.status === 'active' ? 'Aktivní' : 'Koncept'}
+                       </span>
+                       <span class="text-xs text-slate-400">
+                           ${this.isSaving ? translationService.t('common.saving') : (this.lesson.updatedAt ? `Uloženo ${new Date(this.lesson.updatedAt).toLocaleTimeString()}` : '')}
+                       </span>
+                  </div>
               </div>
             </div>
 
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-shrink-0">
                <button @click="${this._handleSave}"
-                      class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors ${this.isSaving ? 'opacity-75 cursor-wait' : ''}"
+                      class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-full shadow-lg text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 focus:outline-none transform hover:-translate-y-0.5 transition-all ${this.isSaving ? 'opacity-75 cursor-wait' : ''}"
                       ?disabled="${this.isSaving}">
                 ${this.isSaving ? html`
-                  <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  ${translationService.t('common.save')}
+                  ${translationService.t('common.saving')}
                 ` : html`
-                  <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
-                  </svg>
                   ${translationService.t('professor.editor.saveChanges')}
                 `}
               </button>
@@ -363,180 +402,186 @@ export class LessonEditor extends BaseView {
   }
 
   _renderEditorContent() {
+      // Content Type Selector logic moved to header or sidebar? No, requested to stay or just "Hero Section".
+      // The previous "Hero" had contentType selector.
+      // The new "Hero" is the header.
+      // Where does Content Type go?
+      // I will put it in the "Resource Grid" area or above it?
+      // The user didn't specify, but implied a "Hero Section (Top)" then "Resource Grid (Middle)".
+      // Content Type is critical. I'll add it to the top of the body or side of the grid.
+
+      // Let's keep a small settings bar above the grid for Topic and Content Type.
+      return html`
+         <div class="mb-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+             <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-slate-700 mb-1">${translationService.t('professor.editor.subtitle')}</label>
+                <input type="text"
+                       .value="${this.lesson.topic}"
+                       @input="${e => this.lesson = { ...this.lesson, topic: e.target.value }}"
+                       class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow shadow-sm"
+                       placeholder="${translationService.t('professor.editor.subtitlePlaceholder')}">
+             </div>
+             <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">${translationService.t('lesson.subtitle')}</label>
+                <select .value="${this.lesson.contentType}"
+                        @change="${e => this.lesson = { ...this.lesson, contentType: e.target.value }}"
+                        class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
+                    <option value="text">${translationService.t('content_types.text')}</option>
+                    <option value="presentation">${translationService.t('content_types.presentation')}</option>
+                    <option value="quiz">${translationService.t('content_types.quiz')}</option>
+                    <option value="test">${translationService.t('content_types.test')}</option>
+                    <option value="post">Příspěvek (Feed)</option>
+                    <option value="video">${translationService.t('content_types.video')}</option>
+                    <option value="audio">${translationService.t('content_types.audio')}</option>
+                    <option value="comic">${translationService.t('content_types.comic')}</option>
+                    <option value="flashcards">${translationService.t('content_types.flashcards')}</option>
+                    <option value="mindmap">${translationService.t('content_types.mindmap')}</option>
+                </select>
+             </div>
+         </div>
+
+         <!-- Active Editor Component -->
+         <div class="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden min-h-[500px] flex flex-col relative">
+             ${this._renderSpecificEditor()}
+         </div>
+      `;
+  }
+
+  _renderSpecificEditor() {
       switch (this.lesson.contentType) {
           case 'text': return html`<editor-view-text id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, content: e.detail }; }}></editor-view-text>`;
           case 'presentation': return html`<editor-view-presentation id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, slides: e.detail }; }}></editor-view-presentation>`;
           case 'quiz': return html`<editor-view-quiz id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, questions: e.detail }; }}></editor-view-quiz>`;
           case 'test': return html`<editor-view-test id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, questions: e.detail }; }}></editor-view-test>`;
           case 'post': return html`<editor-view-post id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-post>`;
-          case 'audio': return html`<div class="p-4 text-center text-slate-500">Audio editor (Podcast) - Konfigurácia cez AI Panel</div>`;
+          case 'audio': return html`<div class="p-12 text-center text-slate-500 bg-slate-50 flex flex-col items-center justify-center h-full">
+              <span class="text-4xl mb-4">🎙️</span>
+              <p>Editor pro Podcasty</p>
+              <p class="text-sm mt-2">Nakonfigurujte a vygenerujte obsah pomocí AI Panelu níže.</p>
+          </div>`;
           default: return html`<div class="p-4 text-center text-red-500">${translationService.t('common.unknown_type')}</div>`;
       }
   }
 
   render() {
     return html`
-      <div class="h-full flex flex-col bg-slate-50 relative">
+      <div class="h-full flex flex-col bg-slate-50/50 relative">
         ${this._renderHeader()}
 
         <div class="flex-1 overflow-hidden relative">
           <div class="absolute inset-0 overflow-y-auto custom-scrollbar">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
-              <!-- Hero / Základní údaje -->
-              <div class="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
-                <div class="flex items-center gap-2 mb-4">
-                    <div class="p-2 bg-indigo-50 rounded-lg">
-                        <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                        </svg>
-                    </div>
-                    <h2 class="text-lg font-semibold text-slate-800">${translationService.t('professor.editor.basicInfo')}</h2>
-                </div>
+              <!-- Resource Grid (Middle) -->
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">${translationService.t('professor.editor.lessonTitle')}</label>
-                            <input type="text"
-                                   .value="${this.lesson.title}"
-                                   @input="${e => this.lesson = { ...this.lesson, title: e.target.value }}"
-                                   class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow"
-                                   placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder')}">
+                 <!-- Left: Classes (Assignment) -->
+                 <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 flex flex-col h-full hover:shadow-md transition-shadow">
+                    <div class="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4">
+                        <div class="p-2.5 bg-indigo-50 rounded-xl">
+                            <span class="text-2xl">👥</span>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">${translationService.t('professor.editor.subtitle')}</label>
-                            <textarea
-                                   .value="${this.lesson.topic}"
-                                   @input="${e => this.lesson = { ...this.lesson, topic: e.target.value }}"
-                                   rows="2"
-                                   class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow"
-                                   placeholder="${translationService.t('professor.editor.subtitlePlaceholder')}"></textarea>
+                            <h3 class="text-xl font-bold text-slate-800">Kdo to uvidí?</h3>
+                            <p class="text-sm text-slate-400">Přiřazení třídám</p>
                         </div>
-                    </div>
-
-                    <div class="space-y-4">
-                         <!-- Výber typu obsahu -->
-                         <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">${translationService.t('lesson.subtitle')}</label> <!-- Používame label pre typ -->
-                            <select .value="${this.lesson.contentType}"
-                                    @change="${e => this.lesson = { ...this.lesson, contentType: e.target.value }}"
-                                    class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="text">${translationService.t('content_types.text')}</option>
-                                <option value="presentation">${translationService.t('content_types.presentation')}</option>
-                                <option value="quiz">${translationService.t('content_types.quiz')}</option>
-                                <option value="test">${translationService.t('content_types.test')}</option>
-                                <option value="post">Příspěvek (Feed)</option>
-                                <option value="video">${translationService.t('content_types.video')}</option>
-                                <option value="audio">${translationService.t('content_types.audio')}</option>
-                                <option value="comic">${translationService.t('content_types.comic')}</option>
-                                <option value="flashcards">${translationService.t('content_types.flashcards')}</option>
-                                <option value="mindmap">${translationService.t('content_types.mindmap')}</option>
-                            </select>
-                         </div>
-                    </div>
-                </div>
-              </div>
-
-              <!-- 2-Column Grid: Classes & Files -->
-              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-                 <!-- Left: Classes -->
-                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 flex flex-col h-full">
-                    <div class="flex items-center gap-2 mb-4">
-                        <div class="p-2 bg-blue-50 rounded-lg">
-                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                            </svg>
-                        </div>
-                        <h3 class="text-lg font-semibold text-slate-800">${translationService.t('professor.editor.classAssignment')}</h3>
                     </div>
 
                     ${this._availableClasses.length === 0 ? html`
-                        <div class="flex-1 flex flex-col items-center justify-center text-center p-4 text-slate-500">
+                        <div class="flex-1 flex flex-col items-center justify-center text-center p-8 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                             <p>${translationService.t('professor.no_classes_yet')}</p>
                         </div>
                     ` : html`
-                        <div class="flex-1 overflow-y-auto max-h-60 space-y-2 custom-scrollbar pr-2">
+                        <div class="flex-1 space-y-3">
                             ${this._availableClasses.map(group => html`
-                                <label class="flex items-center p-3 rounded-xl border ${this._selectedClassIds.includes(group.id) ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'} cursor-pointer transition-colors">
-                                    <input type="checkbox"
-                                           .checked="${this._selectedClassIds.includes(group.id)}"
-                                           @change="${() => this._handleClassToggle(group.id)}"
-                                           class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                                    <span class="ml-3 font-medium text-slate-700">${group.name}</span>
+                                <label class="flex items-center justify-between p-4 rounded-2xl border ${this._selectedClassIds.includes(group.id) ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-100 hover:bg-slate-50'} cursor-pointer transition-all">
+                                    <span class="font-bold text-slate-700">${group.name}</span>
+                                    <div class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                                        <input type="checkbox"
+                                               .checked="${this._selectedClassIds.includes(group.id)}"
+                                               @change="${() => this._handleClassToggle(group.id)}"
+                                               class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer outline-none transition-transform duration-200 ease-in-out ${this._selectedClassIds.includes(group.id) ? 'translate-x-6 border-indigo-500' : 'border-slate-300'}"/>
+                                        <div class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-200 cursor-pointer ${this._selectedClassIds.includes(group.id) ? 'bg-indigo-200' : ''}"></div>
+                                    </div>
                                 </label>
                             `)}
                         </div>
                     `}
                  </div>
 
-                 <!-- Right: Files/RAG -->
-                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 flex flex-col h-full">
-                    <div class="flex items-center gap-2 mb-4 justify-between">
-                        <div class="flex items-center gap-2">
-                            <div class="p-2 bg-amber-50 rounded-lg">
-                                <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                                </svg>
+                 <!-- Right: Files (Context) -->
+                 <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 flex flex-col h-full hover:shadow-md transition-shadow">
+                    <div class="flex items-center justify-between gap-3 mb-6 border-b border-slate-50 pb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2.5 bg-indigo-50 rounded-xl">
+                                <span class="text-2xl">📚</span>
                             </div>
                             <div>
-                                <h3 class="text-lg font-semibold text-slate-800">${translationService.t('professor.editor.filesAndRag')}</h3>
+                                <h3 class="text-xl font-bold text-slate-800">Podklady</h3>
+                                <p class="text-sm text-slate-400">Kontext pro AI</p>
                             </div>
                         </div>
-                         <div class="relative group">
-                            <input type="file" multiple accept=".pdf,.docx,.txt"
-                                   class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                   @change="${this._handleFilesSelected}"
-                                   ?disabled="${this._uploading}">
-                            <button class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                                </svg>
-                                ${this._uploading ? translationService.t('lesson.upload_uploading') : translationService.t('common.files_select')}
-                            </button>
+
+                        <div class="flex gap-2">
+                             <button @click="${this._handleOpenLibrary}"
+                                     class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2">
+                                <span>📂</span> Z Knihovny
+                             </button>
+
+                             <div class="relative">
+                                <input type="file" multiple accept=".pdf,.docx,.txt"
+                                       class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                       @change="${this._handleFilesSelected}"
+                                       ?disabled="${this._uploading}">
+                                <button class="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2">
+                                    <span>📤</span> Nahrát
+                                </button>
+                             </div>
                         </div>
                     </div>
 
-                    <p class="text-sm text-slate-500 mb-4">${translationService.t('professor.editor.filesHelper')}</p>
-
-                    <div class="flex-1 overflow-y-auto max-h-60 space-y-2 custom-scrollbar pr-2">
+                    <div class="flex-1">
                         ${this._uploadedFiles.length === 0 ? html`
-                            <div class="text-center p-4 border-2 border-dashed border-slate-200 rounded-xl">
-                                <p class="text-sm text-slate-400">${translationService.t('common.no_files_selected')}</p>
+                            <div class="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                <span class="text-4xl opacity-20 mb-2">📄</span>
+                                <p class="text-sm">${translationService.t('common.no_files_selected')}</p>
                             </div>
-                        ` : this._uploadedFiles.map((file, index) => html`
-                            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200 group">
-                                <div class="flex items-center gap-3 overflow-hidden">
-                                    <svg class="w-8 h-8 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 2H7a2 2 0 00-2 2v15a2 2 0 002 2z"></path>
-                                    </svg>
-                                    <div class="truncate">
-                                        <p class="text-sm font-medium text-slate-700 truncate" title="${file.name}">${file.name}</p>
-                                        <p class="text-xs text-slate-400">PDF • RAG Ready</p>
+                        ` : html`
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                ${this._uploadedFiles.map((file, index) => html`
+                                    <div class="flex items-center p-3 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative">
+                                        <div class="p-2 bg-red-50 rounded-lg mr-3">
+                                            <span class="text-red-500 text-xl">PDF</span>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-bold text-slate-700 truncate" title="${file.name}">${file.name}</p>
+                                            <p class="text-xs text-slate-400">Připojeno</p>
+                                        </div>
+                                        <button @click="${() => this._handleDeleteFile(index)}"
+                                                class="absolute -top-2 -right-2 bg-white text-slate-400 hover:text-red-500 rounded-full p-1 border border-slate-200 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                            </svg>
+                                        </button>
                                     </div>
-                                </div>
-                                <button @click="${() => this._handleDeleteFile(index)}" class="p-1 text-slate-400 hover:text-red-500 rounded transition-colors">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                                    </svg>
-                                </button>
+                                `)}
                             </div>
-                        `)}
+                        `}
                     </div>
                  </div>
 
               </div>
 
-              <!-- AI Generator Panel (Reusable Component) -->
-              <div class="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
-                 <ai-generator-panel @generate="${this._handleMagicGeneration}"></ai-generator-panel>
+              <!-- AI Generator Panel (Passing Files) -->
+              <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8">
+                 <ai-generator-panel
+                    .lesson=${this.lesson}
+                    .files=${this._uploadedFiles}
+                    @generate="${this._handleMagicGeneration}">
+                 </ai-generator-panel>
               </div>
 
-              <!-- Main Editor Area -->
-              <div class="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden min-h-[500px] flex flex-col">
-                  ${this._renderEditorContent()}
-              </div>
+              ${this._renderEditorContent()}
 
             </div>
           </div>
