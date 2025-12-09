@@ -148,7 +148,37 @@
     "media_files": "Média & Soubory",
     "media_files_desc": "Správce nahraných dokumentů a multimédií.",
     "media_desc": "Správce nahraných dokumentů a multimédií.",
-    "management_overview": "Přehled managementu"
+    "management_overview": "Přehled managementu",
+    "editor": {
+      "titleNew": "Nová lekce",
+      "titleEdit": "Upravit lekci",
+      "basicInfo": "Základní údaje",
+      "lessonTitle": "Název lekce",
+      "lessonTitlePlaceholder": "Např. Úvod do marketingu",
+      "subtitle": "Podtitul / Popis",
+      "subtitlePlaceholder": "Stručný popis lekce...",
+      "classAssignment": "Přiřazení ke třídám",
+      "selectClasses": "Vyberte třídy...",
+      "filesAndRag": "Nahrané soubory & RAG",
+      "filesHelper": "Soubory slouží jako kontext pro AI generátor.",
+      "magicGenerate": "Generovat pomocí AI",
+      "saveChanges": "Uložit změny",
+      "back": "Zpět",
+      "post": {
+        "contentLabel": "Obsah příspěvku",
+        "contentPlaceholder": "Zde pište obsah příspěvku...",
+        "authorLabel": "Autor",
+        "selectAuthor": "Vyberte autora",
+        "defaultPrompt": "Vytvoř vzdělávací příspěvek pro studenty na téma: {topic}. Tón by měl být povzbudivý a informativní. Zahrň klíčové body a zajímavosti.",
+        "ai_tip_title": "Tip pro AI Generátor",
+        "ai_tip_desc": "Pokud používáte magické generování, zkuste tento prompt:"
+      }
+    },
+    "header": {
+      "logout": "Odhlásit se",
+      "roleStudent": "Student",
+      "roleProfessor": "Profesor"
+    }
   },
   "lesson": {
     "new": "Nová lekce",
@@ -358,6 +388,13 @@
     "cancel_btn": "Zrušit",
     "class_not_found": "Třída s tímto kódem nebyla nalezena",
     "dashboard": {
+        "title": "Študentský portál",
+        "welcome": "Vítejte zpět",
+        "activeLessons": "Aktivní lekce",
+        "noActiveLessons": "Žádné aktivní lekce",
+        "waiting": "Čeká na odemčení",
+        "completed": "Dokončeno",
+        "open": "Otevřít",
         "welcome_subtitle": "Vítejte ve svém studijním centru.",
         "streak": "Streak",
         "continue_learning": "Pokračovat ve výuce",
