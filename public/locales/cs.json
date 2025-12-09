@@ -304,7 +304,11 @@
     "btn_save_changes": "Uložit změny",
     "ai_tip_title": "Tip od AI Sensei:",
     "ai_tip_desc": "Toto je návrh generovaný umělou inteligencí. Můžete jej libovolně upravit. Uložte změny v této sekci tlačítkem vpravo dole.",
-    "btn_save_section": "Uložit sekci"
+    "btn_save_section": "Uložit sekci",
+    "download_pptx": "Stáhnout PPTX",
+    "column_basics": "Základní údaje",
+    "column_classes": "Přiřadit třídě",
+    "column_files": "Podklady (Soubory)"
   },
   "content_types": {
     "text": "Textový obsah",
@@ -376,6 +380,21 @@
     "my_classes": "Moje třídy",
     "role_label": "Student",
     "welcome": "Vítejte",
+    "nav": {
+      "dashboard": "Přehled",
+      "lessons": "Moje Lekce",
+      "classes": "Moje Třídy"
+    },
+    "profile": {
+      "logout": "Odhlásit se",
+      "role": "Student"
+    },
+    "join_modal": {
+      "title": "Připojit se k třídě",
+      "label_code": "Kód třídy",
+      "placeholder": "Zadejte kód...",
+      "submit": "Připojit se"
+    },
     "select_instruction": "Vyberte si lekci nebo třídu z menu vlevo.",
     "classes_card_title": "Moje třídy",
     "classes_card_desc": "Připojte se k třídě nebo si prohlédněte úkoly.",
@@ -387,6 +406,21 @@
     "join_btn": "Připojit se",
     "cancel_btn": "Zrušit",
     "class_not_found": "Třída s tímto kódem nebyla nalezena",
+    "nav": {
+      "dashboard": "Přehled",
+      "lessons": "Moje Lekce",
+      "classes": "Moje Třídy"
+    },
+    "profile": {
+      "logout": "Odhlásit se",
+      "role": "Student"
+    },
+    "join_modal": {
+      "title": "Připojit se k třídě",
+      "label_code": "Kód třídy",
+      "placeholder": "Zadejte kód...",
+      "submit": "Připojit se"
+    },
     "dashboard": {
         "title": "Študentský portál",
         "welcome": "Vítejte zpět",
@@ -506,5 +540,8 @@
     "code_label": "Kód:",
     "actions": "Akce",
     "remove": "Odebrat"
+  },
+  "prompts": {
+    "podcast_default": "Prozkoumej klíčové koncepty z lekce \"{{topic}}\""
   }
 }

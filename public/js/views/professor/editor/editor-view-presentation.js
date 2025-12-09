@@ -101,7 +101,7 @@ export class EditorViewPresentation extends LitElement {
                 ${hasContent ? html`
                     <div class="absolute top-24 right-8 z-10">
                         <button @click=${this._exportToPptx} class="px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 flex items-center justify-center bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow-indigo-200">
-                            💾 ${translationService.t('editor.download_pptx') || 'Stáhnout PPTX'}
+                            💾 ${translationService.t('editor.download_pptx')}
                         </button>
                     </div>
                 ` : ''}
