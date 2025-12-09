@@ -1,3 +1,4 @@
+
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { BaseView } from './base-view.js';
 import { doc, getDoc, updateDoc, setDoc, arrayUnion, arrayRemove, collection, getDocs, where, query } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -32,7 +33,8 @@ export class LessonEditor extends BaseView {
     _showDeleteConfirm: { state: true, type: Boolean },
     _uploading: { state: true },
     _processingRAG: { state: true },
-    _uploadedFiles: { state: true, type: Array } // Source of truth for files
+    _uploadedFiles: { state: true, type: Array }, // Source of truth for files
+    _viewMode: { state: true, type: String } // 'settings' (wizard) or 'editor'
   };
 
   constructor() {
@@ -46,6 +48,7 @@ export class LessonEditor extends BaseView {
     this._processingRAG = false;
     this._uploadedFiles = [];
     this._unsubscribe = null;
+    this._viewMode = 'settings';
   }
 
   updated(changedProperties) {
@@ -54,6 +57,12 @@ export class LessonEditor extends BaseView {
         this._selectedClassIds = this.lesson.assignedToGroups || [];
         // Ensure we load files from lesson, defaulting to empty array
         this._uploadedFiles = this.lesson.files || [];
+
+        // Decide view mode based on lesson state
+        // If content is empty/new, show wizard. If content exists, show editor.
+        if (this.lesson.id && (this.lesson.content?.blocks?.length > 0 || this.lesson.questions?.length > 0 || this.lesson.slides?.length > 0)) {
+            // this._viewMode = 'editor';
+        }
       } else {
         this._selectedClassIds = [];
         this._uploadedFiles = [];
@@ -80,6 +89,7 @@ export class LessonEditor extends BaseView {
   _initNewLesson() {
       this.lesson = {
           title: '',
+          subject: '', // New field
           topic: '',
           contentType: 'text',
           content: { blocks: [] },
@@ -88,6 +98,7 @@ export class LessonEditor extends BaseView {
           files: [],
           createdAt: new Date().toISOString()
       };
+      this._viewMode = 'settings';
       this.requestUpdate();
   }
 
@@ -110,14 +121,8 @@ export class LessonEditor extends BaseView {
 
   async _handleSave() {
     if (!this.lesson.title) {
-      // Don't toast on auto-save if title is missing, just return
-      // But if triggered manually?
-      // For now, we allow saving without title for "auto-save" but maybe not validation?
-      // User said "IMMEDIATELY save this.lesson to Firestore" when file uploaded.
-      // If title is missing, we might create a draft with "Untitled".
-      // Let's stick to requiring title for now to avoid bad data, but maybe relaxed for files?
-      // Actually, if I upload a file, I want it saved.
-      if (!this.lesson.title) this.lesson.title = "Nová lekce";
+        if (this._viewMode === 'settings') return;
+        this.lesson.title = translationService.t('lesson.new');
     }
 
     this.isSaving = true;
@@ -167,7 +172,6 @@ export class LessonEditor extends BaseView {
   }
 
   _handleBackClick() {
-      // Always return to timeline/library
       this.dispatchEvent(new CustomEvent('editor-exit', {
           detail: { view: 'timeline' },
           bubbles: true,
@@ -181,9 +185,7 @@ export class LessonEditor extends BaseView {
       } else {
           this._selectedClassIds = [...this._selectedClassIds, classId];
       }
-      this.requestUpdate(); // Trigger update
-      // Logic requirement: "IMMEDIATELY save" was for files, but good UX is to save assignments too?
-      // User didn't specify for classes, but let's do it for consistency if title exists.
+      this.requestUpdate();
       if(this.lesson.title) this._handleSave();
   }
 
@@ -210,13 +212,9 @@ export class LessonEditor extends BaseView {
               uploadedAt: new Date().toISOString()
           }));
 
-          // IMMEDIATELY update state
           this._uploadedFiles = [...this._uploadedFiles, ...newFiles];
+          if(this.lesson.title) await this._handleSave();
 
-          // IMMEDIATELY save
-          await this._handleSave();
-
-          // Process RAG
           this._processingRAG = true;
           for (const file of newFiles) {
               if (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.txt') || file.name.toLowerCase().endsWith('.docx')) {
@@ -241,11 +239,9 @@ export class LessonEditor extends BaseView {
   }
 
   async _handleDeleteFile(fileIndex) {
-      // Remove from state
       this._uploadedFiles.splice(fileIndex, 1);
-      this._uploadedFiles = [...this._uploadedFiles]; // Trigger reactivity
-      // Save immediately
-      await this._handleSave();
+      this._uploadedFiles = [...this._uploadedFiles];
+      if(this.lesson.title) await this._handleSave();
   }
 
   _handleOpenLibrary() {
@@ -254,47 +250,30 @@ export class LessonEditor extends BaseView {
           console.error("Media library modal not found in DOM");
           return;
       }
-
-      // Use 'main-course' or first selected class
       const courseId = this._selectedClassIds.length > 0 ? this._selectedClassIds[0] : 'main-course';
-
-      // Clear previous global selection to avoid ghost files
       clearSelectedFiles();
-
-      // Render files in the modal
       renderMediaLibraryFiles(courseId, "modal-media-list");
       modal.classList.remove('hidden');
 
       const close = () => { modal.classList.add('hidden'); cleanup(); };
 
       const confirm = async () => {
-          // Get files selected in the modal (global state)
           const selected = getSelectedFiles();
-
           if (selected.length > 0) {
-               // Map to our file structure.
-               // getSelectedFiles returns { name, fullPath, id (maybe) }
-               // We need { id, name, url, storagePath }
-               // The global handler might not return everything we need (like URL or ID if it's just path).
-               // But renderMediaLibraryFiles uses Firestore fileMetadata, so it should have IDs.
-               // Let's check upload-handler.js: "return { name: data.fileName, fullPath: data.storagePath, id: doc.id };"
-
                const newFiles = selected.map(f => ({
-                   id: f.id || 'unknown', // Fallback
+                   id: f.id || 'unknown',
                    name: f.name,
-                   url: '', // We might not have URL, but AI doesn't need it. View might need it?
-                            // If we need URL, we might need to fetch it or just use storagePath.
+                   url: '',
                    storagePath: f.fullPath,
                    uploadedAt: new Date().toISOString()
                }));
 
-               // Add only unique files
                const currentPaths = this._uploadedFiles.map(f => f.storagePath);
                const uniqueNewFiles = newFiles.filter(f => !currentPaths.includes(f.storagePath));
 
                if (uniqueNewFiles.length > 0) {
                    this._uploadedFiles = [...this._uploadedFiles, ...uniqueNewFiles];
-                   await this._handleSave();
+                   if(this.lesson.title) await this._handleSave();
                    showToast(`Pridáno ${uniqueNewFiles.length} souborů z knihovny.`);
                }
           }
@@ -307,22 +286,59 @@ export class LessonEditor extends BaseView {
            document.getElementById('modal-close-btn')?.removeEventListener('click', close);
       }
 
-      // Remove old listeners (defensive)
       const confirmBtn = document.getElementById('modal-confirm-btn');
       if(confirmBtn) {
           const newBtn = confirmBtn.cloneNode(true);
           confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
           newBtn.addEventListener('click', confirm);
       }
-
       const cancelBtn = document.getElementById('modal-cancel-btn');
-      if(cancelBtn) {
-          cancelBtn.addEventListener('click', close);
-      }
+      if(cancelBtn) cancelBtn.addEventListener('click', close);
       const closeBtn = document.getElementById('modal-close-btn');
-      if(closeBtn) {
-          closeBtn.addEventListener('click', close);
+      if(closeBtn) closeBtn.addEventListener('click', close);
+  }
+
+  async _handleAutoMagic() {
+      if (!this.lesson.title) {
+          showToast(translationService.t('professor.editor.title_required'), true);
+          return;
       }
+
+      await this._handleSave();
+
+      const prompt = `Vytvor komplexnú lekciu na tému '${this.lesson.title}' (${this.lesson.topic || ''}) pre predmet '${this.lesson.subject || ''}'. Použi priložené súbory...`;
+
+      const filePaths = this._uploadedFiles.map(f => f.storagePath).filter(Boolean);
+      const generationParams = {
+          prompt: prompt,
+          contentType: this.lesson.contentType,
+          filePaths: filePaths
+      };
+
+      if (this.lesson.contentType === 'audio') {
+          generationParams.episode_count = 3;
+      }
+
+      this._viewMode = 'editor';
+      this.requestUpdate();
+      await this.updateComplete;
+
+      const activeEditor = this.shadowRoot.querySelector('#active-editor');
+      if (activeEditor && activeEditor.handleAiGeneration) {
+          activeEditor.handleAiGeneration(generationParams);
+      } else {
+          console.warn("No active editor to handle generation");
+      }
+  }
+
+  async _handleManualCreate() {
+      if (!this.lesson.title) {
+          showToast(translationService.t('professor.editor.title_required'), true);
+          return;
+      }
+      await this._handleSave();
+      this._viewMode = 'editor';
+      this.requestUpdate();
   }
 
   _handleMagicGeneration(e) {
@@ -347,16 +363,225 @@ export class LessonEditor extends BaseView {
       }
   }
 
+  _renderWizardMode() {
+      return html`
+        <div class="min-h-full flex flex-col items-center justify-center p-4">
+            <div class="w-full max-w-3xl bg-white rounded-3xl shadow-xl overflow-hidden animate-fade-in-up">
+
+                <!-- Wizard Header -->
+                <div class="bg-gradient-to-r from-indigo-600 to-violet-600 p-8 text-white relative overflow-hidden">
+                    <div class="relative z-10">
+                        <h2 class="text-3xl font-extrabold mb-2">✨ ${translationService.t('lesson.new')}</h2>
+                        <p class="text-indigo-100">${translationService.t('professor.editor.magic_generator_desc')}</p>
+                    </div>
+                    <div class="absolute right-0 top-0 h-full w-1/2 bg-white/10 transform skew-x-12 translate-x-12"></div>
+                </div>
+
+                <div class="p-8 space-y-6">
+
+                    <!-- Metadata Fields -->
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">
+                                ${translationService.t('professor.editor.title')} <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text"
+                                .value="${this.lesson.title}"
+                                @input="${e => this.lesson = { ...this.lesson, title: e.target.value }}"
+                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-lg font-semibold text-slate-800"
+                                placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder')}">
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">
+                                    Předmět
+                                </label>
+                                <input type="text"
+                                    .value="${this.lesson.subject || ''}"
+                                    @input="${e => this.lesson = { ...this.lesson, subject: e.target.value }}"
+                                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                    placeholder="Např. Dějepis, Fyzika...">
+                             </div>
+                             <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">
+                                    ${translationService.t('professor.editor.subtitle')}
+                                </label>
+                                <input type="text"
+                                    .value="${this.lesson.topic}"
+                                    @input="${e => this.lesson = { ...this.lesson, topic: e.target.value }}"
+                                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                    placeholder="${translationService.t('professor.editor.subtitlePlaceholder')}">
+                             </div>
+                        </div>
+
+                         <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">
+                                Typ obsahu
+                            </label>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                ${this._renderContentTypeOption('text', '📝', translationService.t('content_types.text'))}
+                                ${this._renderContentTypeOption('presentation', '📊', translationService.t('content_types.presentation'))}
+                                ${this._renderContentTypeOption('quiz', '❓', translationService.t('content_types.quiz'))}
+                                ${this._renderContentTypeOption('test', '📝', translationService.t('content_types.test'))}
+                                ${this._renderContentTypeOption('post', '📰', translationService.t('content_types.post') || 'Příspěvek')}
+                                ${this._renderContentTypeOption('video', '🎥', translationService.t('content_types.video'))}
+                                ${this._renderContentTypeOption('audio', '🎙️', translationService.t('content_types.audio'))}
+                                ${this._renderContentTypeOption('comic', '💬', translationService.t('content_types.comic'))}
+                            </div>
+                         </div>
+                    </div>
+
+                    <!-- Files Section -->
+                    <div class="bg-slate-50 rounded-2xl p-6 border border-slate-100">
+                         <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                                📚 ${translationService.t('professor.editor.filesAndRag')}
+                            </h3>
+                             <div class="flex gap-2">
+                                <button @click="${this._handleOpenLibrary}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors">
+                                    📂 ${translationService.t('common.files_library')}
+                                </button>
+                                <label class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
+                                    📤 ${translationService.t('media.upload_title')}
+                                    <input type="file" multiple accept=".pdf,.docx,.txt" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
+                                </label>
+                             </div>
+                         </div>
+
+                         ${this._uploadedFiles.length === 0 ? html`
+                            <div class="text-center p-6 border-2 border-dashed border-slate-200 rounded-xl text-slate-400">
+                                <p class="text-sm">${translationService.t('common.files_rag_help')}</p>
+                            </div>
+                         ` : html`
+                            <div class="space-y-2">
+                                ${this._uploadedFiles.map((file, index) => html`
+                                    <div class="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                        <div class="flex items-center gap-3 overflow-hidden">
+                                            <span class="text-red-500 bg-red-50 p-1.5 rounded-lg text-lg">📄</span>
+                                            <span class="text-sm font-medium text-slate-700 truncate">${file.name}</span>
+                                        </div>
+                                        <button @click="${() => this._handleDeleteFile(index)}" class="text-slate-400 hover:text-red-500 p-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                        </button>
+                                    </div>
+                                `)}
+                            </div>
+                         `}
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                        <button @click="${this._handleManualCreate}"
+                            class="px-6 py-4 rounded-xl border-2 border-slate-200 text-slate-600 font-bold hover:border-slate-300 hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
+                            <span>🛠️</span> ${translationService.t('professor.manual_create')}
+                        </button>
+                        <button @click="${this._handleAutoMagic}"
+                            class="px-6 py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-lg hover:shadow-indigo-500/30 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
+                            <span>✨</span> ${translationService.t('lesson.magic_btn')}
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+      `;
+  }
+
+  _renderContentTypeOption(value, icon, label) {
+      const isSelected = this.lesson.contentType === value;
+      return html`
+        <button @click="${() => this.lesson = { ...this.lesson, contentType: value }}"
+            class="flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${isSelected ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-100 hover:border-slate-200 bg-white text-slate-500'}">
+            <span class="text-2xl mb-1">${icon}</span>
+            <span class="text-xs font-bold text-center">${label}</span>
+        </button>
+      `;
+  }
+
+  _renderEditorMode() {
+      return html`
+      <div class="h-full flex flex-col bg-slate-50/50 relative">
+        ${this._renderHeader()}
+
+        <div class="flex-1 overflow-hidden relative">
+          <div class="absolute inset-0 overflow-y-auto custom-scrollbar">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+              <!-- Resource Grid (Middle) -->
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                 <!-- Classes -->
+                 <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 flex flex-col h-full hover:shadow-md transition-shadow">
+                    <div class="flex items-center gap-3 mb-4 border-b border-slate-50 pb-2">
+                         <span class="text-xl">👥</span>
+                         <h3 class="font-bold text-slate-800">${translationService.t('professor.editor.classAssignment')}</h3>
+                    </div>
+                    ${this._availableClasses.length === 0 ? html`
+                        <p class="text-sm text-slate-400 text-center">${translationService.t('professor.no_classes_yet')}</p>
+                    ` : html`
+                        <div class="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                            ${this._availableClasses.map(group => html`
+                                <label class="flex items-center justify-between p-2 rounded-xl border ${this._selectedClassIds.includes(group.id) ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-100 hover:bg-slate-50'} cursor-pointer text-sm">
+                                    <span class="font-semibold text-slate-700">${group.name}</span>
+                                    <input type="checkbox" .checked="${this._selectedClassIds.includes(group.id)}" @change="${() => this._handleClassToggle(group.id)}" class="rounded text-indigo-600 focus:ring-indigo-500"/>
+                                </label>
+                            `)}
+                        </div>
+                    `}
+                 </div>
+
+                 <!-- Files -->
+                 <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 flex flex-col h-full hover:shadow-md transition-shadow">
+                    <div class="flex items-center justify-between gap-3 mb-4 border-b border-slate-50 pb-2">
+                         <div class="flex items-center gap-2">
+                            <span class="text-xl">📚</span>
+                            <h3 class="font-bold text-slate-800">${translationService.t('professor.editor.filesAndRag')}</h3>
+                         </div>
+                         <div class="flex gap-1">
+                             <button @click="${this._handleOpenLibrary}" class="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg" title="${translationService.t('common.files_library')}">📂</button>
+                             <label class="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer" title="${translationService.t('media.upload_title')}">
+                                📤 <input type="file" multiple accept=".pdf,.docx,.txt" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
+                             </label>
+                         </div>
+                    </div>
+                    <div class="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                        ${this._uploadedFiles.map((file, index) => html`
+                            <div class="flex items-center justify-between bg-slate-50 p-2 rounded-lg text-sm">
+                                <span class="truncate max-w-[150px]" title="${file.name}">${file.name}</span>
+                                <button @click="${() => this._handleDeleteFile(index)}" class="text-slate-400 hover:text-red-500">×</button>
+                            </div>
+                        `)}
+                    </div>
+                 </div>
+              </div>
+
+              <!-- AI Generator Panel -->
+              <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8">
+                 <ai-generator-panel
+                    .lesson=${this.lesson}
+                    .files=${this._uploadedFiles}
+                    @generate="${this._handleMagicGeneration}">
+                 </ai-generator-panel>
+              </div>
+
+              ${this._renderEditorContent()}
+
+            </div>
+          </div>
+        </div>
+      </div>
+      `;
+  }
+
   _renderHeader() {
     return html`
       <div class="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 sticky top-0 z-30 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex flex-col md:flex-row justify-between items-center py-6 gap-4">
+          <div class="flex flex-col md:flex-row justify-between items-center py-4 gap-4">
 
             <div class="flex items-center gap-4 w-full">
               <button @click="${this._handleBackClick}"
-                      class="p-2 -ml-2 text-slate-400 hover:text-indigo-600 hover:bg-white/50 rounded-xl transition-all"
-                      title="${translationService.t('professor.editor.back')}">
+                      class="p-2 -ml-2 text-slate-400 hover:text-indigo-600 hover:bg-white/50 rounded-xl transition-all">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
                 </svg>
@@ -366,33 +591,22 @@ export class LessonEditor extends BaseView {
                   <input type="text"
                          .value="${this.lesson.title}"
                          @input="${e => this.lesson = { ...this.lesson, title: e.target.value }}"
-                         class="w-full bg-transparent border-none p-0 text-4xl font-extrabold text-slate-800 placeholder-slate-300 focus:ring-0 focus:outline-none"
+                         class="w-full bg-transparent border-none p-0 text-2xl font-extrabold text-slate-800 placeholder-slate-300 focus:ring-0 focus:outline-none"
                          placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder')}">
 
-                  <div class="flex items-center gap-3 mt-2">
-                       <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${this.lesson.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-slate-200 text-slate-600'}">
-                            ${this.lesson.status === 'active' ? 'Aktivní' : 'Koncept'}
-                       </span>
-                       <span class="text-xs text-slate-400">
-                           ${this.isSaving ? translationService.t('common.saving') : (this.lesson.updatedAt ? `Uloženo ${new Date(this.lesson.updatedAt).toLocaleTimeString()}` : '')}
-                       </span>
-                  </div>
+                   <div class="flex gap-2 text-xs text-slate-500 mt-1">
+                        <span>${this.lesson.subject}</span>
+                        <span>•</span>
+                        <span>${this.lesson.contentType}</span>
+                   </div>
               </div>
             </div>
 
             <div class="flex items-center gap-3 flex-shrink-0">
                <button @click="${this._handleSave}"
-                      class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-full shadow-lg text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 focus:outline-none transform hover:-translate-y-0.5 transition-all ${this.isSaving ? 'opacity-75 cursor-wait' : ''}"
+                      class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none transition-all ${this.isSaving ? 'opacity-75 cursor-wait' : ''}"
                       ?disabled="${this.isSaving}">
-                ${this.isSaving ? html`
-                  <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  ${translationService.t('common.saving')}
-                ` : html`
-                  ${translationService.t('professor.editor.saveChanges')}
-                `}
+                ${this.isSaving ? translationService.t('common.loading') : translationService.t('professor.editor.saveChanges')}
               </button>
             </div>
           </div>
@@ -402,44 +616,7 @@ export class LessonEditor extends BaseView {
   }
 
   _renderEditorContent() {
-      // Content Type Selector logic moved to header or sidebar? No, requested to stay or just "Hero Section".
-      // The previous "Hero" had contentType selector.
-      // The new "Hero" is the header.
-      // Where does Content Type go?
-      // I will put it in the "Resource Grid" area or above it?
-      // The user didn't specify, but implied a "Hero Section (Top)" then "Resource Grid (Middle)".
-      // Content Type is critical. I'll add it to the top of the body or side of the grid.
-
-      // Let's keep a small settings bar above the grid for Topic and Content Type.
       return html`
-         <div class="mb-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-             <div class="md:col-span-2">
-                <label class="block text-sm font-medium text-slate-700 mb-1">${translationService.t('professor.editor.subtitle')}</label>
-                <input type="text"
-                       .value="${this.lesson.topic}"
-                       @input="${e => this.lesson = { ...this.lesson, topic: e.target.value }}"
-                       class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow shadow-sm"
-                       placeholder="${translationService.t('professor.editor.subtitlePlaceholder')}">
-             </div>
-             <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">${translationService.t('lesson.subtitle')}</label>
-                <select .value="${this.lesson.contentType}"
-                        @change="${e => this.lesson = { ...this.lesson, contentType: e.target.value }}"
-                        class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
-                    <option value="text">${translationService.t('content_types.text')}</option>
-                    <option value="presentation">${translationService.t('content_types.presentation')}</option>
-                    <option value="quiz">${translationService.t('content_types.quiz')}</option>
-                    <option value="test">${translationService.t('content_types.test')}</option>
-                    <option value="post">Příspěvek (Feed)</option>
-                    <option value="video">${translationService.t('content_types.video')}</option>
-                    <option value="audio">${translationService.t('content_types.audio')}</option>
-                    <option value="comic">${translationService.t('content_types.comic')}</option>
-                    <option value="flashcards">${translationService.t('content_types.flashcards')}</option>
-                    <option value="mindmap">${translationService.t('content_types.mindmap')}</option>
-                </select>
-             </div>
-         </div>
-
          <!-- Active Editor Component -->
          <div class="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden min-h-[500px] flex flex-col relative">
              ${this._renderSpecificEditor()}
@@ -464,130 +641,10 @@ export class LessonEditor extends BaseView {
   }
 
   render() {
-    return html`
-      <div class="h-full flex flex-col bg-slate-50/50 relative">
-        ${this._renderHeader()}
-
-        <div class="flex-1 overflow-hidden relative">
-          <div class="absolute inset-0 overflow-y-auto custom-scrollbar">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-
-              <!-- Resource Grid (Middle) -->
-              <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-                 <!-- Left: Classes (Assignment) -->
-                 <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 flex flex-col h-full hover:shadow-md transition-shadow">
-                    <div class="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4">
-                        <div class="p-2.5 bg-indigo-50 rounded-xl">
-                            <span class="text-2xl">👥</span>
-                        </div>
-                        <div>
-                            <h3 class="text-xl font-bold text-slate-800">Kdo to uvidí?</h3>
-                            <p class="text-sm text-slate-400">Přiřazení třídám</p>
-                        </div>
-                    </div>
-
-                    ${this._availableClasses.length === 0 ? html`
-                        <div class="flex-1 flex flex-col items-center justify-center text-center p-8 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                            <p>${translationService.t('professor.no_classes_yet')}</p>
-                        </div>
-                    ` : html`
-                        <div class="flex-1 space-y-3">
-                            ${this._availableClasses.map(group => html`
-                                <label class="flex items-center justify-between p-4 rounded-2xl border ${this._selectedClassIds.includes(group.id) ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-100 hover:bg-slate-50'} cursor-pointer transition-all">
-                                    <span class="font-bold text-slate-700">${group.name}</span>
-                                    <div class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
-                                        <input type="checkbox"
-                                               .checked="${this._selectedClassIds.includes(group.id)}"
-                                               @change="${() => this._handleClassToggle(group.id)}"
-                                               class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer outline-none transition-transform duration-200 ease-in-out ${this._selectedClassIds.includes(group.id) ? 'translate-x-6 border-indigo-500' : 'border-slate-300'}"/>
-                                        <div class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-200 cursor-pointer ${this._selectedClassIds.includes(group.id) ? 'bg-indigo-200' : ''}"></div>
-                                    </div>
-                                </label>
-                            `)}
-                        </div>
-                    `}
-                 </div>
-
-                 <!-- Right: Files (Context) -->
-                 <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 flex flex-col h-full hover:shadow-md transition-shadow">
-                    <div class="flex items-center justify-between gap-3 mb-6 border-b border-slate-50 pb-4">
-                        <div class="flex items-center gap-3">
-                            <div class="p-2.5 bg-indigo-50 rounded-xl">
-                                <span class="text-2xl">📚</span>
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-bold text-slate-800">Podklady</h3>
-                                <p class="text-sm text-slate-400">Kontext pro AI</p>
-                            </div>
-                        </div>
-
-                        <div class="flex gap-2">
-                             <button @click="${this._handleOpenLibrary}"
-                                     class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2">
-                                <span>📂</span> Z Knihovny
-                             </button>
-
-                             <div class="relative">
-                                <input type="file" multiple accept=".pdf,.docx,.txt"
-                                       class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                       @change="${this._handleFilesSelected}"
-                                       ?disabled="${this._uploading}">
-                                <button class="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2">
-                                    <span>📤</span> Nahrát
-                                </button>
-                             </div>
-                        </div>
-                    </div>
-
-                    <div class="flex-1">
-                        ${this._uploadedFiles.length === 0 ? html`
-                            <div class="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                                <span class="text-4xl opacity-20 mb-2">📄</span>
-                                <p class="text-sm">${translationService.t('common.no_files_selected')}</p>
-                            </div>
-                        ` : html`
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                ${this._uploadedFiles.map((file, index) => html`
-                                    <div class="flex items-center p-3 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative">
-                                        <div class="p-2 bg-red-50 rounded-lg mr-3">
-                                            <span class="text-red-500 text-xl">PDF</span>
-                                        </div>
-                                        <div class="flex-1 min-w-0">
-                                            <p class="text-sm font-bold text-slate-700 truncate" title="${file.name}">${file.name}</p>
-                                            <p class="text-xs text-slate-400">Připojeno</p>
-                                        </div>
-                                        <button @click="${() => this._handleDeleteFile(index)}"
-                                                class="absolute -top-2 -right-2 bg-white text-slate-400 hover:text-red-500 rounded-full p-1 border border-slate-200 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                `)}
-                            </div>
-                        `}
-                    </div>
-                 </div>
-
-              </div>
-
-              <!-- AI Generator Panel (Passing Files) -->
-              <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8">
-                 <ai-generator-panel
-                    .lesson=${this.lesson}
-                    .files=${this._uploadedFiles}
-                    @generate="${this._handleMagicGeneration}">
-                 </ai-generator-panel>
-              </div>
-
-              ${this._renderEditorContent()}
-
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
+      if (this._viewMode === 'settings') {
+          return this._renderWizardMode();
+      }
+      return this._renderEditorMode();
   }
 }
 customElements.define('lesson-editor', LessonEditor);
