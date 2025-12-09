@@ -17,6 +17,7 @@ const btnDestructive = `${btnBase} bg-red-100 text-red-700 hover:bg-red-200`;
 export class AiGeneratorPanel extends LitElement {
     static properties = {
         lesson: { type: Object },
+        files: { type: Array }, // Receive files from parent (LessonEditor)
         viewTitle: { type: String },
         contentType: { type: String },
         fieldToUpdate: { type: String },
@@ -39,7 +40,8 @@ export class AiGeneratorPanel extends LitElement {
 
     constructor() {
         super();
-        this.lesson = null; 
+        this.lesson = null;
+        this.files = null; // Default to null to distinguish if prop is passed
         this.viewTitle = "AI Generátor"; 
         this.promptPlaceholder = "Zadejte prompt...";
         this.description = "Popis chybí."; 
@@ -59,37 +61,28 @@ export class AiGeneratorPanel extends LitElement {
 
     createRenderRoot() { return this; }
 
-    // === OPRAVENÁ METÓDA PRE SYNCHRONIZÁCIU SÚBOROV ===
     updated(changedProperties) {
-        // Kontrolujeme, či sa zmenila lekcia, alebo či sme sa práve vykreslili
+        // If 'files' prop is provided (from LessonEditor), use it as source of truth
+        if (changedProperties.has('files') && this.files) {
+            this._filesCount = this.files.length;
+            // No need to sync with global state if we are using props
+            return;
+        }
+
+        // Fallback to legacy global state behavior if 'files' is not provided
         if (this.lesson || changedProperties.has('lesson')) {
-            
-            // 1. Zistíme, čo máme v globálnej pamäti (z Kroku 1)
+            if (this.files) return; // Skip if we have files prop
+
             const filesInGlobalMemory = getSelectedFiles();
-            
-            // 2. Zistíme, čo je uložené v objekte lekcie (z databázy)
             const filesInLesson = this.lesson?.ragFilePaths || [];
 
-            // === KRITICKÁ OPRAVA LOGIKY ===
-            // Ak je toto NOVÁ lekcia (v databáze nemá súbory), ale v pamäti (z Kroku 1) niečo je,
-            // tak dáme prednosť pamäti a NEPREPÍŠEME ju prázdnym poľom.
-            
             if (filesInLesson.length === 0 && filesInGlobalMemory.length > 0) {
-                // Sme v režime tvorby novej lekcie -> Dôverujeme globálnej pamäti
                 this._filesCount = filesInGlobalMemory.length;
-                
-                // Len prekreslíme zoznam v UI, aby bol viditeľný
                 setTimeout(() => {
                     renderSelectedFiles(`selected-files-list-rag-${this.contentType}`);
                 }, 0);
-
             } else {
-                // Sme v režime editácie existujúcej lekcie (alebo je pamäť prázdna) -> Dôverujeme lekcii
-                // Táto vetva sa spustí len ak má lekcia uložené súbory, alebo ak nemáme v pamäti nič.
-                
-                // Optimalizácia: Nerobíme to, ak sa nič nezmenilo
                 const shouldReload = JSON.stringify(filesInGlobalMemory.map(f=>f.fullPath)) !== JSON.stringify(filesInLesson);
-                
                 if (shouldReload || filesInGlobalMemory.length === 0) {
                      this._filesCount = filesInLesson.length;
                      setTimeout(() => {
@@ -97,7 +90,6 @@ export class AiGeneratorPanel extends LitElement {
                         renderSelectedFiles(`selected-files-list-rag-${this.contentType}`);
                      }, 0);
                 } else {
-                    // Update counter even if no reload needed
                     this._filesCount = filesInGlobalMemory.length;
                 }
             }
@@ -115,6 +107,9 @@ export class AiGeneratorPanel extends LitElement {
     }
 
     _createDocumentSelectorUI() {
+        // If files are passed via props, we don't show this selector as it's handled by parent
+        if (this.files) return nothing;
+
         const listId = `selected-files-list-rag-${this.contentType}`;
         const hasFiles = this._filesCount > 0;
 
@@ -152,14 +147,11 @@ export class AiGeneratorPanel extends LitElement {
         const modal = document.getElementById('media-library-modal');
         if (!modal) return;
         
-        // Pri otvorení modálu rešpektujeme aktuálny stav
-        // (netreba volať loadSelectedFiles, lebo už sú v pamäti)
         renderMediaLibraryFiles("main-course", "modal-media-list");
         modal.classList.remove('hidden');
         
         const close = () => { modal.classList.add('hidden'); cleanup(); };
         const confirm = () => { 
-            // Po potvrdení aktualizujeme UI
             this._filesCount = getSelectedFiles().length;
             renderSelectedFiles(`selected-files-list-rag-${this.contentType}`); 
             close(); 
@@ -215,11 +207,16 @@ export class AiGeneratorPanel extends LitElement {
     async _handleGeneration(e) {
         e.preventDefault();
         
-        // 1. Získanie aktuálne vybraných súborov (TERAZ UŽ SPRÁVNE Z PAMÄTE)
-        const selectedFiles = getSelectedFiles();
-        const filePaths = selectedFiles.map(f => f.fullPath);
+        let filePaths = [];
+        if (this.files) {
+            // New logic: use props
+            filePaths = this.files.map(f => f.storagePath).filter(Boolean);
+        } else {
+            // Legacy logic: use global state
+            const selectedFiles = getSelectedFiles();
+            filePaths = selectedFiles.map(f => f.fullPath);
+        }
 
-        // 2. Kontrola
         if (filePaths.length === 0) {
             const confirmed = confirm(
                 "⚠️ UPOZORNĚNÍ: Nemáte vybrané žádné soubory pro kontext (RAG).\n\n" +
@@ -302,7 +299,6 @@ export class AiGeneratorPanel extends LitElement {
                 if (type) promptData.userPrompt += `\nTyp otázek: ${type}.`;
             }
 
-            // VOLANIE API - TERAZ UŽ S filePaths
             const result = await callGenerateContent({ contentType: this.contentType, promptData, filePaths });
             if (!result || result.error) throw new Error(result?.error || "AI nevrátila žádná data.");
             this._generationOutput = (this.contentType === 'text' && result.text) ? result.text : result;
@@ -323,17 +319,14 @@ export class AiGeneratorPanel extends LitElement {
              if (viewId === 'presentation') return (data?.slides || []).map((slide, i) => html`<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm bg-slate-50 relative"><h4 class="font-bold text-green-700">Slide ${i + 1}: ${slide.title || 'Bez názvu'}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${(slide.points || []).map(p => html`<li>${p}</li>`)}</ul><span class="style-indicator text-xs font-mono text-gray-400 absolute top-1 right-2">${data?.styleId || 'default'}</span></div>`);
              if (viewId === 'quiz' || viewId === 'test') return (data?.questions || []).map((q, i) => html`<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text}</h4><div class="mt-2 space-y-2">${(q.options || []).map((opt, j) => html`<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`)}</div></div>`);
              if (viewId === 'post') {
-                 // New Structured Format (Lesson + Podcast)
                  if (data?.lesson && data?.podcast_series) {
                      return html`
                         <div class="space-y-8">
-                            <!-- A. Lesson Section -->
                             <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
                                 <div class="border-b border-indigo-200 pb-4 mb-4">
                                     <h3 class="text-2xl font-bold text-indigo-900">${data.lesson.title}</h3>
                                     <p class="text-indigo-700 mt-2 italic">${data.lesson.description}</p>
                                 </div>
-
                                 <div class="space-y-4 mb-6">
                                     ${(data.lesson.modules || []).map((m, idx) => html`
                                         <div class="bg-white p-4 rounded-lg border border-indigo-100 shadow-sm">
@@ -342,14 +335,11 @@ export class AiGeneratorPanel extends LitElement {
                                         </div>
                                     `)}
                                 </div>
-
                                 <div class="bg-indigo-100 p-4 rounded-lg border-l-4 border-indigo-500">
                                     <h4 class="font-bold text-indigo-900 text-sm uppercase tracking-wider mb-1">🔑 Key Takeaway</h4>
                                     <p class="text-indigo-800 font-medium">${data.lesson.summary}</p>
                                 </div>
                             </div>
-
-                            <!-- B. Podcast Series Section -->
                             <div>
                                 <div class="flex items-center justify-between mb-4">
                                     <h3 class="text-xl font-bold text-slate-800 flex items-center">
@@ -357,7 +347,6 @@ export class AiGeneratorPanel extends LitElement {
                                     </h3>
                                     <span class="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500">Series of ${(data.podcast_series.episodes || []).length}</span>
                                 </div>
-
                                 <div class="space-y-6">
                                     ${(data.podcast_series.episodes || []).map((ep, i) => html`
                                         <div class="p-5 border border-slate-200 rounded-xl shadow-sm bg-white hover:shadow-md transition-shadow">
@@ -368,12 +357,10 @@ export class AiGeneratorPanel extends LitElement {
                                                 </div>
                                                 <span class="text-2xl opacity-20">🎧</span>
                                             </div>
-
                                             <div class="text-sm text-slate-600 font-mono bg-slate-50 p-4 rounded-lg border border-slate-100 max-h-60 overflow-y-auto custom-scrollbar mb-4">
                                                 ${(ep.script || '').split('\n').map(line => {
                                                     const trimmed = line.trim();
                                                     if (!trimmed) return nothing;
-
                                                     if (trimmed.startsWith('[')) {
                                                         const splitIdx = trimmed.indexOf(']:');
                                                         if (splitIdx > -1) {
@@ -386,28 +373,10 @@ export class AiGeneratorPanel extends LitElement {
                                                     return html`<div class="mb-1">${line}</div>`;
                                                 })}
                                             </div>
-
                                             <div class="flex justify-end">
                                                 ${this._audioUrls.has(i)
-                                                    ? html`
-                                                        <div class="w-full bg-slate-100 p-2 rounded-lg flex items-center gap-2">
-                                                            <audio controls class="w-full h-10" src="${this._audioUrls.get(i)}"></audio>
-                                                        </div>
-                                                      `
-                                                    : html`
-                                                        <button
-                                                            @click=${() => this._handleGenerateAudio(data.lesson?.id || this.lesson?.id, ep.script, i)}
-                                                            ?disabled=${this._audioLoadingState.get(i) || !this.lesson?.id}
-                                                            class="${btnSecondary} px-4 py-2 text-sm flex items-center gap-2"
-                                                        >
-                                                            ${this._audioLoadingState.get(i)
-                                                                ? html`<div class="spinner w-4 h-4 border-2 border-indigo-600 border-t-transparent"></div> Generuji audio...`
-                                                                : html`<span>🎙️ Vygenerovat Audio (MP3)</span>`
-                                                            }
-                                                        </button>
-                                                        ${!this.lesson?.id ? html`<span class="text-xs text-orange-500 ml-2 self-center">Lekci nejdříve uložte</span>` : nothing}
-                                                      `
-                                                }
+                                                    ? html`<div class="w-full bg-slate-100 p-2 rounded-lg flex items-center gap-2"><audio controls class="w-full h-10" src="${this._audioUrls.get(i)}"></audio></div>`
+                                                    : html`<button @click=${() => this._handleGenerateAudio(data.lesson?.id || this.lesson?.id, ep.script, i)} ?disabled=${this._audioLoadingState.get(i) || !this.lesson?.id} class="${btnSecondary} px-4 py-2 text-sm flex items-center gap-2">${this._audioLoadingState.get(i) ? html`<div class="spinner w-4 h-4 border-2 border-indigo-600 border-t-transparent"></div> Generuji audio...` : html`<span>🎙️ Vygenerovat Audio (MP3)</span>`}</button>${!this.lesson?.id ? html`<span class="text-xs text-orange-500 ml-2 self-center">Lekci nejdříve uložte</span>` : nothing}`}
                                             </div>
                                         </div>
                                     `)}
@@ -416,7 +385,6 @@ export class AiGeneratorPanel extends LitElement {
                         </div>
                      `;
                  }
-                 // Legacy/Fallback Support
                  return (data?.episodes || []).map((ep, i) => html`<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Epizoda ${i+1}: ${ep.title}</h4><pre class="mt-2 text-sm text-slate-600 whitespace-pre-wrap font-sans">${ep.script}</pre></div>`);
              }
              return html`<div class="p-4 bg-yellow-100">Neznámý typ obsahu.</div>`;
@@ -425,40 +393,26 @@ export class AiGeneratorPanel extends LitElement {
 
     async _handleGenerateAudio(lessonId, script, episodeIndex) {
         if (!lessonId || !script) return;
-
-        // Set loading state for this specific episode
         const newLoadingState = new Map(this._audioLoadingState);
         newLoadingState.set(episodeIndex, true);
         this._audioLoadingState = newLoadingState;
         this.requestUpdate();
-
         try {
             const generatePodcastAudio = httpsCallable(firebaseInit.functions, 'generatePodcastAudio');
-            const result = await generatePodcastAudio({
-                lessonId: lessonId,
-                text: script,
-                episodeIndex: episodeIndex,
-                language: 'cs-CZ' // Default or derive from somewhere if needed
-            });
-
+            const result = await generatePodcastAudio({ lessonId: lessonId, text: script, episodeIndex: episodeIndex, language: 'cs-CZ' });
             if (result.data && result.data.success && result.data.storagePath) {
-                // Get Download URL
                 const storageRef = ref(firebaseInit.storage, result.data.storagePath);
                 const url = await getDownloadURL(storageRef);
-
-                // Update URLs map
                 const newUrls = new Map(this._audioUrls);
                 newUrls.set(episodeIndex, url);
                 this._audioUrls = newUrls;
             } else {
                 throw new Error("Generation failed or no path returned.");
             }
-
         } catch (error) {
             console.error("Audio generation error:", error);
             showToast(`Chyba generování audia: ${error.message}`, 'error');
         } finally {
-            // Clear loading state
             const finalLoadingState = new Map(this._audioLoadingState);
             finalLoadingState.set(episodeIndex, false);
             this._audioLoadingState = finalLoadingState;
@@ -480,14 +434,20 @@ export class AiGeneratorPanel extends LitElement {
             }
             if (this.contentType === 'presentation') {
                 const styleSelector = this.querySelector('#presentation-style-selector');
-                dataToSave = {
-                    styleId: styleSelector ? styleSelector.value : 'default',
-                    slides: this._generationOutput.slides
-                };
+                dataToSave = { styleId: styleSelector ? styleSelector.value : 'default', slides: this._generationOutput.slides };
             }
 
-            // === VŽDY UKLADÁME AKTUÁLNY STAV SÚBOROV Z UI (PRETOŽE MÔŽU BYŤ ZMENENÉ) ===
-            const currentRagFiles = getSelectedFiles().map(f => f.fullPath);
+            // If using props, we don't rely on getSelectedFiles() for saving unless we want to persist that back to the lesson
+            // But usually LessonEditor saves the files. Here we are saving CONTENT.
+            // However, we might want to save which files were used for RAG?
+            // The lesson object has 'ragFilePaths'.
+
+            let currentRagFiles = [];
+            if (this.files) {
+                currentRagFiles = this.files.map(f => f.storagePath);
+            } else {
+                currentRagFiles = getSelectedFiles().map(f => f.fullPath);
+            }
 
             if (!this.lesson || !this.lesson.id) {
                 const lessonData = {
@@ -499,34 +459,20 @@ export class AiGeneratorPanel extends LitElement {
                     [this.fieldToUpdate]: dataToSave,
                     ragFilePaths: currentRagFiles
                 };
-
                 const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonData);
                 alert("Nová lekce byla úspěšně vytvořena s AI obsahem!");
-
-                 this.dispatchEvent(new CustomEvent('lesson-created', {
-                    detail: { newLessonId: docRef.id },
-                    bubbles: true,
-                    composed: true
-                }));
-
+                 this.dispatchEvent(new CustomEvent('lesson-created', { detail: { newLessonId: docRef.id }, bubbles: true, composed: true }));
             } else {
                 await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
                     [this.fieldToUpdate]: dataToSave,
                     ragFilePaths: currentRagFiles,
                     updatedAt: serverTimestamp()
                 });
-
                 this.dispatchEvent(new CustomEvent('lesson-updated', {
-                    detail: {
-                        ...this.lesson,
-                        [this.fieldToUpdate]: dataToSave,
-                        ragFilePaths: currentRagFiles
-                    },
-                    bubbles: true,
-                    composed: true
+                    detail: { ...this.lesson, [this.fieldToUpdate]: dataToSave, ragFilePaths: currentRagFiles },
+                    bubbles: true, composed: true
                 }));
             }
-
             this._generationOutput = null;
         } catch (e) {
             console.error("Firebase Error:", e);
@@ -561,43 +507,29 @@ export class AiGeneratorPanel extends LitElement {
             <div class="bg-white p-6 rounded-2xl shadow-lg">
                 ${hasContent ? html`
                     ${this._renderEditableContent(this.contentType, this.lesson[this.fieldToUpdate])}
-
                     <div class="flex flex-wrap items-center justify-between mt-6 gap-4 border-t border-slate-100 pt-4">
                         <button @click=${this._handleDeleteGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnSecondary} px-4 py-2 text-sm font-medium border border-slate-200 shadow-sm hover:border-slate-300">
                             🔄 Pregenerovať
                         </button>
-
-                        ${isText ? html`
-                            <div class="flex-grow max-w-xs">
-                                <button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">
-                                    ${this._isSaving?'Ukládám...':'💾 ' + translationService.t('editor.btn_save_section')}
-                                </button>
-                            </div>
-                        ` : nothing}
+                        ${isText ? html`<div class="flex-grow max-w-xs"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?'Ukládám...':'💾 ' + translationService.t('editor.btn_save_section')}</button></div>` : nothing}
                     </div>
                 `
                 : html`
                     <p class="text-slate-500 mb-6">${this.description}</p>
-                    
                     ${this._createDocumentSelectorUI()}
-                    
                     <div class="mt-6 pt-6 border-t border-slate-100">
                         ${this._renderDynamicInputs()}
-
                         ${this.contentType === 'presentation' ? html`<label class="block font-medium text-slate-600">Téma prezentace</label><input id="prompt-input-topic" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1 mb-4" placeholder=${this.promptPlaceholder}>`:html`<textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder=${this.promptPlaceholder}></textarea>`}
-                        
                         <div class="flex items-center justify-end mt-4">
                             <button @click=${this._handleGeneration} ?disabled=${this._isLoading||this._isSaving || this._isUploading} class="${btnGenerate}">
                                 ${this._isLoading ? html`<div class="spinner mr-2"></div> Generuji...` : html`<span class="text-xl mr-2">✨</span> Vygenerovat pomocí AI`}
                             </button>
                         </div>
                     </div>
-                    
                     <div id="generation-output" class="mt-6 border-t pt-6 text-slate-700 prose max-w-none">
                         ${this._isLoading?html`<div class="p-8 text-center pulse-loader text-slate-500">🤖 AI přemýšlí...</div>`:''}
                         ${this._generationOutput?this._renderStaticContent(this.contentType, this._generationOutput):(!this._isLoading?html`<div class="text-center p-8 text-slate-400">Obsah se vygeneruje zde...</div>`:'')}
                     </div>
-                    
                     ${(this._generationOutput&&!this._generationOutput.error)?html`<div class="text-right mt-4"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?'Ukládám...':'💾 ' + translationService.t('editor.btn_save_section')}</button></div>`:nothing}
                 `}
             </div>`;
