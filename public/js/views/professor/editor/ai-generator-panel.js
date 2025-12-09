@@ -1,5 +1,7 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { doc, updateDoc, deleteField, serverTimestamp, addDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../../../firebase-init.js';
 import { showToast } from '../../../utils.js';
 import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles, processAndStoreFile, addSelectedFile } from '../../../upload-handler.js';
@@ -30,6 +32,8 @@ export class AiGeneratorPanel extends LitElement {
         _uploadStatusType: { state: true, type: String },
         _showBanner: { state: true, type: Boolean },
         _filesCount: { state: true, type: Number },
+        _audioLoadingState: { state: true },
+        _audioUrls: { state: true },
         onSave: { type: Function }
     };
 
@@ -49,6 +53,8 @@ export class AiGeneratorPanel extends LitElement {
         this._uploadStatusType = '';
         this._showBanner = true;
         this._filesCount = 0;
+        this._audioLoadingState = new Map();
+        this._audioUrls = new Map();
     }
 
     createRenderRoot() { return this; }
@@ -363,7 +369,7 @@ export class AiGeneratorPanel extends LitElement {
                                                 <span class="text-2xl opacity-20">🎧</span>
                                             </div>
 
-                                            <div class="text-sm text-slate-600 font-mono bg-slate-50 p-4 rounded-lg border border-slate-100 max-h-60 overflow-y-auto custom-scrollbar">
+                                            <div class="text-sm text-slate-600 font-mono bg-slate-50 p-4 rounded-lg border border-slate-100 max-h-60 overflow-y-auto custom-scrollbar mb-4">
                                                 ${(ep.script || '').split('\n').map(line => {
                                                     const trimmed = line.trim();
                                                     if (!trimmed) return nothing;
@@ -380,6 +386,29 @@ export class AiGeneratorPanel extends LitElement {
                                                     return html`<div class="mb-1">${line}</div>`;
                                                 })}
                                             </div>
+
+                                            <div class="flex justify-end">
+                                                ${this._audioUrls.has(i)
+                                                    ? html`
+                                                        <div class="w-full bg-slate-100 p-2 rounded-lg flex items-center gap-2">
+                                                            <audio controls class="w-full h-10" src="${this._audioUrls.get(i)}"></audio>
+                                                        </div>
+                                                      `
+                                                    : html`
+                                                        <button
+                                                            @click=${() => this._handleGenerateAudio(data.lesson?.id || this.lesson?.id, ep.script, i)}
+                                                            ?disabled=${this._audioLoadingState.get(i) || !this.lesson?.id}
+                                                            class="${btnSecondary} px-4 py-2 text-sm flex items-center gap-2"
+                                                        >
+                                                            ${this._audioLoadingState.get(i)
+                                                                ? html`<div class="spinner w-4 h-4 border-2 border-indigo-600 border-t-transparent"></div> Generuji audio...`
+                                                                : html`<span>🎙️ Vygenerovat Audio (MP3)</span>`
+                                                            }
+                                                        </button>
+                                                        ${!this.lesson?.id ? html`<span class="text-xs text-orange-500 ml-2 self-center">Lekci nejdříve uložte</span>` : nothing}
+                                                      `
+                                                }
+                                            </div>
                                         </div>
                                     `)}
                                 </div>
@@ -392,6 +421,49 @@ export class AiGeneratorPanel extends LitElement {
              }
              return html`<div class="p-4 bg-yellow-100">Neznámý typ obsahu.</div>`;
         } catch(e) { return html`<div class="p-4 bg-red-100 text-red-700">Chyba zobrazení: ${e.message}</div>`; }
+    }
+
+    async _handleGenerateAudio(lessonId, script, episodeIndex) {
+        if (!lessonId || !script) return;
+
+        // Set loading state for this specific episode
+        const newLoadingState = new Map(this._audioLoadingState);
+        newLoadingState.set(episodeIndex, true);
+        this._audioLoadingState = newLoadingState;
+        this.requestUpdate();
+
+        try {
+            const generatePodcastAudio = httpsCallable(firebaseInit.functions, 'generatePodcastAudio');
+            const result = await generatePodcastAudio({
+                lessonId: lessonId,
+                text: script,
+                episodeIndex: episodeIndex,
+                language: 'cs-CZ' // Default or derive from somewhere if needed
+            });
+
+            if (result.data && result.data.success && result.data.storagePath) {
+                // Get Download URL
+                const storageRef = ref(firebaseInit.storage, result.data.storagePath);
+                const url = await getDownloadURL(storageRef);
+
+                // Update URLs map
+                const newUrls = new Map(this._audioUrls);
+                newUrls.set(episodeIndex, url);
+                this._audioUrls = newUrls;
+            } else {
+                throw new Error("Generation failed or no path returned.");
+            }
+
+        } catch (error) {
+            console.error("Audio generation error:", error);
+            showToast(`Chyba generování audia: ${error.message}`, 'error');
+        } finally {
+            // Clear loading state
+            const finalLoadingState = new Map(this._audioLoadingState);
+            finalLoadingState.set(episodeIndex, false);
+            this._audioLoadingState = finalLoadingState;
+            this.requestUpdate();
+        }
     }
 
     _renderEditableContent(contentType, data) {
