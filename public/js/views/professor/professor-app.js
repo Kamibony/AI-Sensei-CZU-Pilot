@@ -198,7 +198,7 @@ export class ProfessorApp extends LitElement {
         if (this._currentView !== 'timeline') {
             this._showProfessorContent('timeline');
             setTimeout(() => {
-                 const timelineView = this.querySelector('timeline-view'); // Pozor: názov komponentu je timeline-view
+                 const timelineView = this.querySelector('professor-timeline-view');
                  if (timelineView) timelineView.requestUpdate(); // Timeline si načíta dáta sám
             }, 500);
         }
@@ -240,7 +240,7 @@ export class ProfessorApp extends LitElement {
             case 'dashboard': return html`<professor-dashboard-view class="h-full flex flex-col"></professor-dashboard-view>`;
             case 'class-detail': return html`<professor-class-detail-view class="h-full flex flex-col" .groupId=${this._currentData?.groupId}></professor-class-detail-view>`;
             case 'classes': return html`<professor-classes-view class="h-full flex flex-col"></professor-classes-view>`;
-            case 'timeline': return html`<timeline-view class="h-full flex flex-col"></timeline-view>`;
+            case 'timeline': return html`<professor-timeline-view class="h-full flex flex-col" .lessonsData=${this._lessonsData}></professor-timeline-view>`;
             case 'media': return html`<professor-media-view class="h-full flex flex-col"></professor-media-view>`;
             case 'editor': return html`<lesson-editor class="h-full flex flex-col" .lesson=${this._currentData} @lesson-updated=${this._onLessonCreatedOrUpdated} @editor-exit=${this._onEditorExit}></lesson-editor>`;
             case 'students': return html`<professor-students-view class="h-full flex flex-col" @navigate-to-profile=${this._onNavigateToProfile}></professor-students-view>`;
