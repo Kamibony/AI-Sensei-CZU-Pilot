@@ -45,7 +45,7 @@ async function sendTelegramMessage(chatId: number, text: string) {
     }
 }
 
-// NOVÁ FUNKCIA: Generovanie profesionálneho audia (MP3) pomocou Google Cloud TTS
+// NOVÁ FUNKCIA: Generovanie profesionálneho audia (MP3) pomocou Google Cloud TTS - MULTI-VOICE
 exports.generatePodcastAudio = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
@@ -56,53 +56,91 @@ exports.generatePodcastAudio = onCall({
         throw new HttpsError("unauthenticated", "Len profesor môže generovať audio.");
     }
 
-    const { lessonId, text, language } = request.data;
+    const { lessonId, text, language, episodeIndex } = request.data;
     if (!lessonId || !text) {
         throw new HttpsError("invalid-argument", "Chýba ID lekcie alebo text.");
     }
 
     try {
-        logger.log(`Starting audio generation for lesson ${lessonId}...`);
+        logger.log(`Starting multi-voice audio generation for lesson ${lessonId}, episode ${episodeIndex || 'single'}...`);
 
-        // 2. Inicializácia klienta
         const client = new textToSpeech.TextToSpeechClient();
+        const langCode = language || 'cs-CZ';
 
-        // 3. Konfigurácia požiadavky
-        const requestPayload = {
-            input: { text: text },
-            // Výber hlasu: Použijeme kvalitný 'Neural2' alebo 'Wavenet' hlas
-            voice: {
-                languageCode: language || 'cs-CZ',
-                // Skvelý český hlas (Wavenet-A je žena, Wavenet-B je muž)
-                name: (language === 'pt-br') ? 'pt-BR-Neural2-B' : 'cs-CZ-Wavenet-A'
-            },
-            audioConfig: {
-                audioEncoding: 'MP3',
-                speakingRate: 1.0,
-                pitch: 0.0
-            },
-        };
+        // Definícia hlasov
+        // Alex = Male (Wavenet-B / Neural2-B)
+        // Sarah = Female (Wavenet-A / Neural2-A)
+        const maleVoiceName = (langCode === 'pt-br') ? 'pt-BR-Neural2-B' : 'cs-CZ-Wavenet-B';
+        const femaleVoiceName = (langCode === 'pt-br') ? 'pt-BR-Neural2-A' : 'cs-CZ-Wavenet-A';
 
-        // 4. Volanie Google API
-        const [response] = await client.synthesizeSpeech(requestPayload);
-        const audioBuffer = response.audioContent;
+        // 2. Parsovanie vstupu na segmenty
+        // Rozdelí text podľa [Speaker]:, ponechá oddelovače, a odstráni prázdne stringy
+        const parts = text.split(/(\[(?:Alex|Sarah)\]:)/).filter((p: string) => p && p.trim().length > 0);
 
-        if (!audioBuffer) {
-            throw new HttpsError("internal", "Google TTS nevrátil žiadne audio dáta.");
+        const audioBuffers: Buffer[] = [];
+        let currentSpeaker = 'default'; // Default to female/sarah if no tag found initially? Or use male? Let's use Male as fallback or default.
+        // Actually, let's treat untagged text as the default voice (e.g., Alex/Male).
+
+        for (let i = 0; i < parts.length; i++) {
+            const part = parts[i].trim();
+            if (part === '[Alex]:') {
+                currentSpeaker = 'Alex';
+                continue;
+            }
+            if (part === '[Sarah]:') {
+                currentSpeaker = 'Sarah';
+                continue;
+            }
+
+            // Je to text segmentu
+            const voiceName = (currentSpeaker === 'Sarah') ? femaleVoiceName : maleVoiceName;
+
+            logger.log(`Synthesizing segment for ${currentSpeaker} (${voiceName}): "${part.substring(0, 20)}..."`);
+
+            const requestPayload = {
+                input: { text: part },
+                voice: {
+                    languageCode: langCode,
+                    name: voiceName
+                },
+                audioConfig: {
+                    audioEncoding: 'MP3',
+                    speakingRate: 1.0,
+                    pitch: 0.0
+                },
+            };
+
+            const [response] = await client.synthesizeSpeech(requestPayload);
+            if (response.audioContent) {
+                audioBuffers.push(Buffer.from(response.audioContent));
+            }
         }
 
-        logger.log("Audio generated successfully. Uploading to Storage...");
+        if (audioBuffers.length === 0) {
+             throw new HttpsError("internal", "No audio generated from segments.");
+        }
 
-        // 5. Uloženie do Firebase Storage
+        // 3. Spojenie audio bufferov
+        const finalAudioBuffer = Buffer.concat(audioBuffers);
+        logger.log(`Audio segments concatenated. Total size: ${finalAudioBuffer.length} bytes.`);
+
+        // 4. Uloženie do Firebase Storage
         const bucket = getStorage().bucket(STORAGE_BUCKET);
-        const filePath = `podcasts/${lessonId}.mp3`;
+
+        // Ak máme episodeIndex, vytvoríme unikátny názov súboru
+        let filePath = `podcasts/${lessonId}.mp3`;
+        if (typeof episodeIndex !== 'undefined') {
+            filePath = `podcasts/${lessonId}_${episodeIndex}.mp3`;
+        }
+
         const file = bucket.file(filePath);
 
-        await file.save(audioBuffer, {
+        await file.save(finalAudioBuffer, {
             metadata: {
                 contentType: 'audio/mpeg',
                 metadata: {
                     lessonId: lessonId,
+                    episodeIndex: episodeIndex !== undefined ? String(episodeIndex) : "single",
                     generatedBy: request.auth.uid
                 }
             }
@@ -110,9 +148,14 @@ exports.generatePodcastAudio = onCall({
 
         logger.log(`Audio uploaded to ${filePath}. Updating Firestore...`);
 
-        // 7. Aktualizácia dokumentu lekcie
+        // 5. Aktualizácia dokumentu lekcie
+        // Ak generujeme konkrétnu epizódu, aktualizujeme len timestamp, alebo môžeme pridať mapu ciest ak by sme chceli.
+        // Pre zachovanie kompatibility "as before", aktualizujeme podcast_audio_path len ak je to single file,
+        // alebo ak je to posledný generovaný (to je asi OK).
+        // Ale UI bude používať vrátený `storagePath`, takže toto pole vo Firestore je skôr fallback.
+
         await db.collection("lessons").doc(lessonId).update({
-            podcast_audio_path: filePath, // Uložíme cestu k súboru
+            podcast_audio_path: filePath,
             podcast_generated_at: FieldValue.serverTimestamp()
         });
 
