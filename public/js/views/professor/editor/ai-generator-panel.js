@@ -316,7 +316,80 @@ export class AiGeneratorPanel extends LitElement {
              if (viewId === 'text') return html`<div class="whitespace-pre-wrap font-sans text-sm">${(typeof data === 'string') ? data : (data.text || '')}</div>`;
              if (viewId === 'presentation') return (data?.slides || []).map((slide, i) => html`<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm bg-slate-50 relative"><h4 class="font-bold text-green-700">Slide ${i + 1}: ${slide.title || 'Bez názvu'}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${(slide.points || []).map(p => html`<li>${p}</li>`)}</ul><span class="style-indicator text-xs font-mono text-gray-400 absolute top-1 right-2">${data?.styleId || 'default'}</span></div>`);
              if (viewId === 'quiz' || viewId === 'test') return (data?.questions || []).map((q, i) => html`<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Otázka ${i+1}: ${q.question_text}</h4><div class="mt-2 space-y-2">${(q.options || []).map((opt, j) => html`<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`)}</div></div>`);
-             if (viewId === 'post') return (data?.episodes || []).map((ep, i) => html`<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Epizoda ${i+1}: ${ep.title}</h4><pre class="mt-2 text-sm text-slate-600 whitespace-pre-wrap font-sans">${ep.script}</pre></div>`);
+             if (viewId === 'post') {
+                 // New Structured Format (Lesson + Podcast)
+                 if (data?.lesson && data?.podcast_series) {
+                     return html`
+                        <div class="space-y-8">
+                            <!-- A. Lesson Section -->
+                            <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+                                <div class="border-b border-indigo-200 pb-4 mb-4">
+                                    <h3 class="text-2xl font-bold text-indigo-900">${data.lesson.title}</h3>
+                                    <p class="text-indigo-700 mt-2 italic">${data.lesson.description}</p>
+                                </div>
+
+                                <div class="space-y-4 mb-6">
+                                    ${(data.lesson.modules || []).map((m, idx) => html`
+                                        <div class="bg-white p-4 rounded-lg border border-indigo-100 shadow-sm">
+                                            <h4 class="font-bold text-indigo-800 text-sm uppercase tracking-wide mb-2">Module ${idx + 1}: ${m.title}</h4>
+                                            <p class="text-slate-700 text-sm leading-relaxed">${m.content}</p>
+                                        </div>
+                                    `)}
+                                </div>
+
+                                <div class="bg-indigo-100 p-4 rounded-lg border-l-4 border-indigo-500">
+                                    <h4 class="font-bold text-indigo-900 text-sm uppercase tracking-wider mb-1">🔑 Key Takeaway</h4>
+                                    <p class="text-indigo-800 font-medium">${data.lesson.summary}</p>
+                                </div>
+                            </div>
+
+                            <!-- B. Podcast Series Section -->
+                            <div>
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-xl font-bold text-slate-800 flex items-center">
+                                        <span class="text-3xl mr-3">🎙️</span> ${data.podcast_series.title}
+                                    </h3>
+                                    <span class="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500">Series of ${(data.podcast_series.episodes || []).length}</span>
+                                </div>
+
+                                <div class="space-y-6">
+                                    ${(data.podcast_series.episodes || []).map((ep, i) => html`
+                                        <div class="p-5 border border-slate-200 rounded-xl shadow-sm bg-white hover:shadow-md transition-shadow">
+                                            <div class="flex justify-between items-start mb-4 border-b border-slate-50 pb-2">
+                                                <div>
+                                                    <span class="text-xs font-bold text-indigo-600 uppercase tracking-wider">Episode ${ep.episode_number || i + 1}</span>
+                                                    <h4 class="font-bold text-slate-800 text-lg">${ep.title}</h4>
+                                                </div>
+                                                <span class="text-2xl opacity-20">🎧</span>
+                                            </div>
+
+                                            <div class="text-sm text-slate-600 font-mono bg-slate-50 p-4 rounded-lg border border-slate-100 max-h-60 overflow-y-auto custom-scrollbar">
+                                                ${(ep.script || '').split('\n').map(line => {
+                                                    const trimmed = line.trim();
+                                                    if (!trimmed) return nothing;
+
+                                                    if (trimmed.startsWith('[')) {
+                                                        const splitIdx = trimmed.indexOf(']:');
+                                                        if (splitIdx > -1) {
+                                                            const speaker = trimmed.substring(1, splitIdx);
+                                                            const text = trimmed.substring(splitIdx + 2);
+                                                            const isHost = speaker.toLowerCase().includes('alex');
+                                                            return html`<div class="mb-2"><strong class="${isHost ? 'text-blue-600' : 'text-purple-600'}">${speaker}:</strong> <span class="text-slate-700">${text}</span></div>`;
+                                                        }
+                                                    }
+                                                    return html`<div class="mb-1">${line}</div>`;
+                                                })}
+                                            </div>
+                                        </div>
+                                    `)}
+                                </div>
+                            </div>
+                        </div>
+                     `;
+                 }
+                 // Legacy/Fallback Support
+                 return (data?.episodes || []).map((ep, i) => html`<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">Epizoda ${i+1}: ${ep.title}</h4><pre class="mt-2 text-sm text-slate-600 whitespace-pre-wrap font-sans">${ep.script}</pre></div>`);
+             }
              return html`<div class="p-4 bg-yellow-100">Neznámý typ obsahu.</div>`;
         } catch(e) { return html`<div class="p-4 bg-red-100 text-red-700">Chyba zobrazení: ${e.message}</div>`; }
     }
