@@ -1,0 +1,11 @@
+export const db = {};
+export const auth = { currentUser: { uid: 'test' } };
+export const showToast = () => {};
+export const renderSelectedFiles = () => {};
+export const getSelectedFiles = () => [];
+export const renderMediaLibraryFiles = () => {};
+export const loadSelectedFiles = () => {};
+export const processAndStoreFile = () => {};
+export const addSelectedFile = () => {};
+export const callGenerateContent = async () => ({ text: "Generated text" });
+export const translationService = { t: (key) => key };

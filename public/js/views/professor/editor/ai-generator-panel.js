@@ -7,7 +7,7 @@ import { callGenerateContent } from '../../../gemini-api.js';
 import { translationService } from '../../../utils/translation-service.js';
 
 const btnBase = "px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
-const btnPrimary = `${btnBase} bg-green-700 text-white hover:bg-green-800 w-full`;
+const btnPrimary = `${btnBase} bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow-indigo-200 w-full`;
 const btnGenerate = `px-6 py-3 rounded-full font-bold bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all flex items-center ai-glow border border-white/20`;
 const btnSecondary = `${btnBase} bg-slate-200 text-slate-700 hover:bg-slate-300`;
 const btnDestructive = `${btnBase} bg-red-100 text-red-700 hover:bg-red-200`;
