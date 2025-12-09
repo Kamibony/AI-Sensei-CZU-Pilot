@@ -176,7 +176,7 @@ export class ProfessorApp extends LitElement {
     }
 
     _showProfessorContent(view, data = null) {
-        const fullWidthViews = ['dashboard', 'class-detail', 'students', 'student-profile', 'interactions', 'analytics', 'media', 'editor', 'classes', 'admin', 'admin-settings', 'timeline'];
+        const fullWidthViews = ['dashboard', 'class-detail', 'students', 'student-profile', 'interactions', 'analytics', 'media', 'editor', 'classes', 'admin', 'admin-settings'];
         this._sidebarVisible = !fullWidthViews.includes(view);
         if (view === 'timeline') this._fetchLessons();
         this._currentView = view;
