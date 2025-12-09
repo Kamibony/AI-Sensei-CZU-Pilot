@@ -649,7 +649,9 @@ exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: C
         const quizSubmissionCount = quizSnapshot.size;
         let totalQuizScore = 0;
         quizSnapshot.forEach((doc: QueryDocumentSnapshot) => {
-            totalQuizScore += doc.data().score; // score je 0 až 1
+            const data = doc.data();
+            const score = (typeof data.score === 'number') ? data.score : 0;
+            totalQuizScore += score; // score je 0 až 1
         });
         const avgQuizScore = quizSubmissionCount > 0 ? (totalQuizScore / quizSubmissionCount) * 100 : 0; // v percentách
 
@@ -658,7 +660,9 @@ exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: C
         const testSubmissionCount = testSnapshot.size;
         let totalTestScore = 0;
         testSnapshot.forEach((doc: QueryDocumentSnapshot) => {
-            totalTestScore += doc.data().score;
+            const data = doc.data();
+            const score = (typeof data.score === 'number') ? data.score : 0;
+            totalTestScore += score;
         });
         const avgTestScore = testSubmissionCount > 0 ? (totalTestScore / testSubmissionCount) * 100 : 0; // v percentách
 
