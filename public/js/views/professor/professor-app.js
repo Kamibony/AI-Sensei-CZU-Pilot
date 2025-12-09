@@ -5,6 +5,7 @@ import { collection, getDocs, query, orderBy, where } from "https://www.gstatic.
 import './professor-header.js';
 import './lesson-library.js';
 import './timeline-view.js';
+import './professor-library-view.js';
 import './professor-media-view.js';
 import './lesson-editor.js';
 import './professor-students-view.js';
@@ -240,7 +241,7 @@ export class ProfessorApp extends LitElement {
             case 'dashboard': return html`<professor-dashboard-view class="h-full flex flex-col"></professor-dashboard-view>`;
             case 'class-detail': return html`<professor-class-detail-view class="h-full flex flex-col" .groupId=${this._currentData?.groupId}></professor-class-detail-view>`;
             case 'classes': return html`<professor-classes-view class="h-full flex flex-col"></professor-classes-view>`;
-            case 'timeline': return html`<professor-timeline-view class="h-full flex flex-col" .lessonsData=${this._lessonsData}></professor-timeline-view>`;
+            case 'timeline': return html`<professor-library-view class="h-full flex flex-col"></professor-library-view>`;
             case 'media': return html`<professor-media-view class="h-full flex flex-col"></professor-media-view>`;
             case 'editor': return html`<lesson-editor class="h-full flex flex-col" .lesson=${this._currentData} @lesson-updated=${this._onLessonCreatedOrUpdated} @editor-exit=${this._onEditorExit}></lesson-editor>`;
             case 'students': return html`<professor-students-view class="h-full flex flex-col" @navigate-to-profile=${this._onNavigateToProfile}></professor-students-view>`;

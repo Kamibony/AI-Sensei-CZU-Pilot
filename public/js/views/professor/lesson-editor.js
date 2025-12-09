@@ -30,6 +30,7 @@ export class LessonEditor extends BaseView {
     isSaving: { type: Boolean },
     _selectedClassIds: { state: true, type: Array },
     _availableClasses: { state: true, type: Array },
+    _availableSubjects: { state: true, type: Array },
     _showDeleteConfirm: { state: true, type: Boolean },
     _uploading: { state: true },
     _processingRAG: { state: true },
@@ -43,6 +44,7 @@ export class LessonEditor extends BaseView {
     this.isSaving = false;
     this._selectedClassIds = [];
     this._availableClasses = [];
+    this._availableSubjects = [];
     this._showDeleteConfirm = false;
     this._uploading = false;
     this._processingRAG = false;
@@ -74,7 +76,10 @@ export class LessonEditor extends BaseView {
   async connectedCallback() {
       super.connectedCallback();
       this._unsubscribe = translationService.subscribe(() => this.requestUpdate());
-      await this._fetchAvailableClasses();
+      await Promise.all([
+          this._fetchAvailableClasses(),
+          this._fetchAvailableSubjects()
+      ]);
 
       if (!this.lesson) {
           this._initNewLesson();
@@ -116,6 +121,24 @@ export class LessonEditor extends BaseView {
       } catch (error) {
           console.error("Error fetching classes:", error);
           showToast(translationService.t('professor.error_create_class'), true);
+      }
+  }
+
+  async _fetchAvailableSubjects() {
+      try {
+          const user = auth.currentUser;
+          if (!user) return;
+
+          const q = query(collection(db, 'lessons'), where('ownerId', '==', user.uid));
+          const querySnapshot = await getDocs(q);
+          const subjects = new Set();
+          querySnapshot.docs.forEach(doc => {
+              const data = doc.data();
+              if (data.subject) subjects.add(data.subject);
+          });
+          this._availableSubjects = Array.from(subjects).sort();
+      } catch (e) {
+          console.error("Error fetching subjects", e);
       }
   }
 
@@ -398,10 +421,14 @@ export class LessonEditor extends BaseView {
                                     Předmět
                                 </label>
                                 <input type="text"
+                                    list="subjects-list"
                                     .value="${this.lesson.subject || ''}"
                                     @input="${e => this.lesson = { ...this.lesson, subject: e.target.value }}"
-                                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-semibold text-slate-800"
                                     placeholder="Např. Dějepis, Fyzika...">
+                                <datalist id="subjects-list">
+                                    ${this._availableSubjects.map(sub => html`<option value="${sub}"></option>`)}
+                                </datalist>
                              </div>
                              <div>
                                 <label class="block text-sm font-bold text-slate-700 mb-2">
@@ -471,14 +498,12 @@ export class LessonEditor extends BaseView {
                     </div>
 
                     <!-- Actions -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                        <button @click="${this._handleManualCreate}"
-                            class="px-6 py-4 rounded-xl border-2 border-slate-200 text-slate-600 font-bold hover:border-slate-300 hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
-                            <span>🛠️</span> ${translationService.t('professor.manual_create')}
+                    <div class="mt-8 pt-6 border-t border-slate-100 flex justify-end gap-4">
+                        <button @click=${this._handleManualCreate} class="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50">
+                           🛠️ Manuálně
                         </button>
-                        <button @click="${this._handleAutoMagic}"
-                            class="px-6 py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-lg hover:shadow-indigo-500/30 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
-                            <span>✨</span> ${translationService.t('lesson.magic_btn')}
+                        <button @click=${this._handleAutoMagic} class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5">
+                           ✨ Magicky vygenerovat
                         </button>
                     </div>
 
