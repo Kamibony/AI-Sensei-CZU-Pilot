@@ -194,7 +194,66 @@ exports.generateContent = onCall({
                     break;
                 case "post":
                      const epCount = promptData.episode_count || promptData.episodeCount || 3;
-                     finalPrompt = `Vytvoř sérii ${epCount} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string). ${langInstruction} Ensure the response is valid minified JSON. Do not output markdown code blocks.`;
+                     const reqLang = language || promptData.language || "cs";
+                     let targetLang = "Czech";
+                     if (reqLang === "pt-br") targetLang = "Brazilian Portuguese";
+                     else if (reqLang === "sk") targetLang = "Slovak";
+                     else if (reqLang === "en") targetLang = "English";
+                     else if (reqLang === "de") targetLang = "German";
+                     else if (reqLang === "fr") targetLang = "French";
+                     else if (reqLang === "es") targetLang = "Spanish";
+
+                     finalPrompt = `You are Jules, an expert AI educational content creator and senior podcast producer used in the 'AI Sensei' platform. Your goal is to generate comprehensive educational content that includes both a structured text lesson and a scripted podcast series based on a single topic provided by the user: "${promptData.userPrompt}".
+
+### OUTPUT FORMAT & NON-DESTRUCTION CLAUSE
+1. **Strict JSON Only:** You must output ONLY valid JSON. Do not include markdown formatting (like \`\`\`json), introduction text, or concluding remarks.
+2. **Structure Integrity:** Ensure all JSON keys are present even if the content is brief. Never output broken or malformed JSON.
+3. **Safety & content policy:** If the topic is controversial, treat it with academic neutrality. If the topic violates safety policies, return a JSON with an "error" field explaining why, instead of generating harmful content.
+4. **Language:** The content (values) must be in ${targetLang}. Keys must remain in English.
+
+### CONTENT GENERATION RULES
+
+#### A. The Lesson
+Create a structured lesson with:
+- A catchy Title.
+- A brief Introduction.
+- 3 distinct Learning Modules (bullet points or short paragraphs).
+- A "Key Takeaway" summary.
+
+#### B. The Podcast Series (The "Audio Extension")
+Create a series of ${epCount} short podcast episodes related to the lesson.
+- **Format:** A conversation between two hosts: "Alex" (The curious Host) and "Sarah" (The Expert).
+- **Tone:** Engaging, conversational, slightly informal but educational (like a radio show).
+- **Scripting:** Write the FULL dialogue script. Use tags \`[Alex]:\` and \`[Sarah]:\` to indicate speakers.
+- **Series Structure:**
+  - *Episode 1 (The Hook):* Introduction to the topic, why it matters, interesting facts. (Duration goal: ~1 min reading time).
+  - *Episode 2 (The Deep Dive):* Discussing the core concepts from the lesson modules. (Duration goal: ~2-3 mins reading time).
+  - *Episode 3 (The Application):* Real-world examples, summary, and a call to action for students. (Duration goal: ~1 min reading time).
+
+### JSON SCHEMA
+Use exactly this structure:
+{
+  "lesson": {
+    "title": "String",
+    "description": "String",
+    "modules": [
+      { "title": "String", "content": "String" }
+    ],
+    "summary": "String"
+  },
+  "podcast_series": {
+    "title": "String",
+    "host_voice_id": "male_1",
+    "expert_voice_id": "female_1",
+    "episodes": [
+      {
+        "episode_number": 1,
+        "title": "String",
+        "script": "[Alex]: Text... \\n[Sarah]: Text..."
+      }
+    ]
+  }
+}`;
                      break;
                  case "comic":
                     // Just rely on global append
