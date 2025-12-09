@@ -1,5 +1,6 @@
 // public/js/views/professor/editor/editor-view-presentation.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { translationService } from '../../../utils/translation-service.js';
 import './ai-generator-panel.js';
 
 export class EditorViewPresentation extends LitElement {
@@ -96,7 +97,7 @@ export class EditorViewPresentation extends LitElement {
                 ${hasContent ? html`
                     <div class="absolute top-24 right-8 z-10">
                         <button @click=${this._exportToPptx} class="px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 flex items-center justify-center bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow-indigo-200">
-                            💾 Stiahnuť PPTX
+                            💾 ${translationService.t('editor.download_pptx')}
                         </button>
                     </div>
                 ` : ''}

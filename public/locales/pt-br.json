@@ -271,7 +271,11 @@
     "btn_save_changes": "Salvar alterações",
     "ai_tip_title": "Dica do AI Sensei:",
     "ai_tip_desc": "Esta é uma sugestão gerada por inteligência artificial. Você pode editá-la. Salve as alterações nesta seção com o botão no canto inferior direito.",
-    "btn_save_section": "Salvar seção"
+    "btn_save_section": "Salvar seção",
+    "download_pptx": "Baixar PPTX",
+    "column_basics": "1. Dados Básicos",
+    "column_classes": "2. Atribuir a Turmas",
+    "column_files": "3. Materiais (Arquivos)"
   },
   "content_types": {
     "text": "Texto",
@@ -354,6 +358,21 @@
     "join_btn": "Entrar",
     "cancel_btn": "Cancelar",
     "class_not_found": "Turma com este código não encontrada",
+    "nav": {
+      "dashboard": "Visão Geral",
+      "lessons": "Minhas Aulas",
+      "classes": "Minhas Turmas"
+    },
+    "profile": {
+      "logout": "Sair",
+      "role": "Aluno"
+    },
+    "join_modal": {
+      "title": "Juntar-se à turma",
+      "label_code": "Código da Turma",
+      "placeholder": "Digite o código...",
+      "submit": "Juntar-se"
+    },
     "dashboard": {
         "welcome_subtitle": "Bem-vindo ao seu centro de estudos.",
         "streak": "Sequência",
@@ -461,5 +480,8 @@
     "code_label": "Código:",
     "actions": "Ações",
     "remove": "Remover"
+  },
+  "prompts": {
+    "podcast_default": "Explore os principais conceitos da aula \"{{topic}}\""
   }
 }
