@@ -56,12 +56,17 @@ export async function initializeFirebase() {
     storage = getStorage(app);
     functions = getFunctions(app, 'europe-west1');
     
-    if (typeof analytics === 'undefined') {
-        try {
-            analytics = getAnalytics(app);
-        } catch (e) {
-            console.warn("Analytics initialization skipped:", e);
+    // Only init analytics in production or if we have a real key to prevent crashes on localhost
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        if (typeof analytics === 'undefined') {
+            try {
+                analytics = getAnalytics(app);
+            } catch (e) {
+                console.warn("Analytics initialization skipped:", e);
+            }
         }
+    } else {
+         console.log("Analytics skipped on localhost to avoid invalid API key errors.");
     }
 
     // Pripojenie k emulátorom, ak bežíme na localhoste
