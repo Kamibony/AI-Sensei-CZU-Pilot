@@ -26,7 +26,7 @@ export class EditorViewPresentation extends LitElement {
 
     async _exportToPptx() {
         if (!this.lesson?.presentation?.slides) {
-            alert('Nejprve vygenerujte prezentaci.');
+            alert(translationService.t('editor.generate_presentation_first') || 'Nejprve vygenerujte prezentaci.');
             return;
         }
 
@@ -38,9 +38,10 @@ export class EditorViewPresentation extends LitElement {
             pres.defineSlideMaster({
                 title: 'MASTER_SLIDE',
                 background: { color: 'F1F5F9' }, // slate-100
+                slideNumber: { x: '95%', y: '95%', color: '64748B', fontSize: 10 },
                 objects: [
                     { rect: { x: 0, y: 0, w: '100%', h: 0.8, fill: { color: '4F46E5' } } }, // Indigo header bar
-                    { text: { text: 'AI Sensei', options: { x: 0.5, y: 0.1, w: 3, h: 0.5, fontFace: 'Arial', fontSize: 18, color: 'FFFFFF', bold: true } } }
+                    { text: { text: 'AI Sensei', options: { x: 0.5, y: 0.15, w: 3, h: 0.5, fontFace: 'Arial', fontSize: 18, color: 'FFFFFF', bold: true } } }
                 ]
             });
 
@@ -51,32 +52,35 @@ export class EditorViewPresentation extends LitElement {
 
                 // Title
                 slide.addText(slideData.title || 'Bez názvu', {
-                    x: 0.5, y: 1.0, w: '90%', h: 1,
+                    x: 0.5, y: 1.0, w: '90%', h: 0.8,
                     fontSize: 32, bold: true, color: '1E293B', fontFace: 'Arial'
                 });
 
-                // Points (Bullet points)
+                // Points (Bullet points - Left side)
                 if (slideData.points && slideData.points.length > 0) {
                     const bullets = slideData.points.map(p => ({ text: p, options: { breakLine: true } }));
                     slide.addText(bullets, {
-                        x: 0.5, y: 2.2, w: '55%', h: 4.5,
+                        x: 0.5, y: 2.0, w: '45%', h: 4.5,
                         fontSize: 18, color: '334155', bullet: true, fontFace: 'Arial', valign: 'top'
                     });
                 }
 
-                // Visuals Placeholder
-                if (slideData.visual_idea) {
-                    slide.addShape(pres.ShapeType.rect, {
-                        x: 6.5, y: 2.2, w: 3.0, h: 3.0,
-                        fill: { color: 'E2E8F0' }, // slate-200
-                        line: { color: '94A3B8', width: 1, dashType: 'dash' }
-                    });
+                // Visual Placeholder (Right side)
+                // Distinct placeholder box on the Right side
+                slide.addShape(pres.ShapeType.rect, {
+                    x: 5.2, y: 2.0, w: 4.5, h: 3.5,
+                    fill: { color: 'E2E8F0' }, // light gray slate-200
+                    line: { color: '94A3B8', width: 1, dashType: 'dash' }
+                });
 
-                    slide.addText(`[AI Suggestion]:\n${slideData.visual_idea}`, {
-                        x: 6.6, y: 2.3, w: 2.8, h: 2.8,
-                        fontSize: 12, color: '64748B', fontFace: 'Arial', italic: true, valign: 'middle', align: 'center'
-                    });
-                }
+                const visualText = slideData.visual_idea
+                    ? `🖼️ AI Suggestion:\n${slideData.visual_idea}`
+                    : "🖼️ AI Suggestion:\n(No visual suggestion)";
+
+                slide.addText(visualText, {
+                    x: 5.3, y: 2.1, w: 4.3, h: 3.3,
+                    fontSize: 12, color: '64748B', fontFace: 'Arial', italic: true, valign: 'middle', align: 'center'
+                });
             });
 
             // 4. Save

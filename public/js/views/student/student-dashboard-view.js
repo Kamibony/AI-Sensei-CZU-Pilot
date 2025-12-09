@@ -12,7 +12,7 @@ import { signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-aut
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast } from '../../utils.js';
-import { translationService } from '../../utils/translation-service.js'; // Import translation service
+import { translationService } from '../../services/translation-service.js';
 import './student-classes-view.js';
 import './student-lesson-list.js';
 import './student-lesson-detail.js';
@@ -42,10 +42,21 @@ class StudentDashboard extends LitElement {
         this.joinCode = '';
         this.joinError = '';
         this.isJoining = false;
+        this._unsubscribe = null;
     }
 
     createRenderRoot() {
         return this;
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        this._unsubscribe = translationService.subscribe(() => this.requestUpdate());
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        if (this._unsubscribe) this._unsubscribe();
     }
 
     render() {
@@ -162,9 +173,10 @@ class StudentDashboard extends LitElement {
 
     async _submitJoinClass() {
         console.log("Submit Join Class clicked. Code:", this.joinCode);
+        const t = (key, params) => translationService.t(key, params);
         
         if (!this.joinCode) {
-            showToast('Zadejte prosím kód třídy', true);
+            showToast(t('student.enter_code'), true);
             return;
         }
 
@@ -172,7 +184,6 @@ class StudentDashboard extends LitElement {
         this.joinError = '';
 
         try {
-            // Skúsime najprv Callable funkciu (Cloud Function)
             if (!functions) {
                 console.warn("Firebase functions not initialized yet.");
                 throw new Error("Functions not ready");
@@ -183,15 +194,15 @@ class StudentDashboard extends LitElement {
             console.log("Cloud function success:", result);
             
             this._closeJoinClassModal();
-            showToast(`Úspěšně jste se připojili k třídě ${result.data.groupName}!`);
+            showToast(t('student.join_success_group', { groupName: result.data.groupName }));
             
-            // Soft-refresh: prepneme na view 'classes', čímž sa znova načíta zoznam
+            // Soft-refresh
             this.currentView = 'classes';
             this.requestUpdate();
 
         } catch (error) {
             console.error("Error joining class:", error);
-            this.joinError = error.message || "Nepodařilo se připojit k třídě. Zkontrolujte kód.";
+            this.joinError = error.message || t('student.join_error_unknown');
         } finally {
             this.isJoining = false;
         }
@@ -222,6 +233,7 @@ class StudentDashboard extends LitElement {
     }
 
     renderContent() {
+        const t = (key) => translationService.t(key);
         switch (this.currentView) {
             case 'lessons':
                 if (this.selectedLessonId) {
@@ -268,8 +280,8 @@ class StudentDashboard extends LitElement {
             default:
                  return html`
                     <div class="text-center py-12">
-                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Vitajte, ${this.user.email}</h2>
-                        <p class="text-slate-500">Vyberte si lekciu alebo triedu z menu.</p>
+                        <h2 class="text-2xl font-bold text-slate-800 mb-2">${t('student.dashboard.welcome')}, ${this.user.email}</h2>
+                        <p class="text-slate-500">${t('student.select_instruction')}</p>
                     </div>
                 `;
         }
