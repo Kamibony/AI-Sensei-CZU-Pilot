@@ -50,6 +50,14 @@
       ]
     },
     {
+      "collectionGroup": "lessons",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "timeline_events",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
