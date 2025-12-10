@@ -6,6 +6,7 @@ import { db, auth, functions } from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { translationService } from '../../services/translation-service.js';
+import { callGenerateContent } from '../../gemini-api.js';
 
 import './editor/editor-view-text.js';
 import './editor/editor-view-presentation.js';
@@ -34,7 +35,8 @@ export class LessonEditor extends BaseView {
     _processingRAG: { state: true },
     _uploadedFiles: { state: true, type: Array },
     _wizardMode: { state: true, type: Boolean },
-    _activeTool: { state: true, type: String }
+    _activeTool: { state: true, type: String },
+    _isGenerating: { state: true, type: Boolean }
   };
 
   constructor() {
@@ -51,6 +53,7 @@ export class LessonEditor extends BaseView {
     this._unsubscribe = null;
     this._wizardMode = true;
     this._activeTool = null;
+    this._isGenerating = false;
   }
 
   updated(changedProperties) {
@@ -71,6 +74,7 @@ export class LessonEditor extends BaseView {
 
   async connectedCallback() {
       super.connectedCallback();
+      this.addEventListener('lesson-updated', this._handleLessonUpdatedEvent);
       this._unsubscribe = translationService.subscribe(() => this.requestUpdate());
       await Promise.all([
           this._fetchAvailableClasses(),
@@ -87,7 +91,14 @@ export class LessonEditor extends BaseView {
 
   disconnectedCallback() {
       super.disconnectedCallback();
+      this.removeEventListener('lesson-updated', this._handleLessonUpdatedEvent);
       if (this._unsubscribe) this._unsubscribe();
+  }
+
+  _handleLessonUpdatedEvent(e) {
+      if (e.detail) {
+          this.lesson = { ...this.lesson, ...e.detail };
+      }
   }
 
   _initNewLesson() {
@@ -330,41 +341,94 @@ export class LessonEditor extends BaseView {
           return;
       }
 
+      // 1. Save Lesson First
       await this._handleSave();
 
-      const prompt = `Vytvor komplexnú lekciu na tému '${this.lesson.title}' (${this.lesson.topic || ''}) pre predmet '${this.lesson.subject || ''}'. Použi priložené súbory...`;
-
-      const filePaths = this._uploadedFiles.map(f => f.storagePath).filter(Boolean);
-      const generationParams = {
-          prompt: prompt,
-          contentType: this.lesson.contentType,
-          filePaths: filePaths
-      };
-
-      if (this.lesson.contentType === 'audio') {
-          generationParams.episode_count = 3;
-      }
-
-      this._wizardMode = false;
-      this._activeTool = this.lesson.contentType; // Switch to editor
+      this._isGenerating = true;
       this.requestUpdate();
-      await this.updateComplete;
 
-      const activeEditor = this.shadowRoot.querySelector('#active-editor');
-      if (activeEditor && activeEditor.handleAiGeneration) {
-          try {
-             await activeEditor.handleAiGeneration(generationParams);
-             this._activeTool = null; // Switch to Hub
-             this.requestUpdate();
-             showToast(translationService.t('lesson.magic_done'));
-          } catch(e) {
-             console.error("Magic Generation Error", e);
-             showToast(translationService.t('common.error'), true);
+      const contentTypes = ['text', 'presentation', 'quiz', 'test', 'post'];
+      const filePaths = this._uploadedFiles.map(f => f.storagePath).filter(Boolean);
+
+      try {
+          for (const type of contentTypes) {
+              const prompt = `Create ${type} for subject ${this.lesson.subject || ''}, lesson ${this.lesson.title}. Context: Attached files.`;
+              const promptData = {
+                  userPrompt: prompt,
+                  isMagic: true
+              };
+
+              // Type specific configs
+              if (type === 'quiz' || type === 'test') {
+                  promptData.question_count = 5;
+                  promptData.difficulty = 'Střední';
+              } else if (type === 'presentation') {
+                  promptData.slide_count = 5;
+              }
+
+              const result = await callGenerateContent({ contentType: type, promptData, filePaths });
+
+              if (result && !result.error) {
+                   let dataToSave = result;
+                   let fieldToUpdate = '';
+
+                   if (type === 'text') {
+                       dataToSave = result.text || result;
+                       fieldToUpdate = 'text_content';
+                   } else if (type === 'presentation') {
+                       // Ensure result structure matches what editor expects
+                       dataToSave = { slides: result.slides || [], styleId: 'default' };
+                       fieldToUpdate = 'presentation';
+                   } else if (type === 'quiz') {
+                       fieldToUpdate = 'quiz';
+                   } else if (type === 'test') {
+                       fieldToUpdate = 'test';
+                   } else if (type === 'post') {
+                       // Post logic uses lesson.content.text and lesson.content.author
+                       // But to be safe and compatible with current LessonEditor render check
+                       // We will save to 'postContent' if that's what LessonEditor checks for presence
+                       // Or map it to what EditorViewPost uses.
+                       // EditorViewPost updates `lesson.content`.
+                       // But LessonEditor checks `!!this.lesson.postContent`.
+                       // Let's align by saving to postContent for the checkmark, and content for the editor.
+                       // Actually, let's look at EditorViewPost again. It dispatches { content: ... }.
+                       // And LessonEditor merges it.
+                       // I will save result to postContent AND content to be safe.
+                       dataToSave = {
+                           text: result.content || result.text || '',
+                           author: 'ai_sensei'
+                       };
+                       fieldToUpdate = 'postContent'; // Used for Hub checkmark
+                       // Also update content field for the editor view
+                       this.lesson.content = { ...this.lesson.content, ...dataToSave };
+                   }
+
+                   // Update local state
+                   this.lesson = { ...this.lesson, [fieldToUpdate]: dataToSave };
+
+                   // Save to Firestore immediately
+                   const user = auth.currentUser;
+                   if (user && this.lesson.id) {
+                        const lessonRef = doc(db, 'lessons', this.lesson.id);
+                        await updateDoc(lessonRef, {
+                            [fieldToUpdate]: dataToSave,
+                            updatedAt: new Date().toISOString()
+                        });
+                        // If it was post, also update content field
+                        if (type === 'post') {
+                             await updateDoc(lessonRef, { content: this.lesson.content });
+                        }
+                   }
+              }
           }
-      } else {
-          console.warn("No active editor to handle generation");
-          // Fallback to Hub if editor not found
-          this._activeTool = null;
+          showToast(translationService.t('lesson.magic_done'));
+      } catch (e) {
+          console.error("Auto Magic Error", e);
+          showToast(translationService.t('common.error'), true);
+      } finally {
+          this._isGenerating = false;
+          this._wizardMode = false;
+          this._activeTool = null; // Switch to Hub
           this.requestUpdate();
       }
   }
@@ -398,7 +462,7 @@ export class LessonEditor extends BaseView {
       if (activeEditor && activeEditor.handleAiGeneration) {
            try {
                await activeEditor.handleAiGeneration(generationParams);
-               this._activeTool = null; // Switch to Hub
+               // this._activeTool = null; // Don't auto-close on manual generation inside editor
                this.requestUpdate();
                showToast(translationService.t('lesson.magic_done'));
            } catch (e) {
@@ -411,6 +475,21 @@ export class LessonEditor extends BaseView {
   _renderWizardMode() {
       return html`
         <div class="min-h-full flex flex-col items-center justify-center p-4 bg-slate-50/50">
+            ${this._isGenerating ? html`
+                <div class="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center">
+                    <div class="text-center space-y-4">
+                         <div class="text-6xl animate-bounce">✨</div>
+                         <h2 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                             Creating magic...
+                         </h2>
+                         <p class="text-slate-500">Generating lesson content from your files</p>
+                         <div class="w-64 h-2 bg-slate-100 rounded-full overflow-hidden mx-auto mt-4">
+                              <div class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 animate-pulse w-full"></div>
+                         </div>
+                    </div>
+                </div>
+            ` : ''}
+
             <div class="w-full max-w-3xl bg-white rounded-3xl shadow-xl flex flex-col max-h-[90vh] animate-fade-in-up">
 
                 <div class="bg-gradient-to-r from-indigo-600 to-violet-600 p-8 text-white relative overflow-hidden flex-shrink-0">
@@ -458,20 +537,6 @@ export class LessonEditor extends BaseView {
                                     placeholder="${translationService.t('professor.editor.subtitlePlaceholder')}">
                              </div>
                         </div>
-
-                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-2">Typ obsahu (pro generování)</label>
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                ${this._renderContentTypeOption('text', '📝', translationService.t('content_types.text'))}
-                                ${this._renderContentTypeOption('presentation', '📊', translationService.t('content_types.presentation'))}
-                                ${this._renderContentTypeOption('quiz', '❓', translationService.t('content_types.quiz'))}
-                                ${this._renderContentTypeOption('test', '📝', translationService.t('content_types.test'))}
-                                ${this._renderContentTypeOption('post', '📰', translationService.t('content_types.post') || 'Příspěvek')}
-                                ${this._renderContentTypeOption('video', '🎥', translationService.t('content_types.video'))}
-                                ${this._renderContentTypeOption('audio', '🎙️', translationService.t('content_types.audio'))}
-                                ${this._renderContentTypeOption('comic', '💬', translationService.t('content_types.comic'))}
-                            </div>
-                         </div>
                     </div>
 
                     ${this._renderFilesSection()}
@@ -616,10 +681,10 @@ export class LessonEditor extends BaseView {
                   </div>
 
                   <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      ${this._renderContentCard('text', '📝', translationService.t('content_types.text'), this.lesson.content?.blocks?.length > 0)}
-                      ${this._renderContentCard('presentation', '📊', translationService.t('content_types.presentation'), this.lesson.slides?.length > 0)}
-                      ${this._renderContentCard('quiz', '❓', translationService.t('content_types.quiz'), this.lesson.questions?.length > 0)}
-                      ${this._renderContentCard('test', '📝', translationService.t('content_types.test'), false)}
+                      ${this._renderContentCard('text', '📝', translationService.t('content_types.text'), this.lesson.text_content || this.lesson.content?.blocks?.length > 0)}
+                      ${this._renderContentCard('presentation', '📊', translationService.t('content_types.presentation'), this.lesson.presentation?.slides?.length > 0)}
+                      ${this._renderContentCard('quiz', '❓', translationService.t('content_types.quiz'), this.lesson.quiz?.questions?.length > 0 || this.lesson.questions?.length > 0)}
+                      ${this._renderContentCard('test', '📝', translationService.t('content_types.test'), this.lesson.test?.questions?.length > 0)}
                       ${this._renderContentCard('post', '📰', translationService.t('content_types.post') || 'Příspěvek', !!this.lesson.postContent)}
                       ${this._renderContentCard('video', '🎥', translationService.t('content_types.video'), !!this.lesson.videoUrl)}
                       ${this._renderContentCard('audio', '🎙️', translationService.t('content_types.audio'), false)}
@@ -661,48 +726,15 @@ export class LessonEditor extends BaseView {
   }
 
   _renderSpecificToolEditor() {
-      const getLabel = (type) => {
-          return translationService.t(`content_types.${type}`) || type;
-      }
-
+      // Reuse the header
       return html`
       <div class="h-full flex flex-col bg-slate-50 relative">
-        <!-- Header -->
-        <div class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm z-20">
-            <div class="flex items-center gap-4">
-                <button @click="${() => this._activeTool = null}"
-                    class="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold transition-colors bg-slate-50 hover:bg-indigo-50 px-3 py-1.5 rounded-lg">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                    ${translationService.t('professor.back_hub') || 'Zpět'}
-                </button>
-                <div class="h-6 w-px bg-slate-200"></div>
-                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <span class="text-2xl">✏️</span> Editace: <span class="text-indigo-600">${getLabel(this._activeTool)}</span>
-                </h2>
-            </div>
-            <div>
-                 <button @click="${this._handleSave}"
-                      class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none transition-all ${this.isSaving ? 'opacity-75 cursor-wait' : ''}"
-                      ?disabled="${this.isSaving}">
-                    ${this.isSaving ? translationService.t('common.loading') : translationService.t('professor.editor.saveChanges')}
-                 </button>
-            </div>
-        </div>
+        ${this._renderHeader()}
 
         <!-- Content -->
         <div class="flex-1 overflow-hidden relative">
             <div class="absolute inset-0 overflow-y-auto custom-scrollbar p-6">
                  <div class="max-w-5xl mx-auto space-y-6">
-
-                    <!-- AI Panel for this tool -->
-                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
-                         <ai-generator-panel
-                            .lesson=${this.lesson}
-                            .files=${this._uploadedFiles}
-                            @generate="${this._handleMagicGeneration}">
-                         </ai-generator-panel>
-                    </div>
-
                     <!-- The Editor -->
                     <div class="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden min-h-[500px] flex flex-col relative">
                         ${this._renderSpecificEditor()}
@@ -758,10 +790,10 @@ export class LessonEditor extends BaseView {
 
   _renderSpecificEditor() {
       switch (this._activeTool) {
-          case 'text': return html`<editor-view-text id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, content: e.detail }; }}></editor-view-text>`;
-          case 'presentation': return html`<editor-view-presentation id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, slides: e.detail }; }}></editor-view-presentation>`;
-          case 'quiz': return html`<editor-view-quiz id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, questions: e.detail }; }}></editor-view-quiz>`;
-          case 'test': return html`<editor-view-test id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, questions: e.detail }; }}></editor-view-test>`;
+          case 'text': return html`<editor-view-text id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, text_content: e.detail }; }}></editor-view-text>`;
+          case 'presentation': return html`<editor-view-presentation id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, presentation: e.detail }; }}></editor-view-presentation>`;
+          case 'quiz': return html`<editor-view-quiz id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, quiz: e.detail }; }}></editor-view-quiz>`;
+          case 'test': return html`<editor-view-test id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, test: e.detail }; }}></editor-view-test>`;
           case 'post': return html`<editor-view-post id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-post>`;
           case 'video': return html`<editor-view-video id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-video>`;
           case 'comic': return html`<editor-view-comic id="active-editor" .lesson=${this.lesson} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-comic>`;
