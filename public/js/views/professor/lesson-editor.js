@@ -1,4 +1,3 @@
-
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { BaseView } from './base-view.js';
 import { doc, getDoc, updateDoc, setDoc, arrayUnion, arrayRemove, collection, getDocs, where, query } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -27,6 +26,7 @@ export class LessonEditor extends BaseView {
   static properties = {
     lesson: { type: Object },
     isSaving: { type: Boolean },
+    _isLoading: { state: true, type: Boolean },
     _selectedClassIds: { state: true, type: Array },
     _availableClasses: { state: true, type: Array },
     _availableSubjects: { state: true, type: Array },
@@ -43,6 +43,7 @@ export class LessonEditor extends BaseView {
     super();
     this.lesson = null;
     this.isSaving = false;
+    this._isLoading = false;
     this._selectedClassIds = [];
     this._availableClasses = [];
     this._availableSubjects = [];
@@ -341,94 +342,94 @@ export class LessonEditor extends BaseView {
           return;
       }
 
-      // 1. Save Lesson First
+      this._isLoading = true;
+      // Save base lesson first
       await this._handleSave();
 
-      this._isGenerating = true;
-      this.requestUpdate();
-
-      const contentTypes = ['text', 'presentation', 'quiz', 'test', 'post'];
+      const typesToGenerate = ['text', 'presentation', 'quiz', 'test', 'post'];
       const filePaths = this._uploadedFiles.map(f => f.storagePath).filter(Boolean);
 
       try {
-          for (const type of contentTypes) {
-              const prompt = `Create ${type} for subject ${this.lesson.subject || ''}, lesson ${this.lesson.title}. Context: Attached files.`;
-              const promptData = {
-                  userPrompt: prompt,
+          for (const type of typesToGenerate) {
+              let promptData = {
+                  userPrompt: '',
                   isMagic: true
               };
+              let contentType = type;
 
-              // Type specific configs
-              if (type === 'quiz' || type === 'test') {
-                  promptData.question_count = 5;
-                  promptData.difficulty = 'Střední';
-              } else if (type === 'presentation') {
-                  promptData.slide_count = 5;
+              // Construct Prompt
+              switch (type) {
+                  case 'text':
+                      promptData.userPrompt = `Vytvor výukový text na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                      break;
+                  case 'presentation':
+                      promptData.userPrompt = `Vytvor štruktúru prezentácie (8 slidov) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                      promptData.slide_count = 8;
+                      break;
+                  case 'quiz':
+                      promptData.userPrompt = `Vytvor kvíz (5 otázek) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                      promptData.question_count = 5;
+                      break;
+                  case 'test':
+                      promptData.userPrompt = `Vytvor test (10 otázek) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                      promptData.question_count = 10;
+                      promptData.difficulty = 'Střední';
+                      break;
+                  case 'post':
+                      promptData.userPrompt = `Vytvor scenár podcastu (3 epizódy) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                      promptData.episode_count = 3;
+                      break;
               }
 
-              const result = await callGenerateContent({ contentType: type, promptData, filePaths });
+              // Call Cloud Function
+              const generateContentFunc = httpsCallable(functions, 'generateContent');
+              const result = await generateContentFunc({
+                  contentType: contentType,
+                  promptData: promptData,
+                  filePaths: filePaths
+              });
 
-              if (result && !result.error) {
-                   let dataToSave = result;
-                   let fieldToUpdate = '';
+              const data = result.data;
 
-                   if (type === 'text') {
-                       dataToSave = result.text || result;
-                       fieldToUpdate = 'text_content';
-                   } else if (type === 'presentation') {
-                       // Ensure result structure matches what editor expects
-                       dataToSave = { slides: result.slides || [], styleId: 'default' };
-                       fieldToUpdate = 'presentation';
-                   } else if (type === 'quiz') {
-                       fieldToUpdate = 'quiz';
-                   } else if (type === 'test') {
-                       fieldToUpdate = 'test';
-                   } else if (type === 'post') {
-                       // Post logic uses lesson.content.text and lesson.content.author
-                       // But to be safe and compatible with current LessonEditor render check
-                       // We will save to 'postContent' if that's what LessonEditor checks for presence
-                       // Or map it to what EditorViewPost uses.
-                       // EditorViewPost updates `lesson.content`.
-                       // But LessonEditor checks `!!this.lesson.postContent`.
-                       // Let's align by saving to postContent for the checkmark, and content for the editor.
-                       // Actually, let's look at EditorViewPost again. It dispatches { content: ... }.
-                       // And LessonEditor merges it.
-                       // I will save result to postContent AND content to be safe.
-                       dataToSave = {
-                           text: result.content || result.text || '',
-                           author: 'ai_sensei'
-                       };
-                       fieldToUpdate = 'postContent'; // Used for Hub checkmark
-                       // Also update content field for the editor view
-                       this.lesson.content = { ...this.lesson.content, ...dataToSave };
-                   }
-
-                   // Update local state
-                   this.lesson = { ...this.lesson, [fieldToUpdate]: dataToSave };
-
-                   // Save to Firestore immediately
-                   const user = auth.currentUser;
-                   if (user && this.lesson.id) {
-                        const lessonRef = doc(db, 'lessons', this.lesson.id);
-                        await updateDoc(lessonRef, {
-                            [fieldToUpdate]: dataToSave,
-                            updatedAt: new Date().toISOString()
-                        });
-                        // If it was post, also update content field
-                        if (type === 'post') {
-                             await updateDoc(lessonRef, { content: this.lesson.content });
-                        }
-                   }
+              // Update this.lesson
+              switch (type) {
+                  case 'text':
+                      this.lesson = { ...this.lesson, text_content: data.text || data };
+                      break;
+                  case 'presentation':
+                      this.lesson = { ...this.lesson, presentation: { slides: data.slides, styleId: 'default' } };
+                      break;
+                  case 'quiz':
+                      this.lesson = { ...this.lesson, quiz: { questions: data.questions } };
+                      break;
+                  case 'test':
+                      this.lesson = { ...this.lesson, test: { questions: data.questions } };
+                      break;
+                  case 'post':
+                      // Save full JSON to postContent for Hub check
+                      // And map something to content for EditorViewPost
+                      const textRep = data.lesson ? `${data.lesson.title}\n\n${data.lesson.description}\n\n${(data.lesson.modules||[]).map(m=>m.title+': '+m.content).join('\n')}` : JSON.stringify(data);
+                      this.lesson = {
+                          ...this.lesson,
+                          postContent: data,
+                          content: { text: textRep, author: 'ai_sensei' }
+                      };
+                      break;
               }
+
+              // Incremental Save
+              await this._handleSave();
           }
+
           showToast(translationService.t('lesson.magic_done'));
-      } catch (e) {
-          console.error("Auto Magic Error", e);
+
+      } catch (error) {
+          console.error("Auto Magic Error:", error);
           showToast(translationService.t('common.error'), true);
       } finally {
-          this._isGenerating = false;
+          this._isLoading = false;
           this._wizardMode = false;
-          this._activeTool = null; // Switch to Hub
+          this._activeTool = null; // FORCE display of Lesson Hub
           this.requestUpdate();
       }
   }
@@ -473,6 +474,15 @@ export class LessonEditor extends BaseView {
   }
 
   _renderWizardMode() {
+      if (this._isLoading) {
+          return html`
+             <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
+                <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ AI Sensei kouzlí...</h2>
+                <p class="text-slate-500 mt-2">Generuji veškerý obsah lekce. Může to chvíli trvat.</p>
+             </div>
+          `;
+      }
       return html`
         <div class="min-h-full flex flex-col items-center justify-center p-4 bg-slate-50/50">
             ${this._isGenerating ? html`
@@ -658,6 +668,15 @@ export class LessonEditor extends BaseView {
   }
 
   _renderLessonHub() {
+      if (this._isLoading) {
+          return html`
+             <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
+                <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ AI Sensei kouzlí...</h2>
+                <p class="text-slate-500 mt-2">Generuji veškerý obsah lekce. Může to chvíli trvat.</p>
+             </div>
+          `;
+      }
       return html`
       <div class="h-full flex flex-col bg-slate-50/50 relative">
         ${this._renderHeader()}
@@ -681,9 +700,9 @@ export class LessonEditor extends BaseView {
                   </div>
 
                   <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      ${this._renderContentCard('text', '📝', translationService.t('content_types.text'), this.lesson.text_content || this.lesson.content?.blocks?.length > 0)}
-                      ${this._renderContentCard('presentation', '📊', translationService.t('content_types.presentation'), this.lesson.presentation?.slides?.length > 0)}
-                      ${this._renderContentCard('quiz', '❓', translationService.t('content_types.quiz'), this.lesson.quiz?.questions?.length > 0 || this.lesson.questions?.length > 0)}
+                      ${this._renderContentCard('text', '📝', translationService.t('content_types.text'), this.lesson.text_content || (this.lesson.content?.blocks?.length > 0))}
+                      ${this._renderContentCard('presentation', '📊', translationService.t('content_types.presentation'), this.lesson.slides?.length > 0 || this.lesson.presentation?.slides?.length > 0)}
+                      ${this._renderContentCard('quiz', '❓', translationService.t('content_types.quiz'), this.lesson.questions?.length > 0 || this.lesson.quiz?.questions?.length > 0)}
                       ${this._renderContentCard('test', '📝', translationService.t('content_types.test'), this.lesson.test?.questions?.length > 0)}
                       ${this._renderContentCard('post', '📰', translationService.t('content_types.post') || 'Příspěvek', !!this.lesson.postContent)}
                       ${this._renderContentCard('video', '🎥', translationService.t('content_types.video'), !!this.lesson.videoUrl)}

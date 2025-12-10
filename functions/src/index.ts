@@ -11,7 +11,7 @@ const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 const cors = require("cors");
 const fetch = require("node-fetch");
-const textToSpeech = require('@google-cloud/text-to-speech'); // Import pre TTS
+const textToSpeech = require("@google-cloud/text-to-speech"); // Import pre TTS
 
 // Lazy load heavy dependencies
 // const GeminiAPI = require("./gemini-api.js");
@@ -62,38 +62,38 @@ exports.generatePodcastAudio = onCall({
     }
 
     try {
-        logger.log(`Starting multi-voice audio generation for lesson ${lessonId}, episode ${episodeIndex || 'single'}...`);
+        logger.log(`Starting multi-voice audio generation for lesson ${lessonId}, episode ${episodeIndex || "single"}...`);
 
         const client = new textToSpeech.TextToSpeechClient();
-        const langCode = language || 'cs-CZ';
+        const langCode = language || "cs-CZ";
 
         // Definícia hlasov
         // Alex = Male (Wavenet-B / Neural2-B)
         // Sarah = Female (Wavenet-A / Neural2-A)
-        const maleVoiceName = (langCode === 'pt-br') ? 'pt-BR-Neural2-B' : 'cs-CZ-Wavenet-B';
-        const femaleVoiceName = (langCode === 'pt-br') ? 'pt-BR-Neural2-A' : 'cs-CZ-Wavenet-A';
+        const maleVoiceName = (langCode === "pt-br") ? "pt-BR-Neural2-B" : "cs-CZ-Wavenet-B";
+        const femaleVoiceName = (langCode === "pt-br") ? "pt-BR-Neural2-A" : "cs-CZ-Wavenet-A";
 
         // 2. Parsovanie vstupu na segmenty
         // Rozdelí text podľa [Speaker]:, ponechá oddelovače, a odstráni prázdne stringy
         const parts = text.split(/(\[(?:Alex|Sarah)\]:)/).filter((p: string) => p && p.trim().length > 0);
 
         const audioBuffers: Buffer[] = [];
-        let currentSpeaker = 'default'; // Default to female/sarah if no tag found initially? Or use male? Let's use Male as fallback or default.
+        let currentSpeaker = "default"; // Default to female/sarah if no tag found initially? Or use male? Let's use Male as fallback or default.
         // Actually, let's treat untagged text as the default voice (e.g., Alex/Male).
 
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i].trim();
-            if (part === '[Alex]:') {
-                currentSpeaker = 'Alex';
+            if (part === "[Alex]:") {
+                currentSpeaker = "Alex";
                 continue;
             }
-            if (part === '[Sarah]:') {
-                currentSpeaker = 'Sarah';
+            if (part === "[Sarah]:") {
+                currentSpeaker = "Sarah";
                 continue;
             }
 
             // Je to text segmentu
-            const voiceName = (currentSpeaker === 'Sarah') ? femaleVoiceName : maleVoiceName;
+            const voiceName = (currentSpeaker === "Sarah") ? femaleVoiceName : maleVoiceName;
 
             logger.log(`Synthesizing segment for ${currentSpeaker} (${voiceName}): "${part.substring(0, 20)}..."`);
 
@@ -104,7 +104,7 @@ exports.generatePodcastAudio = onCall({
                     name: voiceName
                 },
                 audioConfig: {
-                    audioEncoding: 'MP3',
+                    audioEncoding: "MP3",
                     speakingRate: 1.0,
                     pitch: 0.0
                 },
@@ -129,7 +129,7 @@ exports.generatePodcastAudio = onCall({
 
         // Ak máme episodeIndex, vytvoríme unikátny názov súboru
         let filePath = `podcasts/${lessonId}.mp3`;
-        if (typeof episodeIndex !== 'undefined') {
+        if (typeof episodeIndex !== "undefined") {
             filePath = `podcasts/${lessonId}_${episodeIndex}.mp3`;
         }
 
@@ -137,7 +137,7 @@ exports.generatePodcastAudio = onCall({
 
         await file.save(finalAudioBuffer, {
             metadata: {
-                contentType: 'audio/mpeg',
+                contentType: "audio/mpeg",
                 metadata: {
                     lessonId: lessonId,
                     episodeIndex: episodeIndex !== undefined ? String(episodeIndex) : "single",
@@ -180,7 +180,7 @@ exports.generateContent = onCall({
     }
     try {
         // Načítanie konfigurácie pre magický režim
-        const configSnap = await db.collection('system_settings').doc('ai_config').get();
+        const configSnap = await db.collection("system_settings").doc("ai_config").get();
         const config = configSnap.exists ? configSnap.data() : {};
 
         let finalPrompt = promptData.userPrompt;
@@ -693,7 +693,7 @@ exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: C
         let totalQuizScore = 0;
         quizSnapshot.forEach((doc: QueryDocumentSnapshot) => {
             const data = doc.data();
-            const score = (typeof data.score === 'number') ? data.score : 0;
+            const score = (typeof data.score === "number") ? data.score : 0;
             totalQuizScore += score; // score je 0 až 1
         });
         const avgQuizScore = quizSubmissionCount > 0 ? (totalQuizScore / quizSubmissionCount) * 100 : 0; // v percentách
@@ -704,7 +704,7 @@ exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: C
         let totalTestScore = 0;
         testSnapshot.forEach((doc: QueryDocumentSnapshot) => {
             const data = doc.data();
-            const score = (typeof data.score === 'number') ? data.score : 0;
+            const score = (typeof data.score === "number") ? data.score : 0;
             totalTestScore += score;
         });
         const avgTestScore = testSubmissionCount > 0 ? (totalTestScore / testSubmissionCount) * 100 : 0; // v percentách
