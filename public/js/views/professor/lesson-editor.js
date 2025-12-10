@@ -35,7 +35,7 @@ export class LessonEditor extends BaseView {
     _uploading: { state: true },
     _processingRAG: { state: true },
     _uploadedFiles: { state: true, type: Array }, // Source of truth for files
-    _viewMode: { state: true, type: String } // 'settings' (wizard) or 'editor'
+    _wizardMode: { state: true, type: Boolean } // 'wizard' (settings) or 'editor'
   };
 
   constructor() {
@@ -50,7 +50,7 @@ export class LessonEditor extends BaseView {
     this._processingRAG = false;
     this._uploadedFiles = [];
     this._unsubscribe = null;
-    this._viewMode = 'settings';
+    this._wizardMode = true;
   }
 
   updated(changedProperties) {
@@ -61,9 +61,11 @@ export class LessonEditor extends BaseView {
         this._uploadedFiles = this.lesson.files || [];
 
         // Decide view mode based on lesson state
-        // If content is empty/new, show wizard. If content exists, show editor.
-        if (this.lesson.id && (this.lesson.content?.blocks?.length > 0 || this.lesson.questions?.length > 0 || this.lesson.slides?.length > 0)) {
-            // this._viewMode = 'editor';
+        // If content is empty/new and no ID, show wizard.
+        if (this.lesson.id) {
+             this._wizardMode = false;
+        } else {
+             this._wizardMode = true;
         }
       } else {
         this._selectedClassIds = [];
@@ -103,7 +105,7 @@ export class LessonEditor extends BaseView {
           files: [],
           createdAt: new Date().toISOString()
       };
-      this._viewMode = 'settings';
+      this._wizardMode = true;
       this.requestUpdate();
   }
 
@@ -144,7 +146,7 @@ export class LessonEditor extends BaseView {
 
   async _handleSave() {
     if (!this.lesson.title) {
-        if (this._viewMode === 'settings') return;
+        if (this._wizardMode) return;
         this.lesson.title = translationService.t('lesson.new');
     }
 
@@ -195,8 +197,10 @@ export class LessonEditor extends BaseView {
   }
 
   _handleBackClick() {
+      // If in wizard mode, just go back to library.
+      // If in editor mode, go back to library/timeline.
       this.dispatchEvent(new CustomEvent('editor-exit', {
-          detail: { view: 'timeline' },
+          detail: { view: 'library' }, // Default to library
           bubbles: true,
           composed: true
       }));
@@ -209,7 +213,7 @@ export class LessonEditor extends BaseView {
           this._selectedClassIds = [...this._selectedClassIds, classId];
       }
       this.requestUpdate();
-      if(this.lesson.title) this._handleSave();
+      if(this.lesson.title && !this._wizardMode) this._handleSave();
   }
 
   async _handleFilesSelected(e) {
@@ -236,7 +240,7 @@ export class LessonEditor extends BaseView {
           }));
 
           this._uploadedFiles = [...this._uploadedFiles, ...newFiles];
-          if(this.lesson.title) await this._handleSave();
+          if(this.lesson.title && !this._wizardMode) await this._handleSave();
 
           this._processingRAG = true;
           for (const file of newFiles) {
@@ -264,7 +268,7 @@ export class LessonEditor extends BaseView {
   async _handleDeleteFile(fileIndex) {
       this._uploadedFiles.splice(fileIndex, 1);
       this._uploadedFiles = [...this._uploadedFiles];
-      if(this.lesson.title) await this._handleSave();
+      if(this.lesson.title && !this._wizardMode) await this._handleSave();
   }
 
   _handleOpenLibrary() {
@@ -296,7 +300,7 @@ export class LessonEditor extends BaseView {
 
                if (uniqueNewFiles.length > 0) {
                    this._uploadedFiles = [...this._uploadedFiles, ...uniqueNewFiles];
-                   if(this.lesson.title) await this._handleSave();
+                   if(this.lesson.title && !this._wizardMode) await this._handleSave();
                    showToast(`Pridáno ${uniqueNewFiles.length} souborů z knihovny.`);
                }
           }
@@ -342,7 +346,7 @@ export class LessonEditor extends BaseView {
           generationParams.episode_count = 3;
       }
 
-      this._viewMode = 'editor';
+      this._wizardMode = false;
       this.requestUpdate();
       await this.updateComplete;
 
@@ -360,7 +364,7 @@ export class LessonEditor extends BaseView {
           return;
       }
       await this._handleSave();
-      this._viewMode = 'editor';
+      this._wizardMode = false;
       this.requestUpdate();
   }
 
@@ -388,14 +392,17 @@ export class LessonEditor extends BaseView {
 
   _renderWizardMode() {
       return html`
-        <div class="min-h-full flex flex-col items-center justify-center p-4">
+        <div class="min-h-full flex flex-col items-center justify-center p-4 bg-slate-50/50">
             <div class="w-full max-w-3xl bg-white rounded-3xl shadow-xl overflow-hidden animate-fade-in-up">
 
                 <!-- Wizard Header -->
                 <div class="bg-gradient-to-r from-indigo-600 to-violet-600 p-8 text-white relative overflow-hidden">
-                    <div class="relative z-10">
-                        <h2 class="text-3xl font-extrabold mb-2">✨ ${translationService.t('lesson.new')}</h2>
-                        <p class="text-indigo-100">${translationService.t('professor.editor.magic_generator_desc')}</p>
+                    <button @click="${this._handleBackClick}" class="absolute left-4 top-4 p-2 text-indigo-200 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    </button>
+                    <div class="relative z-10 text-center mt-4">
+                        <h2 class="text-3xl font-extrabold mb-2">✨ ${translationService.t('lesson.new') || 'Nová lekce'}</h2>
+                        <p class="text-indigo-100">${translationService.t('professor.editor.magic_generator_desc') || 'Vytvořte lekci rychle pomocí AI nebo manuálně'}</p>
                     </div>
                     <div class="absolute right-0 top-0 h-full w-1/2 bg-white/10 transform skew-x-12 translate-x-12"></div>
                 </div>
@@ -406,13 +413,13 @@ export class LessonEditor extends BaseView {
                     <div class="space-y-4">
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-2">
-                                ${translationService.t('professor.editor.title')} <span class="text-red-500">*</span>
+                                ${translationService.t('professor.editor.title') || 'Název lekce'} <span class="text-red-500">*</span>
                             </label>
                             <input type="text"
                                 .value="${this.lesson.title}"
                                 @input="${e => this.lesson = { ...this.lesson, title: e.target.value }}"
                                 class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-lg font-semibold text-slate-800"
-                                placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder')}">
+                                placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder') || 'Např. Starověký Řím'}">
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -432,13 +439,13 @@ export class LessonEditor extends BaseView {
                              </div>
                              <div>
                                 <label class="block text-sm font-bold text-slate-700 mb-2">
-                                    ${translationService.t('professor.editor.subtitle')}
+                                    ${translationService.t('professor.editor.subtitle') || 'Téma / Podnadpis'}
                                 </label>
                                 <input type="text"
                                     .value="${this.lesson.topic}"
                                     @input="${e => this.lesson = { ...this.lesson, topic: e.target.value }}"
                                     class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-                                    placeholder="${translationService.t('professor.editor.subtitlePlaceholder')}">
+                                    placeholder="${translationService.t('professor.editor.subtitlePlaceholder') || 'Např. Punské války'}">
                              </div>
                         </div>
 
@@ -463,14 +470,14 @@ export class LessonEditor extends BaseView {
                     <div class="bg-slate-50 rounded-2xl p-6 border border-slate-100">
                          <div class="flex items-center justify-between mb-4">
                             <h3 class="font-bold text-slate-700 flex items-center gap-2">
-                                📚 ${translationService.t('professor.editor.filesAndRag')}
+                                📚 ${translationService.t('professor.editor.filesAndRag') || 'Podklady pro AI'}
                             </h3>
                              <div class="flex gap-2">
                                 <button @click="${this._handleOpenLibrary}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors">
-                                    📂 ${translationService.t('common.files_library')}
+                                    📂 ${translationService.t('common.files_library') || 'Knihovna'}
                                 </button>
                                 <label class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
-                                    📤 ${translationService.t('media.upload_title')}
+                                    📤 ${translationService.t('media.upload_title') || 'Nahrát'}
                                     <input type="file" multiple accept=".pdf,.docx,.txt" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
                                 </label>
                              </div>
@@ -478,7 +485,7 @@ export class LessonEditor extends BaseView {
 
                          ${this._uploadedFiles.length === 0 ? html`
                             <div class="text-center p-6 border-2 border-dashed border-slate-200 rounded-xl text-slate-400">
-                                <p class="text-sm">${translationService.t('common.files_rag_help')}</p>
+                                <p class="text-sm">${translationService.t('common.files_rag_help') || 'Nahrajte soubory, ze kterých má AI čerpat informace.'}</p>
                             </div>
                          ` : html`
                             <div class="space-y-2">
@@ -499,10 +506,10 @@ export class LessonEditor extends BaseView {
 
                     <!-- Actions -->
                     <div class="mt-8 pt-6 border-t border-slate-100 flex justify-end gap-4">
-                        <button @click=${this._handleManualCreate} class="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50">
+                        <button @click=${this._handleManualCreate} class="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors">
                            🛠️ Manuálně
                         </button>
-                        <button @click=${this._handleAutoMagic} class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5">
+                        <button @click=${this._handleAutoMagic} class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">
                            ✨ Magicky vygenerovat
                         </button>
                     </div>
@@ -620,7 +627,7 @@ export class LessonEditor extends BaseView {
                          placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder')}">
 
                    <div class="flex gap-2 text-xs text-slate-500 mt-1">
-                        <span>${this.lesson.subject}</span>
+                        <span>${this.lesson.subject || 'Bez předmětu'}</span>
                         <span>•</span>
                         <span>${this.lesson.contentType}</span>
                    </div>
@@ -666,7 +673,7 @@ export class LessonEditor extends BaseView {
   }
 
   render() {
-      if (this._viewMode === 'settings') {
+      if (this._wizardMode) {
           return this._renderWizardMode();
       }
       return this._renderEditorMode();

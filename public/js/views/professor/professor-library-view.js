@@ -1,5 +1,5 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { collection, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, query, where, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db, auth } from '../../firebase-init.js';
 import { translationService } from '../../services/translation-service.js';
 
@@ -15,21 +15,38 @@ export class ProfessorLibraryView extends LitElement {
         this._lessons = [];
         this._groupedLessons = {};
         this._isLoading = true;
+        this._unsubscribeLessons = null;
+        this._unsubscribeAuth = null;
     }
 
     createRenderRoot() { return this; }
 
-    async connectedCallback() {
+    connectedCallback() {
         super.connectedCallback();
-        await this._fetchLessons();
+        this._unsubscribeAuth = auth.onAuthStateChanged(user => {
+            if (user) {
+                this._subscribeToLessons(user);
+            } else {
+                this._lessons = [];
+                this._groupedLessons = {};
+                this._isLoading = false;
+            }
+        });
     }
 
-    async _fetchLessons() {
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        if (this._unsubscribeLessons) {
+            this._unsubscribeLessons();
+        }
+        if (this._unsubscribeAuth) {
+            this._unsubscribeAuth();
+        }
+    }
+
+    _subscribeToLessons(user) {
         this._isLoading = true;
         try {
-            const user = auth.currentUser;
-            if (!user) return;
-
             let q;
             if (user.email === 'profesor@profesor.cz') {
                  q = query(collection(db, 'lessons'), orderBy('updatedAt', 'desc'));
@@ -37,35 +54,40 @@ export class ProfessorLibraryView extends LitElement {
                  q = query(collection(db, 'lessons'), where('ownerId', '==', user.uid), orderBy('updatedAt', 'desc'));
             }
 
-            const querySnapshot = await getDocs(q);
-            this._lessons = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-
-            this._groupLessonsBySubject();
+            this._unsubscribeLessons = onSnapshot(q, (snapshot) => {
+                this._lessons = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                this._groupLessonsBySubject();
+                this._isLoading = false;
+            }, (error) => {
+                console.error("Error fetching lessons:", error);
+                this._isLoading = false;
+            });
 
         } catch (error) {
-            console.error("Error fetching lessons:", error);
-        } finally {
+            console.error("Error setting up listener:", error);
             this._isLoading = false;
         }
     }
 
     _groupLessonsBySubject() {
         const groups = {};
+        const otherLabel = translationService.t('common.other') || "Ostatní";
+
         this._lessons.forEach(lesson => {
-            const subject = lesson.subject || "Nezařazené";
+            const subject = lesson.subject || otherLabel;
             if (!groups[subject]) {
                 groups[subject] = [];
             }
             groups[subject].push(lesson);
         });
 
-        // Sort subjects alphabetically, but keep "Nezařazené" at the end if it exists
+        // Sort subjects alphabetically, but keep "Other/Ostatní" at the end if it exists
         const sortedKeys = Object.keys(groups).sort((a, b) => {
-             if (a === "Nezařazené") return 1;
-             if (b === "Nezařazené") return -1;
+             if (a === otherLabel) return 1;
+             if (b === otherLabel) return -1;
              return a.localeCompare(b);
         });
 
@@ -95,9 +117,9 @@ export class ProfessorLibraryView extends LitElement {
 
     _getStatusBadge(status) {
         const statusMap = {
-            'draft': { label: 'Koncept', class: 'bg-slate-100 text-slate-600' },
-            'published': { label: 'Publikováno', class: 'bg-green-100 text-green-700' },
-            'archived': { label: 'Archivováno', class: 'bg-orange-100 text-orange-700' }
+            'draft': { label: translationService.t('status.draft') || 'Koncept', class: 'bg-slate-100 text-slate-600' },
+            'published': { label: translationService.t('status.published') || 'Publikováno', class: 'bg-green-100 text-green-700' },
+            'archived': { label: translationService.t('status.archived') || 'Archivováno', class: 'bg-orange-100 text-orange-700' }
         };
         // Default to concept if unknown
         const s = statusMap[status] || statusMap['draft'];
@@ -110,11 +132,11 @@ export class ProfessorLibraryView extends LitElement {
                 <!-- Header -->
                 <div class="px-8 py-6 flex justify-between items-center border-b border-slate-200 bg-white">
                     <div>
-                        <h1 class="text-2xl font-bold text-slate-800">Knihovna lekcí</h1>
-                        <p class="text-slate-500 text-sm mt-1">Spravujte všechny své výukové materiály na jednom místě</p>
+                        <h1 class="text-2xl font-bold text-slate-800">${translationService.t('nav.library') || 'Knihovna lekcí'}</h1>
+                        <p class="text-slate-500 text-sm mt-1">${translationService.t('library.subtitle') || 'Spravujte všechny své výukové materiály na jednom místě'}</p>
                     </div>
                     <button @click="${this._handleNewLesson}" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-2">
-                        <span>✨</span> Nová lekce
+                        <span>✨</span> ${translationService.t('lesson.new') || 'Nová lekce'}
                     </button>
                 </div>
 
@@ -127,8 +149,8 @@ export class ProfessorLibraryView extends LitElement {
                     ` : Object.keys(this._groupedLessons).length === 0 ? html`
                         <div class="flex flex-col items-center justify-center h-full text-slate-400">
                              <span class="text-4xl mb-4">📂</span>
-                             <p>Zatím zde nejsou žádné lekce.</p>
-                             <button @click="${this._handleNewLesson}" class="mt-4 text-indigo-600 font-semibold hover:underline">Vytvořit první lekci</button>
+                             <p>${translationService.t('library.empty') || 'Zatím zde nejsou žádné lekce.'}</p>
+                             <button @click="${this._handleNewLesson}" class="mt-4 text-indigo-600 font-semibold hover:underline">${translationService.t('library.create_first') || 'Vytvořit první lekci'}</button>
                         </div>
                     ` : html`
                         <div class="space-y-8">
@@ -147,14 +169,14 @@ export class ProfessorLibraryView extends LitElement {
                                                 </div>
 
                                                 <h3 class="font-bold text-slate-800 mb-1 line-clamp-1" title="${lesson.title}">${lesson.title}</h3>
-                                                <p class="text-sm text-slate-500 mb-4 line-clamp-2 min-h-[2.5em]">${lesson.topic || 'Bez popisu'}</p>
+                                                <p class="text-sm text-slate-500 mb-4 line-clamp-2 min-h-[2.5em]">${lesson.topic || (translationService.t('common.no_description') || 'Bez popisu')}</p>
 
                                                 <div class="mt-auto pt-4 border-t border-slate-100 flex justify-between items-center">
                                                     <span class="text-xs text-slate-400 font-medium">
-                                                        ${new Date(lesson.updatedAt || lesson.createdAt).toLocaleDateString('cs-CZ')}
+                                                        ${lesson.updatedAt ? new Date(lesson.updatedAt).toLocaleDateString('cs-CZ') : new Date(lesson.createdAt).toLocaleDateString('cs-CZ')}
                                                     </span>
                                                     <button @click="${() => this._handleOpenLesson(lesson)}" class="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-lg group-hover:bg-indigo-50 group-hover:text-indigo-700 group-hover:border-indigo-200 transition-colors">
-                                                        Otevřít
+                                                        ${translationService.t('common.open') || 'Otevřít'}
                                                     </button>
                                                 </div>
                                             </div>

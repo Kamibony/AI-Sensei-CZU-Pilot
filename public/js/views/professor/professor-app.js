@@ -177,7 +177,7 @@ export class ProfessorApp extends LitElement {
     }
 
     _showProfessorContent(view, data = null) {
-        const fullWidthViews = ['dashboard', 'class-detail', 'students', 'student-profile', 'interactions', 'analytics', 'media', 'editor', 'classes', 'admin', 'admin-settings', 'timeline'];
+        const fullWidthViews = ['dashboard', 'class-detail', 'students', 'student-profile', 'interactions', 'analytics', 'media', 'editor', 'classes', 'admin', 'admin-settings', 'timeline', 'library'];
         this._sidebarVisible = !fullWidthViews.includes(view);
         if (view === 'timeline') this._fetchLessons();
         this._currentView = view;
@@ -192,7 +192,11 @@ export class ProfessorApp extends LitElement {
     }
     _onNavigateToProfile(e) { this._showProfessorContent('student-profile', e.detail.studentId); }
     _onBackToList() { this._showProfessorContent('students'); }
-    _onEditorExit() { this._showProfessorContent('dashboard'); }
+    _onEditorExit(e) {
+        // Allow passing a target view on exit, default to library if not provided or if it was dashboard
+        const targetView = e.detail?.view || 'library';
+        this._showProfessorContent(targetView);
+    }
 
     _handleAddToTimeline(e) {
         const lesson = e.detail;
@@ -241,7 +245,8 @@ export class ProfessorApp extends LitElement {
             case 'dashboard': return html`<professor-dashboard-view class="h-full flex flex-col"></professor-dashboard-view>`;
             case 'class-detail': return html`<professor-class-detail-view class="h-full flex flex-col" .groupId=${this._currentData?.groupId}></professor-class-detail-view>`;
             case 'classes': return html`<professor-classes-view class="h-full flex flex-col"></professor-classes-view>`;
-            case 'timeline': return html`<professor-library-view class="h-full flex flex-col"></professor-library-view>`;
+            case 'library': return html`<professor-library-view class="h-full flex flex-col"></professor-library-view>`;
+            case 'timeline': return html`<professor-timeline-view class="h-full flex flex-col" .lessonsData=${this._lessonsData}></professor-timeline-view>`;
             case 'media': return html`<professor-media-view class="h-full flex flex-col"></professor-media-view>`;
             case 'editor': return html`<lesson-editor class="h-full flex flex-col" .lesson=${this._currentData} @lesson-updated=${this._onLessonCreatedOrUpdated} @editor-exit=${this._onEditorExit}></lesson-editor>`;
             case 'students': return html`<professor-students-view class="h-full flex flex-col" @navigate-to-profile=${this._onNavigateToProfile}></professor-students-view>`;
