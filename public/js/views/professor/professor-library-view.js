@@ -16,20 +16,18 @@ export class ProfessorLibraryView extends LitElement {
         this._groupedLessons = {};
         this._isLoading = true;
         this._unsubscribeLessons = null;
-        this._unsubscribeAuth = null;
+        this._authUnsub = null;
     }
 
     createRenderRoot() { return this; }
 
     connectedCallback() {
         super.connectedCallback();
-        // Ensure we wait for auth before fetching data
-        this._unsubscribeAuth = auth.onAuthStateChanged(user => {
+        // Wait for auth to be ready before fetching
+        this._authUnsub = auth.onAuthStateChanged(user => {
             if (user) {
-                this._subscribeToLessons(user);
+                this._fetchLessons();
             } else {
-                this._lessons = [];
-                this._groupedLessons = {};
                 this._isLoading = false;
             }
         });
@@ -40,12 +38,15 @@ export class ProfessorLibraryView extends LitElement {
         if (this._unsubscribeLessons) {
             this._unsubscribeLessons();
         }
-        if (this._unsubscribeAuth) {
-            this._unsubscribeAuth();
+        if (this._authUnsub) {
+            this._authUnsub();
         }
     }
 
-    _subscribeToLessons(user) {
+    _fetchLessons() {
+        const user = auth.currentUser;
+        if (!user) return;
+
         this._isLoading = true;
         try {
             let q;
