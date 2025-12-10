@@ -104,8 +104,6 @@ export class ProfessorApp extends LitElement {
              this._showProfessorContent(view, data);
         } else if (view === 'student-profile' && data.studentId) {
              this._showProfessorContent(view, data.studentId);
-        } else if (view === 'editor') {
-             this._showProfessorContent(view, data.id ? { id: data.id } : null);
         } else {
              this._showProfessorContent(view, data);
         }
