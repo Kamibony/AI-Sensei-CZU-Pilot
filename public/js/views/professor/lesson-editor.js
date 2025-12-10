@@ -673,6 +673,9 @@ export class LessonEditor extends BaseView {
   }
 
   render() {
+      if (!this.lesson) {
+          return html`<div class="flex justify-center items-center h-full"><div class="spinner"></div></div>`;
+      }
       if (this._wizardMode) {
           return this._renderWizardMode();
       }

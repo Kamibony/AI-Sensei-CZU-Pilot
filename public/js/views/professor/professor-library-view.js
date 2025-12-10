@@ -23,6 +23,7 @@ export class ProfessorLibraryView extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
+        // Ensure we wait for auth before fetching data
         this._unsubscribeAuth = auth.onAuthStateChanged(user => {
             if (user) {
                 this._subscribeToLessons(user);
