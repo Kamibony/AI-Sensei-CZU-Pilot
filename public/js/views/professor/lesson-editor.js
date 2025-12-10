@@ -60,12 +60,11 @@ export class LessonEditor extends BaseView {
         // Ensure we load files from lesson, defaulting to empty array
         this._uploadedFiles = this.lesson.files || [];
 
-        // Decide view mode based on lesson state
-        // If content is empty/new and no ID, show wizard.
-        if (this.lesson.id) {
-             this._wizardMode = false;
-        } else {
+        // Logic Correction: Force wizard for new lessons (no ID)
+        if (!this.lesson.id) {
              this._wizardMode = true;
+        } else {
+             this._wizardMode = false;
         }
       } else {
         this._selectedClassIds = [];

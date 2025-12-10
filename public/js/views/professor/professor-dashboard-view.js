@@ -189,7 +189,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                             </div>
 
                             <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
-                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'timeline' }, bubbles: true, composed: true }))}>
+                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'library' }, bubbles: true, composed: true }))}>
                                 <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-blue-200 group-hover:text-blue-600 transition-colors">
                                     📚
                                 </div>
