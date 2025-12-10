@@ -411,9 +411,9 @@ export class LessonEditor extends BaseView {
   _renderWizardMode() {
       return html`
         <div class="min-h-full flex flex-col items-center justify-center p-4 bg-slate-50/50">
-            <div class="w-full max-w-3xl bg-white rounded-3xl shadow-xl overflow-hidden animate-fade-in-up">
+            <div class="w-full max-w-3xl bg-white rounded-3xl shadow-xl flex flex-col max-h-[90vh] animate-fade-in-up">
 
-                <div class="bg-gradient-to-r from-indigo-600 to-violet-600 p-8 text-white relative overflow-hidden">
+                <div class="bg-gradient-to-r from-indigo-600 to-violet-600 p-8 text-white relative overflow-hidden flex-shrink-0">
                     <button @click="${this._handleBackClick}" class="absolute left-4 top-4 p-2 text-indigo-200 hover:text-white hover:bg-white/10 rounded-full transition-colors">
                          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                     </button>
@@ -424,7 +424,7 @@ export class LessonEditor extends BaseView {
                     <div class="absolute right-0 top-0 h-full w-1/2 bg-white/10 transform skew-x-12 translate-x-12"></div>
                 </div>
 
-                <div class="p-8 space-y-6">
+                <div class="p-8 space-y-6 overflow-y-auto custom-scrollbar">
                     <div class="space-y-4">
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-2">
