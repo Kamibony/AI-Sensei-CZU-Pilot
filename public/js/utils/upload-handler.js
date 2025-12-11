@@ -32,7 +32,8 @@ export async function uploadSingleFile(file, courseId, onProgress) {
     const { data } = await getSecureUploadUrl({
         fileName: file.name,
         contentType: file.type,
-        courseId: courseId // Metadata
+        courseId: courseId, // Metadata
+        size: file.size // Include file size for Firestore metadata
     });
 
     const { uploadUrl, fileId, storagePath } = data;

@@ -1,6 +1,7 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { callGenerateContent, callGenerateImage } from '../../../gemini-api.js';
 import { showToast } from '../../../utils.js';
+import { parseAiResponse } from './utils-parsing.mjs';
 import './professor-header-editor.js';
 
 export class EditorViewComic extends LitElement {
@@ -24,40 +25,56 @@ export class EditorViewComic extends LitElement {
         return this;
     }
 
-    connectedCallback() {
-        super.connectedCallback();
+    willUpdate(changedProperties) {
+        if (changedProperties.has('lesson') && this.lesson) {
+            let panels = [];
 
-        let panels = [];
-
-        if (this.lesson?.comic) {
-            if (Array.isArray(this.lesson.comic)) {
-                panels = this.lesson.comic;
-            } else if (this.lesson.comic.panels && Array.isArray(this.lesson.comic.panels)) {
-                // Handle object wrapper { panels: [...] }
-                panels = this.lesson.comic.panels.map(p => ({
+            // 1. Try to parse 'comic' property
+            const rawComic = parseAiResponse(this.lesson.comic, 'panels');
+            if (rawComic.length > 0) {
+                panels = rawComic.map(p => ({
                     panel: p.panel_number || p.panel,
                     description: p.visual_description || p.description,
                     dialogue: p.dialogue,
                     imageBase64: p.imageBase64 || null
                 }));
             }
-        }
 
-        if (panels.length === 0 && this.lesson?.comic_script && Array.isArray(this.lesson.comic_script.panels)) {
-             // If a script exists but no main comic data, use it as the base
-            panels = this.lesson.comic_script.panels.map(p => ({
-                panel: p.panel_number,
-                description: p.visual_description,
-                dialogue: p.dialogue,
-                imageBase64: null // Image is initially null
-            }));
-        }
+            // 2. Fallback to 'comic_script' if main comic empty
+            if (panels.length === 0 && this.lesson.comic_script) {
+                const rawScript = parseAiResponse(this.lesson.comic_script, 'panels');
+                if (rawScript.length > 0) {
+                    panels = rawScript.map(p => ({
+                        panel: p.panel_number || p.panel,
+                        description: p.visual_description || p.description,
+                        dialogue: p.dialogue,
+                        imageBase64: null
+                    }));
+                }
+            }
 
-        if (panels.length > 0) {
-            this._panels = panels;
-        } else {
-            // Default to 4 empty panels if no data exists
-            this._panels = Array(4).fill().map((_, i) => ({
+            // 3. Update state if we found panels
+            if (panels.length > 0) {
+                 this._panels = panels;
+            } else if (this._panels.length === 0) {
+                 // Initialize empty if nothing found and state is empty
+                 this._panels = Array(4).fill().map((_, i) => ({
+                    panel: i + 1,
+                    description: '',
+                    dialogue: '',
+                    imageBase64: null
+                }));
+            }
+        }
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        // Initial setup logic moved to willUpdate for better reactivity
+        // But if lesson is already set before connectedCallback, willUpdate runs.
+        // If not set yet, it runs when set.
+        if (this._panels.length === 0) {
+             this._panels = Array(4).fill().map((_, i) => ({
                 panel: i + 1,
                 description: '',
                 dialogue: '',
@@ -115,24 +132,21 @@ export class EditorViewComic extends LitElement {
             });
 
             if (result && result.text && !result.error) {
-                const jsonMatch = result.text.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    const parsed = JSON.parse(jsonMatch[0]);
-                    if (parsed.panels) {
-                        this._panels = parsed.panels.map(p => ({
-                            panel: p.panel_number,
-                            description: p.visual_description,
-                            dialogue: p.dialogue,
-                            imageBase64: null
-                        }));
-                        this.requestUpdate('_panels');
-                        this.save(); // Autosave
-                        showToast("Scénář byl úspěšně vygenerován.");
-                    } else {
-                        throw new Error("JSON from AI is missing 'panels' array.");
-                    }
+                 // Use Smart Parsing
+                const panels = parseAiResponse(result.text, 'panels');
+
+                if (panels.length > 0) {
+                     this._panels = panels.map(p => ({
+                        panel: p.panel_number || p.panel,
+                        description: p.visual_description || p.description,
+                        dialogue: p.dialogue,
+                        imageBase64: null
+                    }));
+                    this.requestUpdate('_panels');
+                    this.save(); // Autosave
+                    showToast("Scénář byl úspěšně vygenerován.");
                 } else {
-                    throw new Error("AI did not return a valid JSON object.");
+                    throw new Error("AI did not return a valid JSON object or panels array.");
                 }
             } else {
                 throw new Error(result.error || "No valid response from AI.");
