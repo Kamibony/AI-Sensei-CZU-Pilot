@@ -68,6 +68,7 @@ export class StudentLessonList extends LitElement {
                 const lessonsQuery = query(
                     collection(firebaseInit.db, "lessons"),
                     where("assignedToGroups", "array-contains-any", myGroups),
+                    where("status", "==", "published"), // Students must NOT see drafts
                     orderBy("createdAt", "desc")
                 );
 

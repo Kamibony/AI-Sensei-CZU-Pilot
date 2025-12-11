@@ -57,6 +57,7 @@
     "id": "ID",
     "magic_overlay_title": "✨ AI Sensei pracuje",
     "magic_overlay_desc": "Vytvářím pro vás výukové materiály na míru...",
+    "magic_status_generating": "Generuji",
     "magic_error": "Chyba generování",
     "stats_slides": "slidů",
     "stats_questions": "otázek",
