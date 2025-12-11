@@ -1,4 +1,4 @@
-import { LitElement, html, nothing } from 'https://cdn.skypack.dev/lit';
+import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import confetti from 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/+esm';
 import * as firebaseInit from '../firebase-init.js';
@@ -23,6 +23,7 @@ function normalizeLessonData(rawData) {
     normalized.test = rawData.test || rawData.testData || null;
     normalized.flashcards = rawData.flashcards || null;
     normalized.mindmap = rawData.mindmap || null;
+    normalized.files = rawData.files || []; // Added mapping for files
     return normalized;
 }
 
@@ -33,10 +34,8 @@ export class StudentLessonDetail extends LitElement {
             lessonId: { type: String },
             currentUserData: { type: Object },
             lessonData: { type: Object },
-            availableTabs: { type: Array, state: true },
             activeTabId: { type: String, state: true },
             isLoading: { type: Boolean, state: true },
-            _viewMode: { type: String, state: true }, // 'hub' or 'content'
             _progress: { type: Object, state: true }
         };
     }
@@ -46,12 +45,11 @@ export class StudentLessonDetail extends LitElement {
         this.lessonId = null;
         this.currentUserData = null;
         this.lessonData = null;
-        this.availableTabs = [];
         this.activeTabId = null;
         this.isLoading = true;
-        this._viewMode = 'hub';
         this._progress = { completedSections: [] };
         this._progressUnsubscribe = null;
+        this._langUnsubscribe = null;
     }
 
     createRenderRoot() {
@@ -143,9 +141,10 @@ export class StudentLessonDetail extends LitElement {
     willUpdate(changedProperties) {
         if (changedProperties.has('lessonData') && this.lessonData) {
             this.lessonData = normalizeLessonData(this.lessonData);
-            this._buildAvailableTabs();
             this.isLoading = false;
-            this._viewMode = 'hub';
+            if (!this.activeTabId) {
+                this.activeTabId = this._getDefaultTab();
+            }
         }
         else if (changedProperties.has('lessonId') && this.lessonId && !this.lessonData) {
             this._fetchLessonDetail();
@@ -168,14 +167,15 @@ export class StudentLessonDetail extends LitElement {
     async _fetchLessonDetail() {
         this.isLoading = true;
         this.lessonData = null;
-        this._viewMode = 'hub';
         try {
             const docRef = doc(firebaseInit.db, "lessons", this.lessonId);
             const docSnap = await getDoc(docRef);
 
             if (docSnap.exists()) {
                 this.lessonData = normalizeLessonData(docSnap.data());
-                this._buildAvailableTabs();
+                if (!this.activeTabId) {
+                    this.activeTabId = this._getDefaultTab();
+                }
             } else {
                 console.error("Lekce nenalezena!");
             }
@@ -186,73 +186,14 @@ export class StudentLessonDetail extends LitElement {
         }
     }
 
-    _getContentStats(type) {
-        if (!this.lessonData) return '';
-
-        switch (type) {
-            case 'presentation':
-                return (Array.isArray(this.lessonData.presentation) ? this.lessonData.presentation.length : 0) + ' slidů';
-            case 'quiz':
-                return (this.lessonData.quiz && this.lessonData.quiz.questions ? this.lessonData.quiz.questions.length : 0) + ' otázek';
-            case 'test':
-                return (this.lessonData.test && this.lessonData.test.questions ? this.lessonData.test.questions.length : 0) + ' otázek';
-            case 'flashcards':
-                return (Array.isArray(this.lessonData.flashcards) ? this.lessonData.flashcards.length : 0) + ' kartiček';
-            case 'podcast':
-                return '1 epizoda';
-            case 'video':
-                return '1 video';
-            case 'mindmap':
-                return '1 mapa';
-            default:
-                return '';
-        }
-    }
-
-    _buildAvailableTabs() {
-        const tabs = [];
-        const addTab = (id, name, icon, description, colorClass) => {
-             let isVisible = true;
-             const editorIdMap = {
-                 'text': 'text',
-                 'video': 'video',
-                 'presentation': 'presentation',
-                 'podcast': 'post',
-                 'quiz': 'quiz',
-                 'test': 'test',
-                 'flashcards': 'flashcards',
-                 'mindmap': 'mindmap'
-             };
-             const editorId = editorIdMap[id];
-             if (editorId && this.lessonData.visible_sections) {
-                 isVisible = this.lessonData.visible_sections.includes(editorId);
-             }
-             if (isVisible) {
-                 tabs.push({ id, name, icon, description, colorClass });
-             }
-        };
-
-        if (this.lessonData.text_content)
-            addTab('text', translationService.t('content_types.text'), '📝', translationService.t('content_types.text_desc'), 'bg-blue-50 text-blue-600');
-        if (this.lessonData.youtube_link)
-            addTab('video', translationService.t('content_types.video'), '🎬', translationService.t('content_types.video_desc'), 'bg-red-50 text-red-600');
-        if (this.lessonData.presentation)
-            addTab('presentation', translationService.t('content_types.presentation'), '📊', translationService.t('content_types.presentation_desc'), 'bg-orange-50 text-orange-600');
-        if (this.lessonData.podcast_script)
-            addTab('podcast', translationService.t('content_types.audio'), '🎙️', translationService.t('content_types.audio_desc'), 'bg-purple-50 text-purple-600');
-        if (this.lessonData.quiz)
-            addTab('quiz', translationService.t('content_types.quiz'), '❓', translationService.t('content_types.quiz_desc'), 'bg-green-50 text-green-600');
-        if (this.lessonData.test)
-            addTab('test', translationService.t('content_types.test'), '📝', translationService.t('content_types.test_desc'), 'bg-emerald-50 text-emerald-600');
-        if (this.lessonData.flashcards)
-            addTab('flashcards', translationService.t('content_types.flashcards'), '🗂️', translationService.t('content_types.flashcards_desc'), 'bg-yellow-50 text-yellow-600');
-        if (this.lessonData.mindmap)
-            addTab('mindmap', translationService.t('content_types.mindmap'), '🧠', translationService.t('content_types.mindmap_desc'), 'bg-pink-50 text-pink-600');
-
-        addTab('ai-assistant', 'AI Asistent', '🤖', 'Zeptejte se umělé inteligence', 'bg-indigo-50 text-indigo-600');
-        addTab('professor-chat', 'Konzultace', '💬', 'Napište profesorovi', 'bg-slate-50 text-slate-600');
-        
-        this.availableTabs = tabs;
+    _getDefaultTab() {
+        if (!this.lessonData) return null;
+        if (this.lessonData.text_content || (this.lessonData.files && this.lessonData.files.length > 0)) return 'study';
+        if (this.lessonData.podcast_script) return 'podcast';
+        if (this.lessonData.presentation) return 'presentation';
+        if (this.lessonData.quiz) return 'quiz';
+        if (this.lessonData.test) return 'test';
+        return 'study';
     }
 
     _handleBackToList() {
@@ -260,25 +201,57 @@ export class StudentLessonDetail extends LitElement {
         this.dispatchEvent(event);
     }
 
-    _handleHubItemClick(tabId) {
+    _switchTab(tabId) {
         this.activeTabId = tabId;
-        this._viewMode = 'content';
-        window.scrollTo(0, 0);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    _handleBackToHub() {
-        if (window.speechSynthesis && window.speechSynthesis.speaking) {
-            window.speechSynthesis.cancel();
+    _getTabs() {
+        if (!this.lessonData) return [];
+        const tabs = [];
+        const ld = this.lessonData;
+        const t = (k) => translationService.t(k);
+
+        // 1. Study Room (Combines Text + Files + Video)
+        if (ld.text_content || (ld.files && ld.files.length > 0) || ld.youtube_link) {
+            tabs.push({ id: 'study', label: 'Študovňa', icon: '📚', desc: 'Text a materiály' });
         }
-        this._viewMode = 'hub';
-        this.activeTabId = null;
+        // 2. Podcast
+        if (ld.podcast_script) {
+            tabs.push({ id: 'podcast', label: 'Podcast', icon: '🎙️', desc: 'Audio lekce' });
+        }
+        // 3. Presentation
+        if (ld.presentation) {
+            tabs.push({ id: 'presentation', label: 'Prezentace', icon: '📊', desc: 'Slidy' });
+        }
+        // 4. Flashcards
+        if (ld.flashcards) {
+            tabs.push({ id: 'flashcards', label: 'Kartičky', icon: '🗂️', desc: 'Opakování' });
+        }
+        // 5. Mindmap
+        if (ld.mindmap) {
+            tabs.push({ id: 'mindmap', label: 'Myšlenková mapa', icon: '🧠', desc: 'Souvislosti' });
+        }
+        // 6. Quiz / Test
+        if (ld.quiz) {
+            tabs.push({ id: 'quiz', label: 'Kvíz', icon: '❓', desc: 'Procvičení' });
+        }
+        if (ld.test) {
+            tabs.push({ id: 'test', label: 'Test', icon: '📝', desc: 'Ověření znalostí' });
+        }
+
+        // Always available tools
+        tabs.push({ id: 'ai-assistant', label: 'AI Asistent', icon: '🤖', desc: 'Doučování' });
+        // tabs.push({ id: 'professor-chat', label: 'Konzultace', icon: '💬', desc: 'Chat' });
+
+        return tabs;
     }
 
     render() {
         if (this.isLoading) {
             return html`
                 <div class="flex justify-center items-center h-full pt-20">
-                     <div class="spinner w-12 h-12 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                     <div class="spinner w-12 h-12 border-4 border-indigo-600 rounded-full animate-spin border-t-transparent"></div>
                 </div>`;
         }
 
@@ -286,186 +259,220 @@ export class StudentLessonDetail extends LitElement {
             return html`<div class="p-8 text-center text-red-500">Nepodařilo se načíst lekci.</div>`;
         }
 
-        if (this._viewMode === 'hub') {
-            return this._renderHub();
-        } else {
-            return this._renderContentMode();
-        }
-    }
-
-    _renderHub() {
-        const totalContentTabs = this.availableTabs.filter(t => !['ai-assistant', 'professor-chat'].includes(t.id)).length;
-        const completedCount = this._progress?.completedSections?.length || 0;
-        const displayCompleted = Math.min(completedCount, totalContentTabs);
-        const progressPercent = totalContentTabs > 0 ? Math.round((displayCompleted / totalContentTabs) * 100) : 0;
+        const tabs = this._getTabs();
 
         return html`
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div class="mb-8">
-                    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                        <div>
-                            <button @click=${this._handleBackToList} class="mb-4 text-slate-500 hover:text-indigo-600 flex items-center transition-colors">
-                                <span class="mr-2">←</span> ${translationService.t('common.back')}
-                            </button>
-                            <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-2">${this.lessonData.title}</h1>
-                            ${this.lessonData.subtitle ? html`<p class="text-lg text-slate-500 max-w-3xl">${this.lessonData.subtitle}</p>` : ''}
-                        </div>
+            <div class="min-h-screen bg-slate-50 flex flex-col">
 
-                        ${totalContentTabs > 0 ? html`
-                            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 min-w-[200px]">
-                                <div class="flex justify-between items-center mb-2">
-                                    <span class="text-sm font-bold text-slate-700">${translationService.t('student.progress_label')}</span>
-                                    <span class="text-xs font-mono text-slate-500">${displayCompleted} / ${totalContentTabs}</span>
-                                </div>
-                                <div class="w-full bg-slate-100 rounded-full h-2.5">
-                                    <div class="bg-gradient-to-r from-indigo-500 to-purple-500 h-2.5 rounded-full transition-all duration-1000" style="width: ${progressPercent}%"></div>
+                <!-- Top Navigation Bar -->
+                <div class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div class="flex items-center justify-between h-16">
+
+                            <div class="flex items-center gap-4">
+                                <button @click=${this._handleBackToList} class="p-2 -ml-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-full transition-colors">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                                </button>
+                                <div>
+                                    <h1 class="text-lg font-bold text-slate-800 line-clamp-1">${this.lessonData.title}</h1>
+                                    <p class="text-xs text-slate-500 hidden sm:block">${this.lessonData.subtitle || this.lessonData.subject}</p>
                                 </div>
                             </div>
-                        ` : ''}
+
+                            <!-- Desktop Tabs -->
+                            <div class="hidden md:flex space-x-1 overflow-x-auto custom-scrollbar">
+                                ${tabs.map(tab => {
+                                    const isActive = this.activeTabId === tab.id;
+                                    const isCompleted = this._progress?.completedSections?.includes(tab.id);
+
+                                    return html`
+                                        <button @click=${() => this._switchTab(tab.id)}
+                                            class="px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap
+                                            ${isActive
+                                                ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 shadow-sm'
+                                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}">
+                                            <span>${tab.icon}</span>
+                                            <span>${tab.label}</span>
+                                            ${isCompleted ? html`<span class="text-green-500 text-xs ml-1">✓</span>` : ''}
+                                        </button>
+                                    `;
+                                })}
+                            </div>
+
+                            <!-- Mobile Menu Button (Could be implemented for small screens) -->
+                            <div class="md:hidden flex items-center">
+                                <span class="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                                    ${tabs.find(t => t.id === this.activeTabId)?.label}
+                                </span>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Mobile Tabs Scrollable Strip -->
+                    <div class="md:hidden border-t border-slate-100 overflow-x-auto custom-scrollbar py-2 px-4 flex gap-2">
+                        ${tabs.map(tab => {
+                             const isActive = this.activeTabId === tab.id;
+                             return html`
+                                <button @click=${() => this._switchTab(tab.id)}
+                                    class="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 flex items-center gap-1.5
+                                    ${isActive
+                                        ? 'bg-indigo-600 text-white shadow-md'
+                                        : 'bg-white border border-slate-200 text-slate-600'}">
+                                    <span>${tab.icon}</span>
+                                    <span>${tab.label}</span>
+                                </button>
+                             `;
+                        })}
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    ${this.availableTabs.map(tab => {
-                        const isCompleted = this._progress?.completedSections?.includes(tab.id);
-                        return html`
-                            <div @click=${() => this._handleHubItemClick(tab.id)}
-                                 class="relative bg-white rounded-xl border ${isCompleted ? 'border-green-200 ring-1 ring-green-100' : 'border-slate-200'} shadow-sm p-6 flex flex-col items-center text-center hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer h-full group overflow-hidden">
-
-                                ${isCompleted ? html`
-                                    <div class="absolute top-0 right-0 p-3">
-                                        <div class="bg-green-100 text-green-600 rounded-full p-1 shadow-sm">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
-                                        </div>
-                                    </div>
-                                ` : ''}
-
-                                <div class="w-12 h-12 rounded-lg ${tab.colorClass} flex items-center justify-center mb-4 text-2xl group-hover:scale-110 transition-transform">
-                                    ${tab.icon}
-                                </div>
-
-                                <h3 class="font-bold text-slate-900 mb-1 text-lg group-hover:text-indigo-600 transition-colors">${tab.name}</h3>
-                                <p class="text-sm text-slate-500 mb-4 leading-relaxed">${tab.description}</p>
-
-                                <div class="mt-auto pt-2">
-                                    <span class="text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wide transition-colors ${isCompleted ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600'}">
-                                        ${isCompleted ? 'Hotovo' : '✨ Začít'}
-                                    </span>
-                                </div>
-                            </div>
-                        `;
-                    })}
+                <!-- Main Content Area -->
+                <div class="flex-grow max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 animate-fade-in-up">
+                    ${this._renderContent()}
                 </div>
+
             </div>
         `;
     }
 
-    _renderContentMode() {
-        const activeTab = this.availableTabs.find(t => t.id === this.activeTabId);
-
-        return html`
-            <div class="flex flex-col min-h-screen bg-slate-50">
-                <div class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
-                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                        <button @click=${this._handleBackToHub} class="flex items-center text-slate-600 hover:text-indigo-600 font-medium transition-colors">
-                            <span class="mr-2 text-xl">←</span>
-                            <span class="hidden sm:inline">Zpět na přehled lekce</span>
-                            <span class="sm:hidden">Zpět</span>
-                        </button>
-
-                        <div class="font-bold text-slate-800 text-lg truncate px-4">
-                            ${activeTab ? activeTab.name : ''}
-                        </div>
-
-                        <div class="w-8"></div>
-                    </div>
-                </div>
-
-                <div class="flex-grow max-w-5xl mx-auto w-full px-2 sm:px-6 lg:px-8 py-4 sm:py-8">
-                    <div class="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 p-4 sm:p-8 min-h-[500px]">
-                        ${this._renderTabContent()}
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    // --- TÁTO METÓDA CHÝBALA A TERAZ JE DOPLNENÁ ---
     _renderCompletionButton(sectionId, label = "Dokončit") {
         const isCompleted = this._progress?.completedSections?.includes(sectionId);
 
         return html`
-            <div class="mt-12 flex justify-center">
+            <div class="mt-12 flex justify-center pb-12">
                 <button
                     @click=${() => this._markSectionComplete(sectionId)}
                     ?disabled=${isCompleted}
-                    class="px-8 py-3 rounded-full font-bold shadow-lg transition-all transform active:scale-95 flex items-center gap-2
+                    class="px-8 py-4 rounded-full font-bold shadow-xl transition-all transform active:scale-95 flex items-center gap-3 text-lg
                     ${isCompleted
                         ? 'bg-green-100 text-green-700 cursor-default shadow-none border border-green-200'
-                        : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-200 hover:-translate-y-1'}"
+                        : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:shadow-indigo-200 hover:-translate-y-1'}"
                 >
                     ${isCompleted
-                        ? html`<span>Hotovo</span> <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`
-                        : html`<span>${label}</span> <span>✅</span>`}
+                        ? html`<span>Splněno</span> <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`
+                        : html`<span>${label}</span> <span>✨</span>`}
                 </button>
             </div>
         `;
     }
 
-    _renderTabContent() {
-        if (this.activeTabId === 'presentation') {
-            return html`
-                <div id="presentation-container" class="min-h-[400px]"></div>
-                ${this._renderCompletionButton('presentation', 'Prezentace prostudována')}
-            `;
-        }
-        
+    _renderContent() {
         switch (this.activeTabId) {
-            case 'text':
-                if (typeof marked === 'undefined') {
-                    console.error("Knižnica marked.js nie je načítaná!");
-                    return html`<p class="text-red-500">Chyba: Nepodarilo sa spracovať formátovanie textu.</p>`;
-                }
-                const textContentDiv = document.createElement('div');
-                textContentDiv.className = "prose prose-indigo max-w-none prose-lg";
-                textContentDiv.innerHTML = marked.parse(this.lessonData.text_content || ''); 
-                return html`
-                    ${textContentDiv}
-                    ${this._renderCompletionButton('text', 'Dokončit čtení')}
-                `;
-                
-            case 'video':
-                const videoIdMatch = this.lessonData.youtube_link ? this.lessonData.youtube_link.match(/(?:v=|\/embed\/|\.be\/)([\w-]{11})/) : null;
-                if (videoIdMatch && videoIdMatch[1]) {
-                    return html`
-                        <div class="aspect-video w-full rounded-2xl overflow-hidden shadow-lg mb-8">
-                            <iframe class="w-full h-full" src="https://www.youtube.com/embed/${videoIdMatch[1]}" frameborder="0" allowfullscreen></iframe>
-                        </div>
-                        ${this._renderCompletionButton('video', 'Video shlédnuto')}
-                    `;
-                } else {
-                    return html`<p class="text-red-500">Neplatný nebo chybějící YouTube odkaz.</p>`;
-                }
-            case 'quiz':
-                return html`<student-quiz .quizData=${this.lessonData.quiz} .lessonId=${this.lessonId} @quiz-completed=${() => this._markSectionComplete('quiz')}></student-quiz>`;
-            case 'test':
-                return html`<student-test .testData=${this.lessonData.test} .lessonId=${this.lessonId} @test-completed=${() => this._markSectionComplete('test')}></student-test>`;
+            case 'study':
+                return this._renderStudyRoom();
             case 'podcast':
-                return html`<student-podcast .podcastData=${this.lessonData.podcast_script} @podcast-completed=${() => this._markSectionComplete('podcast')}></student-podcast>`;
+                return html`
+                    <student-podcast .podcastData=${this.lessonData.podcast_script} .audioPath=${this.lessonData.podcast_audio_path} @podcast-completed=${() => this._markSectionComplete('podcast')}></student-podcast>
+                    ${this._renderCompletionButton('podcast', 'Podcast poslechnut')}
+                `;
+            case 'presentation':
+                return html`
+                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-2xl font-bold text-slate-800">Prezentace</h2>
+                            <span class="text-sm text-slate-500">${this.lessonData.presentation?.slides?.length || 0} slidů</span>
+                        </div>
+                        <div id="presentation-container" class="min-h-[400px]"></div>
+                        ${this._renderCompletionButton('presentation', 'Prezentace prostudována')}
+                    </div>
+                `;
+            case 'quiz':
+                return html`
+                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 sm:p-8">
+                        <student-quiz .quizData=${this.lessonData.quiz} .lessonId=${this.lessonId} @quiz-completed=${() => this._markSectionComplete('quiz')}></student-quiz>
+                    </div>`;
+            case 'test':
+                return html`
+                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 sm:p-8">
+                        <student-test .testData=${this.lessonData.test} .lessonId=${this.lessonId} @test-completed=${() => this._markSectionComplete('test')}></student-test>
+                    </div>`;
             case 'flashcards':
-                return html`<flashcards-component .cards=${this.lessonData.flashcards} @flashcards-completed=${() => this._markSectionComplete('flashcards')}></flashcards-component>`;
+                return html`
+                    <div class="max-w-3xl mx-auto">
+                        <flashcards-component .cards=${this.lessonData.flashcards} @flashcards-completed=${() => this._markSectionComplete('flashcards')}></flashcards-component>
+                    </div>`;
             case 'mindmap':
                 return html`
-                    <mindmap-component .code=${this.lessonData.mindmap}></mindmap-component>
-                    ${this._renderCompletionButton('mindmap', 'Prostudováno')}
-                `;
+                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 sm:p-8">
+                        <mindmap-component .code=${this.lessonData.mindmap}></mindmap-component>
+                        ${this._renderCompletionButton('mindmap', 'Prostudováno')}
+                    </div>`;
             case 'ai-assistant':
-                return html`<chat-panel type="ai" .lessonId=${this.lessonId} .currentUserData=${this.currentUserData}></chat-panel>`;
-            case 'professor-chat':
-                return html`<chat-panel type="professor" .lessonId=${this.lessonId} .currentUserData=${this.currentUserData}></chat-panel>`;
+                return html`
+                    <div class="h-[calc(100vh-200px)] bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                        <chat-panel type="ai" .lessonId=${this.lessonId} .currentUserData=${this.currentUserData}></chat-panel>
+                    </div>`;
             default:
-                return html`<p>Obsah nelze načíst.</p>`;
+                return html`<div class="text-center py-20 text-slate-500">Vyberte sekci z menu</div>`;
         }
+    }
+
+    _renderStudyRoom() {
+        return html`
+            <div class="space-y-8 max-w-4xl mx-auto">
+
+                <!-- 1. Text Content -->
+                ${this.lessonData.text_content ? html`
+                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 sm:p-12 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
+                        <h2 class="text-3xl font-extrabold text-slate-900 mb-8 flex items-center gap-3">
+                            <span class="text-4xl">📖</span> Studijní text
+                        </h2>
+                        <div class="prose prose-lg prose-indigo max-w-none text-slate-600 leading-relaxed">
+                            ${(typeof marked !== 'undefined')
+                                ? html`<div .innerHTML=${marked.parse(this.lessonData.text_content)}></div>`
+                                : html`<p>${this.lessonData.text_content}</p>`}
+                        </div>
+                    </div>
+                ` : ''}
+
+                <!-- 2. Video -->
+                ${this.lessonData.youtube_link ? html`
+                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8">
+                        <h3 class="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                            <span>🎬</span> Video
+                        </h3>
+                        <div class="aspect-video w-full rounded-2xl overflow-hidden bg-black shadow-lg">
+                            ${(() => {
+                                const videoIdMatch = this.lessonData.youtube_link.match(/(?:v=|\/embed\/|\.be\/)([\w-]{11})/);
+                                return videoIdMatch && videoIdMatch[1]
+                                    ? html`<iframe class="w-full h-full" src="https://www.youtube.com/embed/${videoIdMatch[1]}" frameborder="0" allowfullscreen></iframe>`
+                                    : html`<div class="flex items-center justify-center h-full text-white">Invalid Video URL</div>`;
+                            })()}
+                        </div>
+                    </div>
+                ` : ''}
+
+                <!-- 3. Attached Files -->
+                ${this.lessonData.files && this.lessonData.files.length > 0 ? html`
+                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8">
+                        <h3 class="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                            <span>📎</span> Materiály ke stažení
+                        </h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            ${this.lessonData.files.map(file => html`
+                                <a href="${file.url}" target="_blank"
+                                   class="flex items-center p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md hover:bg-indigo-50/30 transition-all group">
+                                    <div class="w-12 h-12 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl mr-4 group-hover:scale-110 transition-transform">
+                                        📄
+                                    </div>
+                                    <div class="overflow-hidden">
+                                        <div class="font-bold text-slate-700 truncate group-hover:text-indigo-700 transition-colors">${file.name}</div>
+                                        <div class="text-xs text-slate-400 mt-1">Klikněte pro stažení</div>
+                                    </div>
+                                    <div class="ml-auto text-slate-300 group-hover:text-indigo-400">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                    </div>
+                                </a>
+                            `)}
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${this._renderCompletionButton('study', 'Mám prostudováno')}
+            </div>
+        `;
     }
 }
 
