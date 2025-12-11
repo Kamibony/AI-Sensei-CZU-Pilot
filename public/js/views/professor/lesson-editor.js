@@ -37,7 +37,8 @@ export class LessonEditor extends BaseView {
     _uploadedFiles: { state: true, type: Array },
     _wizardMode: { state: true, type: Boolean },
     _activeTool: { state: true, type: String },
-    _isGenerating: { state: true, type: Boolean }
+    _isGenerating: { state: true, type: Boolean },
+    _magicStatus: { state: true, type: String }
   };
 
   constructor() {
@@ -57,6 +58,7 @@ export class LessonEditor extends BaseView {
     this._wizardMode = true;
     this._activeTool = null;
     this._isGenerating = false;
+    this._magicStatus = '';
   }
 
   updated(changedProperties) {
@@ -240,6 +242,10 @@ export class LessonEditor extends BaseView {
       } else {
           this._selectedClassIds = [...this._selectedClassIds, classId];
       }
+      // Update local lesson state immediately for UI consistency
+      if (this.lesson) {
+          this.lesson = { ...this.lesson, assignedToGroups: this._selectedClassIds };
+      }
       this.requestUpdate();
       if(this.lesson.title && !this._wizardMode) this._handleSave();
   }
@@ -364,88 +370,123 @@ export class LessonEditor extends BaseView {
       // Save base lesson first
       await this._handleSave();
 
-      const typesToGenerate = ['text', 'presentation', 'quiz', 'test', 'post'];
+      const types = ['text', 'presentation', 'quiz', 'test', 'post', 'flashcards', 'mindmap', 'comic'];
       const filePaths = this._uploadedFiles.map(f => f.storagePath).filter(Boolean);
 
+      let successCount = 0;
+      let failedTypes = [];
+
       try {
-          for (const type of typesToGenerate) {
-              let promptData = {
-                  userPrompt: '',
-                  isMagic: true
-              };
-              let contentType = type;
+          // Robust Magic Loop
+          for (const type of types) {
+             try {
+                // 1. Update UI Status
+                this._magicStatus = `${translationService.t('common.magic_status_generating') || 'Generuji'} (${successCount + failedTypes.length + 1}/${types.length}): ${(translationService.t(`content_types.${type}`) || type).toUpperCase()}...`;
+                this.requestUpdate();
 
-              // Construct Prompt
-              switch (type) {
-                  case 'text':
-                      promptData.userPrompt = `Vytvor výukový text na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
-                      break;
-                  case 'presentation':
-                      promptData.userPrompt = `Vytvor štruktúru prezentácie (8 slidov) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
-                      promptData.slide_count = 8;
-                      break;
-                  case 'quiz':
-                      promptData.userPrompt = `Vytvor kvíz (5 otázek) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
-                      promptData.question_count = 5;
-                      break;
-                  case 'test':
-                      promptData.userPrompt = `Vytvor test (10 otázek) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
-                      promptData.question_count = 10;
-                      promptData.difficulty = 'Střední';
-                      break;
-                  case 'post':
-                      promptData.userPrompt = `Vytvor scenár podcastu (3 epizódy) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
-                      promptData.episode_count = 3;
-                      break;
-              }
+                let promptData = {
+                    userPrompt: '',
+                    isMagic: true
+                };
+                let contentType = type;
 
-              // Call Cloud Function
-              const generateContentFunc = httpsCallable(functions, 'generateContent');
-              const result = await generateContentFunc({
-                  contentType: contentType,
-                  promptData: promptData,
-                  filePaths: filePaths
-              });
+                // Construct Prompt based on type
+                switch (type) {
+                    case 'text':
+                        promptData.userPrompt = `Vytvor výukový text na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                        break;
+                    case 'presentation':
+                        promptData.userPrompt = `Vytvor štruktúru prezentácie (8 slidov) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                        promptData.slide_count = 8;
+                        break;
+                    case 'quiz':
+                        promptData.userPrompt = `Vytvor kvíz (5 otázek) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                        promptData.question_count = 5;
+                        break;
+                    case 'test':
+                        promptData.userPrompt = `Vytvor test (10 otázek) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                        promptData.question_count = 10;
+                        promptData.difficulty = 'Střední';
+                        break;
+                    case 'post':
+                        promptData.userPrompt = `Vytvor scenár podcastu (3 epizódy) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                        promptData.episode_count = 3;
+                        break;
+                    case 'flashcards':
+                        promptData.userPrompt = `Vytvoř sadu 10 studijních kartiček (pojem - definice) na téma '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                        break;
+                    case 'mindmap':
+                        promptData.userPrompt = `Vytvoř strukturu myšlenkové mapy (hierarchický JSON) na téma '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                        break;
+                    case 'comic':
+                        promptData.userPrompt = `Vytvoř scénář pro krátký vzdělávací komiks (4 panely) na téma '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                        break;
+                }
 
-              const data = result.data;
+                // 2. Call Cloud Function directly
+                const generateContentFunc = httpsCallable(functions, 'generateContent');
+                const result = await generateContentFunc({
+                    contentType: contentType,
+                    promptData: promptData,
+                    filePaths: filePaths
+                });
 
-              // Update this.lesson
-              switch (type) {
-                  case 'text':
-                      this.lesson = { ...this.lesson, text_content: data.text || data };
-                      break;
-                  case 'presentation':
-                      this.lesson = { ...this.lesson, presentation: { slides: data.slides, styleId: 'default' } };
-                      break;
-                  case 'quiz':
-                      this.lesson = { ...this.lesson, quiz: { questions: data.questions } };
-                      break;
-                  case 'test':
-                      this.lesson = { ...this.lesson, test: { questions: data.questions } };
-                      break;
-                  case 'post':
-                      // Save full JSON to postContent for Hub check
-                      // And map something to content for EditorViewPost
-                      const textRep = data.lesson ? `${data.lesson.title}\n\n${data.lesson.description}\n\n${(data.lesson.modules||[]).map(m=>m.title+': '+m.content).join('\n')}` : JSON.stringify(data);
-                      this.lesson = {
-                          ...this.lesson,
-                          postContent: data,
-                          content: { text: textRep, author: 'ai_sensei' }
-                      };
-                      break;
-              }
+                const data = result.data;
 
-              // Incremental Save
-              await this._handleSave();
+                // 3. Update Data & Save
+                switch (type) {
+                    case 'text':
+                        this.lesson = { ...this.lesson, text_content: data.text || data };
+                        break;
+                    case 'presentation':
+                        this.lesson = { ...this.lesson, presentation: { slides: data.slides, styleId: 'default' } };
+                        break;
+                    case 'quiz':
+                        this.lesson = { ...this.lesson, quiz: { questions: data.questions } };
+                        break;
+                    case 'test':
+                        this.lesson = { ...this.lesson, test: { questions: data.questions } };
+                        break;
+                    case 'post':
+                        const textRep = data.lesson ? `${data.lesson.title}\n\n${data.lesson.description}\n\n${(data.lesson.modules||[]).map(m=>m.title+': '+m.content).join('\n')}` : JSON.stringify(data);
+                        this.lesson = {
+                            ...this.lesson,
+                            postContent: data,
+                            content: { text: textRep, author: 'ai_sensei' }
+                        };
+                        break;
+                    case 'flashcards':
+                        this.lesson = { ...this.lesson, flashcards: data };
+                        break;
+                    case 'mindmap':
+                        this.lesson = { ...this.lesson, mindmap: data };
+                        break;
+                    case 'comic':
+                        this.lesson = { ...this.lesson, comic: data };
+                        break;
+                }
+
+                await this._handleSave(); // Immediate persistence
+                successCount++;
+
+             } catch (error) {
+                 console.error(`Failed to generate ${type}:`, error);
+                 failedTypes.push(type);
+                 // CRITICAL: Do NOT throw. Continue to next type.
+             }
           }
 
-          showToast(translationService.t('lesson.magic_done'));
+          // 4. Final Report
+          const msg = `Hotovo! Úspech: ${successCount}/${types.length}.` +
+                      (failedTypes.length ? ` Chyby: ${failedTypes.join(', ')}` : '');
+          showToast(msg, failedTypes.length > 0);
 
-      } catch (error) {
-          console.error("Auto Magic Error:", error);
+      } catch (fatalError) {
+          console.error("Fatal Magic Error:", fatalError);
           showToast(translationService.t('common.error'), true);
       } finally {
           this._isLoading = false;
+          this._magicStatus = '';
           this._wizardMode = false;
           this._activeTool = null; // FORCE display of Lesson Hub
           this.requestUpdate();
@@ -497,7 +538,7 @@ export class LessonEditor extends BaseView {
              <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
                 <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
                 <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ AI Sensei kouzlí...</h2>
-                <p class="text-slate-500 mt-2">Generuji veškerý obsah lekce. Může to chvíli trvat.</p>
+                <p class="text-slate-500 mt-2">${this._magicStatus || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
              </div>
           `;
       }

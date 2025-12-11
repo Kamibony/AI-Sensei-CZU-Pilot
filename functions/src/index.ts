@@ -21,7 +21,12 @@ const DEPLOY_REGION = "europe-west1";
 // Dynamically determine storage bucket based on environment
 const FIREBASE_CONFIG = process.env.FIREBASE_CONFIG ? JSON.parse(process.env.FIREBASE_CONFIG) : {};
 const PROJECT_ID = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+// Hardcode fallback to ensure it's never undefined in emulator/dev
 const STORAGE_BUCKET = FIREBASE_CONFIG.storageBucket || (PROJECT_ID === "ai-sensei-prod" ? "ai-sensei-prod.firebasestorage.app" : "ai-sensei-czu-pilot.firebasestorage.app");
+
+if (!STORAGE_BUCKET) {
+    logger.error("CRITICAL: STORAGE_BUCKET could not be determined.");
+}
 
 initializeApp();
 const db = getFirestore();
@@ -190,6 +195,9 @@ exports.generateContent = onCall({
         // Add language instruction
         const langInstruction = language === "pt-br" ? "Responda em Português do Brasil." : "Odpovídej v češtině.";
         finalPrompt += `\n\n${langInstruction}`;
+
+        // STRICT SYSTEM INSTRUCTION to silence conversational filler
+        finalPrompt += `\n\nSTRICT RULE: Return ONLY the raw content/JSON. Do NOT start with 'Here is', 'Sure', or 'Certainly'. No conversational filler.`;
 
         if (isJson) {
             switch(contentType) {
@@ -1277,8 +1285,9 @@ throw new HttpsError("internal", "Nepodarilo sa pripraviť nahrávanie.");
 
 // 3. Generovanie Signed URL
 const storage = getStorage();
-// Použijeme predvolený bucket projektu
-const bucket = storage.bucket(STORAGE_BUCKET);
+// Použijeme predvolený bucket projektu alebo fallback
+const bucketName = STORAGE_BUCKET || "ai-sensei-czu-pilot.firebasestorage.app";
+const bucket = storage.bucket(bucketName);
 const file = bucket.file(filePath);
 
 const options = {
