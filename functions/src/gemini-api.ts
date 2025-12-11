@@ -38,14 +38,30 @@ function getGenerativeModel() {
     return model;
 }
 
+// --- POMOCNÁ FUNKCIA NA ČISTENIE CESTY ---
+function sanitizeStoragePath(path: string, bucketName: string): string {
+    // 1. Odstrániť prefix gs://
+    let clean = path.replace(/^gs:\/\//, "");
+    
+    // 2. Odstrániť názov bucketu, ak je na začiatku cesty (napr. bucket.app/folder/file -> folder/file)
+    if (clean.startsWith(bucketName + "/")) {
+        clean = clean.substring(bucketName.length + 1);
+    }
+    
+    // 3. Odstrániť úvodné lomítko, ak tam ostalo
+    if (clean.startsWith("/")) {
+        clean = clean.substring(1);
+    }
+    
+    return clean;
+}
+
 async function getEmbeddings(text: string): Promise<number[]> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
         console.log("EMULATOR_MOCK for getEmbeddings: Returning a mock vector.");
-        // Return a fixed-size vector of non-zero values for emulator testing
         return Array(768).fill(0).map((_, i) => Math.sin(i));
     }
 
-    // Lazy load aiplatform
     const aiplatform = require("@google-cloud/aiplatform");
     const { PredictionServiceClient } = aiplatform.v1;
     const { helpers } = aiplatform;
@@ -86,6 +102,7 @@ async function getEmbeddings(text: string): Promise<number[]> {
     }
 }
 exports.getEmbeddings = getEmbeddings;
+
 function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
     if (vecA.length !== vecB.length) {
         throw new Error("Vectors must be of the same length to calculate similarity.");
@@ -101,11 +118,12 @@ function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
     magA = Math.sqrt(magA);
     magB = Math.sqrt(magB);
     if (magA === 0 || magB === 0) {
-        return 0; // Or throw an error, depending on desired behavior for zero vectors
+        return 0;
     }
     return dotProduct / (magA * magB);
 }
 exports.calculateCosineSimilarity = calculateCosineSimilarity;
+
 async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
     const functionName = requestBody.generationConfig?.responseMimeType === "application/json"
         ? "generateJson"
@@ -139,6 +157,7 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
         throw new Error("An unknown error occurred while communicating with the Vertex AI API.");
     }
 }
+
 async function generateTextFromPrompt(prompt: string): Promise<string> {
     const request: GenerateContentRequest = {
         contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -146,6 +165,7 @@ async function generateTextFromPrompt(prompt: string): Promise<string> {
     return await streamGeminiResponse(request);
 }
 exports.generateTextFromPrompt = generateTextFromPrompt;
+
 async function generateJsonFromPrompt(prompt: string): Promise<any> {
     const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
     const request: GenerateContentRequest = {
@@ -159,27 +179,43 @@ async function generateJsonFromPrompt(prompt: string): Promise<any> {
         const parsedJson = JSON.parse(rawJsonText);
         return parsedJson;
     }
-    catch (e) { // <--- ZMENENÉ
-        logger.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText, e); // <--- ZMENENÉ
-        // Hádzanie HttpsError namiesto new Error(), aby sa zabránilo 500 Internal Server Error
-        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText }); // <--- ZMENENÉ
+    catch (e) {
+        logger.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText, e);
+        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText });
     }
 }
 exports.generateJsonFromPrompt = generateJsonFromPrompt;
+
 async function generateTextFromDocuments(filePaths: string[], prompt: string): Promise<string> {
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
-    for (const filePath of filePaths) {
-        const file = bucket.file(filePath);
-        console.log(`[gemini-api:generateTextFromDocuments] Reading file from gs://${bucket.name}/${filePath}`);
-        const [fileBuffer] = await file.download();
-        parts.push({
-            inlineData: {
-                mimeType: "application/pdf",
-                data: fileBuffer.toString("base64"),
-            }
-        });
+    
+    // OPRAVA: Iterácia s čistením cesty
+    for (const rawPath of filePaths) {
+        const cleanPath = sanitizeStoragePath(rawPath, bucket.name);
+        const file = bucket.file(cleanPath);
+        
+        console.log(`[gemini-api:generateTextFromDocuments] Reading file from gs://${bucket.name}/${cleanPath} (Original: ${rawPath})`);
+        
+        try {
+            const [fileBuffer] = await file.download();
+            parts.push({
+                inlineData: {
+                    mimeType: "application/pdf", // Predpokladáme PDF, ak to chceš dynamicky, musíš to poslať z FE
+                    data: fileBuffer.toString("base64"),
+                }
+            });
+        } catch (err) {
+            logger.warn(`[gemini-api] Failed to download file: ${cleanPath}. Skipping. Error:`, err);
+            // Pokračujeme ďalej, nezastavíme celý proces kvoli jednému súboru
+        }
     }
+    
+    if (parts.length === 0) {
+        // Ak sa nepodarilo stiahnuť žiadne súbory, fallback na čistý text
+        return generateTextFromPrompt(prompt);
+    }
+
     parts.push({ text: prompt });
     const request: GenerateContentRequest = {
         contents: [{ role: "user", parts: parts }],
@@ -187,23 +223,34 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
     return await streamGeminiResponse(request);
 }
 exports.generateTextFromDocuments = generateTextFromDocuments;
-// --- NOVÁ FUNKCIA PRE GENERAVANIE JSON Z DOKUMENTOV ---
+
 async function generateJsonFromDocuments(filePaths: string[], prompt: string): Promise<any> {
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
-    for (const filePath of filePaths) {
-        const file = bucket.file(filePath);
-        console.log(`[gemini-api:generateJsonFromDocuments] Reading file from gs://${bucket.name}/${filePath}`);
-        const [fileBuffer] = await file.download();
-        parts.push({
-            inlineData: {
-                mimeType: "application/pdf",
-                data: fileBuffer.toString("base64"),
-            }
-        });
+    
+    // OPRAVA: Iterácia s čistením cesty
+    for (const rawPath of filePaths) {
+        const cleanPath = sanitizeStoragePath(rawPath, bucket.name);
+        const file = bucket.file(cleanPath);
+        
+        console.log(`[gemini-api:generateJsonFromDocuments] Reading file from gs://${bucket.name}/${cleanPath} (Original: ${rawPath})`);
+        
+        try {
+            const [fileBuffer] = await file.download();
+            parts.push({
+                inlineData: {
+                    mimeType: "application/pdf",
+                    data: fileBuffer.toString("base64"),
+                }
+            });
+        } catch (err) {
+             logger.warn(`[gemini-api] Failed to download file: ${cleanPath}. Skipping. Error:`, err);
+        }
     }
+
     const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
     parts.push({ text: jsonPrompt });
+    
     const request: GenerateContentRequest = {
         contents: [{ role: "user", parts: parts }],
         generationConfig: {
@@ -215,10 +262,9 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
         const parsedJson = JSON.parse(rawJsonText);
         return parsedJson;
     }
-    catch (e) { // <--- ZMENENÉ
-        logger.error("[gemini-api:generateJsonFromDocuments] Failed to parse JSON from Gemini response:", rawJsonText, e); // <--- ZMENENÉ
-        // Hádzanie HttpsError namiesto new Error(), aby sa zabránilo 500 Internal Server Error
-        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText }); // <--- ZMENENÉ
+    catch (e) {
+        logger.error("[gemini-api:generateJsonFromDocuments] Failed to parse JSON from Gemini response:", rawJsonText, e);
+        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText });
     }
 }
 exports.generateJsonFromDocuments = generateJsonFromDocuments;
@@ -226,13 +272,11 @@ exports.generateJsonFromDocuments = generateJsonFromDocuments;
 async function generateImageFromPrompt(prompt: string): Promise<string> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
         console.log("EMULATOR_MOCK for generateImageFromPrompt: Returning a mock base64 image.");
-        // Simple 1024x1024 blue square SVG as a placeholder, to be returned as base64 but NOT wrapped in data:image
         const svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1024 1024\" width=\"1024\" height=\"1024\"><rect width=\"1024\" height=\"1024\" fill=\"#60A5FA\" /><text x=\"50%\" y=\"50%\" font-size=\"60\" text-anchor=\"middle\" dy=\".3em\" fill=\"white\" font-family=\"sans-serif\">EMULATOR</text></svg>";
         const base64Svg = Buffer.from(svg).toString("base64");
         return base64Svg;
     }
 
-    // Lazy load aiplatform, PredictionServiceClient, and helpers
     const aiplatform = require("@google-cloud/aiplatform");
     const { PredictionServiceClient } = aiplatform.v1;
     const { helpers } = aiplatform;
@@ -243,7 +287,6 @@ async function generateImageFromPrompt(prompt: string): Promise<string> {
 
     const client = new PredictionServiceClient(clientOptions);
     const projectId = getGcloudProject();
-    // Note: 'imagen-3.0-generate-001' is a potential future model. Using a stable version for now.
     const endpoint = `projects/${projectId}/locations/${LOCATION}/publishers/google/models/imagegeneration@006`;
 
     const instances = [
