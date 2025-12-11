@@ -1,6 +1,7 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { callGenerateContent } from '../../../gemini-api.js';
 import { showToast } from '../../../utils.js';
+import { parseAiResponse } from './utils-parsing.mjs';
 import './professor-header-editor.js';
 
 export class EditorViewFlashcards extends LitElement {
@@ -21,31 +22,27 @@ export class EditorViewFlashcards extends LitElement {
     createRenderRoot() { return this; }
 
     willUpdate(changedProperties) {
-        if (changedProperties.has('lesson')) {
-            // Load existing cards or init empty
-            let cards = [];
-            if (this.lesson?.flashcards) {
-                if (Array.isArray(this.lesson.flashcards)) {
-                    cards = this.lesson.flashcards;
-                } else if (this.lesson.flashcards.cards && Array.isArray(this.lesson.flashcards.cards)) {
-                    cards = this.lesson.flashcards.cards;
-                }
-            }
-
-            if (cards.length > 0) {
-                this._cards = [...cards];
-            } else if (this._cards.length === 0) {
-                 this._cards = [];
+        if (changedProperties.has('lesson') && this.lesson) {
+            const parsedCards = parseAiResponse(this.lesson.flashcards, 'cards');
+            // Update only if we have valid cards and local state is empty or different
+            // (Avoiding overwriting local state if we are in the middle of editing could be complex,
+            // but for now we follow the pattern of loading from lesson on update if available)
+            // Ideally we check if it actually changed to avoid loop, but lit handles diffs.
+            if (parsedCards.length > 0) {
+                 // Optimization: Only update if length differs or first item differs to avoid constant re-render issues
+                 // But for simplicity and correctness of "syncing", we set it.
+                 // We check against _cards to avoid loop if possible, but _cards is internal state.
+                 // The issue is if user edits _cards, then lesson updates from parent...
+                 // Assuming parent update is authoritative source of truth.
+                 this._cards = parsedCards;
             }
         }
     }
 
     setContentFromAi(data) {
-        if (Array.isArray(data)) {
-            this._cards = data;
-            this.save();
-        } else if (data && data.cards && Array.isArray(data.cards)) {
-            this._cards = data.cards;
+        const cards = parseAiResponse(data, 'cards');
+        if (cards.length > 0) {
+            this._cards = cards;
             this.save();
         }
     }
@@ -75,41 +72,16 @@ export class EditorViewFlashcards extends LitElement {
                 throw new Error(result.error);
             }
 
-            let cards = [];
-            let jsonStr = result.text || result;
+            // Smart Parsing Logic
+            const rawData = result.text || result;
+            const cards = parseAiResponse(rawData, 'cards');
 
-            // Handle object result
-            if (typeof jsonStr === 'object') {
-                if (Array.isArray(jsonStr)) {
-                    cards = jsonStr;
-                } else if (jsonStr.cards && Array.isArray(jsonStr.cards)) {
-                     cards = jsonStr.cards;
-                } else if (jsonStr.flashcards && Array.isArray(jsonStr.flashcards)) {
-                    cards = jsonStr.flashcards;
-                } else {
-                    jsonStr = JSON.stringify(jsonStr);
-                }
-            }
-
-            if (cards.length === 0 && typeof jsonStr === 'string') {
-                 try {
-                    // Cleanup JSON
-                    jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
-                    const parsed = JSON.parse(jsonStr);
-                    if (Array.isArray(parsed)) cards = parsed;
-                    else if (parsed.cards && Array.isArray(parsed.cards)) cards = parsed.cards;
-                    else if (parsed.flashcards && Array.isArray(parsed.flashcards)) cards = parsed.flashcards;
-                } catch (e) {
-                    console.error('Chyba parsování JSON z AI:', e);
-                    showToast('Nepodařilo se zpracovat výstup z AI.', true);
-                    return;
-                }
-            }
-
-            if (Array.isArray(cards)) {
+            if (cards.length > 0) {
                 this._cards = cards;
                 this.save();
                 showToast("Kartičky vygenerovány!");
+            } else {
+                 showToast('Nepodařilo se zpracovat výstup z AI.', true);
             }
 
         } catch (e) {

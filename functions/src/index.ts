@@ -1280,7 +1280,7 @@ exports.getSecureUploadUrl = onCall({ region: DEPLOY_REGION }, async (request: C
                 courseId: courseId,
                 fileName: fileName,
                 contentType: contentType,
-                size: size,
+                size: size || 0, // Default to 0 if undefined to prevent Firestore error
                 storagePath: filePath, // Uložíme finálnu cestu
                 status: "pending_upload", // Zatiaľ čaká na nahratie
                 createdAt: FieldValue.serverTimestamp()
