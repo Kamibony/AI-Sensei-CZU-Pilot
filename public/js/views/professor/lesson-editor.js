@@ -52,6 +52,7 @@ export class LessonEditor extends BaseView {
     this._processingRAG = false;
     this._uploadedFiles = [];
     this._unsubscribe = null;
+    this._authUnsubscribe = null;
     this._wizardMode = true;
     this._activeTool = null;
     this._isGenerating = false;
@@ -77,10 +78,18 @@ export class LessonEditor extends BaseView {
       super.connectedCallback();
       this.addEventListener('lesson-updated', this._handleLessonUpdatedEvent);
       this._unsubscribe = translationService.subscribe(() => this.requestUpdate());
-      await Promise.all([
-          this._fetchAvailableClasses(),
-          this._fetchAvailableSubjects()
-      ]);
+
+      this._authUnsubscribe = auth.onAuthStateChanged(async (user) => {
+          if (user) {
+              await Promise.all([
+                  this._fetchAvailableClasses(),
+                  this._fetchAvailableSubjects()
+              ]);
+          } else {
+             this._availableClasses = [];
+             this._availableSubjects = [];
+          }
+      });
 
       if (!this.lesson) {
           this._initNewLesson();
@@ -94,6 +103,7 @@ export class LessonEditor extends BaseView {
       super.disconnectedCallback();
       this.removeEventListener('lesson-updated', this._handleLessonUpdatedEvent);
       if (this._unsubscribe) this._unsubscribe();
+      if (this._authUnsubscribe) this._authUnsubscribe();
   }
 
   _handleLessonUpdatedEvent(e) {
@@ -253,7 +263,8 @@ export class LessonEditor extends BaseView {
           }));
 
           this._uploadedFiles = [...this._uploadedFiles, ...newFiles];
-          if(this.lesson.title && !this._wizardMode) await this._handleSave();
+          this.lesson = { ...this.lesson, files: this._uploadedFiles };
+          if(this.lesson.title) await this._handleSave();
 
           this._processingRAG = true;
           for (const file of newFiles) {
@@ -281,7 +292,8 @@ export class LessonEditor extends BaseView {
   async _handleDeleteFile(fileIndex) {
       this._uploadedFiles.splice(fileIndex, 1);
       this._uploadedFiles = [...this._uploadedFiles];
-      if(this.lesson.title && !this._wizardMode) await this._handleSave();
+      this.lesson = { ...this.lesson, files: this._uploadedFiles };
+      if(this.lesson.title) await this._handleSave();
   }
 
   _handleOpenLibrary() {
@@ -311,7 +323,8 @@ export class LessonEditor extends BaseView {
 
                if (uniqueNewFiles.length > 0) {
                    this._uploadedFiles = [...this._uploadedFiles, ...uniqueNewFiles];
-                   if(this.lesson.title && !this._wizardMode) await this._handleSave();
+                   this.lesson = { ...this.lesson, files: this._uploadedFiles };
+                   if(this.lesson.title) await this._handleSave();
                    showToast(`Pridáno ${uniqueNewFiles.length} souborů z knihovny.`);
                }
           }
