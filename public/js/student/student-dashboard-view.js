@@ -1,7 +1,7 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { doc, onSnapshot, query, collection, where, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, onSnapshot, query, collection, where, orderBy, getDocs, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../firebase-init.js';
-import { translationService } from '../utils/translation-service.js'; // 1. Pridaný import
+import { translationService } from '../utils/translation-service.js';
 
 export class StudentDashboardView extends LitElement {
     static properties = {
@@ -21,7 +21,7 @@ export class StudentDashboardView extends LitElement {
         this.streak = 0;
         this.isLoading = true;
         this.greeting = '';
-        this._langUnsubscribe = null; // 2. Pridané pre cleanup
+        this._langUnsubscribe = null;
     }
 
     createRenderRoot() { return this; }
@@ -29,25 +29,22 @@ export class StudentDashboardView extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         
-        // 3. Subscribe na zmeny jazyka
         this._langUnsubscribe = translationService.subscribe(() => {
             this._updateGreeting();
             this.requestUpdate();
         });
 
-        this._updateGreeting(); // Inicialne nastavenie pozdravu
+        this._updateGreeting();
         this._fetchDashboardData();
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
-        // 4. Cleanup listenera
         if (this._langUnsubscribe) {
             this._langUnsubscribe();
         }
     }
 
-    // 5. Upravená metóda pre dynamický preklad pozdravu
     _updateGreeting() {
         const hour = new Date().getHours();
         let timeKey = 'day';
@@ -58,11 +55,11 @@ export class StudentDashboardView extends LitElement {
         this.greeting = translationService.t(`student.greetings.${timeKey}`);
     }
 
-    _fetchDashboardData() {
+    async _fetchDashboardData() {
         if (!this.user) return;
 
         const studentRef = doc(firebaseInit.db, "students", this.user.uid);
-        onSnapshot(studentRef, (snap) => {
+        onSnapshot(studentRef, async (snap) => {
             if (snap.exists()) {
                 const data = snap.data();
                 const groups = data.memberOfGroups || [];
@@ -70,10 +67,36 @@ export class StudentDashboardView extends LitElement {
                 this.streak = data.streak || 0;
 
                 if (groups.length > 0) {
+                    // Try to find the most recently accessed lesson from progress
+                    try {
+                        const progressQuery = query(
+                            collection(firebaseInit.db, `students/${this.user.uid}/progress`),
+                            orderBy("lastUpdated", "desc"),
+                            limit(1)
+                        );
+                        const progressSnap = await getDocs(progressQuery);
+
+                        if (!progressSnap.empty) {
+                            const lastActiveLessonId = progressSnap.docs[0].id;
+                            // Fetch lesson details
+                            const lessonDoc = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js").then(mod => mod.getDoc(doc(firebaseInit.db, "lessons", lastActiveLessonId)));
+
+                            if (lessonDoc.exists()) {
+                                this.recentLesson = { id: lessonDoc.id, ...lessonDoc.data() };
+                                this.isLoading = false;
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("Error fetching progress for 'Continue Learning', falling back to newest lesson.", e);
+                    }
+
+                    // Fallback: Newest lesson
                     const lessonsQuery = query(
                         collection(firebaseInit.db, "lessons"),
                         where("assignedToGroups", "array-contains-any", groups.slice(0, 30)),
                         orderBy("createdAt", "desc"),
+                        limit(1)
                     );
 
                     onSnapshot(lessonsQuery, (lessonSnap) => {
@@ -109,7 +132,6 @@ export class StudentDashboardView extends LitElement {
     }
 
     render() {
-        // Helper pre jednoduchšie volanie v šablóne
         const t = (key) => translationService.t(key);
 
         if (this.isLoading) {
