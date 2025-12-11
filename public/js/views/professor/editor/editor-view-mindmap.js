@@ -25,13 +25,13 @@ export class EditorViewMindmap extends LitElement {
 
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {
-            if (this.lesson?.mindmap && typeof this.lesson.mindmap === 'string') {
-                 // Only update if different to avoid cursor jumping if we were editing
-                 if (this.lesson.mindmap !== this._mermaidCode) {
-                    this._mermaidCode = this.lesson.mindmap;
-                    this._renderDiagram();
-                 }
-            } else if (!this._mermaidCode) {
+            const data = this.lesson?.mindmap;
+            const code = data?.mermaid || (typeof data === 'string' ? data : '');
+
+            if (code && code !== this._mermaidCode) {
+                this._mermaidCode = code;
+                this._renderDiagram();
+            } else if (!this._mermaidCode && !code) {
                  this._mermaidCode = '';
             }
         }
@@ -77,13 +77,23 @@ export class EditorViewMindmap extends LitElement {
             }
 
             let rawText = result.text || result;
+            let code = '';
 
-            if (typeof rawText !== 'string') {
-                rawText = String(rawText);
+            // Handle object response
+            if (typeof rawText === 'object') {
+                if (rawText.mermaid) {
+                    code = rawText.mermaid;
+                } else {
+                     // Try to convert to string if it's not the expected structure
+                     code = JSON.stringify(rawText);
+                }
+            } else {
+                if (typeof rawText !== 'string') {
+                    rawText = String(rawText);
+                }
+                // Cleanup markdown from string
+                code = rawText.replace(/```mermaid/g, '').replace(/```/g, '').trim();
             }
-
-            // Cleanup markdown
-            let code = rawText.replace(/```mermaid/g, '').replace(/```/g, '').trim();
 
             this._mermaidCode = code;
             this.save();

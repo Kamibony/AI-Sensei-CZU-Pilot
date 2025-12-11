@@ -23,8 +23,17 @@ export class EditorViewFlashcards extends LitElement {
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {
             // Load existing cards or init empty
-            if (this.lesson?.flashcards && Array.isArray(this.lesson.flashcards)) {
-                this._cards = [...this.lesson.flashcards];
+            let cards = [];
+            if (this.lesson?.flashcards) {
+                if (Array.isArray(this.lesson.flashcards)) {
+                    cards = this.lesson.flashcards;
+                } else if (this.lesson.flashcards.cards && Array.isArray(this.lesson.flashcards.cards)) {
+                    cards = this.lesson.flashcards.cards;
+                }
+            }
+
+            if (cards.length > 0) {
+                this._cards = [...cards];
             } else if (this._cards.length === 0) {
                  this._cards = [];
             }
@@ -34,6 +43,9 @@ export class EditorViewFlashcards extends LitElement {
     setContentFromAi(data) {
         if (Array.isArray(data)) {
             this._cards = data;
+            this.save();
+        } else if (data && data.cards && Array.isArray(data.cards)) {
+            this._cards = data.cards;
             this.save();
         }
     }
@@ -70,6 +82,8 @@ export class EditorViewFlashcards extends LitElement {
             if (typeof jsonStr === 'object') {
                 if (Array.isArray(jsonStr)) {
                     cards = jsonStr;
+                } else if (jsonStr.cards && Array.isArray(jsonStr.cards)) {
+                     cards = jsonStr.cards;
                 } else if (jsonStr.flashcards && Array.isArray(jsonStr.flashcards)) {
                     cards = jsonStr.flashcards;
                 } else {
@@ -83,6 +97,7 @@ export class EditorViewFlashcards extends LitElement {
                     jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
                     const parsed = JSON.parse(jsonStr);
                     if (Array.isArray(parsed)) cards = parsed;
+                    else if (parsed.cards && Array.isArray(parsed.cards)) cards = parsed.cards;
                     else if (parsed.flashcards && Array.isArray(parsed.flashcards)) cards = parsed.flashcards;
                 } catch (e) {
                     console.error('Chyba parsování JSON z AI:', e);

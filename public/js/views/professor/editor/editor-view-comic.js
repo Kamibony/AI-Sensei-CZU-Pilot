@@ -26,17 +26,35 @@ export class EditorViewComic extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (this.lesson && this.lesson.comic_script && Array.isArray(this.lesson.comic_script.panels)) {
-            // If a script exists, use it as the base
-            this._panels = this.lesson.comic_script.panels.map(p => ({
+
+        let panels = [];
+
+        if (this.lesson?.comic) {
+            if (Array.isArray(this.lesson.comic)) {
+                panels = this.lesson.comic;
+            } else if (this.lesson.comic.panels && Array.isArray(this.lesson.comic.panels)) {
+                // Handle object wrapper { panels: [...] }
+                panels = this.lesson.comic.panels.map(p => ({
+                    panel: p.panel_number || p.panel,
+                    description: p.visual_description || p.description,
+                    dialogue: p.dialogue,
+                    imageBase64: p.imageBase64 || null
+                }));
+            }
+        }
+
+        if (panels.length === 0 && this.lesson?.comic_script && Array.isArray(this.lesson.comic_script.panels)) {
+             // If a script exists but no main comic data, use it as the base
+            panels = this.lesson.comic_script.panels.map(p => ({
                 panel: p.panel_number,
                 description: p.visual_description,
                 dialogue: p.dialogue,
                 imageBase64: null // Image is initially null
             }));
-        } else if (this.lesson && this.lesson.comic && Array.isArray(this.lesson.comic)) {
-            // Fallback to existing comic data if no script is present
-            this._panels = this.lesson.comic;
+        }
+
+        if (panels.length > 0) {
+            this._panels = panels;
         } else {
             // Default to 4 empty panels if no data exists
             this._panels = Array(4).fill().map((_, i) => ({

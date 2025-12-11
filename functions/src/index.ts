@@ -190,7 +190,7 @@ exports.generateContent = onCall({
 
         let finalPrompt = promptData.userPrompt;
         const language = promptData.language || "cs";
-        const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards"].includes(contentType);
+        const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap"].includes(contentType);
 
         // Add language instruction
         const langInstruction = language === "pt-br" ? "Responda em Português do Brasil." : "Odpovídej v češtině.";
@@ -306,11 +306,17 @@ Use exactly this structure:
   }
 }`;
                      break;
-                 case "comic":
-                    // Just rely on global append
-                    break;
+
                 case "flashcards":
-                    // Just rely on global append
+                    finalPrompt = `Vytvoř sadu 10 studijních kartiček na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'cards', který obsahuje pole objektů. Každý objekt musí mít klíče: 'front' (pojem/otázka) a 'back' (definice/odpověď). ${langInstruction}`;
+                    break;
+
+                case "mindmap":
+                    finalPrompt = `Vytvoř mentální mapu na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt obsahující POUZE klíč 'mermaid', jehož hodnotou je validní string pro Mermaid.js diagram (typ 'graph TD'). Nepoužívej markdown bloky. Příklad: { "mermaid": "graph TD\\nA-->B" }. ${langInstruction}`;
+                    break;
+
+                case "comic":
+                    finalPrompt = `Vytvoř scénář pro komiks (4 panely). Odpověď musí být JSON objekt s klíčem 'panels' (pole objektů: panel_number, description, dialogue). ${langInstruction}`;
                     break;
             }
         }
@@ -1251,64 +1257,71 @@ exports.onUserCreate = onDocumentCreated({document: "users/{userId}", region: DE
 
 // 1. NOVÁ FUNKCIA: Pripraví nahrávanie a vráti Signed URL
 exports.getSecureUploadUrl = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
-// 1. AUTORIZÁCIA: Povolíme iba profesorom
-if (!request.auth || request.auth.token.role !== "professor") {
-throw new HttpsError("unauthenticated", "Na túto akciu musíte mať rolu profesora.");
-}
+    try {
+        // 1. AUTORIZÁCIA: Povolíme iba profesorom
+        if (!request.auth || request.auth.token.role !== "professor") {
+            throw new HttpsError("unauthenticated", "Na túto akciu musíte mať rolu profesora.");
+        }
 
-const { fileName, contentType, courseId, size } = request.data;
-if (!fileName || !contentType || !courseId) {
-throw new HttpsError("invalid-argument", "Chýbajú povinné údaje (fileName, contentType, courseId).");
-}
+        const { fileName, contentType, courseId, size } = request.data;
+        if (!fileName || !contentType || !courseId) {
+            throw new HttpsError("invalid-argument", "Chýbajú povinné údaje (fileName, contentType, courseId).");
+        }
 
-const userId = request.auth.uid;
-// Použijeme ID z Firestore ako unikátny názov súboru
-const docId = db.collection("fileMetadata").doc().id;
-const filePath = `courses/${courseId}/media/${docId}`;
+        const userId = request.auth.uid;
+        // Použijeme ID z Firestore ako unikátny názov súboru
+        const docId = db.collection("fileMetadata").doc().id;
+        const filePath = `courses/${courseId}/media/${docId}`;
 
-// 2. Vytvoríme "placeholder" vo Firestore
-try {
-await db.collection("fileMetadata").doc(docId).set({
-ownerId: userId,
-courseId: courseId,
-fileName: fileName,
-contentType: contentType,
-size: size,
-storagePath: filePath, // Uložíme finálnu cestu
-status: "pending_upload", // Zatiaľ čaká na nahratie
-createdAt: FieldValue.serverTimestamp()
-});
-} catch (error) {
-logger.error("Chyba pri vytváraní placeholderu vo Firestore:", error);
-throw new HttpsError("internal", "Nepodarilo sa pripraviť nahrávanie.");
-}
+        // 2. Vytvoríme "placeholder" vo Firestore
+        try {
+            await db.collection("fileMetadata").doc(docId).set({
+                ownerId: userId,
+                courseId: courseId,
+                fileName: fileName,
+                contentType: contentType,
+                size: size,
+                storagePath: filePath, // Uložíme finálnu cestu
+                status: "pending_upload", // Zatiaľ čaká na nahratie
+                createdAt: FieldValue.serverTimestamp()
+            });
+        } catch (error) {
+            logger.error("Chyba pri vytváraní placeholderu vo Firestore:", error);
+            throw new HttpsError("internal", "Nepodarilo sa pripraviť nahrávanie.");
+        }
 
-// 3. Generovanie Signed URL
-const storage = getStorage();
-// Použijeme predvolený bucket projektu alebo fallback
-const bucketName = STORAGE_BUCKET || "ai-sensei-czu-pilot.firebasestorage.app";
-const bucket = storage.bucket(bucketName);
-const file = bucket.file(filePath);
+        // 3. Generovanie Signed URL
+        const storage = getStorage();
+        // Použijeme predvolený bucket projektu alebo fallback
+        const bucketName = STORAGE_BUCKET || "ai-sensei-czu-pilot.firebasestorage.app";
+        const bucket = storage.bucket(bucketName);
+        const file = bucket.file(filePath);
 
-const options = {
-version: "v4" as const,
-action: "write" as const,
-expires: Date.now() + 15 * 60 * 1000, // 15 minút platnosť
-contentType: contentType, // Vynútime presný typ obsahu
-metadata: {
-ownerId: userId,
-firestoreDocId: docId
-}
-};
+        const options = {
+            version: "v4" as const,
+            action: "write" as const,
+            expires: Date.now() + 15 * 60 * 1000, // 15 minút platnosť
+            contentType: contentType, // Vynútime presný typ obsahu
+            metadata: {
+                ownerId: userId,
+                firestoreDocId: docId
+            }
+        };
 
-try {
-const [url] = await file.getSignedUrl(options);
-// Vrátime klientovi všetko, čo potrebuje
-return { signedUrl: url, docId: docId, filePath: filePath };
-} catch (error) {
-logger.error("Chyba pri generovaní Signed URL:", error);
-throw new HttpsError("internal", "Nepodarilo sa vygenerovať URL na nahrávanie.");
-}
+        const [url] = await file.getSignedUrl(options);
+        // Vrátime klientovi všetko, čo potrebuje
+        return { signedUrl: url, docId: docId, filePath: filePath };
+    } catch (error) {
+        logger.error("Chyba v getSecureUploadUrl:", error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        let message = "An unknown error occurred.";
+        if (error instanceof Error) {
+            message = error.message;
+        }
+        throw new HttpsError("internal", `Nepodarilo sa vygenerovať URL na nahrávanie: ${message}`);
+    }
 });
 
 // 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí (S DETAILNÝM LOGOVANÍM)
