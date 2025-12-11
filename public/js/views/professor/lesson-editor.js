@@ -529,6 +529,8 @@ export class LessonEditor extends BaseView {
                console.error("AI Gen Error", e);
                showToast(translationService.t('common.error'), true);
            }
+      } else {
+          console.error("Active editor not found or handleAiGeneration missing", activeEditor);
       }
   }
 
@@ -744,13 +746,11 @@ export class LessonEditor extends BaseView {
           <div class="absolute inset-0 overflow-y-auto custom-scrollbar">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
-              <!-- Resource Grid (Middle) -->
               <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                  ${this._renderClassesPanel()}
                  ${this._renderFilesPanel()}
               </div>
 
-              <!-- Content Grid -->
               <div class="space-y-4">
                   <div class="flex items-center justify-between">
                      <h3 class="font-bold text-slate-800 text-xl flex items-center gap-2">
@@ -808,11 +808,6 @@ export class LessonEditor extends BaseView {
   }
 
   _renderHeader() {
-      // Original _renderHeader is removed as it's now handled by Child Editors via professor-header-editor.js
-      // But we still need it for the HUB view if that uses it.
-      // Checking _renderLessonHub usage... Yes, _renderLessonHub calls _renderHeader().
-      // So we KEEP this method for the Hub view, but we DON'T use it for Child Editors.
-
     return html`
       <div class="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 sticky top-0 z-30 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -862,21 +857,37 @@ export class LessonEditor extends BaseView {
           isSaving: this.isSaving
       };
 
-      const eventHandlers = {
-          back: this._handleBackToHub.bind(this),
-          save: this._handleSave.bind(this)
-      };
+      // DÔLEŽITÉ: Každý editor musí mať:
+      // 1. id="active-editor" (aby ho našla funkcia _handleMagicGeneration)
+      // 2. class="w-full h-full block" (aby sa zobrazil a nebol nulový)
 
       switch (this._activeTool) {
-          case 'text': return html`<editor-view-text .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, text_content: e.detail }; }}></editor-view-text>`;
-          case 'presentation': return html`<editor-view-presentation .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, presentation: e.detail }; }}></editor-view-presentation>`;
-          case 'quiz': return html`<editor-view-quiz .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, quiz: e.detail }; }}></editor-view-quiz>`;
-          case 'test': return html`<editor-view-test .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, test: e.detail }; }}></editor-view-test>`;
-          case 'post': return html`<editor-view-post .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-post>`;
-          case 'video': return html`<editor-view-video .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-video>`;
-          case 'comic': return html`<editor-view-comic .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-comic>`;
-          case 'flashcards': return html`<editor-view-flashcards .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-flashcards>`;
-          case 'mindmap': return html`<editor-view-mindmap .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-mindmap>`;
+          case 'text': 
+              return html`<editor-view-text id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, text_content: e.detail }; }}></editor-view-text>`;
+          
+          case 'presentation': 
+              return html`<editor-view-presentation id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, presentation: e.detail }; }}></editor-view-presentation>`;
+          
+          case 'quiz': 
+              return html`<editor-view-quiz id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, quiz: e.detail }; }}></editor-view-quiz>`;
+          
+          case 'test': 
+              return html`<editor-view-test id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, test: e.detail }; }}></editor-view-test>`;
+          
+          case 'post': 
+              return html`<editor-view-post id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-post>`;
+          
+          case 'video': 
+              return html`<editor-view-video id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-video>`;
+          
+          case 'comic': 
+              return html`<editor-view-comic id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-comic>`;
+          
+          case 'flashcards': 
+              return html`<editor-view-flashcards id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-flashcards>`;
+          
+          case 'mindmap': 
+              return html`<editor-view-mindmap id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-mindmap>`;
 
           case 'audio': return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
