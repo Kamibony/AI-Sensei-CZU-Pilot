@@ -3,6 +3,7 @@ import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@
 import { doc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../../firebase-init.js';
 import { showToast } from '../../../utils.js';
+import './professor-header-editor.js';
 
 // === Definícia Štýlov Tlačidiel ===
 const btnBase = "px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
@@ -13,6 +14,7 @@ const btnDestructive = `${btnBase} bg-red-100 text-red-700 hover:bg-red-200`; //
 export class EditorViewVideo extends LitElement {
     static properties = {
         lesson: { type: Object },
+        isSaving: { type: Boolean },
         _currentLesson: { state: true, type: Object },
         _videoId: { state: true, type: String },
         _isLoading: { state: true, type: Boolean },
@@ -79,26 +81,35 @@ export class EditorViewVideo extends LitElement {
 
     render() {
         return html`
-            <div class="flex justify-between items-start mb-6">
-                <h2 class="text-3xl font-extrabold text-slate-800">Vložení videa</h2>
-            </div>
-            <div class="bg-white p-6 rounded-2xl shadow-lg">
-                <p class="text-slate-500 mb-4">Vložte odkaz na video z YouTube.</p>
-                <div>
-                    <label class="block font-medium text-slate-600">YouTube URL</label>
-                    <input id="youtube-url" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" .value="${this._currentLesson?.videoUrl || ''}" placeholder="https://www.youtube.com/watch?v=...">
-                </div>
-                <div class="text-right pt-4 flex justify-end space-x-2"> ${this._currentLesson?.videoUrl ? html`
-                        <button @click=${this._handleDeleteVideo} ?disabled=${this._isLoading} class="${btnDestructive} px-4 py-2 text-sm"> ${this._isLoading ? 'Mažu...' : '🗑️ Smazat video'}
-                        </button>` : nothing}
-                    <button @click=${this._handleSaveVideo} ?disabled=${this._isLoading} class="${btnPrimary} px-6"> ${this._isLoading ? html`<div class="spinner"></div><span class="ml-2">Ukládám...</span>` : 'Uložit odkaz'}
-                    </button>
-                </div>
-                <div id="video-preview" class="mt-6 border-t pt-6">
-                    ${this._videoId ? html`
-                        <div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-2xl shadow-lg">
-                            <iframe src="https://www.youtube.com/embed/${this._videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>
-                        </div>` : html`<div class="text-center p-8 text-slate-400">Náhled videa se zobrazí zde...</div>`}
+            <div class="h-full flex flex-col bg-slate-50 relative">
+                <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving || this._isLoading}"></professor-header-editor>
+                <div class="flex-1 overflow-hidden relative">
+                    <div class="absolute inset-0 overflow-y-auto custom-scrollbar p-6">
+                        <div class="max-w-4xl mx-auto space-y-6">
+                            <div class="flex justify-between items-start mb-6">
+                                <h2 class="text-3xl font-extrabold text-slate-800">Vložení videa</h2>
+                            </div>
+                            <div class="bg-white p-6 rounded-2xl shadow-lg">
+                                <p class="text-slate-500 mb-4">Vložte odkaz na video z YouTube.</p>
+                                <div>
+                                    <label class="block font-medium text-slate-600">YouTube URL</label>
+                                    <input id="youtube-url" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1" .value="${this._currentLesson?.videoUrl || ''}" placeholder="https://www.youtube.com/watch?v=...">
+                                </div>
+                                <div class="text-right pt-4 flex justify-end space-x-2"> ${this._currentLesson?.videoUrl ? html`
+                                        <button @click=${this._handleDeleteVideo} ?disabled=${this._isLoading} class="${btnDestructive} px-4 py-2 text-sm"> ${this._isLoading ? 'Mažu...' : '🗑️ Smazat video'}
+                                        </button>` : nothing}
+                                    <button @click=${this._handleSaveVideo} ?disabled=${this._isLoading} class="${btnPrimary} px-6"> ${this._isLoading ? html`<div class="spinner"></div><span class="ml-2">Ukládám...</span>` : 'Uložit odkaz'}
+                                    </button>
+                                </div>
+                                <div id="video-preview" class="mt-6 border-t pt-6">
+                                    ${this._videoId ? html`
+                                        <div class="rounded-xl overflow-hidden aspect-video mx-auto max-w-2xl shadow-lg">
+                                            <iframe src="https://www.youtube.com/embed/${this._videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>
+                                        </div>` : html`<div class="text-center p-8 text-slate-400">Náhled videa se zobrazí zde...</div>`}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
