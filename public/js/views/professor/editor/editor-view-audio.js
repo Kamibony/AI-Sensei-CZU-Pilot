@@ -1,8 +1,8 @@
-// public/js/views/professor/editor/editor-view-audio.js
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { getStorage, ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
-import { showToast } from '../../components/toast-manager.js';
+// FIX: Corrected import path for showToast
+import { showToast } from '../../../utils.js';
 import './professor-header-editor.js';
 
 export class EditorViewAudio extends LitElement {
@@ -45,7 +45,7 @@ export class EditorViewAudio extends LitElement {
         const content = this.lesson.content ? JSON.parse(JSON.stringify(this.lesson.content)) : {};
         content.script = e.target.value;
 
-        // Dispatch update for auto-save
+        // Dispatch update for auto-save (using correct event name)
         this.dispatchEvent(new CustomEvent('lesson-updated', {
             detail: {
                 content: content
@@ -121,7 +121,6 @@ export class EditorViewAudio extends LitElement {
                     <div class="absolute inset-0 overflow-y-auto custom-scrollbar p-6">
                         <div class="max-w-5xl mx-auto space-y-6">
 
-                            <!-- Header -->
                             <div class="bg-white rounded-3xl p-8 shadow-sm border border-slate-200 flex flex-col md:flex-row gap-8 items-start">
                                 <div class="flex-1">
                                     <h2 class="text-2xl font-bold text-slate-800 mb-2">Audio Editor</h2>
@@ -137,7 +136,6 @@ export class EditorViewAudio extends LitElement {
                                     </div>
                                 </div>
 
-                                <!-- Audio Player Section -->
                                 <div class="w-full md:w-80 bg-slate-50 rounded-2xl p-4 border border-slate-200">
                                     ${this.audioUrl ? html`
                                         <div class="mb-3 text-sm font-medium text-slate-700">Náhled Audia:</div>
@@ -168,7 +166,6 @@ export class EditorViewAudio extends LitElement {
                                 </div>
                             </div>
 
-                            <!-- Script Editor -->
                             <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
                                 <div class="bg-slate-50 px-6 py-3 border-b border-slate-200 text-xs font-medium text-slate-500 uppercase tracking-wider">
                                     Scénář
