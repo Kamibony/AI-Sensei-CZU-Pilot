@@ -14,10 +14,9 @@ import './professor-interactions-view.js';
 import './professor-analytics-view.js';
 import './admin-user-management-view.js';
 import './admin-settings-view.js';
+import './admin-dashboard-view.js'; // Nový import pre Dashboard
 
-// === DÔLEŽITÁ ZMENA: Importujeme nový navigačný komponent ako vedľajší efekt ===
 import './navigation.js'; 
-// ==============================================================================
 
 // New Class-Centric Views
 import './professor-dashboard-view.js';
@@ -58,7 +57,7 @@ export class ProfessorApp extends LitElement {
         document.addEventListener('add-lesson-to-timeline', this._boundHandleAddToTimeline);
         window.addEventListener('hashchange', this._boundHandleHashChange);
         
-        // Globálny listener pre navigáciu z ľavého menu (ktoré je teraz mimo Shadow DOM tohto prvku v niektorých prípadoch, ale tu sme v Light DOM)
+        // Globálny listener pre navigáciu z ľavého menu
         window.addEventListener('navigate', this._boundHandleNavigation);
     }
 
@@ -71,8 +70,6 @@ export class ProfessorApp extends LitElement {
     }
 
     firstUpdated() {
-        // === OPRAVA: Odstránené volanie neexistujúcej funkcie setupProfessorNav ===
-        // Namiesto toho vložíme komponent <professor-navigation> do kontajnera #main-nav
         const navContainer = document.getElementById('main-nav');
         if (navContainer) {
             navContainer.innerHTML = '<professor-navigation></professor-navigation>';
@@ -142,8 +139,6 @@ export class ProfessorApp extends LitElement {
     }
 
     _handleNavigation(e) {
-        // Ignorujeme udalosť, ak prišla z tohto istého komponentu (aby sme sa nezacyklili), 
-        // ale v Light DOM to nie je taký problém. Hlavne chceme zachytiť bublajúce eventy.
         const { view, ...data } = e.detail;
 
         let newHash = `#${view}`;
@@ -175,8 +170,16 @@ export class ProfessorApp extends LitElement {
     }
 
     _showProfessorContent(view, data = null) {
-        const fullWidthViews = ['dashboard', 'class-detail', 'students', 'student-profile', 'interactions', 'analytics', 'media', 'editor', 'classes', 'admin', 'admin-settings', 'timeline', 'library'];
+        // Zoznam pohľadov, ktoré majú byť na celú šírku (bez bočného panela s lekciami)
+        // Pridaný 'admin-dashboard'
+        const fullWidthViews = [
+            'dashboard', 'class-detail', 'students', 'student-profile', 
+            'interactions', 'analytics', 'media', 'editor', 'classes', 
+            'admin', 'admin-settings', 'admin-dashboard', 'timeline', 'library'
+        ];
+        
         this._sidebarVisible = !fullWidthViews.includes(view);
+        
         if (view === 'timeline') this._fetchLessons();
         this._currentView = view;
         this._currentData = data;
@@ -191,7 +194,6 @@ export class ProfessorApp extends LitElement {
     _onNavigateToProfile(e) { this._showProfessorContent('student-profile', e.detail.studentId); }
     _onBackToList() { this._showProfessorContent('students'); }
     _onEditorExit(e) {
-        // Allow passing a target view on exit, default to library if not provided or if it was dashboard
         const targetView = e.detail?.view || 'library';
         this._showProfessorContent(targetView);
     }
@@ -202,7 +204,7 @@ export class ProfessorApp extends LitElement {
             this._showProfessorContent('timeline');
             setTimeout(() => {
                  const timelineView = this.querySelector('professor-timeline-view');
-                 if (timelineView) timelineView.requestUpdate(); // Timeline si načíta dáta sám
+                 if (timelineView) timelineView.requestUpdate(); 
             }, 500);
         }
     }
@@ -251,8 +253,12 @@ export class ProfessorApp extends LitElement {
             case 'student-profile': return html`<professor-student-profile-view class="h-full flex flex-col" .studentId=${this._currentData} @back-to-list=${this._onBackToList}></professor-student-profile-view>`;
             case 'interactions': return html`<professor-interactions-view class="flex flex-grow h-full"></professor-interactions-view>`;
             case 'analytics': return html`<professor-analytics-view class="h-full flex flex-col"></professor-analytics-view>`;
+            
+            // ADMIN ROUTING
             case 'admin': return html`<admin-user-management-view class="h-full flex flex-col"></admin-user-management-view>`;
             case 'admin-settings': return html`<admin-settings-view class="h-full flex flex-col"></admin-settings-view>`;
+            case 'admin-dashboard': return html`<admin-dashboard-view class="h-full flex flex-col"></admin-dashboard-view>`;
+            
             default: return html`<professor-dashboard-view class="h-full flex flex-col"></professor-dashboard-view>`;
         }
     }
