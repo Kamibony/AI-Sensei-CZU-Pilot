@@ -17,6 +17,7 @@ import './editor/editor-view-video.js';
 import './editor/editor-view-comic.js';
 import './editor/editor-view-flashcards.js';
 import './editor/editor-view-mindmap.js';
+import './editor/editor-view-audio.js';
 import './editor/ai-generator-panel.js';
 import './editor/professor-header-editor.js';
 
@@ -889,15 +890,8 @@ export class LessonEditor extends BaseView {
           case 'mindmap': 
               return html`<editor-view-mindmap id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-mindmap>`;
 
-          case 'audio': return html`
-            <div class="h-full flex flex-col bg-slate-50 relative">
-               <professor-header-editor .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave}></professor-header-editor>
-               <div class="p-12 text-center text-slate-500 bg-slate-50 flex flex-col items-center justify-center h-full">
-                  <span class="text-4xl mb-4">🎙️</span>
-                  <p>Editor pro Podcasty</p>
-                  <p class="text-sm mt-2">Nakonfigurujte a vygenerujte obsah pomocí AI Panelu.</p>
-               </div>
-            </div>`;
+          case 'audio':
+              return html`<editor-view-audio id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-audio>`;
           default: return html`<div class="p-4 text-center text-red-500">${translationService.t('common.unknown_type')}</div>`;
       }
   }
