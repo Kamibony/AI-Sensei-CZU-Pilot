@@ -28,10 +28,12 @@ export class ProfessorNavigation extends Localized(LitElement) {
         
         // Štýly pre aktívny vs neaktívny stav (presne podľa pôvodného dizajnu)
         const baseClasses = "nav-item w-full flex items-center p-2.5 rounded-xl transition-all duration-200 group relative overflow-hidden mb-1";
-        const activeClasses = id === 'admin' 
+        // Pre admin dashboard použijeme špecifickú farbu (žltá/oranžová), pre ostatné indigo
+        const activeClasses = (id === 'admin' || id === 'admin-dashboard' || id === 'admin-settings')
             ? "bg-yellow-50 text-yellow-700 font-bold shadow-sm" 
             : "bg-indigo-50 text-indigo-700 font-bold shadow-sm";
-        const inactiveClasses = id === 'admin'
+            
+        const inactiveClasses = (id === 'admin' || id === 'admin-dashboard' || id === 'admin-settings')
             ? "text-slate-500 hover:bg-yellow-50 hover:text-yellow-700"
             : "text-slate-500 hover:bg-slate-50 hover:text-slate-900";
 
@@ -90,9 +92,9 @@ export class ProfessorNavigation extends Localized(LitElement) {
                     ${this._renderNavItem('editor', '✨', this.t('nav.editor'))}
                 </div>
 
-                <div class="flex-shrink-0 p-4 border-t border-slate-100 bg-white">
+                <div class="flex-shrink-0 p-4 border-t border-slate-100 bg-white space-y-1">
                     ${this._isAdmin() 
-                        ? this._renderNavItem('admin', '⚙️', this.t('nav.admin'), true) 
+                        ? this._renderNavItem('admin-dashboard', '⚙️', 'Administrace', true) 
                         : ''}
                 </div>
             </div>
