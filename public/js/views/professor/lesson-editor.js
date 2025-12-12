@@ -7,6 +7,7 @@ import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { translationService } from '../../services/translation-service.js';
 import { callGenerateContent } from '../../gemini-api.js';
 
+// Importy všetkých editorov
 import './editor/editor-view-text.js';
 import './editor/editor-view-presentation.js';
 import './editor/editor-view-quiz.js';
@@ -113,6 +114,7 @@ export class LessonEditor extends BaseView {
   _handleLessonUpdatedEvent(e) {
       if (e.detail) {
           this.lesson = { ...this.lesson, ...e.detail };
+          this.requestUpdate();
       }
   }
 
@@ -473,7 +475,6 @@ export class LessonEditor extends BaseView {
              } catch (error) {
                  console.error(`Failed to generate ${type}:`, error);
                  failedTypes.push(type);
-                 // CRITICAL: Do NOT throw. Continue to next type.
              }
           }
 
@@ -523,7 +524,6 @@ export class LessonEditor extends BaseView {
       if (activeEditor && activeEditor.handleAiGeneration) {
            try {
                await activeEditor.handleAiGeneration(generationParams);
-               // this._activeTool = null; // Don't auto-close on manual generation inside editor
                this.requestUpdate();
                showToast(translationService.t('lesson.magic_done'));
            } catch (e) {
@@ -851,47 +851,87 @@ export class LessonEditor extends BaseView {
   }
 
   _renderSpecificEditor() {
-      // Pass handlers and isSaving state to child editors
-      const commonProps = {
-          id: "active-editor",
-          lesson: this.lesson,
-          isSaving: this.isSaving
+      const handlers = html`
+          @back=${this._handleBackToHub} 
+          @save=${this._handleSave}
+      `;
+
+      // Helper na spracovanie eventu 'lesson-updated'
+      const handleUpdate = (e) => {
+          this.lesson = { ...this.lesson, ...e.detail };
+          this.requestUpdate(); 
       };
 
-      // DÔLEŽITÉ: Každý editor musí mať:
-      // 1. id="active-editor" (aby ho našla funkcia _handleMagicGeneration)
-      // 2. class="w-full h-full block" (aby sa zobrazil a nebol nulový)
+      // DÔLEŽITÉ: class="w-full h-full block" zabezpečí, že sa editor roztiahne
+      const editorProps = (extraListeners = {}) => ({
+          id: "active-editor",
+          class: "w-full h-full block",
+          lesson: this.lesson,
+          isSaving: this.isSaving,
+          ...extraListeners
+      });
 
       switch (this._activeTool) {
           case 'text': 
-              return html`<editor-view-text id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, text_content: e.detail }; }}></editor-view-text>`;
+              return html`<editor-view-text ${handlers} 
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${handleUpdate} 
+                  id="active-editor" class="w-full h-full block"></editor-view-text>`;
           
           case 'presentation': 
-              return html`<editor-view-presentation id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, presentation: e.detail }; }}></editor-view-presentation>`;
+              return html`<editor-view-presentation ${handlers} 
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, presentation: e.detail }; }} 
+                  id="active-editor" class="w-full h-full block"></editor-view-presentation>`;
           
           case 'quiz': 
-              return html`<editor-view-quiz id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, quiz: e.detail }; }}></editor-view-quiz>`;
+              return html`<editor-view-quiz ${handlers} 
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, quiz: e.detail }; }} 
+                  id="active-editor" class="w-full h-full block"></editor-view-quiz>`;
           
           case 'test': 
-              return html`<editor-view-test id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, test: e.detail }; }}></editor-view-test>`;
+              return html`<editor-view-test ${handlers} 
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, ...e.detail }; }} 
+                  id="active-editor" class="w-full h-full block"></editor-view-test>`;
           
           case 'post': 
-              return html`<editor-view-post id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-post>`;
+              return html`<editor-view-post ${handlers} 
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @update=${(e) => { this.lesson = { ...this.lesson, content: e.detail.content }; }} 
+                  id="active-editor" class="w-full h-full block"></editor-view-post>`;
           
           case 'video': 
-              return html`<editor-view-video id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-video>`;
+              return html`<editor-view-video ${handlers} 
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${handleUpdate} 
+                  id="active-editor" class="w-full h-full block"></editor-view-video>`;
           
           case 'comic': 
-              return html`<editor-view-comic id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-comic>`;
+              return html`<editor-view-comic ${handlers} 
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, comic: e.detail.comic }; }} 
+                  id="active-editor" class="w-full h-full block"></editor-view-comic>`;
           
           case 'flashcards': 
-              return html`<editor-view-flashcards id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-flashcards>`;
+              return html`<editor-view-flashcards ${handlers} 
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, flashcards: e.detail }; }} 
+                  id="active-editor" class="w-full h-full block"></editor-view-flashcards>`;
           
           case 'mindmap': 
-              return html`<editor-view-mindmap id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-mindmap>`;
+              return html`<editor-view-mindmap ${handlers} 
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, mindmap: e.detail.mindmap }; }} 
+                  id="active-editor" class="w-full h-full block"></editor-view-mindmap>`;
 
           case 'audio':
-              return html`<editor-view-audio id="active-editor" class="w-full h-full block" .lesson=${this.lesson} .isSaving=${this.isSaving} @back=${this._handleBackToHub} @save=${this._handleSave} @update=${e => { this.lesson = { ...this.lesson, ...e.detail }; }}></editor-view-audio>`;
+              return html`<editor-view-audio ${handlers} 
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, content: e.detail.content }; }} 
+                  id="active-editor" class="w-full h-full block"></editor-view-audio>`;
+                  
           default: return html`<div class="p-4 text-center text-red-500">${translationService.t('common.unknown_type')}</div>`;
       }
   }
