@@ -1,4 +1,4 @@
-import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { translationService } from '../../../services/translation-service.js';
 import './professor-header-editor.js';
 
@@ -28,7 +28,9 @@ export class EditorViewPost extends LitElement {
     _handleInput(field, value) {
         const newContent = { ...this.lesson.content, [field]: value };
         this.dispatchEvent(new CustomEvent('update', {
-            detail: { content: newContent }
+            detail: { content: newContent },
+            bubbles: true,
+            composed: true
         }));
     }
 
@@ -59,7 +61,9 @@ export class EditorViewPost extends LitElement {
             };
 
             this.dispatchEvent(new CustomEvent('update', {
-                detail: { content: newContent }
+                detail: { content: newContent },
+                bubbles: true,
+                composed: true
             }));
 
             showToast(translationService.t('lesson.magic_done'));
@@ -217,7 +221,7 @@ export class EditorViewPost extends LitElement {
                             </div>
 
                         </div>
-                    </div>
+                     </div>
                 </div>
             </div>
         `;

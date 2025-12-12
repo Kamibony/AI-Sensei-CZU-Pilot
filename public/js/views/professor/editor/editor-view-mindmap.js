@@ -26,11 +26,12 @@ export class EditorViewMindmap extends LitElement {
             // Handle both object (from AI) and string formats
             const code = data?.mermaid || (typeof data === 'string' ? data : '');
 
-            if (code && code !== this._mermaidCode) {
+            if (code !== this._mermaidCode) {
                 this._mermaidCode = code;
-                this._renderDiagram();
-            } else if (!this._mermaidCode && !code) {
-                 this._mermaidCode = '';
+                if (code) {
+                    // Defer render to allow DOM to update first
+                    setTimeout(() => this._renderDiagram(), 0);
+                }
             }
         }
     }
@@ -44,7 +45,6 @@ export class EditorViewMindmap extends LitElement {
     _handleInput(e) {
         this._mermaidCode = e.target.value;
         this.save();
-
         // Debounce rendering
         if (this._debounceTimer) clearTimeout(this._debounceTimer);
         this._debounceTimer = setTimeout(() => {
@@ -72,7 +72,7 @@ export class EditorViewMindmap extends LitElement {
             }
         } catch (e) {
             console.error("Mermaid render error:", e);
-            this._renderError = "Chyba syntaxe diagramu. Zkontrolujte kód.";
+            this._renderError = "Chyba syntaxe diagramu.";
         }
     }
 

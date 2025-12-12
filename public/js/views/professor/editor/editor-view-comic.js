@@ -30,6 +30,7 @@ export class EditorViewComic extends LitElement {
                 // Reset to empty if no data
                  this._panels = Array(4).fill({ image_prompt: '', text: '' });
             }
+            // If still empty, we don't initialize default array yet, so we can show the AI/Start screen
         }
     }
 

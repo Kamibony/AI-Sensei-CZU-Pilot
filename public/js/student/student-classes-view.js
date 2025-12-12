@@ -53,7 +53,7 @@ export class StudentClassesView extends LitElement {
     }
 
     async _fetchGroupsInfo(groupIds) {
-        const safeGroupIds = groupIds.slice(0, 10);
+        const safeGroupIds = groupIds.slice(0, 30);
         if (safeGroupIds.length === 0) return;
 
         try {
