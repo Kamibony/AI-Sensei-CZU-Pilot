@@ -200,8 +200,8 @@ class StudentDashboard extends LitElement {
             // Success alert
             alert(`${t('student.join_success')} ${result.data.groupName}!`);
             
-            // Reload to refresh classes list
-            // window.location.reload(); 
+            // Note: Components (student-dashboard-view, student-classes-view) use onSnapshot
+            // on the student document, so they will automatically update when memberOfGroups changes.
 
         } catch (error) {
             console.error("Error joining class:", error);
