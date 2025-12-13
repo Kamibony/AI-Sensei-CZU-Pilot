@@ -569,8 +569,109 @@ export class LessonEditor extends BaseView {
                 await this._handleSave(); 
                 successCount++;
 
-             } catch (innerError) {
-                 console.error(`[AutoMagic] Failed to generate ${type}:`, innerError);
+                // --- MULTIMEDIA GENERATION SECTION (Non-Destructive Extension) ---
+                try {
+                    this._magicStatus = `${translationService.t('common.magic_status_generating_media') || 'Generuji média'} (${type})...`;
+                    this.requestUpdate();
+
+                    let mediaUpdates = false;
+                    const mediaPromises = [];
+
+                    // 1. Podcast Audio Generation
+                    if (type === 'post' && data.podcast_series && data.podcast_series.episodes) {
+                        const episodes = data.podcast_series.episodes;
+                        const generateAudioFunc = httpsCallable(functions, 'generatePodcastAudio');
+
+                        const audioPromises = episodes.map(async (episode, index) => {
+                            if (!episode.content) return;
+                            try {
+                                const audioResult = await generateAudioFunc({
+                                    text: episode.content,
+                                    voice: 'en-US-Journey-F', // Default voice
+                                    episodeIndex: index
+                                });
+
+                                if (audioResult.data && audioResult.data.audioPath) {
+                                    const audioPath = audioResult.data.audioPath;
+                                    const audioRef = ref(storage, audioPath);
+                                    const audioUrl = await getDownloadURL(audioRef);
+
+                                    // Update the episode object
+                                    episode.audioUrl = audioUrl;
+                                    episode.audioPath = audioPath;
+                                }
+                            } catch (audioErr) {
+                                console.warn(`Failed to generate audio for episode ${index + 1}`, audioErr);
+                            }
+                        });
+                        mediaPromises.push(...audioPromises);
+                        mediaUpdates = true;
+                    }
+
+                    // 2. Presentation Images
+                    if (type === 'presentation' && data.slides) {
+                        const slides = data.slides;
+                        const imagePromises = slides.map(async (slide, index) => {
+                             if (slide.visual_idea) {
+                                 try {
+                                     const imgResult = await callGenerateImage(slide.visual_idea);
+                                     if (imgResult && imgResult.imageBase64) {
+                                         // Store as data URI if base64 is returned
+                                         slide.imageUrl = `data:image/png;base64,${imgResult.imageBase64}`;
+                                     } else if (imgResult && imgResult.imageUrl) {
+                                         slide.imageUrl = imgResult.imageUrl;
+                                     }
+                                 } catch (imgErr) {
+                                     console.warn(`Failed to generate image for slide ${index + 1}`, imgErr);
+                                 }
+                             }
+                        });
+                        mediaPromises.push(...imagePromises);
+                        mediaUpdates = true;
+                    }
+
+                    // 3. Comic Images
+                    if (type === 'comic' && data.panels) { // Using standard 'comic' structure
+                         const panels = data.panels; // Usually array of panels
+                         const imagePromises = panels.map(async (panel, index) => {
+                             if (panel.description) {
+                                 try {
+                                     const imgResult = await callGenerateImage(panel.description);
+                                     if (imgResult && imgResult.imageBase64) {
+                                         panel.imageUrl = `data:image/png;base64,${imgResult.imageBase64}`;
+                                     } else if (imgResult && imgResult.imageUrl) {
+                                         panel.imageUrl = imgResult.imageUrl;
+                                     }
+                                 } catch (imgErr) {
+                                     console.warn(`Failed to generate image for panel ${index + 1}`, imgErr);
+                                 }
+                             }
+                         });
+                         mediaPromises.push(...imagePromises);
+                         mediaUpdates = true;
+                    }
+
+                    // Wait for all media generation
+                    if (mediaPromises.length > 0) {
+                        await Promise.all(mediaPromises);
+
+                        // If we had updates, save again
+                        if (mediaUpdates) {
+                             // Force refresh object reference to ensure Lit updates
+                             this.lesson = { ...this.lesson };
+                             await this._handleSave();
+                        }
+                    }
+
+                } catch (mediaError) {
+                    console.error("Multimedia generation failed (text preserved):", mediaError);
+                    showToast(translationService.t('media.generation_failed_partial') || 'Text vytvořen, média selhala.', true);
+                    // Do NOT throw fatalError, allow loop to continue or finish
+                }
+                // --- END MULTIMEDIA SECTION ---
+
+             } catch (error) {
+                 console.error(`Failed to generate ${type}:`, error);
                  failedTypes.push(type);
              }
           }
