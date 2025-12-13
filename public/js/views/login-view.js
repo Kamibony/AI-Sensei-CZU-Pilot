@@ -151,7 +151,7 @@ export class LoginView extends Localized(LitElement) {
                             <p class="text-sm text-slate-500 mt-2">${this.t('auth.role_professor_desc')}</p>
                         </div>
                         <div class="mt-4 flex items-center text-indigo-600 font-semibold text-sm opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-[-10px] group-hover:translate-x-0">
-                            ${this.t('common.continue')} <span class="ml-1">→</span>
+                            ${this.t('common.continue') || 'Pokračovat'} <span class="ml-1">→</span>
                         </div>
                     </button>
 
@@ -165,7 +165,7 @@ export class LoginView extends Localized(LitElement) {
                             <p class="text-sm text-slate-500 mt-2">${this.t('auth.role_student_desc')}</p>
                         </div>
                          <div class="mt-4 flex items-center text-green-600 font-semibold text-sm opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-[-10px] group-hover:translate-x-0">
-                            ${this.t('common.continue')} <span class="ml-1">→</span>
+                            ${this.t('common.continue') || 'Pokračovat'} <span class="ml-1">→</span>
                         </div>
                     </button>
                 </div>
