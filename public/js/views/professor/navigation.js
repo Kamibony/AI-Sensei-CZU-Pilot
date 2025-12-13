@@ -94,7 +94,7 @@ export class ProfessorNavigation extends Localized(LitElement) {
 
                 <div class="flex-shrink-0 p-4 border-t border-slate-100 bg-white space-y-1">
                     ${this._isAdmin() 
-                        ? this._renderNavItem('admin-dashboard', '⚙️', 'Administrace', true) 
+                        ? this._renderNavItem('admin-dashboard', '⚙️', this.t('nav.admin'), true)
                         : ''}
                 </div>
             </div>

@@ -12,7 +12,10 @@
     "interactions": "Interakce",
     "analytics": "Analytika",
     "admin": "Administrace",
-    "settings": "Nastavení"
+    "settings": "Nastavení",
+    "logout": "Odhlásit se",
+    "organization": "Organizace",
+    "creative_studio": "Tvůrčí studio"
   },
   "interactions": {
     "title": "Konverzace",
@@ -270,6 +273,9 @@
     "login_as_student": "Přihlášení pro studenty",
     "footer_rights": "© 2024 AI Sensei. Všechna práva vyhrazena.",
     "register_professor_checkbox": "Chci učitelský účet",
+    "name_label": "Jméno a příjmení",
+    "name_placeholder": "Jan Novák",
+    "error_name_required": "Uveďte prosím své celé jméno.",
     "error_login_generic": "Došlo k chybě při přihlášení.",
     "error_invalid_credential": "Nesprávný email nebo heslo.",
     "error_invalid_email": "Neplatný formát emailu.",
