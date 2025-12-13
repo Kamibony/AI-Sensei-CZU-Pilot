@@ -22,13 +22,10 @@ export class ProfessorNavigation extends Localized(LitElement) {
         return user && user.email === 'profesor@profesor.cz';
     }
 
-    // Pomocná metóda na renderovanie tlačidla pre čistý kód
     _renderNavItem(id, icon, label, isBottom = false) {
         const isActive = this.currentView === id;
         
-        // Štýly pre aktívny vs neaktívny stav (presne podľa pôvodného dizajnu)
         const baseClasses = "nav-item w-full flex items-center p-2.5 rounded-xl transition-all duration-200 group relative overflow-hidden mb-1";
-        // Pre admin dashboard použijeme špecifickú farbu (žltá/oranžová), pre ostatné indigo
         const activeClasses = (id === 'admin' || id === 'admin-dashboard' || id === 'admin-settings')
             ? "bg-yellow-50 text-yellow-700 font-bold shadow-sm" 
             : "bg-indigo-50 text-indigo-700 font-bold shadow-sm";
@@ -54,7 +51,6 @@ export class ProfessorNavigation extends Localized(LitElement) {
     render() {
         return html`
             <div class="hidden md:flex w-64 h-full flex-col border-r border-slate-100 bg-white flex-shrink-0 z-50">
-                
                 <div class="h-20 flex items-center justify-start px-6 cursor-pointer group flex-shrink-0 border-b border-transparent"
                      @click=${() => this._handleNav('dashboard')}>
                     <div class="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center shadow-md shadow-indigo-200 font-bold text-lg flex-shrink-0 group-hover:scale-105 transition-transform">
@@ -66,7 +62,6 @@ export class ProfessorNavigation extends Localized(LitElement) {
                 </div>
 
                 <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col w-full px-3 py-4 space-y-1">
-                    
                     <div class="px-3 mb-2 mt-2">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                             ${this.t('nav.organization')}
@@ -94,7 +89,7 @@ export class ProfessorNavigation extends Localized(LitElement) {
 
                 <div class="flex-shrink-0 p-4 border-t border-slate-100 bg-white space-y-1">
                     ${this._isAdmin() 
-                        ? this._renderNavItem('admin-dashboard', '⚙️', this.t('nav.admin'), true)
+                        ? this._renderNavItem('admin-dashboard', '⚙️', this.t('nav.admin'), true) 
                         : ''}
                 </div>
             </div>
