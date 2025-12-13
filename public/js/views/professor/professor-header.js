@@ -33,7 +33,6 @@ export class ProfessorHeader extends Localized(LitElement) {
                         </button>
 
                         <div class="hidden md:flex items-center gap-2 text-slate-400">
-                             <!-- Breadcrumbs placeholder -->
                              <span class="text-sm font-medium text-slate-900">${this.t('header.brand')}</span>
                         </div>
                     </div>
@@ -42,7 +41,7 @@ export class ProfessorHeader extends Localized(LitElement) {
                         <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
                             <div class="text-right hidden sm:block">
                                 <div class="text-sm font-medium text-slate-900">${this.userEmail}</div>
-                                <div class="text-xs text-slate-500">${this.t('header.role_professor')}</div>
+                                <div class="text-xs text-slate-500">${this.t('header.roleProfessor')}</div>
                             </div>
                             <button @click="${handleLogout}"
                                     class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
