@@ -1,7 +1,7 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { translationService } from '../../../utils/translation-service.js';
+import { Localized } from '../../../utils/localization-mixin.js';
 
-export class ProfessorHeaderEditor extends LitElement {
+export class ProfessorHeaderEditor extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean }
@@ -19,9 +19,9 @@ export class ProfessorHeaderEditor extends LitElement {
 
     render() {
         // Fallback title if lesson is null or title is empty
-        const title = this.lesson?.title || translationService.t('professor.editor.lessonTitlePlaceholder') || 'Nová lekce';
-        const subject = this.lesson?.subject || 'Bez předmětu';
-        const topic = this.lesson?.topic || 'Bez tématu';
+        const title = this.lesson?.title || this.t('professor.editor.lessonTitlePlaceholder') || this.t('editor.titleNew');
+        const subject = this.lesson?.subject || this.t('editor.no_subject');
+        const topic = this.lesson?.topic || this.t('editor.no_topic');
 
         return html`
         <div class="bg-white border-b border-slate-200 sticky top-0 z-30 flex-shrink-0">
@@ -52,7 +52,7 @@ export class ProfessorHeaderEditor extends LitElement {
                 <button @click="${this._dispatchSave}"
                         class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none transition-all ${this.isSaving ? 'opacity-75 cursor-wait' : ''}"
                         ?disabled="${this.isSaving}">
-                    ${this.isSaving ? translationService.t('common.loading') : translationService.t('professor.editor.saveChanges')}
+                    ${this.isSaving ? this.t('common.loading') : this.t('professor.editor.saveChanges')}
                 </button>
                 </div>
             </div>

@@ -1,8 +1,9 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { Localized } from '../../../utils/localization-mixin.js';
 import './ai-generator-panel.js';
 import './professor-header-editor.js';
 
-export class EditorViewQuiz extends LitElement {
+export class EditorViewQuiz extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean }
@@ -15,7 +16,7 @@ export class EditorViewQuiz extends LitElement {
             { 
                 id: 'question_count',
                 type: 'number', 
-                label: 'Počet otázek', 
+                label: this.t('editor.quiz.question_count'),
                 default: 5,
                 min: 1,
                 max: 20
@@ -23,9 +24,13 @@ export class EditorViewQuiz extends LitElement {
             {
                 id: 'difficulty_select',
                 type: 'select',
-                label: 'Obtížnost',
-                options: ['Lehká', 'Střední', 'Těžká'],
-                default: 'Střední'
+                label: this.t('editor.quiz.difficulty'),
+                options: [
+                    this.t('editor.quiz.difficulty_easy'),
+                    this.t('editor.quiz.difficulty_medium'),
+                    this.t('editor.quiz.difficulty_hard')
+                ],
+                default: this.t('editor.quiz.difficulty_medium')
             }
         ];
 
@@ -38,11 +43,11 @@ export class EditorViewQuiz extends LitElement {
                             <div class="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden min-h-[500px] flex flex-col relative">
                                 <ai-generator-panel
                                     .lesson=${this.lesson}
-                                    viewTitle="Interaktivní Kvíz"
+                                    viewTitle="${this.t('editor.quiz.title')}"
                                     contentType="quiz"
                                     fieldToUpdate="quiz"
-                                    description="Vytvořte rychlý kvíz. Vyberte počet otázek a obtížnost."
-                                    promptPlaceholder="Např. 'Zaměř se hlavně na data a letopočty...'"
+                                    description="${this.t('editor.quiz.description')}"
+                                    promptPlaceholder="${this.t('editor.quiz.placeholder')}"
                                     .inputsConfig=${quizConfig}
                                 >
                                 </ai-generator-panel>
