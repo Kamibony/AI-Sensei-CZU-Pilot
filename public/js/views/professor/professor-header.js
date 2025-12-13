@@ -1,9 +1,9 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { handleLogout } from '../../auth.js';
 import { auth } from '../../firebase-init.js';
-import { translationService } from '../../services/translation-service.js';
+import { Localized } from '../../utils/localization-mixin.js';
 
-export class ProfessorHeader extends LitElement {
+export class ProfessorHeader extends Localized(LitElement) {
     static properties = {
         userEmail: { state: true }
     };
@@ -11,7 +11,6 @@ export class ProfessorHeader extends LitElement {
     constructor() {
         super();
         this.userEmail = '';
-        this._unsubscribe = null;
     }
 
     createRenderRoot() { return this; }
@@ -19,16 +18,9 @@ export class ProfessorHeader extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this.userEmail = auth.currentUser?.email || '';
-        this._unsubscribe = translationService.subscribe(() => this.requestUpdate());
-    }
-
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        if (this._unsubscribe) this._unsubscribe();
     }
 
     render() {
-        const t = (key) => translationService.t(key);
         return html`
             <header class="bg-white border-b border-slate-200 sticky top-0 z-30 h-16 flex-shrink-0">
                 <div class="h-full px-4 sm:px-6 lg:px-8 flex items-center justify-between">
@@ -42,7 +34,7 @@ export class ProfessorHeader extends LitElement {
 
                         <div class="hidden md:flex items-center gap-2 text-slate-400">
                              <!-- Breadcrumbs placeholder -->
-                             <span class="text-sm font-medium text-slate-900">AI Sensei</span>
+                             <span class="text-sm font-medium text-slate-900">${this.t('header.brand')}</span>
                         </div>
                     </div>
 
@@ -50,11 +42,11 @@ export class ProfessorHeader extends LitElement {
                         <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
                             <div class="text-right hidden sm:block">
                                 <div class="text-sm font-medium text-slate-900">${this.userEmail}</div>
-                                <div class="text-xs text-slate-500">${t('professor.header.roleProfessor')}</div>
+                                <div class="text-xs text-slate-500">${this.t('header.role_professor')}</div>
                             </div>
                             <button @click="${handleLogout}"
                                     class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                    title="${t('professor.header.logout')}">
+                                    title="${this.t('header.logout')}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
                                 </svg>
