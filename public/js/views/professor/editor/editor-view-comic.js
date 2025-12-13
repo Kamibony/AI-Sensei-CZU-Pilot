@@ -1,8 +1,9 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { Localized } from '../../../utils/localization-mixin.js';
 import './professor-header-editor.js';
 import './ai-generator-panel.js';
 
-export class EditorViewComic extends LitElement {
+export class EditorViewComic extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean },
@@ -60,24 +61,24 @@ export class EditorViewComic extends LitElement {
 
                 <!-- Scene Description (Top Half) -->
                 <div class="flex-1 mb-3 flex flex-col">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Popis scény (Promt)</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">${this.t('editor.comic.panel_label')}</label>
                     <textarea
                         .value="${panel.image_prompt || ''}"
                         @input="${e => this._updatePanel(index, 'image_prompt', e.target.value)}"
                         class="flex-1 w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder-slate-300"
-                        placeholder="Co se děje na obrázku? Popište vizuální stránku..."
+                        placeholder="${this.t('editor.comic.prompt_placeholder')}"
                     ></textarea>
                 </div>
 
                 <!-- Dialogue (Bottom Half) -->
                 <div class="h-[100px] flex flex-col">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Dialog / Bublina</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">${this.t('editor.comic.dialog_label')}</label>
                     <div class="relative flex-1">
                         <textarea
                             .value="${panel.text || ''}"
                             @input="${e => this._updatePanel(index, 'text', e.target.value)}"
                             class="w-full h-full p-3 pl-4 bg-indigo-50/50 border border-indigo-100 rounded-lg rounded-tl-none text-sm text-slate-800 font-medium resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder-indigo-200"
-                            placeholder="Co postavy říkají?"
+                            placeholder="${this.t('editor.comic.dialog_placeholder')}"
                         ></textarea>
                          <!-- Speech Bubble Tail Decor -->
                         <div class="absolute -top-2 left-0 w-4 h-4 bg-indigo-50/50 border-t border-l border-indigo-100 transform skew-y-12"></div>
@@ -106,8 +107,8 @@ export class EditorViewComic extends LitElement {
 
                          <!-- Header -->
                         <div class="mb-4">
-                            <h2 class="text-2xl font-bold text-slate-800">Komiks</h2>
-                            <p class="text-slate-500 text-sm">Vytvořte krátký komiksový příběh o 4 panelech.</p>
+                            <h2 class="text-2xl font-bold text-slate-800">${this.t('editor.comic.title')}</h2>
+                            <p class="text-slate-500 text-sm">${this.t('editor.comic.subtitle')}</p>
                         </div>
 
                         ${isEmpty ? html`
@@ -116,11 +117,11 @@ export class EditorViewComic extends LitElement {
                                 <ai-generator-panel
                                     .lesson="${this.lesson}"
                                     .files="${this.lesson?.ragFilePaths || []}"
-                                    viewTitle="Vygenerovat Scénář"
+                                    viewTitle="${this.t('editor.comic.ai_title')}"
                                     contentType="comic"
                                     fieldToUpdate="comic"
-                                    description="AI navrhne vizuální popis panelů a dialogy pro vaše téma."
-                                    promptPlaceholder="Např. 'Rozhovor mezi Newtonem a jablkem o gravitaci...'"
+                                    description="${this.t('editor.comic.ai_description')}"
+                                    promptPlaceholder="${this.t('editor.comic.ai_placeholder')}"
                                 ></ai-generator-panel>
 
                                 <div class="text-center pt-8 border-t border-slate-200">
@@ -128,7 +129,7 @@ export class EditorViewComic extends LitElement {
                                         @click="${this._switchToManual}"
                                         class="px-5 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 font-medium hover:bg-slate-50 hover:border-slate-400 transition-colors shadow-sm text-sm"
                                     >
-                                        ✍️ Začít prázdný komiks
+                                        ✍️ ${this.t('editor.comic.empty_btn')}
                                     </button>
                                 </div>
                             </div>
@@ -140,10 +141,10 @@ export class EditorViewComic extends LitElement {
 
                             <div class="flex justify-end pt-4">
                                  <button
-                                    @click="${() => { if(confirm('Opravdu chcete smazat komiks?')) { this._panels = Array(4).fill({ image_prompt: '', text: '' }); this.save(); } }}"
+                                    @click="${() => { if(confirm(this.t('editor.comic.confirm_delete'))) { this._panels = Array(4).fill({ image_prompt: '', text: '' }); this.save(); } }}"
                                     class="text-xs text-red-500 hover:text-red-700 hover:underline"
                                 >
-                                    Smazat vše
+                                    ${this.t('editor.comic.delete_all')}
                                 </button>
                             </div>
                         `}

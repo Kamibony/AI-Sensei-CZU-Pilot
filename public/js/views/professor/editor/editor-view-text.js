@@ -1,9 +1,10 @@
 // public/js/views/professor/editor/editor-view-text.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { Localized } from '../../../utils/localization-mixin.js';
 import './ai-generator-panel.js';
 import './professor-header-editor.js';
 
-export class EditorViewText extends LitElement {
+export class EditorViewText extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean }
@@ -51,11 +52,11 @@ export class EditorViewText extends LitElement {
                             <div class="w-full h-full flex-1 flex flex-col">
                                 <ai-generator-panel
                                     .lesson=${this.lesson}
-                                    viewTitle="Text pro studenty"
+                                    viewTitle="${this.t('editor.text.title')}"
                                     contentType="text"
                                     fieldToUpdate="text_content"
-                                    description="Zadejte AI prompt a vygenerujte hlavní studijní text. Můžete vybrat dokumenty (RAG)."
-                                    promptPlaceholder="Např. 'Vytvoř poutavý úvodní text...'">
+                                    description="${this.t('editor.text.description')}"
+                                    promptPlaceholder="${this.t('editor.text.placeholder')}">
                                 </ai-generator-panel>
                             </div>
                         `}

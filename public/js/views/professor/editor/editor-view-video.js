@@ -1,9 +1,10 @@
 // public/js/views/professor/editor/editor-view-video.js
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { Localized } from '../../../utils/localization-mixin.js';
 import './professor-header-editor.js';
 import './ai-generator-panel.js';
 
-export class EditorViewVideo extends LitElement {
+export class EditorViewVideo extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean },
@@ -55,12 +56,12 @@ export class EditorViewVideo extends LitElement {
                             <!-- Input Section -->
                             <div class="space-y-4">
                                 <label class="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
-                                    YouTube URL
+                                    ${this.t('editor.video.url_label')}
                                 </label>
                                 <input
                                     type="text"
                                     class="w-full text-lg p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-300"
-                                    placeholder="https://www.youtube.com/watch?v=..."
+                                    placeholder="${this.t('editor.video.url_placeholder')}"
                                     .value="${this.lesson?.videoUrl || ''}"
                                     @input="${this._handleInput}"
                                 >
@@ -83,7 +84,7 @@ export class EditorViewVideo extends LitElement {
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                     </svg>
-                                    <span class="font-medium">Zde se zobrazí náhled videa</span>
+                                    <span class="font-medium">${this.t('editor.video.preview_placeholder')}</span>
                                 </div>
                             `}
 
@@ -91,11 +92,11 @@ export class EditorViewVideo extends LitElement {
                             <div class="pt-8 border-t border-slate-100">
                                 <ai-generator-panel
                                     .lesson=${this.lesson}
-                                    viewTitle="Popis videa (volitelné)"
+                                    viewTitle="${this.t('editor.video.ai_title')}"
                                     contentType="text"
                                     fieldToUpdate="text_content"
-                                    description="Potřebujete k videu vygenerovat popis nebo otázky? Použijte AI."
-                                    promptPlaceholder="Např. 'Vytvoř shrnutí tohoto videa...'"
+                                    description="${this.t('editor.video.ai_description')}"
+                                    promptPlaceholder="${this.t('editor.video.ai_placeholder')}"
                                     .isCompact="${true}"
                                 ></ai-generator-panel>
                             </div>
