@@ -1,4 +1,8 @@
 {
+  "app": {
+    "title": "AI Sensei",
+    "description": "Plataforma educacional inteligente"
+  },
   "nav": {
     "dashboard": "Painel",
     "classes": "Minhas Turmas",
@@ -11,8 +15,15 @@
     "creative_studio": "Estúdio Criativo",
     "interactions": "Interações",
     "analytics": "Análise",
-    "admin": "Admin",
-    "settings": "Configurações"
+    "admin": "Administração",
+    "settings": "Configurações IA"
+  },
+  "header": {
+    "brand": "AI Sensei",
+    "logout": "Sair",
+    "roleStudent": "Aluno",
+    "roleProfessor": "Professor",
+    "profile": "Perfil"
   },
   "interactions": {
     "title": "Conversas",
@@ -37,6 +48,8 @@
     "saved": "Salvo",
     "save": "Salvar",
     "back": "Voltar",
+    "open": "Abrir",
+    "continue": "Continuar",
     "close": "Fechar",
     "files_select": "Selecionar arquivos",
     "files_library": "Biblioteca",
@@ -148,7 +161,37 @@
     "media_files": "Mídia & Arquivos",
     "media_files_desc": "Gerenciador de documentos e multimídia.",
     "media_desc": "Gerenciador de documentos e multimídia.",
-    "management_overview": "Visão Geral da Gestão"
+    "management_overview": "Visão Geral da Gestão",
+    "editor": {
+      "titleNew": "Nova aula",
+      "titleEdit": "Editar aula",
+      "basicInfo": "Dados Básicos",
+      "lessonTitle": "Título da aula",
+      "lessonTitlePlaceholder": "Ex: Introdução ao Marketing",
+      "subtitle": "Subtítulo / Descrição",
+      "subtitlePlaceholder": "Breve descrição da aula...",
+      "classAssignment": "Atribuição às Turmas",
+      "selectClasses": "Selecione as turmas...",
+      "filesAndRag": "Arquivos Enviados & RAG",
+      "filesHelper": "Os arquivos servem como contexto para o gerador de IA.",
+      "magicGenerate": "Gerar com IA",
+      "saveChanges": "Salvar alterações",
+      "back": "Voltar",
+      "post": {
+        "contentLabel": "Conteúdo do Post",
+        "contentPlaceholder": "Escreva algo interessante...",
+        "authorLabel": "Autor",
+        "selectAuthor": "Selecione o autor",
+        "defaultPrompt": "Crie um post educacional para alunos sobre o tema: {topic}. O tom deve ser encorajador e informativo. Inclua pontos-chave e curiosidades.",
+        "ai_tip_title": "Dica para o Gerador de IA",
+        "ai_tip_desc": "Se você estiver usando a geração mágica, tente este prompt:"
+      }
+    },
+    "header": {
+      "logout": "Sair",
+      "roleStudent": "Aluno",
+      "roleProfessor": "Professor"
+    }
   },
   "lesson": {
     "new": "Nova aula",
@@ -486,5 +529,27 @@
   },
   "prompts": {
     "podcast_default": "Explore os principais conceitos da aula \"{{topic}}\""
+  },
+  "timeline": {
+    "title": "Cronograma de Ensino (31 dias)",
+    "subtitle": "Arraste as aulas para o dia desejado.",
+    "week": "Semana",
+    "error_fetch": "Erro ao carregar o cronograma.",
+    "confirm_remove": "Remover esta aula do plano?",
+    "removed_success": "Aula removida.",
+    "error_remove": "Erro ao remover.",
+    "scheduling": "Agendando...",
+    "scheduled_success": "Aula agendada.",
+    "error_schedule": "Erro ao agendar.",
+    "added_to": "Aula adicionada em",
+    "add_to_timeline_tooltip": "Adicionar ao final da linha do tempo"
+  },
+  "library": {
+    "error_loading": "Falha ao carregar dados das aulas.",
+    "confirm_delete_title": "Tem certeza que deseja excluir permanentemente a aula \"{title}\"? Esta ação é irreversível.",
+    "deleted_success": "Aula excluída.",
+    "delete_error": "Erro ao excluir aula.",
+    "empty": "Nenhuma aula ainda.",
+    "add_new": "Adicionar nova aula"
   }
 }
