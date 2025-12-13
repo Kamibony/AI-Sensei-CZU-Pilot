@@ -5,6 +5,7 @@ import { ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/
 import { db, auth, functions, storage } from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+// OPRAVENÝ IMPORT (používame utils verziu)
 import { translationService } from '../../utils/translation-service.js';
 import { callGenerateContent, callGenerateImage } from '../../gemini-api.js';
 
@@ -365,79 +366,173 @@ export class LessonEditor extends BaseView {
   }
 
   async _handleAutoMagic() {
+      // 1. Validácia
       if (!this.lesson.title) {
           showToast(translationService.t('professor.editor.title_required'), true);
           return;
       }
 
       this._isLoading = true;
-      // Save base lesson first
-      await this._handleSave();
+      
+      // 2. Bezpečné uloženie základu (potrebujeme ID pre názvy súborov)
+      try {
+          await this._handleSave();
+      } catch (e) {
+          console.error("Save failed before magic:", e);
+          showToast("Nepodařilo se uložit lekci před generováním.", true);
+          this._isLoading = false;
+          return;
+      }
 
+      // Definícia typov obsahu
       const types = ['text', 'presentation', 'quiz', 'test', 'post', 'flashcards', 'mindmap', 'comic'];
-      const filePaths = this._uploadedFiles.map(f => f.storagePath).filter(Boolean);
+      
+      // Získame cesty k RAG súborom
+      const filePaths = this._uploadedFiles ? this._uploadedFiles.map(f => f.storagePath).filter(Boolean) : [];
 
       let successCount = 0;
       let failedTypes = [];
 
       try {
-          // Robust Magic Loop
+          // Hlavná slučka cez typy obsahu
           for (const type of types) {
              try {
-                // 1. Update UI Status
+                // UI UPDATE: Informujeme o progrese
                 this._magicStatus = `${translationService.t('common.magic_status_generating') || 'Generuji'} (${successCount + failedTypes.length + 1}/${types.length}): ${(translationService.t(`content_types.${type}`) || type).toUpperCase()}...`;
                 this.requestUpdate();
 
-                let promptData = {
-                    userPrompt: '',
-                    isMagic: true
-                };
+                let promptData = { userPrompt: '', isMagic: true };
                 let contentType = type;
 
-                // Construct Prompt based on type
+                // --- A. Textová príprava (Prompty) ---
                 switch (type) {
                     case 'text':
-                        promptData.userPrompt = `Vytvor výukový text na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                        promptData.userPrompt = `Vytvor podrobný výukový text na tému '${this.lesson.title}' ${this.lesson.topic ? `(${this.lesson.topic})` : ''}. Rozdeľ na úvod, hlavné body a záver.`;
                         break;
                     case 'presentation':
-                        promptData.userPrompt = `Vytvor štruktúru prezentácie (8 slidov) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                        promptData.userPrompt = `Vytvor štruktúru prezentácie (8 slidov) na tému '${this.lesson.title}'. Pre každý slide navrhni stručné body a vizuálny nápad (visual_idea) pre obrázok.`;
                         promptData.slide_count = 8;
                         break;
                     case 'quiz':
-                        promptData.userPrompt = `Vytvor kvíz (5 otázek) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
                         promptData.question_count = 5;
+                        promptData.userPrompt = `Vytvor kvíz (5 otázek) na tému '${this.lesson.title}'.`;
                         break;
                     case 'test':
-                        promptData.userPrompt = `Vytvor test (10 otázek) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
                         promptData.question_count = 10;
                         promptData.difficulty = 'Střední';
+                        promptData.userPrompt = `Vytvor test (10 otázek) na tému '${this.lesson.title}'.`;
                         break;
                     case 'post':
-                        promptData.userPrompt = `Vytvor scenár podcastu (3 epizódy) na tému '${this.lesson.title}' (${this.lesson.topic || ''})`;
                         promptData.episode_count = 3;
+                        promptData.userPrompt = `Vytvor scenár pre podcast (3 krátke epizódy) na tému '${this.lesson.title}'.`;
                         break;
                     case 'flashcards':
-                        promptData.userPrompt = `Vytvoř sadu 10 studijních kartiček (pojem - definice) na téma '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                        promptData.userPrompt = `Vytvoř 10 studijních kartiček (pojem-definice) na téma '${this.lesson.title}'.`;
                         break;
                     case 'mindmap':
-                        promptData.userPrompt = `Vytvoř strukturu myšlenkové mapy (hierarchický JSON) na téma '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                        promptData.userPrompt = `Vytvoř hierarchickou mentální mapu (Mermaid JSON) na téma '${this.lesson.title}'.`;
                         break;
                     case 'comic':
-                        promptData.userPrompt = `Vytvoř scénář pro krátký vzdělávací komiks (4 panely) na téma '${this.lesson.title}' (${this.lesson.topic || ''})`;
+                        promptData.userPrompt = `Vytvoř scénář komiksu (4 panely) na téma '${this.lesson.title}'. Pro každý panel detailně popiš scénu (description).`;
                         break;
                 }
 
-                // 2. Call Cloud Function directly
+                // Volanie AI pre textový základ
                 const generateContentFunc = httpsCallable(functions, 'generateContent');
                 const result = await generateContentFunc({
                     contentType: contentType,
                     promptData: promptData,
                     filePaths: filePaths
                 });
+                
+                // Kópia dát pre úpravy
+                let data = JSON.parse(JSON.stringify(result.data));
 
-                const data = result.data;
+                // --- B. Multimediálne dopočítavanie (Audio & Obraz) ---
 
-                // 3. Update Data & Save
+                // 1. PODCAST AUDIO (Paralelné generovanie)
+                if (type === 'post' && data.podcast_series && data.podcast_series.episodes) {
+                    this._magicStatus = `🎙️ Generuji audio pro podcast...`;
+                    this.requestUpdate();
+                    
+                    const generateAudioFunc = httpsCallable(functions, 'generatePodcastAudio');
+                    
+                    const audioPromises = data.podcast_series.episodes.map(async (ep, index) => {
+                        try {
+                            if (!ep.script) return ep;
+                            const audioResult = await generateAudioFunc({
+                                lessonId: this.lesson.id,
+                                text: ep.script,
+                                episodeIndex: index,
+                                language: 'cs-CZ'
+                            });
+                            
+                            if (audioResult.data && audioResult.data.storagePath) {
+                                // Získanie verejnej URL
+                                const storageRef = ref(storage, audioResult.data.storagePath);
+                                const url = await getDownloadURL(storageRef);
+                                return { ...ep, audioUrl: url, storagePath: audioResult.data.storagePath };
+                            }
+                        } catch (err) {
+                            console.warn(`[AutoMagic] Chyba generování audia (ep ${index}):`, err);
+                        }
+                        return ep;
+                    });
+                    
+                    data.podcast_series.episodes = await Promise.all(audioPromises);
+                }
+
+                // 2. PREZENTÁCIA OBRÁZKY (Paralelné generovanie)
+                if (type === 'presentation' && data.slides) {
+                    this._magicStatus = `🎨 Generuji obrázky pro slidy...`;
+                    this.requestUpdate();
+
+                    const imagePromises = data.slides.map(async (slide, index) => {
+                        if (slide.visual_idea) {
+                            try {
+                                const base64Image = await callGenerateImage(slide.visual_idea);
+                                if (base64Image) {
+                                    return { 
+                                        ...slide, 
+                                        backgroundImage: `data:image/png;base64,${base64Image}` 
+                                    };
+                                }
+                            } catch (err) {
+                                console.warn(`[AutoMagic] Chyba generování obrázku (slide ${index}):`, err);
+                            }
+                        }
+                        return slide;
+                    });
+
+                    data.slides = await Promise.all(imagePromises);
+                }
+
+                // 3. KOMIKS OBRÁZKY (Paralelné generovanie)
+                if (type === 'comic' && data.panels) {
+                    this._magicStatus = `🖍️ Kreslím komiks...`;
+                    this.requestUpdate();
+
+                    const panelPromises = data.panels.map(async (panel, index) => {
+                        if (panel.description) {
+                            try {
+                                const base64Image = await callGenerateImage(`Comic book style, ${panel.description}`);
+                                if (base64Image) {
+                                    return { 
+                                        ...panel, 
+                                        imageUrl: `data:image/png;base64,${base64Image}` 
+                                    };
+                                }
+                            } catch (err) {
+                                console.warn(`[AutoMagic] Chyba generování panelu komiksu ${index}:`, err);
+                            }
+                        }
+                        return panel;
+                    });
+
+                    data.panels = await Promise.all(panelPromises);
+                }
+
+                // --- C. Uloženie do stavu lekcie ---
                 switch (type) {
                     case 'text':
                         this.lesson = { ...this.lesson, text_content: data.text || data };
@@ -470,7 +565,8 @@ export class LessonEditor extends BaseView {
                         break;
                 }
 
-                await this._handleSave(); // Immediate persistence
+                // Priebežné uloženie do DB po každom type
+                await this._handleSave(); 
                 successCount++;
 
                 // --- MULTIMEDIA GENERATION SECTION (Non-Destructive Extension) ---
@@ -580,8 +676,8 @@ export class LessonEditor extends BaseView {
              }
           }
 
-          // 4. Final Report
-          const msg = `Hotovo! Úspech: ${successCount}/${types.length}.` +
+          // Hotovo
+          const msg = `Magie dokončena! Úspěch: ${successCount}/${types.length}.` +
                       (failedTypes.length ? ` Chyby: ${failedTypes.join(', ')}` : '');
           showToast(msg, failedTypes.length > 0);
 
@@ -592,7 +688,7 @@ export class LessonEditor extends BaseView {
           this._isLoading = false;
           this._magicStatus = '';
           this._wizardMode = false;
-          this._activeTool = null; // FORCE display of Lesson Hub
+          this._activeTool = null; // Prechod na Hub
           this.requestUpdate();
       }
   }
