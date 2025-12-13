@@ -88,7 +88,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
     async _submitCreateClass() {
         const className = this._newClassName.trim();
         if (!className) {
-            showToast(this.t('professor.enter_class_name'), true);
+            showToast(this.t('dashboard.enter_class_name'), true);
             return;
         }
         const user = firebaseInit.auth.currentUser;
@@ -123,11 +123,11 @@ export class ProfessorDashboardView extends Localized(LitElement) {
         }
 
         const user = firebaseInit.auth.currentUser;
-        const userName = user?.displayName || user?.email || 'Profesore';
+        const userName = user?.displayName || user?.email || t('professor.default_name');
         const currentLang = translationService.currentLanguage;
 
         return html`
-            <div class="w-full p-6 md:p-8 space-y-8">
+            <div class="w-full p-6 md:p-8 space-y-8 h-full overflow-y-auto custom-scrollbar">
                 
                 <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
@@ -282,7 +282,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                     <input
                         type="text"
                         class="w-full border-2 border-slate-200 rounded-xl p-3 mb-6 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all font-bold text-slate-700"
-                        placeholder="Např. 4.A Fyzika"
+                        placeholder="${t('dashboard.class_name_placeholder')}"
                         .value=${this._newClassName}
                         @input=${e => this._newClassName = e.target.value}
                         @keypress=${e => e.key === 'Enter' && this._submitCreateClass()}
