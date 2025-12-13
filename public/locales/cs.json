@@ -1,4 +1,8 @@
 {
+  "app": {
+    "title": "AI Sensei",
+    "description": "Inteligentní vzdělávací platforma"
+  },
   "nav": {
     "dashboard": "Nástěnka",
     "classes": "Moje třídy",
@@ -12,10 +16,14 @@
     "interactions": "Interakce",
     "analytics": "Analytika",
     "admin": "Administrace",
-    "settings": "Nastavení",
+    "settings": "Nastavení"
+  },
+  "header": {
+    "brand": "AI Sensei",
     "logout": "Odhlásit se",
-    "organization": "Organizace",
-    "creative_studio": "Tvůrčí studio"
+    "roleStudent": "Student",
+    "roleProfessor": "Profesor",
+    "profile": "Profil"
   },
   "interactions": {
     "title": "Konverzace",
@@ -39,6 +47,7 @@
     "loading": "Načítám...",
     "saved": "Uloženo",
     "save": "Uložit",
+    "open": "Otevřít",
     "back": "Zpět",
     "close": "Zavřít",
     "files_select": "Vybrat soubory",
@@ -81,6 +90,7 @@
     "app_loading": "Spouštím aplikaci...",
     "days": "dní",
     "new": "Novinka",
+    "continue": "Pokračovat",
     "logout": "Odhlásit se"
   },
   "dashboard": {
@@ -243,6 +253,28 @@
     "app_role_error": "Nepodařilo se získat roli uživatele.",
     "critical_login_error": "Kritická chyba při přihlášení. Zkuste obnovit stránku."
   },
+  "timeline": {
+    "title": "Plán výuky (31 dní)",
+    "subtitle": "Přetáhněte lekce do požadovaného dne.",
+    "week": "Týden",
+    "error_fetch": "Chyba při načítání plánu.",
+    "confirm_remove": "Odebrat tuto lekci z plánu?",
+    "removed_success": "Lekce odebrána.",
+    "error_remove": "Chyba při odebírání.",
+    "scheduling": "Plánuji...",
+    "scheduled_success": "Lekce naplánována.",
+    "error_schedule": "Chyba při plánování.",
+    "added_to": "Lekce přidána na",
+    "add_to_timeline_tooltip": "Přidat na konec osy"
+  },
+  "library": {
+    "error_loading": "Nepodařilo se načíst data lekcí.",
+    "confirm_delete_title": "Opravdu chcete trvale smazat lekci \"{title}\"? Tato akce je nevratná.",
+    "deleted_success": "Lekce byla smazána.",
+    "delete_error": "Chyba při mazání lekce.",
+    "empty": "Zatím žádné lekce.",
+    "add_new": "Přidat novou lekci"
+  },
   "auth": {
     "branding_title_1": "Budoucnost",
     "branding_title_2": "Vzdělávání",
@@ -300,7 +332,7 @@
     "label_title": "Název lekce",
     "label_subtitle": "Podtitul nebo téma",
     "label_subtitle_tip": "Tip: Krátký popis tématu pomůže AI lépe zacílit obsah.",
-    "assign_class": "Přiřadit třídě",
+    "assign_class": "Přiřazení ke třídám",
     "btn_continue_content": "Pokračovat na obsah",
     "hub_edit_details": "Upravit detaily a soubory",
     "hub_student_preview": "Náhled studenta",
@@ -413,23 +445,8 @@
     "join_btn": "Připojit se",
     "cancel_btn": "Zrušit",
     "class_not_found": "Třída s tímto kódem nebyla nalezena",
-    "nav": {
-      "dashboard": "Přehled",
-      "lessons": "Moje Lekce",
-      "classes": "Moje Třídy"
-    },
-    "profile": {
-      "logout": "Odhlásit se",
-      "role": "Student"
-    },
-    "join_modal": {
-      "title": "Připojit se k třídě",
-      "label_code": "Kód třídy",
-      "placeholder": "Zadejte kód...",
-      "submit": "Připojit se"
-    },
     "dashboard": {
-        "title": "Študentský portál",
+        "title": "Studentský portál",
         "welcome": "Vítejte zpět",
         "activeLessons": "Aktivní lekce",
         "noActiveLessons": "Žádné aktivní lekce",
