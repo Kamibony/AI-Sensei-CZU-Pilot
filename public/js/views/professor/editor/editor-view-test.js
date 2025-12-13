@@ -1,9 +1,10 @@
 // public/js/views/professor/editor/editor-view-test.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { Localized } from '../../../utils/localization-mixin.js';
 import './ai-generator-panel.js';
 import './professor-header-editor.js';
 
-export class EditorViewTest extends LitElement {
+export class EditorViewTest extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean }
@@ -87,14 +88,14 @@ export class EditorViewTest extends LitElement {
 
                                 <!-- Formal Exam Header -->
                                 <div class="border-b-2 border-slate-900 p-12 pb-8 mb-8 text-center">
-                                    <div class="uppercase tracking-widest text-slate-500 text-sm font-bold mb-2">Examination Paper</div>
-                                    <h1 class="text-4xl font-serif text-slate-900 mb-4">${this.lesson.title || 'Untitled Exam'}</h1>
+                                    <div class="uppercase tracking-widest text-slate-500 text-sm font-bold mb-2">${this.t('editor.test.paper_header')}</div>
+                                    <h1 class="text-4xl font-serif text-slate-900 mb-4">${this.lesson.title || this.t('editor.test.untitled')}</h1>
                                     <div class="flex justify-center gap-8 text-sm font-serif italic text-slate-600">
-                                        <span>Subject: ${this.lesson.subject || 'General'}</span>
+                                        <span>${this.t('editor.test.subject')}: ${this.lesson.subject || 'General'}</span>
                                         <span>•</span>
-                                        <span>Topic: ${this.lesson.topic || 'General'}</span>
+                                        <span>${this.t('editor.test.topic')}: ${this.lesson.topic || 'General'}</span>
                                         <span>•</span>
-                                        <span>Questions: ${questions.length}</span>
+                                        <span>${this.t('editor.test.questions_count')}: ${questions.length}</span>
                                     </div>
                                 </div>
 
@@ -105,31 +106,31 @@ export class EditorViewTest extends LitElement {
                                     <div class="mb-12 border border-slate-200 bg-slate-50 p-6">
                                         <ai-generator-panel
                                             .lesson=${this.lesson}
-                                            viewTitle="Generátor Testu"
+                                            viewTitle="${this.t('editor.test.ai_title')}"
                                             contentType="test"
                                             fieldToUpdate="content"
-                                            description="Vygenerovat formální zkušební otázky."
-                                            promptPlaceholder="Popište téma zkoušky..."
+                                            description="${this.t('editor.test.ai_description')}"
+                                            promptPlaceholder="${this.t('editor.test.ai_placeholder')}"
                                             .extraParams=${{question_count: 5}}>
 
                                             <div slot="ai-inputs" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4 font-serif">
                                                 <div>
-                                                    <label class="block text-sm font-bold text-slate-700 uppercase tracking-wide mb-1">Počet otázek</label>
+                                                    <label class="block text-sm font-bold text-slate-700 uppercase tracking-wide mb-1">${this.t('editor.test.question_count')}</label>
                                                     <input id="question-count-input" type="number" class="w-full border-slate-300 focus:border-slate-800 focus:ring-0 rounded-none p-2 bg-white" value="5">
                                                 </div>
                                                 <div>
-                                                    <label class="block text-sm font-bold text-slate-700 uppercase tracking-wide mb-1">Obtížnost</label>
+                                                    <label class="block text-sm font-bold text-slate-700 uppercase tracking-wide mb-1">${this.t('editor.test.difficulty')}</label>
                                                     <select id="difficulty-select" class="w-full border-slate-300 focus:border-slate-800 focus:ring-0 rounded-none p-2 bg-white">
-                                                        <option>Lehká</option>
-                                                        <option selected>Střední</option>
-                                                        <option>Těžká</option>
+                                                        <option value="Lehká">${this.t('editor.test.difficulty_easy')}</option>
+                                                        <option value="Střední" selected>${this.t('editor.test.difficulty_medium')}</option>
+                                                        <option value="Těžká">${this.t('editor.test.difficulty_hard')}</option>
                                                     </select>
                                                 </div>
                                                 <div>
-                                                    <label class="block text-sm font-bold text-slate-700 uppercase tracking-wide mb-1">Typ otázek</label>
+                                                    <label class="block text-sm font-bold text-slate-700 uppercase tracking-wide mb-1">${this.t('editor.test.question_type')}</label>
                                                     <select id="type-select" class="w-full border-slate-300 focus:border-slate-800 focus:ring-0 rounded-none p-2 bg-white">
-                                                        <option value="Mix">Mix</option>
-                                                        <option value="Multiple Choice">Výběr z možností</option>
+                                                        <option value="Mix">${this.t('editor.test.type_mix')}</option>
+                                                        <option value="Multiple Choice">${this.t('editor.test.type_mc')}</option>
                                                     </select>
                                                 </div>
                                             </div>
@@ -149,13 +150,13 @@ export class EditorViewTest extends LitElement {
                                                             .value="${q.question_text || q.question}"
                                                             @input="${e => this._handleQuestionChange(qIndex, 'question_text', e.target.value)}"
                                                             class="w-full font-serif text-lg text-slate-900 border-b border-dashed border-slate-300 focus:border-slate-900 focus:ring-0 p-1 bg-transparent placeholder-slate-400"
-                                                            placeholder="Zformulujte otázku..."
+                                                            placeholder="${this.t('editor.test.question_placeholder')}"
                                                         >
                                                     </div>
                                                     <button
                                                         @click="${() => this._removeQuestion(qIndex)}"
                                                         class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition-colors p-1"
-                                                        title="Odstranit otázku"
+                                                        title="${this.t('editor.test.delete_question')}"
                                                     >
                                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                                     </button>
@@ -180,7 +181,7 @@ export class EditorViewTest extends LitElement {
                                                                 .value="${opt}"
                                                                 @input="${e => this._handleOptionChange(qIndex, oIndex, e.target.value)}"
                                                                 class="flex-1 font-serif text-slate-700 bg-transparent border-b border-transparent focus:border-slate-300 focus:ring-0 p-1 text-sm placeholder-slate-300"
-                                                                placeholder="Možnost ${String.fromCharCode(65 + oIndex)}"
+                                                                placeholder="${this.t('editor.test.option_placeholder')} ${String.fromCharCode(65 + oIndex)}"
                                                             >
                                                         </div>
                                                     `)}
@@ -196,7 +197,7 @@ export class EditorViewTest extends LitElement {
                                             class="inline-flex items-center gap-2 px-6 py-2 border border-slate-300 text-slate-600 font-serif hover:border-slate-800 hover:text-slate-900 transition-all uppercase tracking-wider text-xs"
                                         >
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"></path></svg>
-                                            Přidat otázku
+                                            ${this.t('editor.test.add_question')}
                                         </button>
                                     </div>
 

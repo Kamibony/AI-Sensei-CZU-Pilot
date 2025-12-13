@@ -1,10 +1,11 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { callGenerateContent } from '../../../gemini-api.js';
+import { Localized } from '../../../utils/localization-mixin.js';
 import { showToast } from '../../../utils.js';
 import { parseAiResponse } from './utils-parsing.mjs';
 import './professor-header-editor.js';
 
-export class EditorViewFlashcards extends LitElement {
+export class EditorViewFlashcards extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean },
@@ -52,7 +53,7 @@ export class EditorViewFlashcards extends LitElement {
 
         const title = this.lesson?.title || '';
         if (!title) {
-            showToast("Chybí název lekce.", true);
+            showToast(this.t('editor.flashcards.error_no_title'), true);
             return;
         }
 
@@ -79,14 +80,14 @@ export class EditorViewFlashcards extends LitElement {
             if (cards.length > 0) {
                 this._cards = cards;
                 this.save();
-                showToast("Kartičky vygenerovány!");
+                showToast(this.t('editor.flashcards.success_generated'));
             } else {
-                 showToast('Nepodařilo se zpracovat výstup z AI.', true);
+                 showToast(this.t('editor.flashcards.error_parse'), true);
             }
 
         } catch (e) {
             console.error(e);
-            showToast("Chyba generování: " + e.message, true);
+            showToast(`${this.t('editor.flashcards.error_generation')}${e.message}`, true);
         } finally {
             this._isGenerating = false;
             this.requestUpdate();
@@ -125,16 +126,16 @@ export class EditorViewFlashcards extends LitElement {
                     <div class="absolute inset-0 overflow-y-auto custom-scrollbar">
                         <div class="max-w-6xl mx-auto p-8 space-y-8">
                             <div class="flex justify-between items-center">
-                                <h2 class="text-2xl font-bold text-slate-800">Studijní kartičky</h2>
+                                <h2 class="text-2xl font-bold text-slate-800">${this.t('editor.flashcards.title')}</h2>
                                 <div class="flex gap-2">
                                     <button @click=${this._generateCards} ?disabled=${this._isGenerating}
                                         class="flex items-center px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg font-medium hover:bg-indigo-100 transition-colors">
                                         ${this._isGenerating ? html`<span class="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mr-2"></span>` : html`<span class="mr-2">✨</span>`}
-                                        Generovat AI
+                                        ${this.t('editor.flashcards.generate_ai_btn')}
                                     </button>
                                     <button @click=${this._addCard}
                                         class="flex items-center px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors">
-                                        <span class="mr-2">➕</span> Přidat kartu
+                                        <span class="mr-2">➕</span> ${this.t('editor.flashcards.add_card_btn')}
                                     </button>
                                 </div>
                             </div>
@@ -142,10 +143,10 @@ export class EditorViewFlashcards extends LitElement {
                             ${this._cards.length === 0 ? html`
                                 <div class="text-center py-16 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
                                     <div class="text-4xl mb-4">🗂️</div>
-                                    <h3 class="text-lg font-medium text-slate-700">Zatím žádné kartičky</h3>
-                                    <p class="text-slate-500 mb-6">Vytvořte je ručně nebo nechte AI vygenerovat sadu k tématu.</p>
+                                    <h3 class="text-lg font-medium text-slate-700">${this.t('editor.flashcards.empty_title')}</h3>
+                                    <p class="text-slate-500 mb-6">${this.t('editor.flashcards.empty_desc')}</p>
                                     <button @click=${this._generateCards} class="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">
-                                        ✨ Vygenerovat kartičky
+                                        ✨ ${this.t('editor.flashcards.empty_action')}
                                     </button>
                                 </div>
                             ` : html`
@@ -158,23 +159,23 @@ export class EditorViewFlashcards extends LitElement {
                                             </button>
 
                                             <div class="mb-4 pr-8">
-                                                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Přední strana (Pojem)</label>
+                                                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">${this.t('editor.flashcards.front_label')}</label>
                                                 <input type="text"
                                                     .value=${card.front}
                                                     @input=${(e) => this._updateCard(index, 'front', e.target.value)}
                                                     @blur=${() => this.save()}
                                                     class="w-full text-lg font-bold text-slate-800 border-none p-0 focus:ring-0 placeholder-slate-300"
-                                                    placeholder="Např. Mitochondrie">
+                                                    placeholder="${this.t('editor.flashcards.front_placeholder')}">
                                             </div>
 
                                             <div class="border-t border-slate-100 pt-4">
-                                                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Zadní strana (Vysvětlení)</label>
+                                                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">${this.t('editor.flashcards.back_label')}</label>
                                                 <textarea
                                                     .value=${card.back}
                                                     @input=${(e) => this._updateCard(index, 'back', e.target.value)}
                                                     @blur=${() => this.save()}
                                                     class="w-full text-sm text-slate-600 border-none p-0 focus:ring-0 resize-none h-20 placeholder-slate-300"
-                                                    placeholder="Vysvětlení pojmu..."></textarea>
+                                                    placeholder="${this.t('editor.flashcards.back_placeholder')}"></textarea>
                                             </div>
                                         </div>
                                     `)}

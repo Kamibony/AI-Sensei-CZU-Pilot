@@ -1,10 +1,10 @@
 // public/js/views/professor/editor/editor-view-presentation.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { translationService } from '../../../utils/translation-service.js';
+import { Localized } from '../../../utils/localization-mixin.js';
 import './ai-generator-panel.js';
 import './professor-header-editor.js';
 
-export class EditorViewPresentation extends LitElement {
+export class EditorViewPresentation extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean },
@@ -24,7 +24,7 @@ export class EditorViewPresentation extends LitElement {
 
     async _exportToPptx() {
         if (!this.lesson?.presentation?.slides) {
-            alert(translationService.t('editor.generate_presentation_first') || 'Nejprve vygenerujte prezentaci.');
+            alert(this.t('editor.presentation.export_error') || 'Nejprve vygenerujte prezentaci.');
             return;
         }
 
@@ -45,7 +45,7 @@ export class EditorViewPresentation extends LitElement {
             slides.forEach(slideData => {
                 const slide = pres.addSlide({ masterName: 'MASTER_SLIDE' });
 
-                slide.addText(slideData.title || 'Bez názvu', {
+                slide.addText(slideData.title || this.t('editor.presentation.untitled_slide'), {
                     x: 0.5, y: 1.0, w: '90%', h: 0.8,
                     fontSize: 32, bold: true, color: '1E293B', fontFace: 'Arial'
                 });
@@ -78,7 +78,7 @@ export class EditorViewPresentation extends LitElement {
 
         } catch (error) {
             console.error('Export failed:', error);
-            alert('Chyba při exportu do PPTX: ' + error.message);
+            alert(this.t('editor.presentation.export_error') + error.message);
         }
     }
 
@@ -96,24 +96,24 @@ export class EditorViewPresentation extends LitElement {
                                 ${hasContent ? html`
                                     <div class="absolute top-4 right-4 z-10">
                                         <button @click=${this._exportToPptx} class="px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 flex items-center justify-center bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow-indigo-200">
-                                            💾 ${translationService.t('editor.download_pptx')}
+                                            💾 ${this.t('editor.download_pptx')}
                                         </button>
                                     </div>
                                 ` : ''}
 
                                 <ai-generator-panel
                                     .lesson=${this.lesson}
-                                    viewTitle="AI Prezentace"
+                                    viewTitle="${this.t('editor.presentation.ai_title')}"
                                     contentType="presentation"
                                     fieldToUpdate="presentation"
-                                    description="Zadejte téma a počet slidů. Můžete vybrat dokumenty (RAG)."
-                                    promptPlaceholder="Např. Klíčové momenty Římské republiky">
+                                    description="${this.t('editor.presentation.ai_description')}"
+                                    promptPlaceholder="${this.t('editor.presentation.ai_placeholder')}">
 
                                     <div slot="ai-inputs" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                         <div class="md:col-span-2">
                                             </div>
                                         <div>
-                                            <label class="block font-medium text-slate-600">Počet slidů</label>
+                                            <label class="block font-medium text-slate-600">${this.t('editor.presentation.slide_count')}</label>
                                             <input id="slide-count-input"
                                                 type="number"
                                                 class="w-full border-slate-300 rounded-lg p-2 mt-1"
@@ -122,11 +122,11 @@ export class EditorViewPresentation extends LitElement {
                                         </div>
                                     </div>
                                     <div slot="ai-inputs" class="mb-4">
-                                        <label for="presentation-style-selector" class="block text-sm font-medium text-gray-700 mb-1">Styl prezentace:</label>
+                                        <label for="presentation-style-selector" class="block text-sm font-medium text-gray-700 mb-1">${this.t('editor.presentation.style_label')}</label>
                                         <select id="presentation-style-selector" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md" .value=${styleId}>
-                                            <option value="default">Výchozí (Zelená)</option>
-                                            <option value="modern">Moderní (Modrá)</option>
-                                            <option value="vibrant">Živý (Oranžová)</option>
+                                            <option value="default">${this.t('editor.presentation.style_default')}</option>
+                                            <option value="modern">${this.t('editor.presentation.style_modern')}</option>
+                                            <option value="vibrant">${this.t('editor.presentation.style_vibrant')}</option>
                                         </select>
                                     </div>
                                 </ai-generator-panel>
