@@ -4,7 +4,7 @@ import { doc, getDoc, updateDoc, setDoc, arrayUnion, arrayRemove, collection, ge
 import { db, auth, functions } from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { translationService } from '../../services/translation-service.js';
+import { translationService } from '../../utils/translation-service.js';
 import { callGenerateContent } from '../../gemini-api.js';
 
 // Importy všetkých editorov

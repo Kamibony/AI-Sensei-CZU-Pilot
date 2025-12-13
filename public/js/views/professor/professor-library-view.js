@@ -1,7 +1,7 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { collection, query, where, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db, auth } from '../../firebase-init.js';
-import { translationService } from '../../services/translation-service.js';
+import { translationService } from '../../utils/translation-service.js';
 
 export class ProfessorLibraryView extends LitElement {
     static properties = {
