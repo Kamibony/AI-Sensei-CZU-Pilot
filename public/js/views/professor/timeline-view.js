@@ -1,10 +1,11 @@
-// public/js/views/professor/timeline-view.js
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from '../../utils.js';
 import * as firebaseInit from '../../firebase-init.js';
+import { Localized } from '../../utils/localization-mixin.js';
+import { translationService } from '../../utils/translation-service.js';
 
-export class ProfessorTimelineView extends LitElement {
+export class ProfessorTimelineView extends Localized(LitElement) {
     static properties = {
         lessonsData: { type: Array },
         _timelineEvents: { state: true, type: Array },
@@ -20,7 +21,17 @@ export class ProfessorTimelineView extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
+        // Prekresliť pri zmene jazyka, aby sa aktualizovali dátumy
+        this._unsubscribe = translationService.subscribe(() => {
+            this._renderDaysAndEvents();
+            this.requestUpdate();
+        });
         this._fetchTimelineEvents();
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        if (this._unsubscribe) this._unsubscribe();
     }
 
     async _fetchTimelineEvents() {
@@ -49,16 +60,20 @@ export class ProfessorTimelineView extends LitElement {
             this._renderDaysAndEvents();
         } catch (error) {
             console.error("Error fetching timeline events:", error);
-            showToast("Chyba při načítání plánu.", true);
+            showToast(this.t('timeline.error_fetch'), true);
         }
     }
 
     _getLocalizedDateDetails(offsetDays = 0) {
         const date = new Date();
         date.setDate(date.getDate() + offsetDays);
+        
+        // Použitie aktuálneho jazyka aplikácie
+        const lang = translationService.currentLanguage === 'cs' ? 'cs-CZ' : 'pt-BR';
+        
         return {
-            weekday: date.toLocaleDateString('cs-CZ', { weekday: 'long' }),
-            dayMonth: date.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' }),
+            weekday: date.toLocaleDateString(lang, { weekday: 'long' }),
+            dayMonth: date.toLocaleDateString(lang, { day: 'numeric', month: 'numeric' }),
             fullDate: date,
             isToday: offsetDays === 0
         };
@@ -96,13 +111,13 @@ export class ProfessorTimelineView extends LitElement {
                      ${lesson.subtitle ? `<p class="text-xs text-slate-500 truncate">${lesson.subtitle}</p>` : ''}
                 </div>
             </div>
-            <button class="delete-event-btn p-1.5 rounded-md hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors flex-shrink-0 ml-2 opacity-0 group-hover:opacity-100" title="Odebrat z plánu">
+            <button class="delete-event-btn p-1.5 rounded-md hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors flex-shrink-0 ml-2 opacity-0 group-hover:opacity-100" title="${this.t('common.delete')}">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>`;
         
         el.querySelector('.delete-event-btn').addEventListener('click', async (e) => {
             e.stopPropagation();
-            if (confirm('Odebrat tuto lekci z plánu?')) {
+            if (confirm(this.t('timeline.confirm_remove'))) {
                 try {
                     await deleteDoc(doc(firebaseInit.db, 'timeline_events', event.id));
                     el.remove();
@@ -110,10 +125,12 @@ export class ProfessorTimelineView extends LitElement {
                     if (!this._timelineEvents.some(ev => ev.lessonId === event.lessonId)) {
                         await updateDoc(doc(firebaseInit.db, 'lessons', event.lessonId), { isScheduled: false }).catch(console.error);
                     }
-                    showToast("Lekce odebrána.");
+                    showToast(this.t('timeline.removed_success'));
                     await this._updateAllOrderIndexes();
                 } catch (error) {
-                    console.error(error); showToast("Chyba při odebírání.", true); this._fetchTimelineEvents();
+                    console.error(error); 
+                    showToast(this.t('timeline.error_remove'), true); 
+                    this._fetchTimelineEvents();
                 }
             }
         });
@@ -126,7 +143,7 @@ export class ProfessorTimelineView extends LitElement {
         const tempEl = evt.item;
         const newIndexInDay = Array.from(evt.to.children).indexOf(tempEl);
 
-        tempEl.innerHTML = `<div class="p-3 text-slate-400 text-sm flex items-center"><div class="spinner mr-2 w-4 h-4 border-2"></div> Plánuji...</div>`;
+        tempEl.innerHTML = `<div class="p-3 text-slate-400 text-sm flex items-center"><div class="spinner mr-2 w-4 h-4 border-2"></div> ${this.t('timeline.scheduling')}</div>`;
         tempEl.className = "bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg p-2 mb-2 opacity-70";
 
         try {
@@ -152,11 +169,12 @@ export class ProfessorTimelineView extends LitElement {
             if(newElement) {
                  tempEl.parentNode.replaceChild(newElement, tempEl);
                  this._timelineEvents.push(newDbEvent);
-                 showToast("Lekce naplánována.");
+                 showToast(this.t('timeline.scheduled_success'));
             } else { tempEl.remove(); }
             await this._updateAllOrderIndexes();
         } catch (error) {
-            console.error(error); showToast("Chyba při plánování.", true);
+            console.error(error); 
+            showToast(this.t('timeline.error_schedule'), true);
             tempEl.remove(); this._fetchTimelineEvents();
         }
     }
@@ -192,7 +210,7 @@ export class ProfessorTimelineView extends LitElement {
             if (daySlot) {
                 const ph = document.createElement('div');
                 ph.className = 'p-3 mb-2 text-slate-400 opacity-50 border-2 border-dashed rounded-lg text-sm';
-                ph.textContent = `Plánuji ${lesson.title}...`;
+                ph.textContent = `${this.t('timeline.scheduling')} ${lesson.title}...`;
                 daySlot.appendChild(ph);
                 ph.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
@@ -203,9 +221,15 @@ export class ProfessorTimelineView extends LitElement {
                 this._timelineEvents.push(newDbEvent);
                 const newEl = this._renderScheduledEvent(newDbEvent);
                 if (newEl) daySlot.replaceChild(newEl, ph); else ph.remove();
-                showToast(`Lekce přidána na ${this._getLocalizedDateDetails(targetDayIndex).weekday}.`);
+                
+                const dayName = this._getLocalizedDateDetails(targetDayIndex).weekday;
+                showToast(`${this.t('timeline.added_to')} ${dayName}.`);
             }
-        } catch (e) { console.error(e); showToast("Chyba přidání.", true); this._fetchTimelineEvents(); }
+        } catch (e) { 
+            console.error(e); 
+            showToast(this.t('timeline.error_schedule'), true); 
+            this._fetchTimelineEvents(); 
+        }
     }
 
     _renderDaysAndEvents() {
@@ -213,8 +237,6 @@ export class ProfessorTimelineView extends LitElement {
          if (!container) return;
          container.innerHTML = '';
 
-        // Vytvoríme mriežku pre 31 dní
-        // Na veľkých obrazovkách 5 stĺpcov (typický kalendár má 7, ale 5 je lepšie pre čitateľnosť obsahu)
         const grid = document.createElement('div');
         grid.className = "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4";
 
@@ -259,8 +281,8 @@ export class ProfessorTimelineView extends LitElement {
         return html`
             <header class="px-6 py-4 border-b border-slate-200 bg-white sticky top-0 z-20 shadow-sm flex justify-between items-center">
                 <div>
-                    <h1 class="text-2xl font-extrabold text-slate-800">Plán výuky (31 dní)</h1>
-                    <p class="text-sm text-slate-500">Přetáhněte lekce do požadovaného dne.</p>
+                    <h1 class="text-2xl font-extrabold text-slate-800">${this.t('timeline.title')}</h1>
+                    <p class="text-sm text-slate-500">${this.t('timeline.subtitle')}</p>
                 </div>
             </header>
             <div class="flex-grow overflow-y-auto bg-slate-100 custom-scrollbar">
