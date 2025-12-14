@@ -29,8 +29,9 @@ service firebase.storage {
       allow read: if (isProfessor() && isOwner(resource))
                   || request.auth.token.email == 'profesor@profesor.cz';
 
-      // CREATE is disallowed. Uploads must use signed URLs.
-      allow create: if false;
+      // Allow professors to upload if they own the file (based on metadata)
+      allow create: if isProfessor() && request.auth.uid == request.resource.metadata.ownerId;
+      allow write: if isProfessor() && request.auth.uid == request.resource.metadata.ownerId;
 
       // DELETE is allowed for the owner, the legacy admin, OR if the user owns the Firestore record
       allow delete: if (isProfessor() && (isOwner(resource) || isOwnerViaFirestore(fileId)))

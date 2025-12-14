@@ -27,6 +27,8 @@ import './editor/professor-header-editor.js';
 import { processFileForRAG, uploadMultipleFiles, uploadSingleFile } from '../../utils/upload-handler.js';
 import { renderMediaLibraryFiles, getSelectedFiles, clearSelectedFiles } from '../../upload-handler.js';
 
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 export class LessonEditor extends BaseView {
   static properties = {
     lesson: { type: Object },
@@ -365,6 +367,19 @@ export class LessonEditor extends BaseView {
       if(closeBtn) closeBtn.addEventListener('click', close);
   }
 
+  async _uploadBase64Image(base64Data, path) {
+    const storageRef = ref(storage, path);
+    const metadata = {
+        contentType: 'image/png',
+        customMetadata: {
+            'ownerId': auth.currentUser.uid,
+            'generatedBy': 'AI_Sensei'
+        }
+    };
+    await uploadString(storageRef, base64Data, 'base64', metadata);
+    return await getDownloadURL(storageRef);
+  }
+
   async _handleAutoMagic() {
       // 1. Validácia
       if (!this.lesson.title) {
@@ -499,10 +514,8 @@ export class LessonEditor extends BaseView {
                                      // UPLOAD TO STORAGE
                                      const fileName = `slide_${Date.now()}_${index}.png`;
                                      const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
-                                     const storageRef = ref(storage, storagePath);
 
-                                     await uploadString(storageRef, base64Data, 'base64');
-                                     const url = await getDownloadURL(storageRef);
+                                     const url = await this._uploadBase64Image(base64Data, storagePath);
 
                                      data.slides[index] = {
                                          ...slide,
@@ -513,6 +526,8 @@ export class LessonEditor extends BaseView {
                             } catch (err) {
                                 console.warn(`[AutoMagic] Image gen failed for slide ${index}:`, err);
                             }
+                            // Spomalenie kvôli API limitom
+                            await delay(2000);
                         }
                     }
                 }
@@ -531,10 +546,8 @@ export class LessonEditor extends BaseView {
                                 if (base64Data && typeof base64Data === 'string') {
                                      const fileName = `comic_${Date.now()}_${index}.png`;
                                      const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
-                                     const storageRef = ref(storage, storagePath);
 
-                                     await uploadString(storageRef, base64Data, 'base64');
-                                     const url = await getDownloadURL(storageRef);
+                                     const url = await this._uploadBase64Image(base64Data, storagePath);
 
                                      data.panels[index] = {
                                          ...panel,
@@ -544,6 +557,8 @@ export class LessonEditor extends BaseView {
                             } catch (err) {
                                 console.warn(`[AutoMagic] Comic gen failed for panel ${index}:`, err);
                             }
+                            // Spomalenie kvôli API limitom
+                            await delay(2000);
                          }
                     }
                 }
