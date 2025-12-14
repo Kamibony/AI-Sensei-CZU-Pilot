@@ -343,7 +343,7 @@ export class LessonEditor extends BaseView {
                    this._uploadedFiles = [...this._uploadedFiles, ...uniqueNewFiles];
                    this.lesson = { ...this.lesson, files: this._uploadedFiles };
                    if(this.lesson.title) await this._handleSave();
-                   showToast(`Pridáno ${uniqueNewFiles.length} souborů z knihovny.`);
+                   showToast(translationService.t('professor.editor.library_files_added', { count: uniqueNewFiles.length }) || `Pridáno ${uniqueNewFiles.length} souborů z knihovny.`);
                }
           }
           close();
@@ -420,35 +420,37 @@ export class LessonEditor extends BaseView {
                 let contentType = type;
 
                 // --- A. Textová príprava (Prompty) ---
+                const lang = translationService.currentLanguage === 'pt-br' ? 'Portuguese' : (translationService.currentLanguage === 'en' ? 'English' : 'Czech');
+
                 switch (type) {
                     case 'text':
-                        promptData.userPrompt = `Vytvor podrobný výukový text na tému '${this.lesson.title}' ${this.lesson.topic ? `(${this.lesson.topic})` : ''}. Rozdeľ na úvod, hlavné body a záver.`;
+                        promptData.userPrompt = `Create a comprehensive educational lesson about '${this.lesson.title}' ${this.lesson.topic ? `(${this.lesson.topic})` : ''}. Structure into introduction, main points, and conclusion. Output language: ${lang}.`;
                         break;
                     case 'presentation':
-                        promptData.userPrompt = `Vytvor štruktúru prezentácie (8 slidov) na tému '${this.lesson.title}'. Pre každý slide navrhni stručné body a vizuálny nápad (visual_idea) pre obrázok.`;
+                        promptData.userPrompt = `Create a presentation structure (8 slides) about '${this.lesson.title}'. For each slide suggest bullet points and a visual idea (visual_idea) for an image. Output language: ${lang}.`;
                         promptData.slide_count = 8;
                         break;
                     case 'quiz':
                         promptData.question_count = 5;
-                        promptData.userPrompt = `Vytvor kvíz (5 otázek) na tému '${this.lesson.title}'.`;
+                        promptData.userPrompt = `Create a quiz (5 questions) about '${this.lesson.title}'. Output language: ${lang}.`;
                         break;
                     case 'test':
                         promptData.question_count = 10;
-                        promptData.difficulty = 'Střední';
-                        promptData.userPrompt = `Vytvor test (10 otázek) na tému '${this.lesson.title}'.`;
+                        promptData.difficulty = 'Medium';
+                        promptData.userPrompt = `Create a test (10 questions) about '${this.lesson.title}'. Output language: ${lang}.`;
                         break;
                     case 'post':
                         promptData.episode_count = 3;
-                        promptData.userPrompt = `Vytvor scenár pre podcast (3 krátke epizódy) na tému '${this.lesson.title}'.`;
+                        promptData.userPrompt = `Create a script for a podcast (3 short episodes) about '${this.lesson.title}'. Output language: ${lang}.`;
                         break;
                     case 'flashcards':
-                        promptData.userPrompt = `Vytvoř 10 studijních kartiček (pojem-definice) na téma '${this.lesson.title}'.`;
+                        promptData.userPrompt = `Create 10 study flashcards (term-definition) about '${this.lesson.title}'. Output language: ${lang}.`;
                         break;
                     case 'mindmap':
-                        promptData.userPrompt = `Vytvoř hierarchickou mentální mapu (Mermaid JSON) na téma '${this.lesson.title}'.`;
+                        promptData.userPrompt = `Create a hierarchical mind map (Mermaid JSON) about '${this.lesson.title}'. Output language: ${lang}.`;
                         break;
                     case 'comic':
-                        promptData.userPrompt = `Vytvoř scénář komiksu (4 panely) na téma '${this.lesson.title}'. Pro každý panel detailně popiš scénu (description).`;
+                        promptData.userPrompt = `Create a comic book script (4 panels) about '${this.lesson.title}'. For each panel describe the scene in detail (description). Output language: ${lang}.`;
                         break;
                 }
 
@@ -468,7 +470,7 @@ export class LessonEditor extends BaseView {
 
                 // 1. PODCAST AUDIO (Sekvenčné)
                 if (type === 'post' && data.podcast_series && data.podcast_series.episodes) {
-                    this._magicStatus = `🎙️ Generuji audio pro podcast...`;
+                    this._magicStatus = `🎙️ ${translationService.t('professor.editor.generating_audio') || 'Generating audio...'}`;
                     this.requestUpdate();
                     
                     const generateAudioFunc = httpsCallable(functions, 'generatePodcastAudio');
@@ -501,7 +503,7 @@ export class LessonEditor extends BaseView {
 
                 // 2. PREZENTÁCIA OBRÁZKY (Sekvenčné + Upload)
                 if (type === 'presentation' && data.slides) {
-                    this._magicStatus = `🎨 Generuji obrázky pro slidy...`;
+                    this._magicStatus = `🎨 ${translationService.t('professor.editor.generating_images') || 'Generating images...'}`;
                     this.requestUpdate();
 
                     for (const [index, slide] of data.slides.entries()) {
@@ -534,7 +536,7 @@ export class LessonEditor extends BaseView {
 
                 // 3. KOMIKS OBRÁZKY (Sekvenčné + Upload)
                 if (type === 'comic' && data.panels) {
-                    this._magicStatus = `🖍️ Kreslím komiks...`;
+                    this._magicStatus = `🖍️ ${translationService.t('professor.editor.generating_comic') || 'Drawing comic...'}`;
                     this.requestUpdate();
 
                     for (const [index, panel] of data.panels.entries()) {
@@ -607,8 +609,8 @@ export class LessonEditor extends BaseView {
           }
 
           // Hotovo
-          const msg = `Magie dokončena! Úspěch: ${successCount}/${types.length}.` +
-                      (failedTypes.length ? ` Chyby: ${failedTypes.join(', ')}` : '');
+          const msg = `${translationService.t('lesson.magic_done_stats', { success: successCount, total: types.length }) || `Magic done! Success: ${successCount}/${types.length}.`}` +
+                      (failedTypes.length ? ` ${translationService.t('common.errors') || 'Errors'}: ${failedTypes.join(', ')}` : '');
           showToast(msg, failedTypes.length > 0);
 
       } catch (fatalError) {
@@ -668,8 +670,8 @@ export class LessonEditor extends BaseView {
           return html`
              <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
                 <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ AI Sensei kouzlí...</h2>
-                <p class="text-slate-500 mt-2">${this._magicStatus || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
+                <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('professor.editor.magic_generating_title') || 'AI Sensei kouzlí...'}</h2>
+                <p class="text-slate-500 mt-2">${this._magicStatus || translationService.t('professor.editor.magic_generating_desc') || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
              </div>
           `;
       }
@@ -723,7 +725,7 @@ export class LessonEditor extends BaseView {
                                     .value="${this.lesson.subject || ''}"
                                     @input="${e => this.lesson = { ...this.lesson, subject: e.target.value }}"
                                     class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-semibold text-slate-800"
-                                    placeholder="Např. Dějepis">
+                                    placeholder="${translationService.t('professor.editor.subjectPlaceholder')}">
                                 <datalist id="subjects-list">
                                     ${this._availableSubjects.map(sub => html`<option value="${sub}"></option>`)}
                                 </datalist>
@@ -862,8 +864,8 @@ export class LessonEditor extends BaseView {
           return html`
              <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
                 <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ AI Sensei kouzlí...</h2>
-                <p class="text-slate-500 mt-2">Generuji veškerý obsah lekce. Může to chvíli trvat.</p>
+                <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('professor.editor.magic_generating_title') || 'AI Sensei kouzlí...'}</h2>
+                <p class="text-slate-500 mt-2">${translationService.t('professor.editor.magic_generating_desc') || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
              </div>
           `;
       }
@@ -918,7 +920,7 @@ export class LessonEditor extends BaseView {
 
             ${hasContent ? html`
                 <div class="absolute top-3 right-3 text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                    Hotovo
+                    ${translationService.t('common.done') || 'Hotovo'}
                 </div>
             ` : nothing}
 
@@ -958,9 +960,9 @@ export class LessonEditor extends BaseView {
                          placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder')}">
 
                    <div class="flex gap-2 text-xs text-slate-500 mt-1">
-                        <span>${this.lesson.subject || 'Bez předmětu'}</span>
+                        <span>${this.lesson.subject || translationService.t('common.no_subject') || 'Bez předmětu'}</span>
                         <span>•</span>
-                        <span>${this.lesson.topic || 'Bez tématu'}</span>
+                        <span>${this.lesson.topic || translationService.t('common.no_topic') || 'Bez tématu'}</span>
                    </div>
               </div>
             </div>
