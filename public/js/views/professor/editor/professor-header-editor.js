@@ -10,10 +10,12 @@ export class ProfessorHeaderEditor extends Localized(LitElement) {
     createRenderRoot() { return this; }
 
     _dispatchBack() {
+        // Dispatch with bubbles: true to ensure it reaches the parent (LessonEditor)
         this.dispatchEvent(new CustomEvent('back', { bubbles: true, composed: true }));
     }
 
     _dispatchSave() {
+        // Dispatch with bubbles: true to ensure it reaches the parent (LessonEditor)
         this.dispatchEvent(new CustomEvent('save', { bubbles: true, composed: true }));
     }
 
