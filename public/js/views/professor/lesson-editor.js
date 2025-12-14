@@ -1,7 +1,7 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { BaseView } from './base-view.js';
 import { doc, getDoc, updateDoc, setDoc, arrayUnion, arrayRemove, collection, getDocs, where, query } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { ref, getDownloadURL, uploadString } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { db, auth, functions, storage } from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
@@ -449,17 +449,18 @@ export class LessonEditor extends BaseView {
                 let data = JSON.parse(JSON.stringify(result.data));
 
                 // --- B. Multimediálne dopočítavanie (Audio & Obraz) ---
+                // REFAKTOR: Sekvenčné spracovanie pre zníženie záťaže API a upload na Storage
 
-                // 1. PODCAST AUDIO (Paralelné generovanie)
+                // 1. PODCAST AUDIO (Sekvenčné)
                 if (type === 'post' && data.podcast_series && data.podcast_series.episodes) {
                     this._magicStatus = `🎙️ Generuji audio pro podcast...`;
                     this.requestUpdate();
                     
                     const generateAudioFunc = httpsCallable(functions, 'generatePodcastAudio');
                     
-                    const audioPromises = data.podcast_series.episodes.map(async (ep, index) => {
-                        try {
-                            if (!ep.script) return ep;
+                    for (const [index, ep] of data.podcast_series.episodes.entries()) {
+                         if (!ep.script) continue;
+                         try {
                             const audioResult = await generateAudioFunc({
                                 lessonId: this.lesson.id,
                                 text: ep.script,
@@ -468,68 +469,83 @@ export class LessonEditor extends BaseView {
                             });
                             
                             if (audioResult.data && audioResult.data.storagePath) {
-                                // Získanie verejnej URL
                                 const storageRef = ref(storage, audioResult.data.storagePath);
+                                // Ensure we wait for the URL
                                 const url = await getDownloadURL(storageRef);
-                                return { ...ep, audioUrl: url, storagePath: audioResult.data.storagePath };
+                                data.podcast_series.episodes[index] = {
+                                    ...ep,
+                                    audioUrl: url,
+                                    storagePath: audioResult.data.storagePath
+                                };
                             }
-                        } catch (err) {
-                            console.warn(`[AutoMagic] Chyba generování audia (ep ${index}):`, err);
-                        }
-                        return ep;
-                    });
-                    
-                    data.podcast_series.episodes = await Promise.all(audioPromises);
+                         } catch (err) {
+                             console.warn(`[AutoMagic] Audio gen failed for ep ${index}:`, err);
+                         }
+                    }
                 }
 
-                // 2. PREZENTÁCIA OBRÁZKY (Paralelné generovanie)
+                // 2. PREZENTÁCIA OBRÁZKY (Sekvenčné + Upload)
                 if (type === 'presentation' && data.slides) {
                     this._magicStatus = `🎨 Generuji obrázky pro slidy...`;
                     this.requestUpdate();
 
-                    const imagePromises = data.slides.map(async (slide, index) => {
+                    for (const [index, slide] of data.slides.entries()) {
                         if (slide.visual_idea) {
                             try {
-                                const base64Image = await callGenerateImage(slide.visual_idea);
-                                if (base64Image) {
-                                    return { 
-                                        ...slide, 
-                                        backgroundImage: `data:image/png;base64,${base64Image}` 
-                                    };
+                                const imgResult = await callGenerateImage(slide.visual_idea);
+                                const base64Data = imgResult.imageBase64 || imgResult;
+
+                                if (base64Data && typeof base64Data === 'string' && base64Data.length > 100) {
+                                     // UPLOAD TO STORAGE
+                                     const fileName = `slide_${Date.now()}_${index}.png`;
+                                     const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
+                                     const storageRef = ref(storage, storagePath);
+
+                                     await uploadString(storageRef, base64Data, 'base64');
+                                     const url = await getDownloadURL(storageRef);
+
+                                     data.slides[index] = {
+                                         ...slide,
+                                         imageUrl: url,
+                                         backgroundImage: undefined // Clean up
+                                     };
                                 }
                             } catch (err) {
-                                console.warn(`[AutoMagic] Chyba generování obrázku (slide ${index}):`, err);
+                                console.warn(`[AutoMagic] Image gen failed for slide ${index}:`, err);
                             }
                         }
-                        return slide;
-                    });
-
-                    data.slides = await Promise.all(imagePromises);
+                    }
                 }
 
-                // 3. KOMIKS OBRÁZKY (Paralelné generovanie)
+                // 3. KOMIKS OBRÁZKY (Sekvenčné + Upload)
                 if (type === 'comic' && data.panels) {
                     this._magicStatus = `🖍️ Kreslím komiks...`;
                     this.requestUpdate();
 
-                    const panelPromises = data.panels.map(async (panel, index) => {
-                        if (panel.description) {
+                    for (const [index, panel] of data.panels.entries()) {
+                         if (panel.description) {
                             try {
-                                const base64Image = await callGenerateImage(`Comic book style, ${panel.description}`);
-                                if (base64Image) {
-                                    return { 
-                                        ...panel, 
-                                        imageUrl: `data:image/png;base64,${base64Image}` 
-                                    };
+                                const imgResult = await callGenerateImage(`Comic book style, ${panel.description}`);
+                                const base64Data = imgResult.imageBase64 || imgResult;
+
+                                if (base64Data && typeof base64Data === 'string') {
+                                     const fileName = `comic_${Date.now()}_${index}.png`;
+                                     const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
+                                     const storageRef = ref(storage, storagePath);
+
+                                     await uploadString(storageRef, base64Data, 'base64');
+                                     const url = await getDownloadURL(storageRef);
+
+                                     data.panels[index] = {
+                                         ...panel,
+                                         imageUrl: url
+                                     };
                                 }
                             } catch (err) {
-                                console.warn(`[AutoMagic] Chyba generování panelu komiksu ${index}:`, err);
+                                console.warn(`[AutoMagic] Comic gen failed for panel ${index}:`, err);
                             }
-                        }
-                        return panel;
-                    });
-
-                    data.panels = await Promise.all(panelPromises);
+                         }
+                    }
                 }
 
                 // --- C. Uloženie do stavu lekcie ---
@@ -568,107 +584,6 @@ export class LessonEditor extends BaseView {
                 // Priebežné uloženie do DB po každom type
                 await this._handleSave(); 
                 successCount++;
-
-                // --- MULTIMEDIA GENERATION SECTION (Non-Destructive Extension) ---
-                try {
-                    this._magicStatus = `${translationService.t('common.magic_status_generating_media') || 'Generuji média'} (${type})...`;
-                    this.requestUpdate();
-
-                    let mediaUpdates = false;
-                    const mediaPromises = [];
-
-                    // 1. Podcast Audio Generation
-                    if (type === 'post' && data.podcast_series && data.podcast_series.episodes) {
-                        const episodes = data.podcast_series.episodes;
-                        const generateAudioFunc = httpsCallable(functions, 'generatePodcastAudio');
-
-                        const audioPromises = episodes.map(async (episode, index) => {
-                            if (!episode.content) return;
-                            try {
-                                const audioResult = await generateAudioFunc({
-                                    text: episode.content,
-                                    voice: 'en-US-Journey-F', // Default voice
-                                    episodeIndex: index
-                                });
-
-                                if (audioResult.data && audioResult.data.audioPath) {
-                                    const audioPath = audioResult.data.audioPath;
-                                    const audioRef = ref(storage, audioPath);
-                                    const audioUrl = await getDownloadURL(audioRef);
-
-                                    // Update the episode object
-                                    episode.audioUrl = audioUrl;
-                                    episode.audioPath = audioPath;
-                                }
-                            } catch (audioErr) {
-                                console.warn(`Failed to generate audio for episode ${index + 1}`, audioErr);
-                            }
-                        });
-                        mediaPromises.push(...audioPromises);
-                        mediaUpdates = true;
-                    }
-
-                    // 2. Presentation Images
-                    if (type === 'presentation' && data.slides) {
-                        const slides = data.slides;
-                        const imagePromises = slides.map(async (slide, index) => {
-                             if (slide.visual_idea) {
-                                 try {
-                                     const imgResult = await callGenerateImage(slide.visual_idea);
-                                     if (imgResult && imgResult.imageBase64) {
-                                         // Store as data URI if base64 is returned
-                                         slide.imageUrl = `data:image/png;base64,${imgResult.imageBase64}`;
-                                     } else if (imgResult && imgResult.imageUrl) {
-                                         slide.imageUrl = imgResult.imageUrl;
-                                     }
-                                 } catch (imgErr) {
-                                     console.warn(`Failed to generate image for slide ${index + 1}`, imgErr);
-                                 }
-                             }
-                        });
-                        mediaPromises.push(...imagePromises);
-                        mediaUpdates = true;
-                    }
-
-                    // 3. Comic Images
-                    if (type === 'comic' && data.panels) { // Using standard 'comic' structure
-                         const panels = data.panels; // Usually array of panels
-                         const imagePromises = panels.map(async (panel, index) => {
-                             if (panel.description) {
-                                 try {
-                                     const imgResult = await callGenerateImage(panel.description);
-                                     if (imgResult && imgResult.imageBase64) {
-                                         panel.imageUrl = `data:image/png;base64,${imgResult.imageBase64}`;
-                                     } else if (imgResult && imgResult.imageUrl) {
-                                         panel.imageUrl = imgResult.imageUrl;
-                                     }
-                                 } catch (imgErr) {
-                                     console.warn(`Failed to generate image for panel ${index + 1}`, imgErr);
-                                 }
-                             }
-                         });
-                         mediaPromises.push(...imagePromises);
-                         mediaUpdates = true;
-                    }
-
-                    // Wait for all media generation
-                    if (mediaPromises.length > 0) {
-                        await Promise.all(mediaPromises);
-
-                        // If we had updates, save again
-                        if (mediaUpdates) {
-                             // Force refresh object reference to ensure Lit updates
-                             this.lesson = { ...this.lesson };
-                             await this._handleSave();
-                        }
-                    }
-
-                } catch (mediaError) {
-                    console.error("Multimedia generation failed (text preserved):", mediaError);
-                    showToast(translationService.t('media.generation_failed_partial') || 'Text vytvořen, média selhala.', true);
-                    // Do NOT throw fatalError, allow loop to continue or finish
-                }
-                // --- END MULTIMEDIA SECTION ---
 
              } catch (error) {
                  console.error(`Failed to generate ${type}:`, error);
