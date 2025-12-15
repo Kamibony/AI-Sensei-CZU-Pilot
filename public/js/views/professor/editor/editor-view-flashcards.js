@@ -61,7 +61,7 @@ export class EditorViewFlashcards extends Localized(LitElement) {
         this.requestUpdate();
 
         try {
-            const prompt = `Vytvoř sadu 10 studijních kartiček (flashcards) k tématu: ${title}. Výstup musí být JSON: [{ "front": "Pojem", "back": "Vysvětlení" }, ...]. Žádný markdown.`;
+            const prompt = this.t('prompts.flashcards_json_gen', { title });
 
             const result = await callGenerateContent({
                 contentType: 'flashcards',

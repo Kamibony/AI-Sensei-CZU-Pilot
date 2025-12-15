@@ -43,7 +43,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         this.lesson = null;
         this.files = null; // Default to null to distinguish if prop is passed
         this.viewTitle = "AI Generátor"; 
-        this.promptPlaceholder = "Zadejte prompt...";
+        this.promptPlaceholder = "";
         this.description = "Popis chybí."; 
         this.inputsConfig = []; 
         this._generationOutput = null;
@@ -291,11 +291,11 @@ export class AiGeneratorPanel extends Localized(LitElement) {
 
             if (['test', 'quiz'].includes(this.contentType)) {
                 const count = promptData.question_count || promptData.question_count_input;
-                if (count) promptData.userPrompt += `\n\nInstrukce: Vytvoř přesně ${count} otázek.`;
+                if (count) promptData.userPrompt += `\n\n` + this.t('prompts.instruction_questions', { count });
                 const diff = promptData.difficulty_select || promptData.difficulty;
-                if (diff) promptData.userPrompt += `\nObtížnost: ${diff}.`;
+                if (diff) promptData.userPrompt += `\n` + this.t('prompts.instruction_difficulty', { diff });
                 const type = promptData.type_select || promptData.question_types;
-                if (type) promptData.userPrompt += `\nTyp otázek: ${type}.`;
+                if (type) promptData.userPrompt += `\n` + this.t('prompts.instruction_type', { type });
             }
 
             const result = await callGenerateContent({ contentType: this.contentType, promptData, filePaths });
@@ -518,7 +518,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                     ${this._createDocumentSelectorUI()}
                     <div class="mt-6 pt-6 border-t border-slate-100">
                         ${this._renderDynamicInputs()}
-                        ${this.contentType === 'presentation' ? html`<label class="block font-medium text-slate-600">${this.t('editor.ai.presentation_topic_label')}</label><input id="prompt-input-topic" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1 mb-4" placeholder=${this.promptPlaceholder}>`:html`<textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder=${this.promptPlaceholder}></textarea>`}
+                        ${this.contentType === 'presentation' ? html`<label class="block font-medium text-slate-600">${this.t('editor.ai.presentation_topic_label')}</label><input id="prompt-input-topic" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1 mb-4" placeholder=${this.promptPlaceholder || this.t('editor.ai.prompt_placeholder')}>`:html`<textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder=${this.promptPlaceholder || this.t('editor.ai.prompt_placeholder')}></textarea>`}
                         <div class="flex items-center justify-end mt-4">
                             <button @click=${this._handleGeneration} ?disabled=${this._isLoading||this._isSaving || this._isUploading} class="${btnGenerate}">
                                 ${this._isLoading ? html`<div class="spinner mr-2"></div> ${this.t('editor.ai.generating')}` : html`<span class="text-xl mr-2">✨</span> ${this.t('editor.ai.generate_btn')}`}

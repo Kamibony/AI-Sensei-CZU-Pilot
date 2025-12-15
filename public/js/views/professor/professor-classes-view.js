@@ -102,7 +102,7 @@ export class ProfessorClassesView extends LitElement {
             );
             const querySnapshot = await getDocs(q);
             if (!querySnapshot.empty) {
-                showToast("Třída s tímto názvem již existuje.", true);
+                showToast(translationService.t('classes.exists_error'), true);
                 return;
             }
 
@@ -175,7 +175,7 @@ export class ProfessorClassesView extends LitElement {
                             <input
                                 type="text"
                                 class="w-full border-2 border-slate-200 rounded-xl p-3 mb-6 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all font-bold text-slate-700"
-                                placeholder="Např. 4.A Fyzika"
+                                placeholder="${translationService.t('classes.name_placeholder')}"
                                 .value=${this._newClassName}
                                 @input=${e => this._newClassName = e.target.value}
                                 @keypress=${e => e.key === 'Enter' && this._submitCreateClass()}

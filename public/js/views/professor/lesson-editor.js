@@ -420,37 +420,38 @@ export class LessonEditor extends BaseView {
                 let contentType = type;
 
                 // --- A. Textová príprava (Prompty) ---
-                const lang = translationService.currentLanguage === 'pt-br' ? 'Portuguese' : (translationService.currentLanguage === 'en' ? 'English' : 'Czech');
+                const title = this.lesson.title;
+                const topic = this.lesson.topic ? `(${this.lesson.topic})` : '';
 
                 switch (type) {
                     case 'text':
-                        promptData.userPrompt = `Create a comprehensive educational lesson about '${this.lesson.title}' ${this.lesson.topic ? `(${this.lesson.topic})` : ''}. Structure into introduction, main points, and conclusion. Output language: ${lang}.`;
+                        promptData.userPrompt = translationService.t('prompts.text_gen', { title, topic });
                         break;
                     case 'presentation':
-                        promptData.userPrompt = `Create a presentation structure (8 slides) about '${this.lesson.title}'. For each slide suggest bullet points and a visual idea (visual_idea) for an image. Output language: ${lang}.`;
+                        promptData.userPrompt = translationService.t('prompts.presentation_gen', { title });
                         promptData.slide_count = 8;
                         break;
                     case 'quiz':
                         promptData.question_count = 5;
-                        promptData.userPrompt = `Create a quiz (5 questions) about '${this.lesson.title}'. Output language: ${lang}.`;
+                        promptData.userPrompt = translationService.t('prompts.quiz_gen', { title });
                         break;
                     case 'test':
                         promptData.question_count = 10;
-                        promptData.difficulty = 'Medium';
-                        promptData.userPrompt = `Create a test (10 questions) about '${this.lesson.title}'. Output language: ${lang}.`;
+                        promptData.difficulty = 'Střední';
+                        promptData.userPrompt = translationService.t('prompts.test_gen', { title });
                         break;
                     case 'post':
                         promptData.episode_count = 3;
-                        promptData.userPrompt = `Create a script for a podcast (3 short episodes) about '${this.lesson.title}'. Output language: ${lang}.`;
+                        promptData.userPrompt = translationService.t('prompts.podcast_gen', { title });
                         break;
                     case 'flashcards':
-                        promptData.userPrompt = `Create 10 study flashcards (term-definition) about '${this.lesson.title}'. Output language: ${lang}.`;
+                        promptData.userPrompt = translationService.t('prompts.flashcards_gen', { title });
                         break;
                     case 'mindmap':
-                        promptData.userPrompt = `Create a hierarchical mind map (Mermaid JSON) about '${this.lesson.title}'. Output language: ${lang}.`;
+                        promptData.userPrompt = translationService.t('prompts.mindmap_gen', { title });
                         break;
                     case 'comic':
-                        promptData.userPrompt = `Create a comic book script (4 panels) about '${this.lesson.title}'. For each panel describe the scene in detail (description). Output language: ${lang}.`;
+                        promptData.userPrompt = translationService.t('prompts.comic_gen', { title });
                         break;
                 }
 
@@ -725,7 +726,7 @@ export class LessonEditor extends BaseView {
                                     .value="${this.lesson.subject || ''}"
                                     @input="${e => this.lesson = { ...this.lesson, subject: e.target.value }}"
                                     class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-semibold text-slate-800"
-                                    placeholder="${translationService.t('professor.editor.subjectPlaceholder')}">
+                                    placeholder="${translationService.t('professor.editor.subject_placeholder')}">
                                 <datalist id="subjects-list">
                                     ${this._availableSubjects.map(sub => html`<option value="${sub}"></option>`)}
                                 </datalist>

@@ -171,6 +171,7 @@
       "lessonTitlePlaceholder": "Např. Úvod do marketingu",
       "subtitle": "Podtitul / Popis",
       "subtitlePlaceholder": "Stručný popis lekce...",
+      "subject_placeholder": "Např. Dějepis",
       "classAssignment": "Přiřazení ke třídám",
       "selectClasses": "Vyberte třídy...",
       "filesAndRag": "Nahrané soubory & RAG",
@@ -178,6 +179,27 @@
       "magicGenerate": "Generovat pomocí AI",
       "saveChanges": "Uložit změny",
       "back": "Zpět",
+      "magic": {
+        "save_failed": "Nepodařilo se uložit lekci před generováním.",
+        "finished": "Magie dokončena! Úspěch: {{success}}/{{total}}.",
+        "generating_status": "Generuji",
+        "generating_audio": "🎙️ Generuji audio pro podcast...",
+        "generating_images": "🎨 Generuji obrázky pro slidy...",
+        "drawing_comic": "🖍️ Kreslím komiks...",
+        "added_files": "Přidáno {{count}} souborů z knihovny."
+      },
+      "details": {
+         "title_placeholder": "Např. Úvod do organické chemie",
+         "subtitle_placeholder": "Základní pojmy a principy",
+         "number_placeholder": "Např. 101",
+         "groups_load_error": "Nepodařilo se načíst skupiny.",
+         "files_comp_error": "Chyba: Nepodařilo se načíst komponentu pro výběr souborů.",
+         "no_classes": "Zatím nemáte vytvořené žádné třídy."
+      },
+      "ai": {
+        "presentation_topic_label": "Téma prezentace",
+        "prompt_placeholder": "Zadejte prompt..."
+      },
       "post": {
         "contentLabel": "Obsah příspěvku",
         "contentPlaceholder": "Zde pište obsah příspěvku...",
@@ -624,7 +646,9 @@
     "join_code_label": "Kód pro připojení",
     "copy_code_tooltip": "Kopírovat kód",
     "student_count_label": "studentů",
-    "loading": "Načítám třídy..."
+    "loading": "Načítám třídy...",
+    "name_placeholder": "Např. 4.A Fyzika",
+    "exists_error": "Třída s tímto názvem již existuje."
   },
   "students_view": {
     "title": "Studenti",

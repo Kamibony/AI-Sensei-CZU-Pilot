@@ -152,7 +152,7 @@ export class ProfessorLibraryView extends LitElement {
                         <div class="flex flex-col items-center justify-center h-full text-slate-400">
                              <span class="text-4xl mb-4">📂</span>
                              <p>${translationService.t('library.empty') || 'Zatím zde nejsou žádné lekce.'}</p>
-                             <button @click="${this._handleNewLesson}" class="mt-4 text-indigo-600 font-semibold hover:underline">${translationService.t('library.create_first') || 'Vytvořit první lekci'}</button>
+                             <button @click="${this._handleNewLesson}" class="mt-4 text-indigo-600 font-semibold hover:underline">${translationService.t('library.create_first')}</button>
                         </div>
                     ` : html`
                         <div class="space-y-8">

@@ -3,6 +3,7 @@ import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/li
 import { doc, addDoc, updateDoc, collection, serverTimestamp, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../../firebase-init.js';
 import { showToast } from '../../../utils.js';
+import { Localized } from '../../../utils/localization-mixin.js';
 // === OPRAVENÝ IMPORT: Pridali sme loadSelectedFiles ===
 import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from '../../../upload-handler.js';
 
@@ -11,7 +12,7 @@ const btnBase = "px-5 py-2 font-semibold rounded-lg transition transform hover:s
 const btnPrimary = `${btnBase} bg-green-700 text-white hover:bg-green-800`;
 const btnSecondary = `${btnBase} bg-slate-200 text-slate-700 hover:bg-slate-300`;
 
-export class EditorViewDetails extends LitElement {
+export class EditorViewDetails extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         _isLoading: { state: true, type: Boolean },
@@ -43,7 +44,7 @@ export class EditorViewDetails extends LitElement {
             this._groups = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (error) {
             console.error("Error fetching groups:", error);
-            showToast("Nepodařilo se načíst skupiny.", true);
+            showToast(this.t('editor.details.groups_load_error'), true);
         }
     }
 
@@ -71,7 +72,7 @@ export class EditorViewDetails extends LitElement {
         const modalConfirm = document.getElementById('modal-confirm-btn');
         const modalCancel = document.getElementById('modal-cancel-btn');
         const modalClose = document.getElementById('modal-close-btn');
-        if (!modal || !modalConfirm || !modalCancel || !modalClose) { console.error("Chybějící elementy pro modální okno."); showToast("Chyba: Nepodařilo se načíst komponentu pro výběr souborů.", true); return; }
+        if (!modal || !modalConfirm || !modalCancel || !modalClose) { console.error("Chybějící elementy pro modální okno."); showToast(this.t('editor.details.files_comp_error'), true); return; }
         
         // *** OPRAVA: Načítame aktuálne súbory pre TÚTO LEKCIU do globálneho stavu ***
         loadSelectedFiles(this.lesson?.ragFilePaths || []);
@@ -118,32 +119,32 @@ export class EditorViewDetails extends LitElement {
     render() {
         return html`
             <div class="flex justify-between items-start mb-6">
-                <h2 class="text-3xl font-extrabold text-slate-800">Detaily lekce</h2>
+                <h2 class="text-3xl font-extrabold text-slate-800">${this.t('editor.hub_edit_details')}</h2>
             </div>
             <div class="bg-white p-6 rounded-2xl shadow-lg">
                 <form id="lesson-details-form" class="space-y-4" @submit=${this._handleSaveLessonDetails}>
                     <div>
-                        <label class="block font-medium text-slate-600">Název lekce</label>
-                        <input type="text" id="lesson-title-input" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500" .value="${this.lesson?.title || ''}" placeholder="Např. Úvod do organické chemie">
+                        <label class="block font-medium text-slate-600">${this.t('lesson.title')}</label>
+                        <input type="text" id="lesson-title-input" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500" .value="${this.lesson?.title || ''}" placeholder="${this.t('editor.details.title_placeholder')}">
                     </div>
                     <div>
-                        <label class="block font-medium text-slate-600">Podtitulek</label>
-                        <input type="text" id="lesson-subtitle-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" .value="${this.lesson?.subtitle || ''}" placeholder="Základní pojmy a principy">
+                        <label class="block font-medium text-slate-600">${this.t('professor.editor.subtitle')}</label>
+                        <input type="text" id="lesson-subtitle-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" .value="${this.lesson?.subtitle || ''}" placeholder="${this.t('editor.details.subtitle_placeholder')}">
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block font-medium text-slate-600">Číslo lekce</label>
-                            <input type="text" id="lesson-number-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" .value="${this.lesson?.number || ''}" placeholder="Např. 101">
+                            <label class="block font-medium text-slate-600">ID / ${this.t('common.id')}</label>
+                            <input type="text" id="lesson-number-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" .value="${this.lesson?.number || ''}" placeholder="${this.t('editor.details.number_placeholder')}">
                         </div>
                         <div>
-                            <label class="block font-medium text-slate-600">Ikona</label>
+                            <label class="block font-medium text-slate-600">Icon</label>
                             <input type="text" id="lesson-icon-input" class="w-full border-slate-300 rounded-lg p-2 mt-1" .value="${this.lesson?.icon || '🆕'}" placeholder="🆕">
                         </div>
                     </div>
                     <!-- RAG File selection moved to Lesson Editor Step 1 -->
 
                     <div class="mb-4">
-                        <label class="block font-medium text-slate-600 mb-2">Přiřadit do tříd:</label>
+                        <label class="block font-medium text-slate-600 mb-2">${this.t('professor.editor.classAssignment')}</label>
                         <div class="space-y-2 border rounded-lg p-3 bg-slate-50">
                             ${this._groups.length > 0 ? this._groups.map(group => html`
                                 <div class="flex items-center">
@@ -156,7 +157,7 @@ export class EditorViewDetails extends LitElement {
                                     <label for="group-${group.id}" class="ml-3 text-sm text-gray-700">${group.name}</label>
                                 </div>
                             `) : html`
-                                <p class="text-xs text-slate-500">Zatím nemáte vytvořené žádné třídy.</p>
+                                <p class="text-xs text-slate-500">${this.t('editor.details.no_classes')}</p>
                             `}
                         </div>
                     </div>
@@ -168,7 +169,7 @@ export class EditorViewDetails extends LitElement {
                     -->
                     <div class="text-right pt-4 hidden">
                         <button type="submit" id="save-lesson-btn" ?disabled=${this._isLoading} class="${btnPrimary} px-6">
-                            ${this._isLoading ? html`<div class="spinner"></div><span class="ml-2">Ukládám...</span>` : 'Uložit změny'}
+                            ${this._isLoading ? html`<div class="spinner"></div><span class="ml-2">${this.t('common.loading')}</span>` : this.t('common.save')}
                         </button>
                     </div>
                 </form>
