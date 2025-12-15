@@ -420,35 +420,38 @@ export class LessonEditor extends BaseView {
                 let contentType = type;
 
                 // --- A. Textová príprava (Prompty) ---
+                const title = this.lesson.title;
+                const topic = this.lesson.topic ? `(${this.lesson.topic})` : '';
+
                 switch (type) {
                     case 'text':
-                        promptData.userPrompt = `Vytvor podrobný výukový text na tému '${this.lesson.title}' ${this.lesson.topic ? `(${this.lesson.topic})` : ''}. Rozdeľ na úvod, hlavné body a záver.`;
+                        promptData.userPrompt = translationService.t('prompts.text_gen', { title, topic });
                         break;
                     case 'presentation':
-                        promptData.userPrompt = `Vytvor štruktúru prezentácie (8 slidov) na tému '${this.lesson.title}'. Pre každý slide navrhni stručné body a vizuálny nápad (visual_idea) pre obrázok.`;
+                        promptData.userPrompt = translationService.t('prompts.presentation_gen', { title });
                         promptData.slide_count = 8;
                         break;
                     case 'quiz':
                         promptData.question_count = 5;
-                        promptData.userPrompt = `Vytvor kvíz (5 otázek) na tému '${this.lesson.title}'.`;
+                        promptData.userPrompt = translationService.t('prompts.quiz_gen', { title });
                         break;
                     case 'test':
                         promptData.question_count = 10;
                         promptData.difficulty = 'Střední';
-                        promptData.userPrompt = `Vytvor test (10 otázek) na tému '${this.lesson.title}'.`;
+                        promptData.userPrompt = translationService.t('prompts.test_gen', { title });
                         break;
                     case 'post':
                         promptData.episode_count = 3;
-                        promptData.userPrompt = `Vytvor scenár pre podcast (3 krátke epizódy) na tému '${this.lesson.title}'.`;
+                        promptData.userPrompt = translationService.t('prompts.podcast_gen', { title });
                         break;
                     case 'flashcards':
-                        promptData.userPrompt = `Vytvoř 10 studijních kartiček (pojem-definice) na téma '${this.lesson.title}'.`;
+                        promptData.userPrompt = translationService.t('prompts.flashcards_gen', { title });
                         break;
                     case 'mindmap':
-                        promptData.userPrompt = `Vytvoř hierarchickou mentální mapu (Mermaid JSON) na téma '${this.lesson.title}'.`;
+                        promptData.userPrompt = translationService.t('prompts.mindmap_gen', { title });
                         break;
                     case 'comic':
-                        promptData.userPrompt = `Vytvoř scénář komiksu (4 panely) na téma '${this.lesson.title}'. Pro každý panel detailně popiš scénu (description).`;
+                        promptData.userPrompt = translationService.t('prompts.comic_gen', { title });
                         break;
                 }
 
@@ -723,7 +726,7 @@ export class LessonEditor extends BaseView {
                                     .value="${this.lesson.subject || ''}"
                                     @input="${e => this.lesson = { ...this.lesson, subject: e.target.value }}"
                                     class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-semibold text-slate-800"
-                                    placeholder="Např. Dějepis">
+                                    placeholder="${translationService.t('professor.editor.subject_placeholder')}">
                                 <datalist id="subjects-list">
                                     ${this._availableSubjects.map(sub => html`<option value="${sub}"></option>`)}
                                 </datalist>

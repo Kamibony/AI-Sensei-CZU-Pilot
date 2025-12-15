@@ -186,6 +186,27 @@
       "saveChanges": "Salvar Alterações",
       "back": "Voltar",
       "title_required": "Título obrigatório",
+      "magic": {
+        "save_failed": "Falha ao salvar a lição antes de gerar.",
+        "finished": "Mágica concluída! Sucesso: {{success}}/{{total}}.",
+        "generating_status": "Gerando",
+        "generating_audio": "🎙️ Gerando áudio para podcast...",
+        "generating_images": "🎨 Gerando imagens para slides...",
+        "drawing_comic": "🖍️ Desenhando quadrinhos...",
+        "added_files": "Adicionado {{count}} arquivos da biblioteca."
+      },
+      "details": {
+         "title_placeholder": "Ex: Introdução à Química Orgânica",
+         "subtitle_placeholder": "Conceitos básicos e princípios",
+         "number_placeholder": "Ex: 101",
+         "groups_load_error": "Falha ao carregar turmas.",
+         "files_comp_error": "Erro: Falha ao carregar componente de seleção de arquivos.",
+         "no_classes": "Você ainda não criou nenhuma turma."
+      },
+      "ai": {
+        "presentation_topic_label": "Tópico da apresentação",
+        "prompt_placeholder": "Digite o prompt..."
+      },
       "post": {
         "contentLabel": "Conteúdo",
         "contentPlaceholder": "Escreva aqui...",
@@ -635,7 +656,9 @@
     "join_code_label": "Código",
     "copy_code_tooltip": "Copiar",
     "student_count_label": "alunos",
-    "loading": "Carregando..."
+    "loading": "Carregando...",
+    "name_placeholder": "Ex: 4.A Física",
+    "exists_error": "Já existe uma turma com este nome."
   },
   "students_view": {
     "title": "Alunos",
