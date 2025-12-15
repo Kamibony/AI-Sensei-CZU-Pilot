@@ -141,6 +141,13 @@ export class ProfessorApp extends LitElement {
     _handleNavigation(e) {
         const { view, ...data } = e.detail;
 
+        // If navigating to editor from sidebar (no data), explicitly pass a "force reset" object
+        // We cannot pass 'null' because if _currentData is already null, LitElement won't detect a change.
+        // By passing a new object { _forceReset: ... }, we ensure updated() is called in LessonEditor.
+        const effectiveData = (view === 'editor' && Object.keys(data).length === 0)
+            ? { _forceReset: Date.now() }
+            : data;
+
         let newHash = `#${view}`;
         const params = new URLSearchParams();
 
@@ -166,7 +173,7 @@ export class ProfessorApp extends LitElement {
             nav.currentView = view;
         }
 
-        this._showProfessorContent(view, data);
+        this._showProfessorContent(view, effectiveData);
     }
 
     _showProfessorContent(view, data = null) {

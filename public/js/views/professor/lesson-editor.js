@@ -69,17 +69,26 @@ export class LessonEditor extends BaseView {
 
   updated(changedProperties) {
     if (changedProperties.has('lesson')) {
-      if (this.lesson) {
-        this._selectedClassIds = this.lesson.assignedToGroups || [];
-        this._uploadedFiles = this.lesson.files || [];
-      } else {
-        this._selectedClassIds = [];
-        this._uploadedFiles = [];
-        // Only init if lesson is strictly undefined (not just during lit lifecycle updates)
-        if (changedProperties.get('lesson') !== undefined && this.lesson === undefined) {
-             this._initNewLesson();
+        const oldLesson = changedProperties.get('lesson');
+        const newLesson = this.lesson;
+
+        if (newLesson && newLesson.id) {
+            // Existing saved lesson
+            this._selectedClassIds = newLesson.assignedToGroups || [];
+            this._uploadedFiles = newLesson.files || [];
+            this._wizardMode = false;
+        } else {
+            // Check for explicit force reset (from sidebar navigation) or empty state
+            const isForceReset = newLesson && newLesson._forceReset;
+            const isIntentOrEmpty = !newLesson || !newLesson.createdAt;
+
+            if (isForceReset || isIntentOrEmpty) {
+                this._selectedClassIds = [];
+                this._uploadedFiles = [];
+                this._initNewLesson();
+            }
+            // If it has createdAt but no ID, it's a draft we are working on (state preserved), do nothing
         }
-      }
     }
   }
 
@@ -123,6 +132,9 @@ export class LessonEditor extends BaseView {
   }
 
   _initNewLesson() {
+      // Preserve intent if present in the "lesson" object (which might be just params)
+      const intent = this.lesson?.intent;
+
       this.lesson = {
           title: '',
           subject: '',
@@ -132,7 +144,8 @@ export class LessonEditor extends BaseView {
           assignedToGroups: [],
           status: 'draft',
           files: [],
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          intent: intent
       };
       this._wizardMode = true;
       this._activeTool = null;
@@ -233,9 +246,19 @@ export class LessonEditor extends BaseView {
 
   _handleBackClick() {
       if (this._activeTool) {
-          this._handleBackToHub();
+          this._handleBackToHub(); // Within a tool -> Go to Hub
           return;
       }
+      if (this._wizardMode) {
+          // If in Wizard (New Lesson) -> Go back to Dashboard (Cancel action)
+          this.dispatchEvent(new CustomEvent('navigate', {
+              detail: { view: 'dashboard' },
+              bubbles: true,
+              composed: true
+          }));
+          return;
+      }
+      // If in Hub (Editing existing) -> Go back to Library
       this.dispatchEvent(new CustomEvent('editor-exit', {
           detail: { view: 'library' },
           bubbles: true,
@@ -631,9 +654,11 @@ export class LessonEditor extends BaseView {
           showToast(translationService.t('professor.editor.title_required'), true);
           return;
       }
-      await this._handleSave();
+      await this._handleSave(); // Save base data
+
+      // Switch directly to HUB (where file upload exists)
       this._wizardMode = false;
-      this._activeTool = null; // Go to Hub
+      this._activeTool = null;
       this.requestUpdate();
   }
 
@@ -693,9 +718,9 @@ export class LessonEditor extends BaseView {
                 </div>
             ` : ''}
 
-            <div class="w-full max-w-3xl bg-white rounded-3xl shadow-xl flex flex-col max-h-[90vh] animate-fade-in-up">
+            <div class="w-full max-w-3xl bg-white rounded-3xl shadow-xl flex flex-col max-h-[90vh] animate-fade-in-up overflow-hidden">
 
-                <div class="bg-gradient-to-r from-indigo-600 to-violet-600 p-8 text-white relative overflow-hidden flex-shrink-0">
+                <div class="bg-gradient-to-r from-indigo-600 to-violet-600 p-8 text-white relative flex-shrink-0">
                     <button @click="${this._handleBackClick}" class="absolute left-4 top-4 p-2 text-indigo-200 hover:text-white hover:bg-white/10 rounded-full transition-colors">
                          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                     </button>
@@ -713,7 +738,7 @@ export class LessonEditor extends BaseView {
                                 ${translationService.t('professor.editor.title') || 'Název lekce'} <span class="text-red-500">*</span>
                             </label>
                             <input type="text"
-                                .value="${this.lesson.title}"
+                                .value="${this.lesson.title || ''}"
                                 @input="${e => this.lesson = { ...this.lesson, title: e.target.value }}"
                                 class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-lg font-semibold text-slate-800"
                                 placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder')}">

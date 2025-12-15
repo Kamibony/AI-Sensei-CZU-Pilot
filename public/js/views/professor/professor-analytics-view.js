@@ -228,9 +228,16 @@ export class ProfessorAnalyticsView extends Localized(LitElement) {
         }
         
         return html`
-            <div class="p-6 md:p-8">
-                <h2 class="text-3xl font-extrabold text-slate-800 mb-6">${this.t('analytics.title')}</h2>
-                ${content}
+            <div class="h-full flex flex-col bg-slate-50">
+                 <header class="bg-white p-6 border-b border-slate-200">
+                    <div>
+                        <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${this.t('analytics.title')}</h1>
+                        <p class="text-slate-500 mt-1 font-medium">${this.t('analytics.subtitle') || 'Přehled aktivity a výsledků studentů'}</p>
+                    </div>
+                </header>
+                <div class="flex-grow overflow-y-auto p-6 md:p-8">
+                    ${content}
+                </div>
             </div>
         `;
     }
