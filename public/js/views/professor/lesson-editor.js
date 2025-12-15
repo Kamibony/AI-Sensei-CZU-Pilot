@@ -133,7 +133,8 @@ export class LessonEditor extends BaseView {
 
   _initNewLesson() {
       // Preserve intent if present in the "lesson" object (which might be just params)
-      const intent = this.lesson?.intent;
+      // FIX: Ensure intent is never undefined (null fallback)
+      const intent = this.lesson?.intent || null;
 
       this.lesson = {
           title: '',
@@ -198,13 +199,18 @@ export class LessonEditor extends BaseView {
       const user = auth.currentUser;
       if (!user) throw new Error(translationService.t('media.login_required'));
 
+      // FIX: Sanitize data to remove undefined values before saving
       const lessonData = {
         ...this.lesson,
         assignedToGroups: this._selectedClassIds,
         files: this._uploadedFiles,
         updatedAt: new Date().toISOString(),
-        ownerId: user.uid
+        ownerId: user.uid,
+        intent: this.lesson.intent || null // Explicit fallback to null
       };
+
+      // Remove any keys with undefined values (Critical fix for Firestore crash)
+      Object.keys(lessonData).forEach(key => lessonData[key] === undefined && delete lessonData[key]);
 
       if (!lessonData.id) {
           lessonData.createdAt = new Date().toISOString();
@@ -234,6 +240,8 @@ export class LessonEditor extends BaseView {
     } catch (error) {
       console.error('Error saving lesson:', error);
       showToast(translationService.t('common.error'), true);
+      // Re-throw to stop subsequent actions (like Magic generation) if save fails
+      throw error;
     } finally {
       this.isSaving = false;
     }
@@ -289,7 +297,8 @@ export class LessonEditor extends BaseView {
           const user = auth.currentUser;
           if (!user) throw new Error(translationService.t('media.login_required'));
 
-          const courseId = this._selectedClassIds.length > 0 ? this._selectedClassIds[0] : 'main-course';
+          // FIX: Use lesson ID if available (which it should be in Hub)
+          const courseId = this.lesson?.id || (this._selectedClassIds.length > 0 ? this._selectedClassIds[0] : 'main-course');
 
           const uploadResult = await uploadMultipleFiles(files, courseId, (progress) => {
               console.log('Upload progress:', progress);
@@ -341,7 +350,7 @@ export class LessonEditor extends BaseView {
       const modal = document.getElementById('media-library-modal');
       if (!modal) return;
 
-      const courseId = this._selectedClassIds.length > 0 ? this._selectedClassIds[0] : 'main-course';
+      const courseId = this.lesson?.id || 'main-course';
       clearSelectedFiles();
       renderMediaLibraryFiles(courseId, "modal-media-list");
       modal.classList.remove('hidden');
@@ -415,6 +424,9 @@ export class LessonEditor extends BaseView {
       // 2. Bezpečné uloženie základu (potrebujeme ID pre názvy súborov)
       try {
           await this._handleSave();
+          // FIX: Okamžite prepnúť na Hub, aby užívateľ videl progres tam (a nie vo Wizarde)
+          this._wizardMode = false;
+          this.requestUpdate();
       } catch (e) {
           console.error("Save failed before magic:", e);
           showToast("Nepodařilo se uložit lekci před generováním.", true);
@@ -654,12 +666,16 @@ export class LessonEditor extends BaseView {
           showToast(translationService.t('professor.editor.title_required'), true);
           return;
       }
-      await this._handleSave(); // Save base data
-
-      // Switch directly to HUB (where file upload exists)
-      this._wizardMode = false;
-      this._activeTool = null;
-      this.requestUpdate();
+      
+      try {
+          await this._handleSave(); // Save base data
+          // Switch directly to HUB (where file upload exists)
+          this._wizardMode = false;
+          this._activeTool = null;
+          this.requestUpdate();
+      } catch (e) {
+          // Toast is already shown in _handleSave
+      }
   }
 
   async _handleMagicGeneration(e) {
@@ -759,7 +775,7 @@ export class LessonEditor extends BaseView {
                              <div>
                                 <label class="block text-sm font-bold text-slate-700 mb-2">${translationService.t('professor.editor.subtitle')}</label>
                                 <input type="text"
-                                    .value="${this.lesson.topic}"
+                                    .value="${this.lesson.topic || ''}"
                                     @input="${e => this.lesson = { ...this.lesson, topic: e.target.value }}"
                                     class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                                     placeholder="${translationService.t('professor.editor.subtitlePlaceholder')}">
@@ -767,7 +783,10 @@ export class LessonEditor extends BaseView {
                         </div>
                     </div>
 
-                    ${this._renderFilesSection()}
+                    <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl text-blue-700 text-sm flex items-center gap-3">
+                        <span class="text-xl">ℹ️</span>
+                        <p>Soubory a podklady pro AI budete moci nahrát v dalším kroku (v detailu lekce).</p>
+                    </div>
 
                     <div class="mt-8 pt-6 border-t border-slate-100 flex justify-end gap-4">
                         <button @click=${this._handleManualCreate} class="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors">
@@ -784,46 +803,8 @@ export class LessonEditor extends BaseView {
       `;
   }
 
-  _renderFilesSection() {
-      return html`
-        <div class="bg-slate-50 rounded-2xl p-6 border border-slate-100">
-             <div class="flex items-center justify-between mb-4">
-                <h3 class="font-bold text-slate-700 flex items-center gap-2">
-                    📚 ${translationService.t('professor.editor.filesAndRag')}
-                </h3>
-                 <div class="flex gap-2">
-                    <button @click="${this._handleOpenLibrary}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors">
-                        📂 ${translationService.t('common.files_library')}
-                    </button>
-                    <label class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
-                        📤 ${translationService.t('media.upload_title')}
-                        <input type="file" multiple accept=".pdf,.docx,.txt" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
-                    </label>
-                 </div>
-             </div>
-             ${this._uploadedFiles.length === 0 ? html`
-                <div class="text-center p-6 border-2 border-dashed border-slate-200 rounded-xl text-slate-400">
-                    <p class="text-sm">${translationService.t('common.files_rag_help')}</p>
-                </div>
-             ` : html`
-                <div class="space-y-2">
-                    ${this._uploadedFiles.map((file, index) => html`
-                        <div class="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                            <div class="flex items-center gap-3 overflow-hidden">
-                                <span class="text-red-500 bg-red-50 p-1.5 rounded-lg text-lg">📄</span>
-                                <span class="text-sm font-medium text-slate-700 truncate">${file.name}</span>
-                            </div>
-                            <button @click="${() => this._handleDeleteFile(index)}" class="text-slate-400 hover:text-red-500 p-1">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                            </button>
-                        </div>
-                    `)}
-                </div>
-             `}
-        </div>
-      `;
-  }
-
+  _renderFilesSection() { return html``; } // Deprecated for Wizard, kept for safety
+  
   _renderContentTypeOption(value, icon, label) {
       const isSelected = this.lesson.contentType === value;
       return html`
@@ -891,7 +872,7 @@ export class LessonEditor extends BaseView {
              <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
                 <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
                 <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('professor.editor.magic_generating_title') || 'AI Sensei kouzlí...'}</h2>
-                <p class="text-slate-500 mt-2">${translationService.t('professor.editor.magic_generating_desc') || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
+                <p class="text-slate-500 mt-2">${this._magicStatus || translationService.t('professor.editor.magic_generating_desc') || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
              </div>
           `;
       }
