@@ -109,10 +109,13 @@ export class LessonLibrary extends Localized(LitElement) {
 
     render() {
         return html`
-            <header class="p-4 border-b border-slate-200 flex-shrink-0 bg-slate-50 sticky top-0 z-10">
-                <h2 class="text-xl font-bold text-slate-800">${this.t('professor.lesson_library')}</h2>
+            <header class="p-6 border-b border-slate-200 flex-shrink-0 bg-white sticky top-0 z-10">
+                 <div class="w-full">
+                    <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${this.t('professor.lesson_library')}</h1>
+                    <p class="text-slate-500 mt-1 font-medium">${this.t('library.subtitle') || 'Správa vašeho výukového obsahu'}</p>
+                 </div>
             </header>
-            <div class="flex-grow overflow-y-auto p-4" id="lesson-list-container">
+            <div class="flex-grow overflow-y-auto p-6" id="lesson-list-container">
                 ${this.lessonsData.map(lesson => html`
                     <div class="lesson-bubble-wrapper group relative p-1" data-lesson-id="${lesson.id}">
                         <button class="${btnAddTimeline}" 

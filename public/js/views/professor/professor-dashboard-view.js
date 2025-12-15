@@ -171,7 +171,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                             
                             <div class="p-6 hover:bg-purple-50/50 transition-colors cursor-pointer group rounded-l-3xl"
-                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor' }, bubbles: true, composed: true }))}>
+                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', intent: 'magic' }, bubbles: true, composed: true }))}>
                                 <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-purple-200 mb-4 group-hover:scale-110 transition-transform">
                                     ✨
                                 </div>
@@ -180,7 +180,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                             </div>
 
                             <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
-                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', viewMode: 'settings' }, bubbles: true, composed: true }))}>
+                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', intent: 'manual' }, bubbles: true, composed: true }))}>
                                 <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-indigo-200 group-hover:text-indigo-600 transition-colors">
                                     📝
                                 </div>
