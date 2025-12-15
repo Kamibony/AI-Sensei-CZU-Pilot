@@ -98,6 +98,10 @@
     "saving_dots": "Salvando...",
     "no_description": "Sem descrição."
   },
+  "status": {
+    "published": "Publicado",
+    "draft": "Rascunho"
+  },
   "dashboard": {
     "greeting": "Bom dia",
     "subtitle": "Visão geral das atividades",
@@ -124,7 +128,7 @@
     "stats_lessons": "Lições",
     "new_lesson_card": "Nova Lição",
     "hub_title": "Visão Geral",
-    "hub_subtitle": "Selecione uma seção",
+    "hub_subtitle": "Conteúdo da Lição",
     "back_hub": "Voltar",
     "finish_publish": "Publicar",
     "save_section": "Salvar",
@@ -186,27 +190,7 @@
       "saveChanges": "Salvar Alterações",
       "back": "Voltar",
       "title_required": "Título obrigatório",
-      "magic": {
-        "save_failed": "Falha ao salvar a lição antes de gerar.",
-        "finished": "Mágica concluída! Sucesso: {{success}}/{{total}}.",
-        "generating_status": "Gerando",
-        "generating_audio": "🎙️ Gerando áudio para podcast...",
-        "generating_images": "🎨 Gerando imagens para slides...",
-        "drawing_comic": "🖍️ Desenhando quadrinhos...",
-        "added_files": "Adicionado {{count}} arquivos da biblioteca."
-      },
-      "details": {
-         "title_placeholder": "Ex: Introdução à Química Orgânica",
-         "subtitle_placeholder": "Conceitos básicos e princípios",
-         "number_placeholder": "Ex: 101",
-         "groups_load_error": "Falha ao carregar turmas.",
-         "files_comp_error": "Erro: Falha ao carregar componente de seleção de arquivos.",
-         "no_classes": "Você ainda não criou nenhuma turma."
-      },
-      "ai": {
-        "presentation_topic_label": "Tópico da apresentação",
-        "prompt_placeholder": "Digite o prompt..."
-      },
+      "magic_generator_desc": "Gere uma lição completa a partir de arquivos PDF.",
       "post": {
         "contentLabel": "Conteúdo",
         "contentPlaceholder": "Escreva aqui...",
@@ -270,11 +254,16 @@
       "placeholder": "Ex: Revolução Francesa",
       "slide_count": "Slides",
       "style": "Estilo:",
+      "style_label": "Estilo:",
       "style_default": "Padrão",
       "style_modern": "Moderno",
       "style_vibrant": "Vibrante",
       "untitled": "Sem título",
-      "export_error": "Erro exportação"
+      "export_error": "Erro exportação",
+      "ai_title": "Apresentação IA",
+      "ai_description": "Gere slides a partir de um tópico.",
+      "ai_placeholder": "Ex: Revolução Francesa",
+      "untitled_slide": "Sem título"
     },
     "video": {
       "url_label": "URL do YouTube",
@@ -298,7 +287,14 @@
       "script_placeholder": "[Alex]: Olá... \\n[Sarah]: Oi...",
       "toast_no_script": "Escreva o roteiro.",
       "toast_success": "Áudio gerado!",
-      "toast_error": "Erro geração"
+      "toast_error": "Erro geração",
+      "add_alex": "+ [Alex] (Homem)",
+      "add_sarah": "+ [Sarah] (Mulher)",
+      "download_mp3": "Baixar MP3",
+      "not_generated": "Áudio não gerado",
+      "error_no_script": "Escreva o roteiro.",
+      "success_generated": "Áudio gerado!",
+      "error_generation": "Erro ao gerar áudio: "
     },
     "test": {
       "paper_header": "Exame",
@@ -313,7 +309,12 @@
       "type_mc": "Múltipla Escolha",
       "question_placeholder": "Pergunta...",
       "option_placeholder": "Opção",
-      "add_question": "Adicionar"
+      "add_question": "Adicionar",
+      "subject": "Matéria",
+      "topic": "Tópico",
+      "questions_count": "Perguntas",
+      "question_type": "Tipo",
+      "delete_question": "Remover"
     },
     "mindmap": {
       "title": "Mapa Mental",
@@ -329,7 +330,8 @@
       "error_syntax": "Erro sintaxe",
       "status_current": "Atual",
       "reset_btn": "Recomeçar",
-      "confirm_reset": "Apagar mapa?"
+      "confirm_reset": "Apagar mapa?",
+      "confirm_reset_orig": "Apagar mapa?"
     },
     "comic": {
       "title": "Quadrinhos",
@@ -359,7 +361,14 @@
       "toast_missing_title": "Falta título.",
       "toast_success": "Gerado!",
       "toast_error": "Erro geração",
-      "toast_fail": "Falha processamento."
+      "toast_fail": "Falha processamento.",
+      "generate_ai_btn": "Gerar IA",
+      "add_card_btn": "Adicionar",
+      "empty_action": "Gerar cartões",
+      "error_no_title": "Falta título.",
+      "success_generated": "Gerado!",
+      "error_parse": "Falha processamento.",
+      "error_generation": "Erro geração: "
     },
     "ai": {
       "title": "Gerador IA",
@@ -383,7 +392,32 @@
       "alert_no_prompt": "Insira prompt ou tópico.",
       "alert_invalid_slides": "Número de slides inválido.",
       "alert_saved": "Lição criada com IA!",
-      "alert_error": "IA não retornou dados."
+      "alert_error": "IA não retornou dados.",
+      "rag_title": "Contexto (RAG)",
+      "rag_no_files": "Sem arquivos",
+      "rag_files_count": "arquivos",
+      "rag_warning_hallucination": "⚠️ Sem arquivos, IA pode alucinar.",
+      "rag_info": "Gerencie em 'Básico'.",
+      "alert_no_files_title": "AVISO: Sem arquivos RAG",
+      "alert_no_files_msg": "IA vai improvisar. Continuar?",
+      "alert_no_topic": "Insira o tópico.",
+      "delete_and_new": "e novo",
+      "thinking": "Pensando...",
+      "output_placeholder": "Conteúdo...",
+      "slide_n": "Slide",
+      "question_n": "Pergunta",
+      "episode_n": "Episódio",
+      "unknown_type": "Desconhecido",
+      "error_display": "Erro display: ",
+      "generate_audio_btn": "Gerar Áudio",
+      "save_first": "Salve primeiro",
+      "generating_audio": "Gerando áudio...",
+      "presentation_topic_label": "Tópico",
+      "new_lesson_title": "Nova Lição",
+      "success_created": "Sucesso!",
+      "error_saving": "Erro salvar: ",
+      "confirm_delete_content": "Excluir?",
+      "error_deleting": "Erro excluir."
     },
     "generate_presentation_first": "Gere a apresentação primeiro."
   },
@@ -656,9 +690,7 @@
     "join_code_label": "Código",
     "copy_code_tooltip": "Copiar",
     "student_count_label": "alunos",
-    "loading": "Carregando...",
-    "name_placeholder": "Ex: 4.A Física",
-    "exists_error": "Já existe uma turma com este nome."
+    "loading": "Carregando..."
   },
   "students_view": {
     "title": "Alunos",
