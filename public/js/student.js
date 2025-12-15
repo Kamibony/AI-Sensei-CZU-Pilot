@@ -53,6 +53,10 @@ class StudentDashboard extends LitElement {
         return this;
     }
 
+    t(key) {
+        return translationService.t(key);
+    }
+
     // --- Sledovanie zmeny jazyka ---
     connectedCallback() {
         super.connectedCallback();
@@ -136,37 +140,39 @@ class StudentDashboard extends LitElement {
         const t = (key) => translationService.t(key);
         return html`
             <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" @click="${(e) => { if(e.target === e.currentTarget) this._closeJoinClassModal(); }}">
-                <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up p-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-slate-900">${t('student.join_class')}</h3>
-                        <button @click="${this._closeJoinClassModal}" class="text-slate-400 hover:text-slate-600 transition-colors">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up p-8 text-center relative">
+
+                    <button @click="${this._closeJoinClassModal}" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors">
+                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+
+                    <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4">
+                        🚀
                     </div>
 
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-slate-700 mb-1">${t('student.code_placeholder')}</label>
+                    <h3 class="text-2xl font-bold text-slate-900 mb-2">${t('student.join_class')}</h3>
+                    <p class="text-slate-500 mb-6">${t('student.enter_code')}</p>
+
+                    <div class="mb-6">
                         <input
                             type="text"
                             .value="${this.joinCode}"
                             @input="${(e) => { this.joinCode = e.target.value; this.joinError = ''; }}"
                             @keypress="${(e) => e.key === 'Enter' && this._submitJoinClass()}"
-                            placeholder="${t('student.code_placeholder')}..."
-                            class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                            placeholder="CODE"
+                            class="w-full px-4 py-4 border-2 border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all text-center text-3xl font-bold tracking-[0.5em] uppercase placeholder:text-slate-300 placeholder:tracking-normal"
+                            maxlength="6"
                         >
-                        ${this.joinError ? html`<p class="text-red-500 text-sm mt-1">${this.joinError}</p>` : ''}
+                        ${this.joinError ? html`<p class="text-red-500 text-sm mt-2 font-medium bg-red-50 py-1 rounded-lg">${this.joinError}</p>` : ''}
                     </div>
 
-                    <div class="flex justify-end gap-3">
-                        <button @click="${this._closeJoinClassModal}" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium">
-                            ${t('common.cancel')}
-                        </button>
+                    <div class="flex justify-center gap-3">
                         <button
                             @click="${() => this._submitJoinClass()}"
                             ?disabled="${this.isJoining || !this.joinCode}"
-                            class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium flex items-center gap-2"
+                            class="w-full px-6 py-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
                         >
-                            ${this.isJoining ? html`<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>` : ''}
+                            ${this.isJoining ? html`<div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>` : ''}
                             ${t('student.join_btn')}
                         </button>
                     </div>
@@ -280,17 +286,61 @@ class StudentDashboard extends LitElement {
                 `;
             case 'dashboard':
             default:
-                // Prepojili sme to na komponent, aby sa zachovala "Rich" grafika a preklady
                 return html`
-                    <student-dashboard-view
-                        .user="${this.user}"
-                        @navigate="${(e) => {
-                            this.currentView = e.detail.view;
-                            if (e.detail.lessonId) {
-                                this.selectedLessonId = e.detail.lessonId;
-                            }
-                        }}">
-                    </student-dashboard-view>
+        <div class="space-y-6 animate-fade-in-up">
+            <div class="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-3xl p-8 text-white shadow-lg relative overflow-hidden">
+                <div class="relative z-10">
+                    <h2 class="text-3xl font-extrabold mb-2">
+                        ${this.t('student.dashboard.welcome')}, ${this.user.email.split('@')[0]}! 👋
+                    </h2>
+                    <p class="text-indigo-100 text-lg opacity-90">
+                        ${this.t('student.dashboard.welcome_subtitle') || 'Vítejte ve svém studijním centru.'}
+                    </p>
+                </div>
+                <div class="absolute right-0 top-0 h-full w-1/3 bg-white/10 transform skew-x-12 translate-x-12"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                <div @click="${() => this.isJoinModalOpen = true}"
+                     class="bg-white p-6 rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer border-2 border-dashed border-indigo-100 hover:border-indigo-300 group flex flex-col items-center justify-center text-center h-48">
+                    <div class="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-3xl mb-3 group-hover:scale-110 transition-transform">
+                        🚀
+                    </div>
+                    <h3 class="font-bold text-slate-800 text-lg">${this.t('student.join_class')}</h3>
+                    <p class="text-sm text-slate-500 mt-1">${this.t('student.enter_code')}</p>
+                </div>
+
+                <div @click="${() => this.currentView = 'classes'}"
+                     class="bg-white p-6 rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer border border-slate-100 group relative overflow-hidden h-48">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                    <div class="relative z-10 flex flex-col h-full justify-between">
+                        <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-2xl">
+                            📚
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-lg">${this.t('student.classes_card_title')}</h3>
+                            <p class="text-sm text-slate-500">${this.t('student.classes_card_desc')}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div @click="${() => this.currentView = 'lessons'}"
+                     class="bg-white p-6 rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer border border-slate-100 group relative overflow-hidden h-48">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                    <div class="relative z-10 flex flex-col h-full justify-between">
+                        <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl">
+                            🎓
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-lg">${this.t('student.lessons_card_title')}</h3>
+                            <p class="text-sm text-slate-500">${this.t('student.lessons_card_desc')}</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
                 `;
         }
     }
