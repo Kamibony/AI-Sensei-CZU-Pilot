@@ -343,7 +343,7 @@ export class LessonEditor extends BaseView {
                    this._uploadedFiles = [...this._uploadedFiles, ...uniqueNewFiles];
                    this.lesson = { ...this.lesson, files: this._uploadedFiles };
                    if(this.lesson.title) await this._handleSave();
-                   showToast(`Pridáno ${uniqueNewFiles.length} souborů z knihovny.`);
+                   showToast(translationService.t('professor.editor.library_files_added', { count: uniqueNewFiles.length }) || `Pridáno ${uniqueNewFiles.length} souborů z knihovny.`);
                }
           }
           close();
@@ -471,7 +471,7 @@ export class LessonEditor extends BaseView {
 
                 // 1. PODCAST AUDIO (Sekvenčné)
                 if (type === 'post' && data.podcast_series && data.podcast_series.episodes) {
-                    this._magicStatus = `🎙️ Generuji audio pro podcast...`;
+                    this._magicStatus = `🎙️ ${translationService.t('professor.editor.generating_audio') || 'Generating audio...'}`;
                     this.requestUpdate();
                     
                     const generateAudioFunc = httpsCallable(functions, 'generatePodcastAudio');
@@ -504,7 +504,7 @@ export class LessonEditor extends BaseView {
 
                 // 2. PREZENTÁCIA OBRÁZKY (Sekvenčné + Upload)
                 if (type === 'presentation' && data.slides) {
-                    this._magicStatus = `🎨 Generuji obrázky pro slidy...`;
+                    this._magicStatus = `🎨 ${translationService.t('professor.editor.generating_images') || 'Generating images...'}`;
                     this.requestUpdate();
 
                     for (const [index, slide] of data.slides.entries()) {
@@ -537,7 +537,7 @@ export class LessonEditor extends BaseView {
 
                 // 3. KOMIKS OBRÁZKY (Sekvenčné + Upload)
                 if (type === 'comic' && data.panels) {
-                    this._magicStatus = `🖍️ Kreslím komiks...`;
+                    this._magicStatus = `🖍️ ${translationService.t('professor.editor.generating_comic') || 'Drawing comic...'}`;
                     this.requestUpdate();
 
                     for (const [index, panel] of data.panels.entries()) {
@@ -610,8 +610,8 @@ export class LessonEditor extends BaseView {
           }
 
           // Hotovo
-          const msg = `Magie dokončena! Úspěch: ${successCount}/${types.length}.` +
-                      (failedTypes.length ? ` Chyby: ${failedTypes.join(', ')}` : '');
+          const msg = `${translationService.t('lesson.magic_done_stats', { success: successCount, total: types.length }) || `Magic done! Success: ${successCount}/${types.length}.`}` +
+                      (failedTypes.length ? ` ${translationService.t('common.errors') || 'Errors'}: ${failedTypes.join(', ')}` : '');
           showToast(msg, failedTypes.length > 0);
 
       } catch (fatalError) {
@@ -671,8 +671,8 @@ export class LessonEditor extends BaseView {
           return html`
              <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
                 <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ AI Sensei kouzlí...</h2>
-                <p class="text-slate-500 mt-2">${this._magicStatus || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
+                <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('professor.editor.magic_generating_title') || 'AI Sensei kouzlí...'}</h2>
+                <p class="text-slate-500 mt-2">${this._magicStatus || translationService.t('professor.editor.magic_generating_desc') || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
              </div>
           `;
       }
@@ -865,8 +865,8 @@ export class LessonEditor extends BaseView {
           return html`
              <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
                 <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ AI Sensei kouzlí...</h2>
-                <p class="text-slate-500 mt-2">Generuji veškerý obsah lekce. Může to chvíli trvat.</p>
+                <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('professor.editor.magic_generating_title') || 'AI Sensei kouzlí...'}</h2>
+                <p class="text-slate-500 mt-2">${translationService.t('professor.editor.magic_generating_desc') || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
              </div>
           `;
       }
@@ -921,7 +921,7 @@ export class LessonEditor extends BaseView {
 
             ${hasContent ? html`
                 <div class="absolute top-3 right-3 text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                    Hotovo
+                    ${translationService.t('common.done') || 'Hotovo'}
                 </div>
             ` : nothing}
 
@@ -961,9 +961,9 @@ export class LessonEditor extends BaseView {
                          placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder')}">
 
                    <div class="flex gap-2 text-xs text-slate-500 mt-1">
-                        <span>${this.lesson.subject || 'Bez předmětu'}</span>
+                        <span>${this.lesson.subject || translationService.t('common.no_subject') || 'Bez předmětu'}</span>
                         <span>•</span>
-                        <span>${this.lesson.topic || 'Bez tématu'}</span>
+                        <span>${this.lesson.topic || translationService.t('common.no_topic') || 'Bez tématu'}</span>
                    </div>
               </div>
             </div>
