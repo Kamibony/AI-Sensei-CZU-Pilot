@@ -73,10 +73,22 @@ export class LessonEditor extends BaseView {
         const newLesson = this.lesson;
 
         if (newLesson && newLesson.id) {
-            // Existing saved lesson
+            // Existing logic to sync state
             this._selectedClassIds = newLesson.assignedToGroups || [];
             this._uploadedFiles = newLesson.files || [];
-            this._wizardMode = false;
+
+            // --- FIX START ---
+            // Detect if this is a transition from a fresh draft (no ID) to a saved draft (has ID)
+            // If oldLesson existed but had NO id, it means we just created/saved it in this session.
+            const wasDraft = oldLesson && !oldLesson.id;
+
+            // Only switch out of Wizard mode if we are NOT coming from a draft creation flow.
+            // If we loaded this from the dashboard (oldLesson is undefined), !wasDraft is true -> Switch to Hub.
+            // If we just uploaded a file (oldLesson had no ID), !wasDraft is false -> Stay in Wizard.
+            if (!wasDraft) {
+                this._wizardMode = false;
+            }
+            // --- FIX END ---
         } else {
             // Check for explicit force reset (from sidebar navigation) or empty state
             const isForceReset = newLesson && newLesson._forceReset;
