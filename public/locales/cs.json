@@ -654,9 +654,11 @@
     "join_btn": "Připojit se",
     "cancel_btn": "Zrušit",
     "class_not_found": "Třída s tímto kódem nebyla nalezena",
+    "continue_lesson": "Pokračovat",
     "dashboard": {
         "title": "Studentský portál",
         "welcome": "Vítejte zpět",
+        "days_in_row": "dní v řadě",
         "activeLessons": "Aktivní lekce",
         "noActiveLessons": "Žádné aktivní lekce",
         "waiting": "Čeká na odemčení",

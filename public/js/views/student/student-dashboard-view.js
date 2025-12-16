@@ -401,22 +401,22 @@ class StudentDashboard extends Localized(LitElement) {
                                 ▶️
                             </div>
                             <div>
-                                <h3 class="font-bold text-slate-800 text-lg">${this.t('student.continue_lesson') || 'Pokračovat v lekci'}</h3>
+                                <h3 class="font-bold text-slate-800 text-lg">${this.t('student.continue_lesson') || 'Pokračovat'}</h3>
                                 <p class="text-sm text-slate-500 font-medium truncate" title="${this.lastLesson.title}">${this.lastLesson.title}</p>
                             </div>
                         </div>
                     </div>
                 ` : html`
                     <div @click="${() => this.currentView = 'lessons'}"
-                         class="bg-white p-6 rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer border border-slate-100 group relative overflow-hidden h-48">
+                         class="bg-white p-6 rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer border border-slate-100 group relative overflow-hidden h-48 ring-2 ring-transparent hover:ring-indigo-100">
                         <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
                         <div class="relative z-10 flex flex-col h-full justify-between">
-                            <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl">
-                                🎓
+                            <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl pl-1">
+                                ▶️
                             </div>
                             <div>
-                                <h3 class="font-bold text-slate-800 text-lg">${this.t('student.lessons_card_title')}</h3>
-                                <p class="text-sm text-slate-500">${this.t('student.lessons_card_desc')}</p>
+                                <h3 class="font-bold text-slate-800 text-lg">${this.t('student.continue_lesson') || 'Pokračovat'}</h3>
+                                <p class="text-sm text-slate-500">${this.t('student.lessons_card_desc') || 'Přejít na seznam lekcí'}</p>
                             </div>
                         </div>
                     </div>
