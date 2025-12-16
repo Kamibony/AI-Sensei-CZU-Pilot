@@ -82,10 +82,13 @@ export class LessonEditor extends BaseView {
             // If oldLesson existed but had NO id, it means we just created/saved it in this session.
             const wasDraft = oldLesson && !oldLesson.id;
 
-            // Only switch out of Wizard mode if we are NOT coming from a draft creation flow.
-            // If we loaded this from the dashboard (oldLesson is undefined), !wasDraft is true -> Switch to Hub.
-            // If we just uploaded a file (oldLesson had no ID), !wasDraft is false -> Stay in Wizard.
-            if (!wasDraft) {
+            // Check if we are just updating the same lesson (e.g. adding files, changing title)
+            const isSameLesson = oldLesson && newLesson && oldLesson.id === newLesson.id;
+
+            // Only switch out of Wizard mode if:
+            // 1. We are NOT coming from a draft creation flow (!wasDraft)
+            // 2. AND we are NOT just updating the current lesson state (!isSameLesson)
+            if (!wasDraft && !isSameLesson) {
                 this._wizardMode = false;
             }
             // --- FIX END ---
@@ -822,7 +825,6 @@ export class LessonEditor extends BaseView {
                         </div>
                     </div>
 
-                    <!-- 1. Re-implement File Management in Wizard -->
                     <div class="bg-slate-50 border border-slate-200 rounded-xl p-6 mt-6">
                         <div class="flex items-center justify-between mb-4">
                             <div>
