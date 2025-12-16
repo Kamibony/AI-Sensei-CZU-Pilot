@@ -146,7 +146,7 @@ export class LessonEditor extends BaseView {
           status: 'draft',
           files: [],
           createdAt: new Date().toISOString(),
-          intent: intent
+          intent: intent || null
       };
       this._wizardMode = true;
       this._activeTool = null;
@@ -316,8 +316,9 @@ export class LessonEditor extends BaseView {
           const user = auth.currentUser;
           if (!user) throw new Error(translationService.t('media.login_required'));
 
-          // FIX: Use lesson ID if available (which it should be in Hub)
-          const courseId = this.lesson?.id || (this._selectedClassIds.length > 0 ? this._selectedClassIds[0] : 'main-course');
+          // FIX: Use user.uid instead of lesson.id to match storage.rules requirement (request.auth.uid == courseId)
+          // This ensures files are stored in the professor's personal folder: /courses/{UID}/media/...
+          const courseId = user.uid;
 
           const uploadResult = await uploadMultipleFiles(files, courseId, (progress) => {
               console.log('Upload progress:', progress);
@@ -369,7 +370,8 @@ export class LessonEditor extends BaseView {
       const modal = document.getElementById('media-library-modal');
       if (!modal) return;
 
-      const courseId = this.lesson?.id || 'main-course';
+      const user = auth.currentUser;
+      const courseId = user ? user.uid : 'main-course'; // Updated to use User UID for consistency
       clearSelectedFiles();
       renderMediaLibraryFiles(courseId, "modal-media-list");
       modal.classList.remove('hidden');
@@ -441,18 +443,10 @@ export class LessonEditor extends BaseView {
       // Získame cesty k RAG súborom
       const filePaths = this._uploadedFiles ? this._uploadedFiles.map(f => f.storagePath).filter(Boolean) : [];
 
-      // CHECK: If no files, save and redirect to Hub to upload files
-      if (filePaths.length === 0) {
-          try {
-              await this._handleSave();
-              this._wizardMode = false; // Switch to Hub
-              this.requestUpdate();
-              showToast("Pro generování obsahu prosím nejprve nahrajte soubory v detailu lekce.", false);
-              return;
-          } catch (e) {
-               console.error("Save failed before file check:", e);
-               return;
-          }
+      // CHECK: If no files, STOP. Do not proceed to save or generate.
+      if (this._uploadedFiles.length === 0) {
+          showToast("Pro magii musíte nahrát soubory", true);
+          return;
       }
 
       this._isLoading = true;
