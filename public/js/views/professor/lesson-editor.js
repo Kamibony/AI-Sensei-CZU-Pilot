@@ -292,6 +292,25 @@ export class LessonEditor extends BaseView {
       const files = Array.from(e.target.files);
       if (files.length === 0) return;
 
+      // FIX: Ensure title is present before allowing upload (required for auto-save)
+      if (!this.lesson.title) {
+          showToast(translationService.t('professor.editor.title_required'), true);
+          e.target.value = ''; // Clear input
+          return;
+      }
+
+      // FIX: Auto-save if lesson doesn't exist yet to ensure files are linked to a lesson ID
+      if (!this.lesson.id) {
+          showToast("Zakládám koncept lekce...", false);
+          try {
+              await this._handleSave();
+          } catch (err) {
+              console.error("Auto-save failed before upload", err);
+              e.target.value = '';
+              return;
+          }
+      }
+
       this._uploading = true;
       try {
           const user = auth.currentUser;
@@ -797,18 +816,72 @@ export class LessonEditor extends BaseView {
                         </div>
                     </div>
 
-                    <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl text-blue-700 text-sm flex items-center gap-3">
-                        <span class="text-xl">ℹ️</span>
-                        <p>Soubory a podklady pro AI budete moci nahrát v dalším kroku (v detailu lekce).</p>
+                    <!-- 1. Re-implement File Management in Wizard -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-6 mt-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="font-bold text-slate-800 text-lg">📂 ${translationService.t('professor.editor.context_files') || 'Podklady pro AI'}</h3>
+                                <p class="text-slate-500 text-sm">Nahrajte PDF, DOCX nebo TXT soubory, ze kterých má AI čerpat.</p>
+                            </div>
+                            <div class="flex gap-2">
+                                 <button @click="${this._handleOpenLibrary}" class="px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-100 text-sm font-semibold transition-colors">
+                                    Knihovna
+                                 </button>
+                                 <label class="px-3 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg cursor-pointer hover:bg-indigo-100 text-sm font-bold transition-colors flex items-center gap-2">
+                                    <span>📤 Nahrát</span>
+                                    <input type="file" multiple accept=".pdf,.docx,.txt" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
+                                 </label>
+                            </div>
+                        </div>
+
+                        ${this._uploading ? html`
+                            <div class="flex items-center justify-center p-4 text-indigo-600">
+                                <div class="spinner w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mr-3"></div>
+                                <span class="text-sm font-medium">Nahrávám soubory...</span>
+                            </div>
+                        ` : ''}
+
+                        ${this._uploadedFiles.length > 0 ? html`
+                            <div class="space-y-2 mt-4">
+                                ${this._uploadedFiles.map((file, index) => html`
+                                    <div class="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                                        <div class="flex items-center gap-3 overflow-hidden">
+                                            <span class="text-xl">📄</span>
+                                            <div class="flex flex-col min-w-0">
+                                                <span class="text-sm font-semibold text-slate-700 truncate">${file.name}</span>
+                                                <span class="text-xs text-slate-400">Připraveno pro AI</span>
+                                            </div>
+                                        </div>
+                                        <button @click="${() => this._handleDeleteFile(index)}" class="p-1 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                        </button>
+                                    </div>
+                                `)}
+                            </div>
+                        ` : html`
+                            <div class="text-center py-8 border-2 border-dashed border-slate-200 rounded-lg">
+                                <p class="text-slate-400 text-sm">Zatím žádné soubory. <br>Nahrajte podklady pro "Magické generování".</p>
+                            </div>
+                        `}
                     </div>
 
                     <div class="mt-8 pt-6 border-t border-slate-100 flex justify-end gap-4">
                         <button @click=${this._handleManualCreate} class="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors">
                            🛠️ ${translationService.t('professor.manual_create')}
                         </button>
-                        <button @click=${this._handleAutoMagic} class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">
-                           ✨ ${translationService.t('lesson.magic_btn')}
-                        </button>
+
+                        <div class="relative group">
+                            <button @click=${this._handleAutoMagic}
+                                    ?disabled="${this._uploadedFiles.length === 0}"
+                                    class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:transform-none">
+                               ✨ ${translationService.t('lesson.magic_btn')}
+                            </button>
+                             ${this._uploadedFiles.length === 0 ? html`
+                                <div class="absolute bottom-full right-0 mb-2 w-64 p-2 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-center z-50">
+                                    Pro magické generování musíte nahrát alespoň jeden soubor.
+                                </div>
+                            ` : ''}
+                        </div>
                     </div>
 
                 </div>
