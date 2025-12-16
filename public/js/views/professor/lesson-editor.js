@@ -30,7 +30,6 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // --- HELPER: Deep Sanitize pre Firestore ---
 // Firestore neakceptuje 'undefined' (musí byť null alebo vynechané).
-// Táto funkcia rekurzívne prejde objekt a odstráni kľúče s undefined.
 function deepSanitize(obj) {
     if (obj === undefined) return null;
     if (obj === null || typeof obj !== 'object') return obj;
@@ -47,6 +46,20 @@ function deepSanitize(obj) {
         }
     }
     return newObj;
+}
+
+// --- HELPER: Retry Logic pre AI volania ---
+// Ak AI zlyhá (sieť, 500 error), skúsi to znova (max 3 pokusy)
+async function callWithRetry(fn, args = [], retries = 3, delayTime = 2000) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn(...args);
+        } catch (error) {
+            console.warn(`Attempt ${i + 1} failed:`, error);
+            if (i === retries - 1) throw error; // Ak je to posledný pokus, vyhoď chybu
+            await delay(delayTime);
+        }
+    }
 }
 
 export class LessonEditor extends BaseView {
@@ -231,7 +244,6 @@ export class LessonEditor extends BaseView {
       };
 
       // --- FIX: DEEP SANITIZATION ---
-      // Toto odstráni všetky 'undefined' z celej štruktúry objektu
       lessonData = deepSanitize(lessonData);
 
       if (!lessonData.id) {
@@ -569,7 +581,8 @@ export class LessonEditor extends BaseView {
                     for (const [index, slide] of data.slides.entries()) {
                         if (slide.visual_idea) {
                             try {
-                                const imgResult = await callGenerateImage(slide.visual_idea);
+                                // --- FIX: RETRY LOGIC PRE IMAGEN ---
+                                const imgResult = await callWithRetry(callGenerateImage, [slide.visual_idea], 3);
                                 const base64Data = imgResult.imageBase64 || imgResult;
 
                                 if (base64Data && typeof base64Data === 'string' && base64Data.length > 100) {
@@ -578,15 +591,13 @@ export class LessonEditor extends BaseView {
 
                                      const url = await this._uploadBase64Image(base64Data, storagePath);
                                      
-                                     // --- FIX: OPRAVA UNDEFINED PRIRADENIA ---
-                                     // Predtým: backgroundImage: undefined -> CHYBA
                                      const newSlide = { ...slide, imageUrl: url };
-                                     if ('backgroundImage' in newSlide) delete newSlide.backgroundImage; // Bezpečné zmazanie
+                                     if ('backgroundImage' in newSlide) delete newSlide.backgroundImage; 
 
                                      data.slides[index] = newSlide;
                                 }
                             } catch (err) {
-                                console.warn(`[AutoMagic] Image gen failed for slide ${index}:`, err);
+                                console.warn(`[AutoMagic] Image gen failed for slide ${index} after retries:`, err);
                             }
                             await delay(2000);
                         }
@@ -600,7 +611,8 @@ export class LessonEditor extends BaseView {
                     for (const [index, panel] of data.panels.entries()) {
                          if (panel.description) {
                             try {
-                                const imgResult = await callGenerateImage(`Comic book style, ${panel.description}`);
+                                // --- FIX: RETRY LOGIC PRE IMAGEN ---
+                                const imgResult = await callWithRetry(callGenerateImage, [`Comic book style, ${panel.description}`], 3);
                                 const base64Data = imgResult.imageBase64 || imgResult;
 
                                 if (base64Data && typeof base64Data === 'string') {
@@ -615,7 +627,7 @@ export class LessonEditor extends BaseView {
                                      };
                                 }
                             } catch (err) {
-                                console.warn(`[AutoMagic] Comic gen failed for panel ${index}:`, err);
+                                console.warn(`[AutoMagic] Comic gen failed for panel ${index} after retries:`, err);
                             }
                             await delay(2000);
                          }
