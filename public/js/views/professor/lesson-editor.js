@@ -29,7 +29,6 @@ import { renderMediaLibraryFiles, getSelectedFiles, clearSelectedFiles } from '.
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // --- HELPER: Deep Sanitize pre Firestore ---
-// Firestore neakceptuje 'undefined' (musí byť null alebo vynechané).
 function deepSanitize(obj) {
     if (obj === undefined) return null;
     if (obj === null || typeof obj !== 'object') return obj;
@@ -49,14 +48,18 @@ function deepSanitize(obj) {
 }
 
 // --- HELPER: Retry Logic pre AI volania ---
-// Ak AI zlyhá (sieť, 500 error), skúsi to znova (max 3 pokusy)
 async function callWithRetry(fn, args = [], retries = 3, delayTime = 2000) {
     for (let i = 0; i < retries; i++) {
         try {
             return await fn(...args);
         } catch (error) {
+            // Ak je chyba "Safety filter" (INVALID_ARGUMENT), nemá zmysel opakovať ten istý prompt -> vyhoď chybu ihneď
+            if (error.message && (error.message.includes('INVALID_ARGUMENT') || error.message.includes('safety'))) {
+                throw error;
+            }
+            
             console.warn(`Attempt ${i + 1} failed:`, error);
-            if (i === retries - 1) throw error; // Ak je to posledný pokus, vyhoď chybu
+            if (i === retries - 1) throw error;
             await delay(delayTime);
         }
     }
@@ -109,11 +112,9 @@ export class LessonEditor extends BaseView {
             this._selectedClassIds = newLesson.assignedToGroups || [];
             this._uploadedFiles = newLesson.files || [];
 
-            // --- FIX LOGIC PRE WIZARD MODE ---
             const wasDraft = oldLesson && !oldLesson.id;
             const isSameLesson = oldLesson && newLesson && oldLesson.id === newLesson.id;
 
-            // Prepni z Wizardu len ak to nie je práve vytvorený draft a nie je to update tej istej lekcie
             if (!wasDraft && !isSameLesson) {
                 this._wizardMode = false;
             }
@@ -243,7 +244,6 @@ export class LessonEditor extends BaseView {
         intent: this.lesson.intent || null
       };
 
-      // --- FIX: DEEP SANITIZATION ---
       lessonData = deepSanitize(lessonData);
 
       if (!lessonData.id) {
@@ -580,24 +580,37 @@ export class LessonEditor extends BaseView {
 
                     for (const [index, slide] of data.slides.entries()) {
                         if (slide.visual_idea) {
+                            let base64Data = null;
                             try {
-                                // --- FIX: RETRY LOGIC PRE IMAGEN ---
+                                // Pokus 1: Pôvodný prompt z AI (s retry pre chyby siete)
                                 const imgResult = await callWithRetry(callGenerateImage, [slide.visual_idea], 3);
-                                const base64Data = imgResult.imageBase64 || imgResult;
-
-                                if (base64Data && typeof base64Data === 'string' && base64Data.length > 100) {
-                                     const fileName = `slide_${Date.now()}_${index}.png`;
-                                     const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
-
-                                     const url = await this._uploadBase64Image(base64Data, storagePath);
-                                     
-                                     const newSlide = { ...slide, imageUrl: url };
-                                     if ('backgroundImage' in newSlide) delete newSlide.backgroundImage; 
-
-                                     data.slides[index] = newSlide;
-                                }
+                                base64Data = imgResult.imageBase64 || imgResult;
                             } catch (err) {
-                                console.warn(`[AutoMagic] Image gen failed for slide ${index} after retries:`, err);
+                                // SAFETY FALLBACK: Ak zlyhá na obsahu (INVALID_ARGUMENT), skúsime neutrálny prompt
+                                if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
+                                    console.warn(`[AutoMagic] Safety filter triggered for slide ${index}. Trying fallback...`);
+                                    try {
+                                        const safePrompt = `Educational illustration related to topic: ${this.lesson.title}, minimalist, abstract, safe content`;
+                                        const imgResult = await callGenerateImage(safePrompt);
+                                        base64Data = imgResult.imageBase64 || imgResult;
+                                    } catch (fallbackErr) {
+                                        console.warn(`[AutoMagic] Fallback image failed for slide ${index}`, fallbackErr);
+                                    }
+                                } else {
+                                     console.warn(`[AutoMagic] Image gen failed for slide ${index}:`, err);
+                                }
+                            }
+
+                            if (base64Data && typeof base64Data === 'string' && base64Data.length > 100) {
+                                 const fileName = `slide_${Date.now()}_${index}.png`;
+                                 const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
+
+                                 const url = await this._uploadBase64Image(base64Data, storagePath);
+                                 
+                                 const newSlide = { ...slide, imageUrl: url };
+                                 if ('backgroundImage' in newSlide) delete newSlide.backgroundImage; 
+
+                                 data.slides[index] = newSlide;
                             }
                             await delay(2000);
                         }
@@ -610,24 +623,36 @@ export class LessonEditor extends BaseView {
 
                     for (const [index, panel] of data.panels.entries()) {
                          if (panel.description) {
+                            let base64Data = null;
                             try {
-                                // --- FIX: RETRY LOGIC PRE IMAGEN ---
                                 const imgResult = await callWithRetry(callGenerateImage, [`Comic book style, ${panel.description}`], 3);
-                                const base64Data = imgResult.imageBase64 || imgResult;
-
-                                if (base64Data && typeof base64Data === 'string') {
-                                     const fileName = `comic_${Date.now()}_${index}.png`;
-                                     const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
-
-                                     const url = await this._uploadBase64Image(base64Data, storagePath);
-
-                                     data.panels[index] = {
-                                         ...panel,
-                                         imageUrl: url
-                                     };
-                                }
+                                base64Data = imgResult.imageBase64 || imgResult;
                             } catch (err) {
-                                console.warn(`[AutoMagic] Comic gen failed for panel ${index} after retries:`, err);
+                                // SAFETY FALLBACK
+                                if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
+                                    console.warn(`[AutoMagic] Safety filter triggered for comic panel ${index}. Trying fallback...`);
+                                    try {
+                                        const safePrompt = `Comic book panel, educational scene about ${this.lesson.title}, safe content`;
+                                        const imgResult = await callGenerateImage(safePrompt);
+                                        base64Data = imgResult.imageBase64 || imgResult;
+                                    } catch (fallbackErr) {
+                                        console.warn(`[AutoMagic] Fallback comic failed for panel ${index}`, fallbackErr);
+                                    }
+                                } else {
+                                     console.warn(`[AutoMagic] Comic gen failed for panel ${index}:`, err);
+                                }
+                            }
+
+                            if (base64Data && typeof base64Data === 'string') {
+                                 const fileName = `comic_${Date.now()}_${index}.png`;
+                                 const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
+
+                                 const url = await this._uploadBase64Image(base64Data, storagePath);
+
+                                 data.panels[index] = {
+                                     ...panel,
+                                     imageUrl: url
+                                 };
                             }
                             await delay(2000);
                          }
