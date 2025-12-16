@@ -5,7 +5,6 @@ import { ref, getDownloadURL, uploadString } from "https://www.gstatic.com/fireb
 import { db, auth, functions, storage } from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-// OPRAVENÝ IMPORT (používame utils verziu)
 import { translationService } from '../../utils/translation-service.js';
 import { callGenerateContent, callGenerateImage } from '../../gemini-api.js';
 
@@ -28,6 +27,27 @@ import { processFileForRAG, uploadMultipleFiles, uploadSingleFile } from '../../
 import { renderMediaLibraryFiles, getSelectedFiles, clearSelectedFiles } from '../../upload-handler.js';
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// --- HELPER: Deep Sanitize pre Firestore ---
+// Firestore neakceptuje 'undefined' (musí byť null alebo vynechané).
+// Táto funkcia rekurzívne prejde objekt a odstráni kľúče s undefined.
+function deepSanitize(obj) {
+    if (obj === undefined) return null;
+    if (obj === null || typeof obj !== 'object') return obj;
+
+    if (Array.isArray(obj)) {
+        return obj.map(deepSanitize);
+    }
+
+    const newObj = {};
+    for (const key in obj) {
+        const val = deepSanitize(obj[key]);
+        if (val !== undefined) {
+            newObj[key] = val;
+        }
+    }
+    return newObj;
+}
 
 export class LessonEditor extends BaseView {
   static properties = {
@@ -73,27 +93,18 @@ export class LessonEditor extends BaseView {
         const newLesson = this.lesson;
 
         if (newLesson && newLesson.id) {
-            // Existing logic to sync state
             this._selectedClassIds = newLesson.assignedToGroups || [];
             this._uploadedFiles = newLesson.files || [];
 
-            // --- FIX START ---
-            // Detect if this is a transition from a fresh draft (no ID) to a saved draft (has ID)
-            // If oldLesson existed but had NO id, it means we just created/saved it in this session.
+            // --- FIX LOGIC PRE WIZARD MODE ---
             const wasDraft = oldLesson && !oldLesson.id;
-
-            // Check if we are just updating the same lesson (e.g. adding files, changing title)
             const isSameLesson = oldLesson && newLesson && oldLesson.id === newLesson.id;
 
-            // Only switch out of Wizard mode if:
-            // 1. We are NOT coming from a draft creation flow (!wasDraft)
-            // 2. AND we are NOT just updating the current lesson state (!isSameLesson)
+            // Prepni z Wizardu len ak to nie je práve vytvorený draft a nie je to update tej istej lekcie
             if (!wasDraft && !isSameLesson) {
                 this._wizardMode = false;
             }
-            // --- FIX END ---
         } else {
-            // Check for explicit force reset (from sidebar navigation) or empty state
             const isForceReset = newLesson && newLesson._forceReset;
             const isIntentOrEmpty = !newLesson || !newLesson.createdAt;
 
@@ -102,7 +113,6 @@ export class LessonEditor extends BaseView {
                 this._uploadedFiles = [];
                 this._initNewLesson();
             }
-            // If it has createdAt but no ID, it's a draft we are working on (state preserved), do nothing
         }
     }
   }
@@ -127,7 +137,6 @@ export class LessonEditor extends BaseView {
       if (!this.lesson) {
           this._initNewLesson();
       } else if (this.lesson.id) {
-          // If we have an existing lesson, start in Hub mode
           this._wizardMode = false;
       }
   }
@@ -147,8 +156,6 @@ export class LessonEditor extends BaseView {
   }
 
   _initNewLesson() {
-      // Preserve intent if present in the "lesson" object (which might be just params)
-      // FIX: Ensure intent is never undefined (null fallback)
       const intent = this.lesson?.intent || null;
 
       this.lesson = {
@@ -214,18 +221,18 @@ export class LessonEditor extends BaseView {
       const user = auth.currentUser;
       if (!user) throw new Error(translationService.t('media.login_required'));
 
-      // FIX: Sanitize data to remove undefined values before saving
-      const lessonData = {
+      let lessonData = {
         ...this.lesson,
         assignedToGroups: this._selectedClassIds,
         files: this._uploadedFiles,
         updatedAt: new Date().toISOString(),
         ownerId: user.uid,
-        intent: this.lesson.intent || null // Explicit fallback to null
+        intent: this.lesson.intent || null
       };
 
-      // Remove any keys with undefined values (Critical fix for Firestore crash)
-      Object.keys(lessonData).forEach(key => lessonData[key] === undefined && delete lessonData[key]);
+      // --- FIX: DEEP SANITIZATION ---
+      // Toto odstráni všetky 'undefined' z celej štruktúry objektu
+      lessonData = deepSanitize(lessonData);
 
       if (!lessonData.id) {
           lessonData.createdAt = new Date().toISOString();
@@ -255,7 +262,6 @@ export class LessonEditor extends BaseView {
     } catch (error) {
       console.error('Error saving lesson:', error);
       showToast(translationService.t('common.error'), true);
-      // Re-throw to stop subsequent actions (like Magic generation) if save fails
       throw error;
     } finally {
       this.isSaving = false;
@@ -263,17 +269,16 @@ export class LessonEditor extends BaseView {
   }
 
   _handleBackToHub() {
-      this._activeTool = null; // Return to Hub
+      this._activeTool = null;
       this.requestUpdate();
   }
 
   _handleBackClick() {
       if (this._activeTool) {
-          this._handleBackToHub(); // Within a tool -> Go to Hub
+          this._handleBackToHub();
           return;
       }
       if (this._wizardMode) {
-          // If in Wizard (New Lesson) -> Go back to Dashboard (Cancel action)
           this.dispatchEvent(new CustomEvent('navigate', {
               detail: { view: 'dashboard' },
               bubbles: true,
@@ -281,7 +286,6 @@ export class LessonEditor extends BaseView {
           }));
           return;
       }
-      // If in Hub (Editing existing) -> Go back to Library
       this.dispatchEvent(new CustomEvent('editor-exit', {
           detail: { view: 'library' },
           bubbles: true,
@@ -295,7 +299,6 @@ export class LessonEditor extends BaseView {
       } else {
           this._selectedClassIds = [...this._selectedClassIds, classId];
       }
-      // Update local lesson state immediately for UI consistency
       if (this.lesson) {
           this.lesson = { ...this.lesson, assignedToGroups: this._selectedClassIds };
       }
@@ -307,14 +310,12 @@ export class LessonEditor extends BaseView {
       const files = Array.from(e.target.files);
       if (files.length === 0) return;
 
-      // FIX: Ensure title is present before allowing upload (required for auto-save)
       if (!this.lesson.title) {
           showToast(translationService.t('professor.editor.title_required'), true);
-          e.target.value = ''; // Clear input
+          e.target.value = '';
           return;
       }
 
-      // FIX: Auto-save if lesson doesn't exist yet to ensure files are linked to a lesson ID
       if (!this.lesson.id) {
           showToast("Zakládám koncept lekce...", false);
           try {
@@ -331,8 +332,6 @@ export class LessonEditor extends BaseView {
           const user = auth.currentUser;
           if (!user) throw new Error(translationService.t('media.login_required'));
 
-          // FIX: Use user.uid instead of lesson.id to match storage.rules requirement (request.auth.uid == courseId)
-          // This ensures files are stored in the professor's personal folder: /courses/{UID}/media/...
           const courseId = user.uid;
 
           const uploadResult = await uploadMultipleFiles(files, courseId, (progress) => {
@@ -386,7 +385,7 @@ export class LessonEditor extends BaseView {
       if (!modal) return;
 
       const user = auth.currentUser;
-      const courseId = user ? user.uid : 'main-course'; // Updated to use User UID for consistency
+      const courseId = user ? user.uid : 'main-course';
       clearSelectedFiles();
       renderMediaLibraryFiles(courseId, "modal-media-list");
       modal.classList.remove('hidden');
@@ -449,16 +448,13 @@ export class LessonEditor extends BaseView {
   }
 
   async _handleAutoMagic() {
-      // 1. Validácia
       if (!this.lesson.title) {
           showToast(translationService.t('professor.editor.title_required'), true);
           return;
       }
 
-      // Získame cesty k RAG súborom
       const filePaths = this._uploadedFiles ? this._uploadedFiles.map(f => f.storagePath).filter(Boolean) : [];
 
-      // CHECK: If no files, STOP. Do not proceed to save or generate.
       if (this._uploadedFiles.length === 0) {
           showToast("Pro magii musíte nahrát soubory", true);
           return;
@@ -466,10 +462,8 @@ export class LessonEditor extends BaseView {
 
       this._isLoading = true;
       
-      // 2. Bezpečné uloženie základu (potrebujeme ID pre názvy súborov)
       try {
           await this._handleSave();
-          // FIX: Okamžite prepnúť na Hub, aby užívateľ videl progres tam (a nie vo Wizarde)
           this._wizardMode = false;
           this.requestUpdate();
       } catch (e) {
@@ -479,24 +473,20 @@ export class LessonEditor extends BaseView {
           return;
       }
 
-      // Definícia typov obsahu
       const types = ['text', 'presentation', 'quiz', 'test', 'post', 'flashcards', 'mindmap', 'comic'];
       
       let successCount = 0;
       let failedTypes = [];
 
       try {
-          // Hlavná slučka cez typy obsahu
           for (const type of types) {
              try {
-                // UI UPDATE: Informujeme o progrese
                 this._magicStatus = `${translationService.t('common.magic_status_generating') || 'Generuji'} (${successCount + failedTypes.length + 1}/${types.length}): ${(translationService.t(`content_types.${type}`) || type).toUpperCase()}...`;
                 this.requestUpdate();
 
                 let promptData = { userPrompt: '', isMagic: true };
                 let contentType = type;
 
-                // --- A. Textová príprava (Prompty) ---
                 const title = this.lesson.title;
                 const topic = this.lesson.topic ? `(${this.lesson.topic})` : '';
 
@@ -532,7 +522,6 @@ export class LessonEditor extends BaseView {
                         break;
                 }
 
-                // Volanie AI pre textový základ
                 const generateContentFunc = httpsCallable(functions, 'generateContent');
                 const result = await generateContentFunc({
                     contentType: contentType,
@@ -540,13 +529,8 @@ export class LessonEditor extends BaseView {
                     filePaths: filePaths
                 });
                 
-                // Kópia dát pre úpravy
                 let data = JSON.parse(JSON.stringify(result.data));
 
-                // --- B. Multimediálne dopočítavanie (Audio & Obraz) ---
-                // REFAKTOR: Sekvenčné spracovanie pre zníženie záťaže API a upload na Storage
-
-                // 1. PODCAST AUDIO (Sekvenčné)
                 if (type === 'post' && data.podcast_series && data.podcast_series.episodes) {
                     this._magicStatus = `🎙️ ${translationService.t('professor.editor.generating_audio') || 'Generating audio...'}`;
                     this.requestUpdate();
@@ -565,7 +549,6 @@ export class LessonEditor extends BaseView {
                             
                             if (audioResult.data && audioResult.data.storagePath) {
                                 const storageRef = ref(storage, audioResult.data.storagePath);
-                                // Ensure we wait for the URL
                                 const url = await getDownloadURL(storageRef);
                                 data.podcast_series.episodes[index] = {
                                     ...ep,
@@ -579,7 +562,6 @@ export class LessonEditor extends BaseView {
                     }
                 }
 
-                // 2. PREZENTÁCIA OBRÁZKY (Sekvenčné + Upload)
                 if (type === 'presentation' && data.slides) {
                     this._magicStatus = `🎨 ${translationService.t('professor.editor.generating_images') || 'Generating images...'}`;
                     this.requestUpdate();
@@ -591,28 +573,26 @@ export class LessonEditor extends BaseView {
                                 const base64Data = imgResult.imageBase64 || imgResult;
 
                                 if (base64Data && typeof base64Data === 'string' && base64Data.length > 100) {
-                                     // UPLOAD TO STORAGE
                                      const fileName = `slide_${Date.now()}_${index}.png`;
                                      const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
 
                                      const url = await this._uploadBase64Image(base64Data, storagePath);
+                                     
+                                     // --- FIX: OPRAVA UNDEFINED PRIRADENIA ---
+                                     // Predtým: backgroundImage: undefined -> CHYBA
+                                     const newSlide = { ...slide, imageUrl: url };
+                                     if ('backgroundImage' in newSlide) delete newSlide.backgroundImage; // Bezpečné zmazanie
 
-                                     data.slides[index] = {
-                                         ...slide,
-                                         imageUrl: url,
-                                         backgroundImage: undefined // Clean up
-                                     };
+                                     data.slides[index] = newSlide;
                                 }
                             } catch (err) {
                                 console.warn(`[AutoMagic] Image gen failed for slide ${index}:`, err);
                             }
-                            // Spomalenie kvôli API limitom
                             await delay(2000);
                         }
                     }
                 }
 
-                // 3. KOMIKS OBRÁZKY (Sekvenčné + Upload)
                 if (type === 'comic' && data.panels) {
                     this._magicStatus = `🖍️ ${translationService.t('professor.editor.generating_comic') || 'Drawing comic...'}`;
                     this.requestUpdate();
@@ -637,13 +617,11 @@ export class LessonEditor extends BaseView {
                             } catch (err) {
                                 console.warn(`[AutoMagic] Comic gen failed for panel ${index}:`, err);
                             }
-                            // Spomalenie kvôli API limitom
                             await delay(2000);
                          }
                     }
                 }
 
-                // --- C. Uloženie do stavu lekcie ---
                 switch (type) {
                     case 'text':
                         this.lesson = { ...this.lesson, text_content: data.text || data };
@@ -676,7 +654,6 @@ export class LessonEditor extends BaseView {
                         break;
                 }
 
-                // Priebežné uloženie do DB po každom type
                 await this._handleSave(); 
                 successCount++;
 
@@ -686,7 +663,6 @@ export class LessonEditor extends BaseView {
              }
           }
 
-          // Hotovo
           const msg = `${translationService.t('lesson.magic_done_stats', { success: successCount, total: types.length }) || `Magic done! Success: ${successCount}/${types.length}.`}` +
                       (failedTypes.length ? ` ${translationService.t('common.errors') || 'Errors'}: ${failedTypes.join(', ')}` : '');
           showToast(msg, failedTypes.length > 0);
@@ -698,7 +674,7 @@ export class LessonEditor extends BaseView {
           this._isLoading = false;
           this._magicStatus = '';
           this._wizardMode = false;
-          this._activeTool = null; // Prechod na Hub
+          this._activeTool = null;
           this.requestUpdate();
       }
   }
@@ -710,8 +686,7 @@ export class LessonEditor extends BaseView {
       }
       
       try {
-          await this._handleSave(); // Save base data
-          // Switch directly to HUB (where file upload exists)
+          await this._handleSave();
           this._wizardMode = false;
           this._activeTool = null;
           this.requestUpdate();
@@ -898,7 +873,7 @@ export class LessonEditor extends BaseView {
       `;
   }
 
-  _renderFilesSection() { return html``; } // Deprecated for Wizard, kept for safety
+  _renderFilesSection() { return html``; }
   
   _renderContentTypeOption(value, icon, label) {
       const isSelected = this.lesson.contentType === value;
@@ -1083,13 +1058,11 @@ export class LessonEditor extends BaseView {
   }
 
   _renderSpecificEditor() {
-      // Helper na spracovanie eventu 'lesson-updated'
       const handleUpdate = (e) => {
           this.lesson = { ...this.lesson, ...e.detail };
           this.requestUpdate(); 
       };
 
-      // DÔLEŽITÉ: class="w-full h-full block" zabezpečí, že sa editor roztiahne
       const editorProps = (extraListeners = {}) => ({
           id: "active-editor",
           class: "w-full h-full block",
