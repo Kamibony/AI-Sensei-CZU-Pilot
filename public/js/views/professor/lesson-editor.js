@@ -419,6 +419,23 @@ export class LessonEditor extends BaseView {
           return;
       }
 
+      // Získame cesty k RAG súborom
+      const filePaths = this._uploadedFiles ? this._uploadedFiles.map(f => f.storagePath).filter(Boolean) : [];
+
+      // CHECK: If no files, save and redirect to Hub to upload files
+      if (filePaths.length === 0) {
+          try {
+              await this._handleSave();
+              this._wizardMode = false; // Switch to Hub
+              this.requestUpdate();
+              showToast("Pro generování obsahu prosím nejprve nahrajte soubory v detailu lekce.", false);
+              return;
+          } catch (e) {
+               console.error("Save failed before file check:", e);
+               return;
+          }
+      }
+
       this._isLoading = true;
       
       // 2. Bezpečné uloženie základu (potrebujeme ID pre názvy súborov)
@@ -437,9 +454,6 @@ export class LessonEditor extends BaseView {
       // Definícia typov obsahu
       const types = ['text', 'presentation', 'quiz', 'test', 'post', 'flashcards', 'mindmap', 'comic'];
       
-      // Získame cesty k RAG súborom
-      const filePaths = this._uploadedFiles ? this._uploadedFiles.map(f => f.storagePath).filter(Boolean) : [];
-
       let successCount = 0;
       let failedTypes = [];
 

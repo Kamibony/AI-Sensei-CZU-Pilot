@@ -23,7 +23,7 @@ service firebase.storage {
       allow read;
     }
 
-    match /courses/{courseId}/media/{fileId} {
+    match /courses/{courseId}/media/{allPaths=**} {
 
       // READ is allowed for the owner or the legacy admin
       allow read: if (isProfessor() && isOwner(resource))
@@ -34,8 +34,12 @@ service firebase.storage {
       allow write: if isProfessor() && request.auth.uid == request.resource.metadata.ownerId;
 
       // DELETE is allowed for the owner, the legacy admin, OR if the user owns the Firestore record
-      allow delete: if (isProfessor() && (isOwner(resource) || isOwnerViaFirestore(fileId)))
+      allow delete: if (isProfessor() && (isOwner(resource) || isOwnerViaFirestore(resource.name)))
                     || request.auth.token.email == 'profesor@profesor.cz';
+    }
+
+    match /podcasts/{fileName} {
+       allow read, write, delete: if isProfessor();
     }
 
     // Default deny all other paths
