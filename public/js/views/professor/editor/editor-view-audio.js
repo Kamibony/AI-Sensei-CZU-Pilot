@@ -1,6 +1,7 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
-import { getStorage, ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+import { ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+import { storage } from '../../../firebase-init.js'; // FIX: Import shared storage instance
 import { Localized } from '../../../utils/localization-mixin.js';
 import { showToast } from '../../../utils.js';
 import './professor-header-editor.js';
@@ -30,7 +31,7 @@ export class EditorViewAudio extends Localized(LitElement) {
         // If lesson has a podcast path, try to get the URL
         if (this.lesson.podcast_audio_path) {
             try {
-                const storage = getStorage();
+                // FIX: Use the imported storage instance
                 const audioRef = ref(storage, this.lesson.podcast_audio_path);
                 this.audioUrl = await getDownloadURL(audioRef);
                 this.requestUpdate();
