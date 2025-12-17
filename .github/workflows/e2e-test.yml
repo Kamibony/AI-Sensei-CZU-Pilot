@@ -1,4 +1,4 @@
-name: E2E Tests
+name: E2E Diagnostic Test
 
 on:
   push:
@@ -10,41 +10,49 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
 
-    - name: Setup Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-    - name: Install Dependencies
-      run: |
-        npm ci
-        npm install -g firebase-tools
-        pip install playwright
-        playwright install --with-deps
+      - name: Install Dependencies
+        run: |
+          npm ci
+          npm install -g firebase-tools
+          pip install playwright
+          playwright install --with-deps
 
-    - name: Run Test
-      run: firebase emulators:exec --project=demo-test "python deep_diagnostic_editors.py"
-      env:
-        CI: true
+      - name: Install Functions Dependencies
+        run: npm ci --prefix functions
 
-    - name: Upload Artifacts
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: screenshots
-        path: screenshots/*.png
+      - name: Build Functions
+        run: npm run build --prefix functions
+
+      - name: Execute Test
+        run: firebase emulators:exec --project=demo-test "python deep_diagnostic_editors.py"
+        env:
+          CI: true
+          SCREENSHOT_DIR: screenshots
+
+      - name: Upload Artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots/*.png
