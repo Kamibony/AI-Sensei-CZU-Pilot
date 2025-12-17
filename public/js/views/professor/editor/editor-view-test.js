@@ -18,53 +18,62 @@ export class EditorViewTest extends Localized(LitElement) {
     }
 
     _handleQuestionChange(index, field, value) {
-        // Create deep copy
-        const content = this.lesson.content ? JSON.parse(JSON.stringify(this.lesson.content)) : {};
-        if (!content.questions) content.questions = [];
+        // Create deep copy from test.questions OR content.questions if test missing (legacy fallback)
+        const questions = this._getQuestions();
 
-        if (!content.questions[index]) {
-            content.questions[index] = { question_text: '', options: ['', '', '', ''], correct_option_index: 0, type: 'Multiple Choice' };
+        if (!questions[index]) {
+            questions[index] = { question_text: '', options: ['', '', '', ''], correct_option_index: 0, type: 'Multiple Choice' };
         }
 
-        content.questions[index][field] = value;
+        questions[index][field] = value;
 
-        this._dispatchUpdate(content);
+        this._dispatchUpdate(questions);
     }
 
     _handleOptionChange(qIndex, oIndex, value) {
-        const content = this.lesson.content ? JSON.parse(JSON.stringify(this.lesson.content)) : {};
-        if (!content.questions) content.questions = [];
+        const questions = this._getQuestions();
 
-        content.questions[qIndex].options[oIndex] = value;
-        this._dispatchUpdate(content);
+        if (questions[qIndex] && questions[qIndex].options) {
+             questions[qIndex].options[oIndex] = value;
+             this._dispatchUpdate(questions);
+        }
     }
 
     _addQuestion() {
-        const content = this.lesson.content ? JSON.parse(JSON.stringify(this.lesson.content)) : {};
-        if (!content.questions) content.questions = [];
+        const questions = this._getQuestions();
 
-        content.questions.push({
+        questions.push({
             question_text: '',
             options: ['', '', '', ''],
             correct_option_index: 0,
             type: 'Multiple Choice'
         });
 
-        this._dispatchUpdate(content);
+        this._dispatchUpdate(questions);
     }
 
     _removeQuestion(index) {
-        const content = this.lesson.content ? JSON.parse(JSON.stringify(this.lesson.content)) : {};
-        if (!content.questions) content.questions = [];
-
-        content.questions.splice(index, 1);
-        this._dispatchUpdate(content);
+        const questions = this._getQuestions();
+        questions.splice(index, 1);
+        this._dispatchUpdate(questions);
     }
 
-    _dispatchUpdate(content) {
+    _getQuestions() {
+        // Priority: this.lesson.test.questions -> this.lesson.content.questions -> []
+        const fromTest = this.lesson?.test?.questions;
+        const fromContent = this.lesson?.content?.questions;
+
+        // Return a DEEP COPY to ensure we don't mutate state directly before dispatch
+        if (fromTest) return JSON.parse(JSON.stringify(fromTest));
+        if (fromContent) return JSON.parse(JSON.stringify(fromContent));
+        return [];
+    }
+
+    _dispatchUpdate(questions) {
+        // IMPORTANT: We now dispatch to 'test' object to align with Student View expectation
         this.dispatchEvent(new CustomEvent('lesson-updated', {
             detail: {
-                content: content
+                test: { questions: questions }
             },
             bubbles: true,
             composed: true
@@ -72,7 +81,7 @@ export class EditorViewTest extends Localized(LitElement) {
     }
 
     render() {
-        const questions = this.lesson.content?.questions || [];
+        const questions = this.lesson?.test?.questions || this.lesson?.content?.questions || [];
 
         return html`
             <div class="h-full flex flex-col bg-slate-100 relative">
@@ -108,7 +117,7 @@ export class EditorViewTest extends Localized(LitElement) {
                                             .lesson=${this.lesson}
                                             viewTitle="${this.t('editor.test.ai_title')}"
                                             contentType="test"
-                                            fieldToUpdate="content"
+                                            fieldToUpdate="test"
                                             description="${this.t('editor.test.ai_description')}"
                                             promptPlaceholder="${this.t('editor.test.ai_placeholder')}"
                                             .extraParams=${{question_count: 5}}>

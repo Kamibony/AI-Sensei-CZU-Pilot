@@ -3,7 +3,7 @@ import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, setDoc } from "https://
 import confetti from 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/+esm';
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
-import { renderPresentation } from '../../student/presentation-handler.js'; // Note: this handler might be in student/
+import { renderPresentation } from '../../student/presentation-handler.js';
 import { translationService } from '../../utils/translation-service.js';
 
 import '../../student/quiz-component.js';
@@ -12,6 +12,7 @@ import '../../student/podcast-component.js';
 import '../../student/chat-panel.js';
 import '../../student/flashcards-component.js';
 import '../../student/mindmap-component.js';
+import '../../student/comic-component.js'; // Import Comic Component
 
 function normalizeLessonData(rawData) {
     const normalized = { ...rawData };
@@ -23,7 +24,8 @@ function normalizeLessonData(rawData) {
     normalized.test = rawData.test || rawData.testData || null;
     normalized.flashcards = rawData.flashcards || null;
     normalized.mindmap = rawData.mindmap || null;
-    normalized.files = rawData.files || []; // Added mapping for files
+    normalized.comic = rawData.comic || null; // Add Comic
+    normalized.files = rawData.files || [];
     return normalized;
 }
 
@@ -193,6 +195,7 @@ export class StudentLessonDetail extends LitElement {
         if (this.lessonData.presentation) return 'presentation';
         if (this.lessonData.quiz) return 'quiz';
         if (this.lessonData.test) return 'test';
+        if (this.lessonData.comic) return 'comic'; // Add default comic tab
         return 'study';
     }
 
@@ -210,7 +213,6 @@ export class StudentLessonDetail extends LitElement {
         if (!this.lessonData) return [];
         const tabs = [];
         const ld = this.lessonData;
-        const t = (k) => translationService.t(k);
 
         // 1. Study Room (Combines Text + Files + Video)
         if (ld.text_content || (ld.files && ld.files.length > 0) || ld.youtube_link) {
@@ -232,7 +234,11 @@ export class StudentLessonDetail extends LitElement {
         if (ld.mindmap) {
             tabs.push({ id: 'mindmap', label: 'Myšlenková mapa', icon: '🧠', desc: 'Souvislosti' });
         }
-        // 6. Quiz / Test
+        // 6. Comic
+        if (ld.comic) {
+            tabs.push({ id: 'comic', label: 'Komiks', icon: '💬', desc: 'Příběh' });
+        }
+        // 7. Quiz / Test
         if (ld.quiz) {
             tabs.push({ id: 'quiz', label: 'Kvíz', icon: '❓', desc: 'Procvičení' });
         }
@@ -242,7 +248,6 @@ export class StudentLessonDetail extends LitElement {
 
         // Always available tools
         tabs.push({ id: 'ai-assistant', label: 'AI Asistent', icon: '🤖', desc: 'Doučování' });
-        // tabs.push({ id: 'professor-chat', label: 'Konzultace', icon: '💬', desc: 'Chat' });
 
         return tabs;
     }
@@ -299,7 +304,7 @@ export class StudentLessonDetail extends LitElement {
                                 })}
                             </div>
 
-                            <!-- Mobile Menu Button (Could be implemented for small screens) -->
+                            <!-- Mobile Menu Button -->
                             <div class="md:hidden flex items-center">
                                 <span class="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
                                     ${tabs.find(t => t.id === this.activeTabId)?.label}
@@ -397,6 +402,12 @@ export class StudentLessonDetail extends LitElement {
                     <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 sm:p-8">
                         <mindmap-component .code=${this.lessonData.mindmap}></mindmap-component>
                         ${this._renderCompletionButton('mindmap', 'Prostudováno')}
+                    </div>`;
+            case 'comic':
+                return html`
+                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 sm:p-8">
+                        <student-comic .comicData=${this.lessonData.comic}></student-comic>
+                        ${this._renderCompletionButton('comic', 'Přečteno')}
                     </div>`;
             case 'ai-assistant':
                 return html`
