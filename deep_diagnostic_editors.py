@@ -67,7 +67,7 @@ def login_professor(page):
     page.fill("#register-password", PROFESSOR_PASSWORD, force=True)
 
     # Click Register Button (Amber/Orange for Professor)
-    page.locator("button:has-text('Registrovat')").click(force=True)
+    page.click("button:has-text('Registrovat')", force=True)
 
     # Wait for dashboard
     try:
@@ -292,7 +292,7 @@ def run_student_phase(p, headless=True):
     page.fill("#reg-email", STUDENT_EMAIL)
     page.fill("#reg-password", STUDENT_PASSWORD)
     page.fill("#reg-name", STUDENT_NAME)
-    page.click("button:has-text('Registrovat')")
+    page.click("button:has-text('Registrovat')", force=True)
 
     time.sleep(5)
 
@@ -367,6 +367,7 @@ def run():
 
         if GROUP_CODE and LESSON_IDS and not has_error:
             try:
+                headless_mode = is_ci
                 run_student_phase(p, headless=headless_mode)
             except Exception as e:
                 log(f"Student Phase Error: {e}")
