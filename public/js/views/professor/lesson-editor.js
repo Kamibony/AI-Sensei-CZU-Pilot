@@ -8,7 +8,7 @@ import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { translationService } from '../../utils/translation-service.js';
 import { callGenerateContent, callGenerateImage } from '../../gemini-api.js';
 
-// Importy všetkých editorov
+// Imports of all editors
 import './editor/editor-view-text.js';
 import './editor/editor-view-presentation.js';
 import './editor/editor-view-quiz.js';
@@ -28,7 +28,7 @@ import { renderMediaLibraryFiles, getSelectedFiles, clearSelectedFiles } from '.
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// --- HELPER: Deep Sanitize pre Firestore ---
+// --- HELPER: Deep Sanitize for Firestore ---
 function deepSanitize(obj) {
     if (obj === undefined) return null;
     if (obj === null || typeof obj !== 'object') return obj;
@@ -47,13 +47,12 @@ function deepSanitize(obj) {
     return newObj;
 }
 
-// --- HELPER: Retry Logic pre AI volania ---
+// --- HELPER: Retry Logic for AI calls ---
 async function callWithRetry(fn, args = [], retries = 3, delayTime = 2000) {
     for (let i = 0; i < retries; i++) {
         try {
             return await fn(...args);
         } catch (error) {
-            // Ak je chyba "Safety filter" (INVALID_ARGUMENT), nemá zmysel opakovať ten istý prompt -> vyhoď chybu ihneď
             if (error.message && (error.message.includes('INVALID_ARGUMENT') || error.message.includes('safety'))) {
                 throw error;
             }
@@ -366,8 +365,8 @@ export class LessonEditor extends BaseView {
           for (const file of newFiles) {
               if (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.txt') || file.name.toLowerCase().endsWith('.docx')) {
                   try {
-                       await processFileForRAG(file.id);
-                       showToast(`${translationService.t('common.success')}: ${file.name}`);
+                        await processFileForRAG(file.id);
+                        showToast(`${translationService.t('common.success')}: ${file.name}`);
                   } catch (err) {
                       console.error("RAG processing failed for", file.name, err);
                       showToast(`${translationService.t('lesson.upload_ai_failed_specific', { filename: file.name })}`, true);
@@ -485,7 +484,8 @@ export class LessonEditor extends BaseView {
           return;
       }
 
-      const types = ['text', 'presentation', 'quiz', 'test', 'post', 'flashcards', 'mindmap', 'comic'];
+      // FIX: Added 'audio' to types
+      const types = ['text', 'presentation', 'quiz', 'test', 'post', 'flashcards', 'mindmap', 'comic', 'audio'];
       
       let successCount = 0;
       let failedTypes = [];
@@ -532,6 +532,10 @@ export class LessonEditor extends BaseView {
                     case 'comic':
                         promptData.userPrompt = translationService.t('prompts.comic_gen', { title });
                         break;
+                    // FIX: Added audio case
+                    case 'audio':
+                         promptData.userPrompt = translationService.t('prompts.audio_gen', { title }) || `Write a podcast script about ${title}`;
+                         break;
                 }
 
                 const generateContentFunc = httpsCallable(functions, 'generateContent');
@@ -582,11 +586,9 @@ export class LessonEditor extends BaseView {
                         if (slide.visual_idea) {
                             let base64Data = null;
                             try {
-                                // Pokus 1: Pôvodný prompt z AI (s retry pre chyby siete)
                                 const imgResult = await callWithRetry(callGenerateImage, [slide.visual_idea], 3);
                                 base64Data = imgResult.imageBase64 || imgResult;
                             } catch (err) {
-                                // SAFETY FALLBACK: Ak zlyhá na obsahu (INVALID_ARGUMENT), skúsime neutrálny prompt
                                 if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
                                     console.warn(`[AutoMagic] Safety filter triggered for slide ${index}. Trying fallback...`);
                                     try {
@@ -628,7 +630,6 @@ export class LessonEditor extends BaseView {
                                 const imgResult = await callWithRetry(callGenerateImage, [`Comic book style, ${panel.description}`], 3);
                                 base64Data = imgResult.imageBase64 || imgResult;
                             } catch (err) {
-                                // SAFETY FALLBACK
                                 if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
                                     console.warn(`[AutoMagic] Safety filter triggered for comic panel ${index}. Trying fallback...`);
                                     try {
@@ -661,7 +662,18 @@ export class LessonEditor extends BaseView {
 
                 switch (type) {
                     case 'text':
-                        this.lesson = { ...this.lesson, text_content: data.text || data };
+                        // FIX: Handle JSON output when text is expected
+                        let textContent = data.text || data;
+                        if (typeof textContent === 'object') {
+                            if (textContent.prompts && Array.isArray(textContent.prompts)) {
+                                // Fallback: if AI generated prompt list instead of text, convert to markdown
+                                textContent = textContent.prompts.map(p => `### ${p.nadpis}\n${p.prompt}\n\n*${p.popis}*`).join('\n\n---\n\n');
+                            } else {
+                                // Fallback: stringify unknown JSON
+                                textContent = JSON.stringify(textContent, null, 2);
+                            }
+                        }
+                        this.lesson = { ...this.lesson, text_content: textContent };
                         break;
                     case 'presentation':
                         this.lesson = { ...this.lesson, presentation: { slides: data.slides, styleId: 'default' } };
@@ -688,6 +700,14 @@ export class LessonEditor extends BaseView {
                         break;
                     case 'comic':
                         this.lesson = { ...this.lesson, comic: data };
+                        break;
+                    // FIX: Handle audio script assignment
+                    case 'audio':
+                        const audioScript = data.script || data.text || (typeof data === 'string' ? data : '');
+                        this.lesson = {
+                            ...this.lesson,
+                            content: { ...this.lesson.content, script: audioScript }
+                        };
                         break;
                 }
 
@@ -716,6 +736,8 @@ export class LessonEditor extends BaseView {
       }
   }
 
+  // ... rest of the file (methods after _handleAutoMagic)
+  
   async _handleManualCreate() {
       if (!this.lesson.title) {
           showToast(translationService.t('professor.editor.title_required'), true);
@@ -764,12 +786,12 @@ export class LessonEditor extends BaseView {
   _renderWizardMode() {
       if (this._isLoading) {
           return html`
-             <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
-                <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('professor.editor.magic_generating_title') || 'AI Sensei kouzlí...'}</h2>
-                <p class="text-slate-500 mt-2">${this._magicStatus || translationService.t('professor.editor.magic_generating_desc') || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
-             </div>
-          `;
+              <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
+                 <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                 <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('professor.editor.magic_generating_title') || 'AI Sensei kouzlí...'}</h2>
+                 <p class="text-slate-500 mt-2">${this._magicStatus || translationService.t('professor.editor.magic_generating_desc') || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
+              </div>
+           `;
       }
       return html`
         <div class="min-h-full flex flex-col items-center justify-center p-4 bg-slate-50/50">
@@ -782,7 +804,7 @@ export class LessonEditor extends BaseView {
                          </h2>
                          <p class="text-slate-500">Generating lesson content from your files</p>
                          <div class="w-64 h-2 bg-slate-100 rounded-full overflow-hidden mx-auto mt-4">
-                              <div class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 animate-pulse w-full"></div>
+                             <div class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 animate-pulse w-full"></div>
                          </div>
                     </div>
                 </div>
@@ -976,12 +998,12 @@ export class LessonEditor extends BaseView {
   _renderLessonHub() {
       if (this._isLoading) {
           return html`
-             <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
-                <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('professor.editor.magic_generating_title') || 'AI Sensei kouzlí...'}</h2>
-                <p class="text-slate-500 mt-2">${this._magicStatus || translationService.t('professor.editor.magic_generating_desc') || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
-             </div>
-          `;
+              <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
+                 <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                 <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('professor.editor.magic_generating_title') || 'AI Sensei kouzlí...'}</h2>
+                 <p class="text-slate-500 mt-2">${this._magicStatus || translationService.t('professor.editor.magic_generating_desc') || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
+              </div>
+           `;
       }
       return html`
       <div class="h-full flex flex-col bg-slate-50/50 relative">
@@ -1068,10 +1090,10 @@ export class LessonEditor extends BaseView {
 
               <div class="flex-1">
                   <input type="text"
-                         .value="${this.lesson.title}"
-                         @input="${e => this.lesson = { ...this.lesson, title: e.target.value }}"
-                         class="w-full bg-transparent border-none p-0 text-2xl font-extrabold text-slate-800 placeholder-slate-300 focus:ring-0 focus:outline-none"
-                         placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder')}">
+                          .value="${this.lesson.title}"
+                          @input="${e => this.lesson = { ...this.lesson, title: e.target.value }}"
+                          class="w-full bg-transparent border-none p-0 text-2xl font-extrabold text-slate-800 placeholder-slate-300 focus:ring-0 focus:outline-none"
+                          placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder')}">
 
                    <div class="flex gap-2 text-xs text-slate-500 mt-1">
                         <span>${this.lesson.subject || translationService.t('common.no_subject') || 'Bez předmětu'}</span>
