@@ -42,14 +42,12 @@ export class EditorViewAudio extends Localized(LitElement) {
     }
 
     _handleScriptChange(e) {
-        // Update local lesson state
-        const content = this.lesson.content ? JSON.parse(JSON.stringify(this.lesson.content)) : {};
-        content.script = e.target.value;
+        const val = e.target.value;
 
-        // Dispatch update for auto-save (using correct event name)
+        // Dispatch update for auto-save targeting podcast_script
         this.dispatchEvent(new CustomEvent('lesson-updated', {
             detail: {
-                content: content
+                podcast_script: val
             },
             bubbles: true,
             composed: true
@@ -57,7 +55,9 @@ export class EditorViewAudio extends Localized(LitElement) {
     }
 
     async _generateAudio() {
-        const script = this.lesson.content?.script;
+        // Check podcast_script, falling back to content.script for safety if old data exists
+        const script = this.lesson.podcast_script || this.lesson.content?.script;
+
         if (!script || script.trim().length === 0) {
             showToast(this.t('editor.audio.error_no_script'), "warning");
             return;
@@ -112,7 +112,8 @@ export class EditorViewAudio extends Localized(LitElement) {
     }
 
     render() {
-        const script = this.lesson.content?.script || '';
+        // Read from podcast_script or fallback
+        const script = this.lesson.podcast_script || this.lesson.content?.script || '';
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
