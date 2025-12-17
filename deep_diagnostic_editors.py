@@ -2,9 +2,10 @@ from playwright.sync_api import sync_playwright, expect
 import time
 import os
 import uuid
+import sys
 
 # Ensure screenshots directory exists
-SCREENSHOT_DIR = "/home/jules/verification/screenshots"
+SCREENSHOT_DIR = os.path.join(os.getcwd(), "screenshots")
 os.makedirs(SCREENSHOT_DIR, exist_ok=True)
 
 # Generate unique professor email to ensure clean state in emulators
@@ -263,9 +264,9 @@ def input_audio(page):
     page.fill("#script-editor", "Test Audio Script")
 
 
-def run_student_phase(p):
+def run_student_phase(p, headless=True):
     log("Starting Student Phase...")
-    browser = p.chromium.launch(headless=True)
+    browser = p.chromium.launch(headless=headless)
     page = browser.new_page()
 
     page.goto(f"{BASE_URL}/")
@@ -320,8 +321,15 @@ def run_student_phase(p):
     browser.close()
 
 def run():
+    # Check for CI environment variable
+    is_ci = os.environ.get('CI') is not None
+    # If CI is present, headless=True. Otherwise headless=False (for local debugging).
+    headless_mode = True if is_ci else False
+
+    has_errors = False
+
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=headless_mode)
         context = browser.new_context()
         page = context.new_page()
 
@@ -335,17 +343,25 @@ def run():
                 except Exception as e:
                     log(f"Error creating/verifying {ct['name']}: {e}")
                     page.screenshot(path=f"{SCREENSHOT_DIR}/error_{ct['type']}.png")
+                    has_errors = True
 
         finally:
             browser.close()
 
         if GROUP_CODE and LESSON_IDS:
             try:
-                run_student_phase(p)
+                run_student_phase(p, headless=headless_mode)
             except Exception as e:
                 log(f"Student Phase Error: {e}")
+                has_errors = True
         else:
             log("Skipping Student Phase due to missing Group Code or Lessons")
+            if not has_errors:
+                 # If we missed group code/lessons but didn't catch an exception earlier, treat as failure
+                 has_errors = True
+
+    if has_errors:
+        sys.exit(1)
 
 if __name__ == "__main__":
     run()
