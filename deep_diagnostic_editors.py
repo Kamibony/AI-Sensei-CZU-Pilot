@@ -57,9 +57,14 @@ def login_professor(page):
 
     # Fill Registration
     log(f"Registering as {PROFESSOR_EMAIL}...")
-    page.fill("#register-name", PROFESSOR_NAME)
-    page.fill("#register-email", PROFESSOR_EMAIL)
-    page.fill("#register-password", PROFESSOR_PASSWORD)
+
+    # Wait for form visibility explicitly
+    page.wait_for_selector("#register-email", state="visible")
+
+    # Slow down typing to simulate human input
+    page.type("#register-name", PROFESSOR_NAME, delay=50)
+    page.type("#register-email", PROFESSOR_EMAIL, delay=50)
+    page.type("#register-password", PROFESSOR_PASSWORD, delay=50)
 
     # Click Register Button (Amber/Orange for Professor)
     page.locator("button:has-text('Registrovat')").click(force=True)
@@ -73,6 +78,10 @@ def login_professor(page):
         error_el = page.locator(".bg-red-50")
         if error_el.is_visible():
             log(f"Registration Error: {error_el.inner_text()}")
+
+        # Log page content for debugging
+        print(f"[DEBUG] Page Content: {page.content()}")
+
         page.screenshot(path=f"{SCREENSHOT_DIR}/registration_fail.png")
         raise
 
@@ -334,6 +343,9 @@ def run():
         browser = p.chromium.launch(headless=is_ci, args=['--no-sandbox'])
         context = browser.new_context()
         page = context.new_page()
+
+        # Increase default timeout for CI
+        page.set_default_timeout(30000)
 
         try:
             login_professor(page)
