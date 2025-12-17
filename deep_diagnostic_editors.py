@@ -1,10 +1,11 @@
 from playwright.sync_api import sync_playwright, expect
 import time
 import os
+import sys
 import uuid
 
 # Ensure screenshots directory exists
-SCREENSHOT_DIR = "/home/jules/verification/screenshots"
+SCREENSHOT_DIR = "screenshots"
 os.makedirs(SCREENSHOT_DIR, exist_ok=True)
 
 # Generate unique professor email to ensure clean state in emulators
@@ -265,7 +266,8 @@ def input_audio(page):
 
 def run_student_phase(p):
     log("Starting Student Phase...")
-    browser = p.chromium.launch(headless=True)
+    is_ci = os.environ.get('CI') == 'true'
+    browser = p.chromium.launch(headless=is_ci, args=['--no-sandbox'])
     page = browser.new_page()
 
     page.goto(f"{BASE_URL}/")
@@ -295,6 +297,7 @@ def run_student_phase(p):
         log(f"Join class issue: {e}")
         page.screenshot(path=f"{SCREENSHOT_DIR}/student_join_fail.png")
 
+    failures = []
     for c_type, lid in LESSON_IDS.items():
         log(f"Verifying student view for {c_type} (ID: {lid})...")
         page.goto(f"{BASE_URL}/?view=lesson&id={lid}")
@@ -316,12 +319,18 @@ def run_student_phase(p):
         except Exception as e:
             log(f"Student View FAILED for {c_type}: {e}")
             page.screenshot(path=f"{SCREENSHOT_DIR}/fail_student_{c_type}.png")
+            failures.append(c_type)
+
+    if failures:
+        raise Exception(f"Student verification failed for: {', '.join(failures)}")
 
     browser.close()
 
 def run():
+    has_error = False
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        is_ci = os.environ.get('CI') == 'true'
+        browser = p.chromium.launch(headless=is_ci, args=['--no-sandbox'])
         context = browser.new_context()
         page = context.new_page()
 
@@ -335,17 +344,27 @@ def run():
                 except Exception as e:
                     log(f"Error creating/verifying {ct['name']}: {e}")
                     page.screenshot(path=f"{SCREENSHOT_DIR}/error_{ct['type']}.png")
+                    has_error = True
 
+        except Exception as e:
+            log(f"Critical Setup Error: {e}")
+            has_error = True
         finally:
             browser.close()
 
-        if GROUP_CODE and LESSON_IDS:
+        if GROUP_CODE and LESSON_IDS and not has_error:
             try:
                 run_student_phase(p)
             except Exception as e:
                 log(f"Student Phase Error: {e}")
+                has_error = True
         else:
-            log("Skipping Student Phase due to missing Group Code or Lessons")
+            if not (GROUP_CODE and LESSON_IDS):
+                 log("Skipping Student Phase due to missing Group Code or Lessons")
+                 has_error = True
+
+    if has_error:
+        sys.exit(1)
 
 if __name__ == "__main__":
     run()
