@@ -67,7 +67,19 @@ def login_professor(page):
     page.fill("#register-password", PROFESSOR_PASSWORD, force=True)
 
     # Click Register Button (Amber/Orange for Professor)
-    page.click("button:has-text('Registrovat')", force=True)
+    # Debug Snapshot
+    page.screenshot(path="debug_before_submit.png")
+
+    # Try 1: Press Enter (Standard form submission)
+    page.keyboard.press("Enter")
+
+    # Safety wait
+    page.wait_for_timeout(1000)
+
+    # Try 2: JavaScript Click (Bypasses all Playwright visibility checks)
+    # Only if we are still on the login page
+    if page.locator("button:has-text('Registrovat')").count() > 0:
+        page.evaluate("document.querySelector('button[type=submit]').click()")
 
     # Wait for dashboard
     try:
@@ -292,7 +304,16 @@ def run_student_phase(p, headless=True):
     page.fill("#reg-email", STUDENT_EMAIL)
     page.fill("#reg-password", STUDENT_PASSWORD)
     page.fill("#reg-name", STUDENT_NAME)
-    page.click("button:has-text('Registrovat')", force=True)
+
+    # Try 1: Press Enter
+    page.keyboard.press("Enter")
+
+    # Safety wait
+    page.wait_for_timeout(1000)
+
+    # Try 2: JavaScript Click
+    if page.locator("button:has-text('Registrovat')").count() > 0:
+        page.evaluate("document.querySelector('button[type=submit]').click()")
 
     time.sleep(5)
 
