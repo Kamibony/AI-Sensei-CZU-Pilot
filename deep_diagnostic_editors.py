@@ -3,6 +3,7 @@ import time
 import os
 import sys
 import uuid
+import sys
 
 # Ensure screenshots directory exists
 SCREENSHOT_DIR = "screenshots"
@@ -264,7 +265,7 @@ def input_audio(page):
     page.fill("#script-editor", "Test Audio Script")
 
 
-def run_student_phase(p):
+def run_student_phase(p, headless=True):
     log("Starting Student Phase...")
     is_ci = os.environ.get('CI') == 'true'
     browser = p.chromium.launch(headless=is_ci, args=['--no-sandbox'])
@@ -354,7 +355,7 @@ def run():
 
         if GROUP_CODE and LESSON_IDS and not has_error:
             try:
-                run_student_phase(p)
+                run_student_phase(p, headless=headless_mode)
             except Exception as e:
                 log(f"Student Phase Error: {e}")
                 has_error = True
