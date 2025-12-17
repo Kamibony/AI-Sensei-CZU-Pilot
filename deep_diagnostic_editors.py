@@ -51,7 +51,9 @@ def login_professor(page):
     # Switch to Registration
     # Look for link "Registrace"
     try:
-        page.locator("a:has-text('Registrace')").click()
+        page.locator("a:has-text('Registrace')").click(force=True)
+        page.wait_for_selector("#register-name", state="visible")
+        time.sleep(1)
     except:
         log("Could not find registration link, maybe already in register mode or different text")
 
@@ -334,6 +336,7 @@ def run():
         browser = p.chromium.launch(headless=is_ci, args=['--no-sandbox'])
         context = browser.new_context()
         page = context.new_page()
+        page.set_default_timeout(45000)
 
         try:
             login_professor(page)
