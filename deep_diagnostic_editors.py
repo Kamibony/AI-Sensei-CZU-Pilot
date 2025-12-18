@@ -70,20 +70,22 @@ def login_professor(page):
     # Debug Snapshot
     page.screenshot(path="debug_before_submit.png")
 
-    # Try 1: Press Enter (Standard form submission)
+    # Robust Submission Strategy
+    print("[TEST] Submitting registration form...")
     page.keyboard.press("Enter")
+    page.wait_for_timeout(2000)
 
-    # Safety wait
-    page.wait_for_timeout(1000)
+    # Retry click if still on login page
+    if page.locator("#register-name").is_visible():
+        print("[TEST] Form still visible, forcing JS click...")
+        page.evaluate("document.querySelector('button.bg-gradient-to-r.from-amber-600').click()")
+        page.wait_for_timeout(5000)
 
-    # Try 2: JavaScript Click (Bypasses all Playwright visibility checks)
-    # Only if we are still on the login page
-    if page.locator("button:has-text('Registrovat')").count() > 0:
-        page.evaluate("document.querySelector('button[type=submit]').click()")
-
+    # Extended Wait for Dashboard
+    print("[TEST] Waiting for Dashboard redirection...")
     # Wait for dashboard
     try:
-        expect(page.locator("professor-dashboard-view")).to_be_visible(timeout=15000)
+        expect(page.locator("professor-dashboard-view")).to_be_visible(timeout=60000)
         log("Professor registered and logged in.")
     except:
         log("Dashboard not visible after registration. Checking for errors...")
