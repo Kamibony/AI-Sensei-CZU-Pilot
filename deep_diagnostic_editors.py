@@ -143,7 +143,17 @@ def create_group(page):
     global GROUP_CODE
     log("Creating Group...")
     # Navigate to classes - sidebar button
-    page.locator("app-navigation aside button:has-text('Třídy')").click(force=True)
+    try:
+        page.wait_for_selector("app-navigation", state="attached")
+        page.click("app-navigation button:has-text('Třídy')", force=True)
+    except Exception as e:
+        log(f"Navigation to Classes failed: {e}")
+        try:
+            print(f"[DEBUG] app-navigation HTML: {page.locator('app-navigation').inner_html()}")
+        except:
+            print("[DEBUG] Could not get app-navigation HTML")
+        raise e
+
     expect(page.locator("professor-classes-view")).to_be_visible()
 
     # Create new class
@@ -188,7 +198,16 @@ def create_lesson(page, content_type_def):
     log(f"Creating lesson for {c_name}...")
 
     # Go to Dashboard -> New Lesson
-    page.locator("app-navigation aside button:has-text('Nástěnka')").click(force=True)
+    try:
+        page.click("app-navigation button:has-text('Nástěnka')", force=True)
+    except Exception as e:
+        log(f"Navigation to Dashboard failed: {e}")
+        try:
+            print(f"[DEBUG] app-navigation HTML: {page.locator('app-navigation').inner_html()}")
+        except:
+            pass
+        raise e
+
     time.sleep(1)
     page.click("button:has-text('Nová lekce')")
 
