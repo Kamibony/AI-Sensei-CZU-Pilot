@@ -131,8 +131,23 @@ def login_professor(page):
         page.reload()
         page.wait_for_load_state("networkidle")
 
-        # THEN wait for the navigation component
-        page.wait_for_selector("app-navigation", state="attached", timeout=60000)
+        # 1. Wait for global spinner to disappear
+        print("[TEST] Waiting for global spinner to disappear...")
+        try:
+            # Wait for spinner to be hidden (class 'hidden' added or element removed)
+            page.wait_for_selector("#global-spinner", state="hidden", timeout=60000)
+        except Exception as e:
+            print(f"[WARN] Spinner wait timed out. Checking if Dashboard is reachable anyway... Error: {e}")
+            try:
+                if page.locator("#global-spinner").is_visible():
+                    print("[DEBUG] #global-spinner is STILL VISIBLE")
+                else:
+                    print("[DEBUG] #global-spinner is HIDDEN")
+            except:
+                pass
+
+        # 2. Refine Dashboard Check
+        expect(page.locator("professor-dashboard-view")).to_be_visible(timeout=30000)
 
         log("Professor registered and logged in.")
     except:
