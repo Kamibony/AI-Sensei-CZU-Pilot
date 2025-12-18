@@ -171,7 +171,7 @@ def create_group(page):
     # Navigate to classes - sidebar button
     try:
         # Wait for navigation to be present in DOM
-        page.wait_for_selector("app-navigation", state="attached", timeout=20000)
+        page.wait_for_selector("professor-navigation", state="attached", timeout=20000)
 
         # Wait for the specific button
         # Use a more generic selector first to ensure hydration
@@ -179,13 +179,13 @@ def create_group(page):
         # Also, the original code looked for data-view='classes' in fallback, but app-navigation.js doesn't use data-view attribute on buttons.
         # It calls _navigateTo('classes').
 
-        nav_button = page.locator("app-navigation button").filter(has_text="Moje Třídy").first
+        nav_button = page.locator("professor-navigation button").filter(has_text="Moje Třídy").first
 
         if nav_button.count() > 0:
              log("Navigation button found via filter.")
         else:
              log("Navigation button 'Moje Třídy' not found, trying partial 'Třídy'...")
-             nav_button = page.locator("app-navigation button").filter(has_text="Třídy").first
+             nav_button = page.locator("professor-navigation button").filter(has_text="Třídy").first
 
         nav_button.wait_for(state="attached", timeout=10000)
 
@@ -201,7 +201,7 @@ def create_group(page):
             # Last ditch: try clicking via exact JS selector based on structure knowing it is classes
             # Last ditch: try clicking by text content via JS
             page.evaluate("""
-                const nav = document.querySelector("app-navigation");
+                const nav = document.querySelector("professor-navigation");
                 const root = nav.shadowRoot || nav;
                 const buttons = Array.from(root.querySelectorAll('button'));
                 const target = buttons.find(b => b.innerText.includes('Třídy') || b.innerText.includes('Classes'));
@@ -261,11 +261,11 @@ def create_lesson(page, content_type_def):
 
     # Go to Dashboard -> New Lesson
     try:
-        page.click("app-navigation button:has-text('Nástěnka')", force=True)
+        page.click("professor-navigation button:has-text('Nástěnka')", force=True)
     except Exception as e:
         log(f"Navigation to Dashboard failed: {e}")
         try:
-            print(f"[DEBUG] app-navigation HTML: {page.locator('app-navigation').inner_html()}")
+            print(f"[DEBUG] professor-navigation HTML: {page.locator('professor-navigation').inner_html()}")
         except:
             pass
         raise e
