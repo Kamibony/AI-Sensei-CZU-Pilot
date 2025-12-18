@@ -224,14 +224,18 @@ def create_lesson(page, content_type_def):
     safe_click(page, "professor-navigation button:has-text('Nástěnka')")
     time.sleep(1)
 
-    # New Lesson
-    safe_click(page, "button:has-text('Nová lekce')")
+    # New Lesson - Click "Create Manual" card (div with text)
+    safe_click(page, "text='Vytvořit manuálně'")
 
     # Wizard
     title = f"QA Lesson - {c_name}"
-    safe_fill(page, "input[placeholder*='Název lekce']", title)
-    safe_fill(page, "input[placeholder*='Předmět']", "QA Testing")
-    safe_click(page, "button:has-text('Manuálně')")
+    # Title input has placeholder "Např. Úvod do marketingu"
+    safe_fill(page, "input[placeholder*='Úvod do marketingu']", title)
+    # Subject input has list="subjects-list"
+    safe_fill(page, "input[list='subjects-list']", "QA Testing")
+
+    # Confirm Manual Creation (Select Manual vs Magic) - Button with text "Vytvořit manuálně"
+    safe_click(page, "button:has-text('Vytvořit manuálně')")
 
     # Hub - Select Tool
     expect(page.locator("h3:has-text('Obsah lekce')")).to_be_visible()
