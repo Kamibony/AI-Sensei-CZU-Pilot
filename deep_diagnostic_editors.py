@@ -238,37 +238,28 @@ def create_lesson(page, content_type_def):
     safe_click(page, "button:has-text('Vytvořit manuálně')")
 
     # Hub - Select Tool
-    expect(page.locator("h3:has-text('Obsah lekce')")).to_be_visible()
+    expect(page.locator("h3:has-text('Vyberte sekci k úpravě')")).to_be_visible()
 
     # Map types to buttons
     # We rely on text or grid position. Let's use text if possible, otherwise index.
     # The grid has buttons.
     # Text mapping (Czech):
     type_map_text = {
-        "text": "Text",
+        "text": "Textový obsah",
         "presentation": "Prezentace",
         "quiz": "Kvíz",
-        "test": "Test",
+        "test": "Závěrečný test",
         "post": "Příspěvek",
-        "video": "Video",
-        "audio": "Audio",
+        "video": "Video lekce",
+        "audio": "Podcast",
         "comic": "Komiks",
         "flashcards": "Kartičky",
         "mindmap": "Myšlenková mapa"
     }
 
     btn_text = type_map_text.get(c_type, c_name)
-    try:
-        safe_click(page, f"button:has-text('{btn_text}')")
-    except:
-        # Fallback to index if text fails
-        log(f"Button with text '{btn_text}' not found, trying index...")
-        index_map = {
-            "text": 0, "presentation": 1, "quiz": 2, "test": 3, "post": 4,
-            "video": 5, "audio": 6, "comic": 7, "flashcards": 8, "mindmap": 9
-        }
-        idx = index_map.get(c_type, 0)
-        page.locator("div.grid button").nth(idx).click()
+    # Use safe_click with exact text match as requested
+    safe_click(page, f"button:has-text('{btn_text}')")
 
     # Wait for editor
     expect(page.locator("professor-header-editor")).to_be_visible()
@@ -289,7 +280,7 @@ def create_lesson(page, content_type_def):
     safe_click(page, "professor-header-editor button") # Back button
 
     # Now in Hub view?
-    expect(page.locator("h3:has-text('Obsah lekce')")).to_be_visible()
+    expect(page.locator("h3:has-text('Vyberte sekci k úpravě')")).to_be_visible()
 
     # Find assignment checkbox for our group
     # Look for label containing group name
