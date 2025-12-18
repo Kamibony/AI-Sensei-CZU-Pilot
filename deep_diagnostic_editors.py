@@ -49,22 +49,27 @@ def login_professor(page):
         page.locator("text='Jsem Profesor'").first.click(force=True)
 
     # Switch to Registration
-    # Look for link "Registrace"
+    # Look for link "Registrujte se" (auth.register_link)
     try:
-        page.locator("a:has-text('Registrace')").click(force=True)
-        page.wait_for_selector("#register-name", state="visible")
+        log("Switching to Registration mode...")
+        page.locator("a:has-text('Registrujte se')").click()
+        page.wait_for_selector("#register-name", state="visible", timeout=5000)
         time.sleep(1)
-    except:
-        log("Could not find registration link, maybe already in register mode or different text")
+    except Exception as e:
+        log(f"Registration switch failed: {e}")
+        # Capture state if switch fails
+        page.screenshot(path=f"{SCREENSHOT_DIR}/registration_switch_fail.png")
+        raise e
 
     # Fill Registration
     log(f"Registering as {PROFESSOR_EMAIL}...")
 
-    # Force interaction to bypass visibility checks in CI
-    page.wait_for_timeout(2000)
-    page.fill("#register-name", PROFESSOR_NAME, force=True)
-    page.fill("#register-email", PROFESSOR_EMAIL, force=True)
-    page.fill("#register-password", PROFESSOR_PASSWORD, force=True)
+    # Ensure form is visible before filling (no force=True for fills)
+    expect(page.locator("#register-name")).to_be_visible()
+
+    page.fill("#register-name", PROFESSOR_NAME)
+    page.fill("#register-email", PROFESSOR_EMAIL)
+    page.fill("#register-password", PROFESSOR_PASSWORD)
 
     # Click Register Button (Amber/Orange for Professor)
     # Debug Snapshot
