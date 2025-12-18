@@ -83,9 +83,44 @@ def login_professor(page):
 
     # Extended Wait for Dashboard
     print("[TEST] Waiting for Dashboard redirection...")
-    # Wait for dashboard
+
+    # FORCE REDIRECT STRATEGY
+    # 1. Initial wait to let the app process naturally
+    time.sleep(5)
+
+    # 2. Polling loop
+    max_retries = 20
+    for i in range(max_retries):
+        if page.locator("professor-dashboard-view").is_visible():
+            break
+
+        print(f"[TEST] Dashboard wait loop {i+1}/{max_retries}...")
+
+        # 3. Check Auth Status via JS
+        # We check if firebase.auth().currentUser is set.
+        # Note: We rely on the app exposing firebase or at least the auth instance being initialized.
+        # Since 'firebase' is not globally exposed in module based app, we might need a different check
+        # BUT the task specifically asked for `!!firebase.auth().currentUser`.
+        # If that fails (reference error), we assume not logged in or try a fallback.
+        try:
+            is_logged_in = page.evaluate("typeof firebase !== 'undefined' && firebase.auth().currentUser !== null")
+            # Fallback check if global firebase is missing but maybe we can check via other means
+            # For now, adhering to the requested logic pattern.
+        except Exception:
+            is_logged_in = False
+
+        if is_logged_in:
+            print("[TEST] User is authenticated but UI didn't update. Forcing navigation...")
+            page.evaluate("window.location.hash = '#dashboard'")
+            time.sleep(2)
+            # If still stuck, maybe reload?
+            # page.reload()
+
+        time.sleep(2)
+
+    # Final Verification
     try:
-        expect(page.locator("professor-dashboard-view")).to_be_visible(timeout=60000)
+        expect(page.locator("professor-dashboard-view")).to_be_visible(timeout=10000)
         log("Professor registered and logged in.")
     except:
         log("Dashboard not visible after registration. Checking for errors...")
