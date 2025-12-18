@@ -219,7 +219,7 @@ def create_group(page):
     expect(page.locator("professor-classes-view")).to_be_visible()
 
     # Create new class
-    page.click("button:has-text('Vytvořit třídu')")
+    page.click("button:has-text('Vytvořit novou třídu')")
     group_name = f"QA Group {uuid.uuid4().hex[:4]}"
     page.fill("#new-group-name", group_name)
     page.click("#save-group-btn")
