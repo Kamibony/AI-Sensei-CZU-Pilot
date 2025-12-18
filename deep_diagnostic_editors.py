@@ -126,9 +126,17 @@ def login_professor(page):
     # Final Verification
     try:
         expect(page.locator("professor-dashboard-view")).to_be_visible(timeout=10000)
+
+        print("[TEST] Reloading page to ensure Auth state sync...")
+        page.reload()
+        page.wait_for_load_state("networkidle")
+
+        # THEN wait for the navigation component
+        page.wait_for_selector("app-navigation", state="attached", timeout=60000)
+
         log("Professor registered and logged in.")
     except:
-        log("Dashboard not visible after registration. Checking for errors...")
+        log("Dashboard/Navigation not visible after registration. Checking for errors...")
         error_el = page.locator(".bg-red-50")
         if error_el.is_visible():
             log(f"Registration Error: {error_el.inner_text()}")
@@ -149,9 +157,9 @@ def create_group(page):
     except Exception as e:
         log(f"Navigation to Classes failed: {e}")
         try:
-            print(f"[DEBUG] app-navigation HTML: {page.locator('app-navigation').inner_html()}")
+            print(f"[DEBUG] Full Body HTML: {page.content()}")
         except:
-            print("[DEBUG] Could not get app-navigation HTML")
+            print("[DEBUG] Could not get page content")
         raise e
 
     expect(page.locator("professor-classes-view")).to_be_visible()
