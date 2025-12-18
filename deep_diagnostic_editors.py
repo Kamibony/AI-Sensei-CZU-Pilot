@@ -143,7 +143,7 @@ def create_group(page):
     global GROUP_CODE
     log("Creating Group...")
     # Navigate to classes - sidebar button
-    page.locator("#professor-sidebar button:has-text('Třídy')").click()
+    page.locator("app-navigation aside button:has-text('Třídy')").click(force=True)
     expect(page.locator("professor-classes-view")).to_be_visible()
 
     # Create new class
@@ -188,7 +188,7 @@ def create_lesson(page, content_type_def):
     log(f"Creating lesson for {c_name}...")
 
     # Go to Dashboard -> New Lesson
-    page.locator("#professor-sidebar button:has-text('Nástěnka')").click()
+    page.locator("app-navigation aside button:has-text('Nástěnka')").click(force=True)
     time.sleep(1)
     page.click("button:has-text('Nová lekce')")
 
