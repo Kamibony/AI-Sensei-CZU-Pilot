@@ -23,11 +23,11 @@ CONTENT_TYPES = [
     {"type": "text", "name": "Text", "manual_input_fn": "input_text", "check_selector": ".prose"},
     {"type": "presentation", "name": "Presentation", "manual_input_fn": "input_presentation", "check_selector": ".bg-slate-50.relative"},
     {"type": "quiz", "name": "Quiz", "manual_input_fn": "input_quiz", "check_selector": "ai-generator-panel[contentType='quiz']"},
-    {"type": "test", "name": "Test", "manual_input_fn": "input_test", "check_selector": "input[placeholder*='Otázka']"},
+    {"type": "test", "name": "Test", "manual_input_fn": "input_test", "check_selector": "input[placeholder*='Zformulujte otázku']"},
     {"type": "post", "name": "Post", "manual_input_fn": "input_post", "check_selector": "textarea[placeholder*='Napište']"},
     {"type": "video", "name": "Video", "manual_input_fn": "input_video", "check_selector": "iframe"},
-    {"type": "comic", "name": "Comic", "manual_input_fn": "input_comic", "check_selector": "textarea[placeholder*='Popis scény']"},
-    {"type": "flashcards", "name": "Flashcards", "manual_input_fn": "input_flashcards", "check_selector": "input[placeholder*='Přední strana']"},
+    {"type": "comic", "name": "Comic", "manual_input_fn": "input_comic", "check_selector": "textarea[placeholder*='Co se děje na obrázku']"},
+    {"type": "flashcards", "name": "Flashcards", "manual_input_fn": "input_flashcards", "check_selector": "input[placeholder*='Mitochondrie']"},
     {"type": "mindmap", "name": "Mindmap", "manual_input_fn": "input_mindmap", "check_selector": "#mermaid-preview svg"},
     {"type": "audio", "name": "Audio", "manual_input_fn": "input_audio", "check_selector": "#script-editor"}
 ]
@@ -425,7 +425,12 @@ def input_text(page):
 
 def input_presentation(page):
     if page.locator("ai-generator-panel").is_visible():
-        safe_fill(page, "#prompt-input-topic", "Space Exploration")
+        # Try ID first, then placeholder
+        if page.locator("#prompt-input-topic").count() > 0:
+             safe_fill(page, "#prompt-input-topic", "Space Exploration")
+        else:
+             safe_fill(page, "input[placeholder*='Klíčové momenty']", "Space Exploration")
+
         safe_click(page, "button:has-text('Generovat')")
         expect(page.locator(".bg-slate-50.relative").first).to_be_visible(timeout=30000)
 
@@ -437,7 +442,7 @@ def input_quiz(page):
 
 def input_test(page):
     safe_click(page, "button:has-text('Přidat otázku')")
-    safe_fill(page, "input[placeholder*='Otázka']", "Test Question 1")
+    safe_fill(page, "input[placeholder*='Zformulujte otázku']", "Test Question 1")
     # Options
     opts = page.locator("input[placeholder*='Možnost']").all()
     if len(opts) >= 2:
@@ -448,7 +453,7 @@ def input_post(page):
     safe_fill(page, "textarea", "Test Post Content")
 
 def input_video(page):
-    safe_fill(page, "input[placeholder*='YouTube']", "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    safe_fill(page, "input[placeholder*='youtube.com']", "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
     # Click body to trigger blur/save
     page.click("body")
 
@@ -458,26 +463,30 @@ def input_comic(page):
          safe_click(page, "button:has-text('✍️')")
 
     # Manual
-    safe_fill(page, "textarea[placeholder*='Popis scény']", "Scene 1")
-    safe_fill(page, "textarea[placeholder*='Bublina']", "Hello")
+    safe_fill(page, "textarea[placeholder*='Co se děje na obrázku']", "Scene 1")
+    safe_fill(page, "textarea[placeholder*='Co postavy říkají']", "Hello")
 
 def input_flashcards(page):
     safe_click(page, "button:has-text('Přidat kartu')")
-    inputs_front = page.locator("input[placeholder*='Přední strana']").all()
-    inputs_back = page.locator("textarea[placeholder*='Zadní strana']").all()
+    inputs_front = page.locator("input[placeholder*='Mitochondrie']").all()
+    inputs_back = page.locator("textarea[placeholder*='Vysvětlení pojmu']").all()
     if inputs_front and inputs_back:
         inputs_front[-1].fill("Front Test")
         inputs_back[-1].fill("Back Test")
 
 def input_mindmap(page):
     if page.locator("ai-generator-panel").is_visible():
-        safe_click(page, "button:has-text('Manuálně')")
+        safe_click(page, "button:has-text('Psát kód ručně')")
 
     safe_fill(page, "textarea", "graph TD; A-->B;")
     time.sleep(2)
 
 def input_audio(page):
-    safe_fill(page, "#script-editor", "Test Audio Script")
+    # Check if #script-editor exists, else try fallback
+    if page.locator("#script-editor").count() > 0:
+        safe_fill(page, "#script-editor", "Test Audio Script")
+    else:
+        safe_fill(page, "textarea[placeholder*='[Alex]']", "Test Audio Script")
 
 def run():
     has_error = False
