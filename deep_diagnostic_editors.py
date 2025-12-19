@@ -442,11 +442,12 @@ def input_quiz(page):
         safe_fill(page, "textarea#prompt-input", "Math Quiz")
         safe_click(page, "button:has-text('Generovat')")
         page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(3000)
         expect(page.locator("h4:has-text('Otázka')").first).to_be_visible(timeout=60000)
 
 def input_test(page):
     safe_click(page, "button:has-text('Přidat otázku')")
-    page.wait_for_timeout(1000)
+    page.wait_for_timeout(3000)
     safe_fill(page, "input[placeholder*='Zformulujte otázku']", "Test Question 1")
     # Options
     opts = page.locator("input[placeholder*='Možnost']").all()
@@ -458,7 +459,15 @@ def input_post(page):
     safe_fill(page, "textarea", "Test Post Content")
 
 def input_video(page):
-    safe_fill(page, "input[placeholder*='youtube.com']", "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    selector = "input[placeholder*='youtube.com']"
+    safe_fill(page, selector, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    # Dispatch input event explicitly
+    try:
+        page.locator(selector).evaluate("el => el.dispatchEvent(new Event('input', { bubbles: true }))")
+    except Exception:
+        pass
+
+    page.wait_for_timeout(2000)
     # Click body to trigger blur/save
     page.click("body")
     # Wait for validation to complete and Save button to be enabled
@@ -468,6 +477,7 @@ def input_comic(page):
     if page.locator("ai-generator-panel").is_visible():
          # AI Gen button is icon ✍️ or similar
          safe_click(page, "button:has-text('✍️')")
+         page.wait_for_selector("textarea", state="visible", timeout=10000)
 
     # Manual
     safe_fill(page, "textarea[placeholder*='Co se děje na obrázku']", "Scene 1")
@@ -484,6 +494,7 @@ def input_flashcards(page):
 def input_mindmap(page):
     if page.locator("ai-generator-panel").is_visible():
         safe_click(page, "button:has-text('Psát kód ručně')")
+        page.wait_for_selector("textarea", state="visible", timeout=10000)
 
     safe_fill(page, "textarea", "graph TD; A-->B;")
     time.sleep(2)
@@ -515,6 +526,13 @@ def run():
                     log(f"Error creating/verifying {ct['name']}: {e}")
                     page.screenshot(path=f"{SCREENSHOT_DIR}/error_{ct['type']}.png")
                     has_error = True
+
+                # Cleanup: Force dashboard
+                try:
+                    page.goto(f"{BASE_URL}/#dashboard")
+                    page.wait_for_timeout(2000)
+                except Exception as e:
+                    log(f"Warning: Failed to navigate back to dashboard: {e}")
 
         except Exception as e:
             log(f"Critical Setup Error: {e}")
