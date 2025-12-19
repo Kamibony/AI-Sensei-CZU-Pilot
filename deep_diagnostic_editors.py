@@ -237,6 +237,9 @@ def create_lesson(page, content_type_def):
     # Confirm Manual Creation (Select Manual vs Magic) - Button with text "Vytvořit manuálně"
     safe_click(page, "button:has-text('Vytvořit manuálně')")
 
+    # Ensure Hub is interactive
+    page.wait_for_timeout(2000)
+
     # Hub - Select Tool
     expect(page.locator("h3:has-text('Vyberte sekci k úpravě')")).to_be_visible()
 
@@ -438,10 +441,12 @@ def input_quiz(page):
     if page.locator("ai-generator-panel").is_visible():
         safe_fill(page, "textarea#prompt-input", "Math Quiz")
         safe_click(page, "button:has-text('Generovat')")
-        expect(page.locator("h4:has-text('Otázka')").first).to_be_visible(timeout=30000)
+        page.wait_for_load_state("networkidle")
+        expect(page.locator("h4:has-text('Otázka')").first).to_be_visible(timeout=60000)
 
 def input_test(page):
     safe_click(page, "button:has-text('Přidat otázku')")
+    page.wait_for_timeout(1000)
     safe_fill(page, "input[placeholder*='Zformulujte otázku']", "Test Question 1")
     # Options
     opts = page.locator("input[placeholder*='Možnost']").all()
@@ -456,6 +461,8 @@ def input_video(page):
     safe_fill(page, "input[placeholder*='youtube.com']", "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
     # Click body to trigger blur/save
     page.click("body")
+    # Wait for validation to complete and Save button to be enabled
+    expect(page.locator("professor-header-editor button:has-text('Uložit změny')")).to_be_enabled()
 
 def input_comic(page):
     if page.locator("ai-generator-panel").is_visible():
