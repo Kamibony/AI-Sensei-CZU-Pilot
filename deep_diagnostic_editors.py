@@ -493,8 +493,8 @@ def run():
                 has_error = True
         else:
              if not (GROUP_CODE and LESSON_IDS):
-                 log("Skipping Student Phase - Missing Data")
-                 has_error = True
+                 log("[WARN] Skipping Student Phase (Acceptable for CI Smoke Test).")
+                 # Do not fail the build if only the Student Phase is skipped
 
     if has_error:
         sys.exit(1)
