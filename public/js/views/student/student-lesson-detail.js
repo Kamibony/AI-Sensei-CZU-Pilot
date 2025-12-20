@@ -216,38 +216,38 @@ export class StudentLessonDetail extends LitElement {
 
         // 1. Study Room (Combines Text + Files + Video)
         if (ld.text_content || (ld.files && ld.files.length > 0) || ld.youtube_link) {
-            tabs.push({ id: 'study', label: 'Študovňa', icon: '📚', desc: 'Text a materiály' });
+            tabs.push({ id: 'study', label: translationService.t('student.tabs.study'), icon: '📚', desc: translationService.t('student.tabs.desc_study') });
         }
         // 2. Podcast
         if (ld.podcast_script) {
-            tabs.push({ id: 'podcast', label: 'Podcast', icon: '🎙️', desc: 'Audio lekce' });
+            tabs.push({ id: 'podcast', label: translationService.t('student.tabs.podcast'), icon: '🎙️', desc: translationService.t('student.tabs.desc_podcast') });
         }
         // 3. Presentation
         if (ld.presentation) {
-            tabs.push({ id: 'presentation', label: 'Prezentace', icon: '📊', desc: 'Slidy' });
+            tabs.push({ id: 'presentation', label: translationService.t('student.tabs.presentation'), icon: '📊', desc: translationService.t('student.tabs.desc_presentation') });
         }
         // 4. Flashcards
         if (ld.flashcards) {
-            tabs.push({ id: 'flashcards', label: 'Kartičky', icon: '🗂️', desc: 'Opakování' });
+            tabs.push({ id: 'flashcards', label: translationService.t('student.tabs.flashcards'), icon: '🗂️', desc: translationService.t('student.tabs.desc_flashcards') });
         }
         // 5. Mindmap
         if (ld.mindmap) {
-            tabs.push({ id: 'mindmap', label: 'Myšlenková mapa', icon: '🧠', desc: 'Souvislosti' });
+            tabs.push({ id: 'mindmap', label: translationService.t('student.tabs.mindmap'), icon: '🧠', desc: translationService.t('student.tabs.desc_mindmap') });
         }
         // 6. Comic
         if (ld.comic) {
-            tabs.push({ id: 'comic', label: 'Komiks', icon: '💬', desc: 'Příběh' });
+            tabs.push({ id: 'comic', label: translationService.t('student.tabs.comic'), icon: '💬', desc: translationService.t('student.tabs.desc_comic') });
         }
         // 7. Quiz / Test
         if (ld.quiz) {
-            tabs.push({ id: 'quiz', label: 'Kvíz', icon: '❓', desc: 'Procvičení' });
+            tabs.push({ id: 'quiz', label: translationService.t('student.tabs.quiz'), icon: '❓', desc: translationService.t('student.tabs.desc_quiz') });
         }
         if (ld.test) {
-            tabs.push({ id: 'test', label: 'Test', icon: '📝', desc: 'Ověření znalostí' });
+            tabs.push({ id: 'test', label: translationService.t('student.tabs.test'), icon: '📝', desc: translationService.t('student.tabs.desc_test') });
         }
 
         // Always available tools
-        tabs.push({ id: 'ai-assistant', label: 'AI Asistent', icon: '🤖', desc: 'Doučování' });
+        tabs.push({ id: 'ai-assistant', label: translationService.t('student.tabs.ai_assistant'), icon: '🤖', desc: translationService.t('student.tabs.desc_ai_assistant') });
 
         return tabs;
     }
