@@ -207,10 +207,16 @@ def create_lesson(page, content_type_def):
 
     safe_click(page, "button:has-text('Vytvořit manuálně')")
 
-    page.wait_for_timeout(2000)
-
-    # Wait for the tool grid to appear (generic check)
-    page.wait_for_selector("button:has-text('Textový obsah')", timeout=10000)
+    print("[TEST] Waiting for editor tools to appear...")
+    # Wait for ANY of the main tool buttons to be visible (e.g., 'Text', 'Quiz', 'Video' buttons)
+    # We use a generic selector for the grid items or a specific button that always exists.
+    try:
+        # Wait up to 15 seconds for the grid to render
+        page.wait_for_selector("button:has-text('Text')", timeout=15000)
+    except:
+        print("[DEBUG] Editor tools did not appear. Dumping page content...")
+        print(page.content())
+        raise
 
     type_map_text = {
         "text": "Textový obsah",
