@@ -412,6 +412,23 @@ def input_presentation(page):
         expect(page.locator(".bg-slate-50.relative").first).to_be_visible(timeout=30000)
 
 def input_quiz(page):
+    # --- Logic Check: Empty State ---
+    log("[LOGIC CHECK] Attempting to save Quiz with no questions...")
+    save_btn_selector = "professor-header-editor button:has-text('Uložit změny')"
+
+    # Attempt to click save
+    # We use a shorter timeout because we expect it to be clickable but trigger validation
+    try:
+        page.click(save_btn_selector, timeout=2000)
+        # Check for toast
+        try:
+            expect(page.locator("#toast-container")).to_be_visible(timeout=3000)
+            log("[LOGIC PASS] Validation toast appeared for empty Quiz.")
+        except:
+            log("[LOGIC FAILURE] No validation toast appeared for empty Quiz (or button action failed).")
+    except Exception as e:
+        log(f"[LOGIC INFO] Could not click save (maybe disabled?): {e}")
+
     log("Injecting Manual Quiz Data (Bypassing AI)...")
     quiz_data = {
         "questions": [
@@ -514,6 +531,28 @@ def input_mindmap(page):
     time.sleep(2)
 
 def input_audio(page):
+    # --- Logic Check: Empty State ---
+    log("[LOGIC CHECK] Attempting to save empty Podcast...")
+    save_btn_selector = "professor-header-editor button:has-text('Uložit změny')"
+
+    # Check if button is disabled first
+    is_disabled = page.is_disabled(save_btn_selector) if page.locator(save_btn_selector).count() > 0 else False
+
+    if is_disabled:
+         log("[LOGIC PASS] Save button is disabled for empty Podcast.")
+    else:
+         try:
+             page.click(save_btn_selector, timeout=2000)
+             try:
+                 expect(page.locator("#toast-container")).to_be_visible(timeout=3000)
+                 log("[LOGIC PASS] Validation toast appeared for empty Podcast.")
+             except:
+                 log("[LOGIC FAILURE] No validation toast appeared for empty Podcast.")
+         except Exception as e:
+             log(f"[LOGIC INFO] Click interaction failed: {e}")
+
+    # --- Fill Content ---
+    log("Simulating User realization: 'Script missing. Inputting content.'")
     selector = "#script-editor"
     if page.locator(selector).count() == 0:
         selector = "textarea[placeholder*='[Alex]']"
