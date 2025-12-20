@@ -100,9 +100,9 @@ export class EditorViewTest extends Localized(LitElement) {
                                     <div class="uppercase tracking-widest text-slate-500 text-sm font-bold mb-2">${this.t('editor.test.paper_header')}</div>
                                     <h1 class="text-4xl font-serif text-slate-900 mb-4">${this.lesson.title || this.t('editor.test.untitled')}</h1>
                                     <div class="flex justify-center gap-8 text-sm font-serif italic text-slate-600">
-                                        <span>${this.t('editor.test.subject')}: ${this.lesson.subject || 'General'}</span>
+                                        <span>${this.t('editor.test.subject')}: ${this.lesson.subject || this.t('common.no_subject')}</span>
                                         <span>•</span>
-                                        <span>${this.t('editor.test.topic')}: ${this.lesson.topic || 'General'}</span>
+                                        <span>${this.t('editor.test.topic')}: ${this.lesson.topic || this.t('common.no_topic')}</span>
                                         <span>•</span>
                                         <span>${this.t('editor.test.questions_count')}: ${questions.length}</span>
                                     </div>
@@ -130,9 +130,9 @@ export class EditorViewTest extends Localized(LitElement) {
                                                 <div>
                                                     <label class="block text-sm font-bold text-slate-700 uppercase tracking-wide mb-1">${this.t('editor.test.difficulty')}</label>
                                                     <select id="difficulty-select" class="w-full border-slate-300 focus:border-slate-800 focus:ring-0 rounded-none p-2 bg-white">
-                                                        <option value="Lehká">${this.t('editor.test.difficulty_easy')}</option>
-                                                        <option value="Střední" selected>${this.t('editor.test.difficulty_medium')}</option>
-                                                        <option value="Těžká">${this.t('editor.test.difficulty_hard')}</option>
+                                                        <option value="Lehká">${this.t('editor.quiz.difficulty_easy') || 'Lehká'}</option>
+                                                        <option value="Střední" selected>${this.t('editor.quiz.difficulty_medium') || 'Střední'}</option>
+                                                        <option value="Těžká">${this.t('editor.quiz.difficulty_hard') || 'Těžká'}</option>
                                                     </select>
                                                 </div>
                                                 <div>

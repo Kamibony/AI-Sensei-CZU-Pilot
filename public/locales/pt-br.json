@@ -202,7 +202,10 @@
         "selectAuthor": "Selecionar",
         "defaultPrompt": "Crie um post sobre {topic}...",
         "ai_tip_title": "Dica IA",
-        "ai_tip_desc": "Tente este prompt:"
+        "ai_tip_desc": "Tente este prompt:",
+        "just_now": "Agora mesmo",
+        "share": "Compartilhar",
+        "preview_placeholder": "O texto da sua postagem aparecerá aqui..."
       }
     },
     "header": {
@@ -776,6 +779,16 @@
     "remove": "Remover"
   },
   "prompts": {
-    "podcast_default": "Conceitos chave de \"{{topic}}\""
-  }
+    "podcast_default": "Conceitos chave de \"{{topic}}\"",
+    "text_gen": "Crie um texto de estudo para a lição '{title}' sobre o tópico {topic}.",
+    "presentation_gen": "Crie uma apresentação para a lição '{title}'.",
+    "quiz_gen": "Crie um quiz para a lição '{title}'.",
+    "test_gen": "Crie um teste para a lição '{title}'.",
+    "podcast_gen": "Crie um roteiro de podcast para a lição '{title}'.",
+    "flashcards_gen": "Crie flashcards para a lição '{title}'.",
+    "mindmap_gen": "Crie um mapa mental para a lição '{title}'.",
+    "comic_gen": "Crie um roteiro de quadrinhos para a lição '{title}'.",
+    "audio_gen": "Escreva um roteiro de podcast sobre '{title}'."
+  },
+  "generate_presentation_first": "Gere a apresentação primeiro."
 }

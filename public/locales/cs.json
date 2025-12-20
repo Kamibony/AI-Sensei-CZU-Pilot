@@ -183,6 +183,15 @@
       "subject_place": "Např. Dějepis",
       "subject_placeholder": "Např. Dějepis",
       "context_files": "Podklady pro AI",
+      "library_btn": "Knihovna",
+      "upload_btn": "Nahrát",
+      "upload_files": "Nahrát soubory",
+      "upload_pdf_hint": "Nahrajte PDF...",
+      "rag_context": "Podklady pro AI (RAG)",
+      "rag_help": "Nahrajte PDF, DOCX nebo TXT soubory, ze kterých má AI čerpat.",
+      "ready_for_ai": "Připraveno pro AI",
+      "no_files_magic_hint": "Zatím žádné soubory. <br>Nahrajte podklady pro \"Magické generování\".",
+      "lesson_content": "Obsah lekce",
       "library_files_added": "Přidáno {count} souborů z knihovny.",
       "magic_generating_title": "AI Sensei kouzlí...",
       "magic_generating_desc": "Generuji veškerý obsah lekce. Může to chvíli trvat.",
@@ -214,7 +223,10 @@
         "selectAuthor": "Vyberte autora",
         "defaultPrompt": "Vytvoř vzdělávací příspěvek pro studenty na téma: {topic}. Tón by měl být povzbudivý a informativní. Zahrň klíčové body a zajímavosti.",
         "ai_tip_title": "Tip pro AI Generátor",
-        "ai_tip_desc": "Pokud používáte magické generování, zkuste tento prompt:"
+        "ai_tip_desc": "Pokud používáte magické generování, zkuste tento prompt:",
+        "just_now": "Právě teď",
+        "share": "Sdílet",
+        "preview_placeholder": "Zde se zobrazí text vašeho příspěvku..."
       }
     },
     "header": {
@@ -441,6 +453,9 @@
     "new": "Nová lekce",
     "magic_done_stats": "Magie dokončena! Úspěšně: {success}/{total}.",
     "upload_ai_failed_specific": "Soubor {filename} byl nahrán, ale analýza AI selhala.",
+    "draft_creating": "Zakládám koncept lekce...",
+    "magic_requires_files": "Pro magii musíte nahrát soubory",
+    "save_error_before_magic": "Nepodařilo se uložit lekci před generováním.",
     "title": "Název lekce",
     "subtitle": "Podtitul / Téma",
     "language": "Jazyk obsahu",
@@ -820,5 +835,6 @@
     "mindmap_gen": "Vytvoř myšlenkovou mapu pro lekci '{title}'.",
     "comic_gen": "Vytvoř scénář komiksu pro lekci '{title}'.",
     "audio_gen": "Napiš scénář podcastu o '{title}'."
-  }
+  },
+  "generate_presentation_first": "Nejprve vygenerujte prezentaci."
 }
