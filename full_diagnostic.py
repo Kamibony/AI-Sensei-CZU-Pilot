@@ -100,6 +100,13 @@ def safe_fill_and_trigger(page, selector, value):
 def login_professor(page):
     log("Registering/Logging in Professor...")
     page.goto(f"{BASE_URL}/")
+
+    # Wait for global spinner to hide if present
+    try:
+        expect(page.locator("#global-spinner")).to_be_hidden(timeout=10000)
+    except Exception:
+        pass
+
     time.sleep(2)
 
     if page.locator("text='Jsem Profesor'").is_visible():
@@ -120,6 +127,12 @@ def login_professor(page):
     log("Submitting registration...")
     page.keyboard.press("Enter")
 
+    # Wait for spinner after registration submit
+    try:
+        expect(page.locator("#global-spinner")).to_be_hidden(timeout=15000)
+    except Exception:
+        pass
+
     log("Waiting for Dashboard...")
     try:
         expect(page.locator("professor-dashboard-view")).to_be_visible(timeout=30000)
@@ -129,6 +142,10 @@ def login_professor(page):
             safe_click(page, "button:has-text('Registrovat se')")
             page.wait_for_timeout(2000)
         page.reload()
+        try:
+            expect(page.locator("#global-spinner")).to_be_hidden(timeout=10000)
+        except Exception:
+            pass
         expect(page.locator("professor-dashboard-view")).to_be_visible(timeout=40000)
 
     log("Professor registered/logged in.")
