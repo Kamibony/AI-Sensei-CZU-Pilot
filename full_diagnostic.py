@@ -255,9 +255,10 @@ def create_lesson(page, content_type_def):
     try:
         url = page.url
         match = re.search(r"/editor/([a-zA-Z0-9_-]+)", url)
+        lid = None
+
         if match:
             lid = match.group(1)
-            LESSON_IDS[c_type] = lid
             log(f"Lesson ID for {c_name}: {lid} (Extracted from URL: {url})")
         else:
             # Fallback 1: Query parameters (legacy or different route)
@@ -265,10 +266,33 @@ def create_lesson(page, content_type_def):
             qs = urllib.parse.parse_qs(parsed.query)
             if 'id' in qs:
                 lid = qs['id'][0]
-                LESSON_IDS[c_type] = lid
                 log(f"Lesson ID for {c_name}: {lid} (Extracted from Query Params)")
-            else:
-                log(f"Could not extract Lesson ID from URL: {url}")
+
+        # --- FALLBACK: Extract from DOM Component State ---
+        if not lid:
+            log("[DEBUG] URL extraction failed. Attempting DOM extraction from <lesson-editor>...")
+            try:
+                # Execute JS to grab the property directly from the LitElement component
+                lid = page.evaluate("document.querySelector('lesson-editor')?.lessonId")
+                if lid:
+                    log(f"[SUCCESS] Extracted Lesson ID from DOM: {lid}")
+            except Exception as e:
+                log(f"[DEBUG] DOM extraction failed: {e}")
+
+        # --- FALLBACK 2: Extract from <professor-header-editor> ---
+        if not lid:
+             try:
+                lid = page.evaluate("document.querySelector('professor-header-editor')?.lessonId")
+                if lid:
+                    log(f"[SUCCESS] Extracted Lesson ID from Header DOM: {lid}")
+             except:
+                pass
+
+        if lid:
+            LESSON_IDS[c_type] = lid
+        else:
+            log(f"Could not extract Lesson ID from URL or DOM: {url}")
+
     except Exception as e:
         log(f"Error extracting lesson ID: {e}")
 
