@@ -23,6 +23,12 @@ jobs:
           pip install playwright pytest
           playwright install chromium
           npm install -g firebase-tools
+      - name: Install and Build Functions
+        run: |
+          cd functions
+          npm install
+          npm run build
+          cd ..
       - name: Run Full Diagnostic
         run: |
           # Start emulators and run the full script
