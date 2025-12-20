@@ -207,7 +207,8 @@ def create_lesson(page, content_type_def):
 
     page.wait_for_timeout(2000)
 
-    expect(page.locator("h3:has-text('Vyberte sekci k úpravě')")).to_be_visible()
+    # Wait for the tool grid to appear (generic check)
+    page.wait_for_selector("button:has-text('Textový obsah')", timeout=10000)
 
     type_map_text = {
         "text": "Textový obsah",
@@ -235,7 +236,8 @@ def create_lesson(page, content_type_def):
 
     safe_click(page, "professor-header-editor button")
 
-    expect(page.locator("h3:has-text('Vyberte sekci k úpravě')")).to_be_visible()
+    # Wait for the tool grid to appear (generic check)
+    page.wait_for_selector("button:has-text('Textový obsah')", timeout=10000)
 
     try:
         checkbox_label = page.locator("label").filter(has_text=f"QA Group").first
