@@ -24,7 +24,7 @@ export class EditorViewPresentation extends Localized(LitElement) {
 
     async _exportToPptx() {
         if (!this.lesson?.presentation?.slides) {
-            alert(this.t('editor.presentation.export_error') || 'Nejprve vygenerujte prezentaci.');
+            alert(this.t('editor.presentation.export_error') || this.t('generate_presentation_first'));
             return;
         }
 
@@ -74,7 +74,7 @@ export class EditorViewPresentation extends Localized(LitElement) {
                 });
             });
 
-            await pres.writeFile({ fileName: `${this.lesson.title || 'Prezentace'}.pptx` });
+            await pres.writeFile({ fileName: `${this.lesson.title || this.t('content_types.presentation')}.pptx` });
 
         } catch (error) {
             console.error('Export failed:', error);

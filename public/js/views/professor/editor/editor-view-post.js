@@ -102,26 +102,26 @@ export class EditorViewPost extends LitElement {
                                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                                     <div>
                                         <label class="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
-                                            ${t('professor.editor.post.contentLabel') || 'Text příspěvku'}
+                                            ${t('professor.editor.post.contentLabel')}
                                         </label>
                                         <textarea
                                             .value="${contentText}"
                                             @input="${e => this._handleInput('text', e.target.value)}"
                                             rows="12"
                                             class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none"
-                                            placeholder="${t('professor.editor.post.contentPlaceholder') || 'Napište něco zajímavého...'}"></textarea>
+                                            placeholder="${t('professor.editor.post.contentPlaceholder')}"></textarea>
                                     </div>
 
                                     <div>
                                         <label class="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
-                                            ${t('professor.editor.post.authorLabel') || 'Autor'}
+                                            ${t('professor.editor.post.authorLabel')}
                                         </label>
                                         <select
                                             .value="${author}"
                                             @change="${e => this._handleInput('author', e.target.value)}"
                                             class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500">
                                             <option value="ai_sensei">AI Sensei</option>
-                                            <option value="professor">${t('professor.default_name') || 'Profesor'}</option>
+                                            <option value="professor">${t('professor.default_name')}</option>
                                         </select>
                                     </div>
                                 </div>
@@ -132,9 +132,9 @@ export class EditorViewPost extends LitElement {
                                         ✨
                                     </div>
                                     <div>
-                                        <h4 class="text-sm font-bold text-indigo-900 mb-1">Tip pro AI Generátor</h4>
+                                        <h4 class="text-sm font-bold text-indigo-900 mb-1">${t('professor.editor.post.ai_tip_title')}</h4>
                                         <p class="text-xs text-indigo-700 leading-relaxed">
-                                            Zkuste prompt:
+                                            ${t('professor.editor.post.ai_tip_desc')}
                                             <span class="font-mono bg-indigo-100 px-1 rounded cursor-pointer hover:bg-indigo-200 transition-colors"
                                                 @click="${e => navigator.clipboard.writeText(e.target.innerText)}">
                                                 ${defaultPrompt}
@@ -179,15 +179,15 @@ export class EditorViewPost extends LitElement {
                                                     </div>
                                                     <div>
                                                         <div class="font-bold text-slate-900 text-sm">
-                                                            ${author === 'ai_sensei' ? 'AI Sensei' : (t('professor.default_name') || 'Profesor')}
+                                                            ${author === 'ai_sensei' ? 'AI Sensei' : t('professor.default_name')}
                                                         </div>
-                                                        <div class="text-xs text-slate-400">Právě teď</div>
+                                                        <div class="text-xs text-slate-400">${t('professor.editor.post.just_now')}</div>
                                                     </div>
                                                 </div>
 
                                                 <!-- Post Content -->
                                                 <div class="px-4 pb-4 text-slate-800 text-sm leading-relaxed">
-                                                    ${contentText ? formattedText : html`<span class="text-slate-300 italic">Zde se zobrazí text vašeho příspěvku...</span>`}
+                                                    ${contentText ? formattedText : html`<span class="text-slate-300 italic">${t('professor.editor.post.preview_placeholder')}</span>`}
                                                 </div>
 
                                                 <!-- Post Footer / Stats -->
@@ -201,7 +201,7 @@ export class EditorViewPost extends LitElement {
                                                         </span>
                                                     </div>
                                                     <span class="flex items-center gap-1 hover:text-slate-600 transition-colors cursor-pointer">
-                                                        ↗️ Sdílet
+                                                        ↗️ ${t('professor.editor.post.share')}
                                                     </span>
                                                 </div>
                                             </div>
