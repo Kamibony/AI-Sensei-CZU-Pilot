@@ -195,6 +195,13 @@
       "back": "Voltar",
       "title_required": "Título obrigatório",
       "magic_generator_desc": "Gere uma lição completa a partir de arquivos PDF.",
+      "rag_context": "Arquivos de Contexto (RAG)",
+      "rag_help": "Carregue arquivos PDF, DOCX ou TXT para a IA utilizar como base.",
+      "library_btn": "Biblioteca",
+      "upload_btn": "Enviar",
+      "no_files_magic_hint": "Nenhum arquivo carregado. Adicione materiais para a Geração Mágica.",
+      "creating_draft": "Criando rascunho...",
+      "error_save_before_magic": "Erro ao salvar a lição antes da geração.",
       "post": {
         "contentLabel": "Conteúdo",
         "contentPlaceholder": "Escreva aqui...",
