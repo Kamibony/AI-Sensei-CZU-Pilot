@@ -268,25 +268,35 @@ def create_lesson(page, content_type_def):
                 lid = qs['id'][0]
                 log(f"Lesson ID for {c_name}: {lid} (Extracted from Query Params)")
 
-        # --- FALLBACK: Extract from DOM Component State ---
+        # --- FALLBACK: Extract from DOM Component State (User Specified Paths) ---
         if not lid:
-            log("[DEBUG] URL extraction failed. Attempting DOM extraction from <lesson-editor>...")
-            try:
-                # Execute JS to grab the property directly from the LitElement component
-                lid = page.evaluate("document.querySelector('lesson-editor')?.lessonId")
-                if lid:
-                    log(f"[SUCCESS] Extracted Lesson ID from DOM: {lid}")
-            except Exception as e:
-                log(f"[DEBUG] DOM extraction failed: {e}")
+            log("[DEBUG] URL extraction failed. Attempting EXACT DOM extraction paths...")
 
-        # --- FALLBACK 2: Extract from <professor-header-editor> ---
-        if not lid:
-             try:
-                lid = page.evaluate("document.querySelector('professor-header-editor')?.lessonId")
+            # 1. Primary (Lesson Editor) - currentLessonId
+            try:
+                lid = page.evaluate("document.querySelector('lesson-editor')?.currentLessonId")
                 if lid:
-                    log(f"[SUCCESS] Extracted Lesson ID from Header DOM: {lid}")
-             except:
-                pass
+                    log(f"[DEBUG] Found ID in Lesson Editor: {lid}")
+            except Exception as e:
+                log(f"[DEBUG] DOM Path 1 failed: {e}")
+
+            # 2. Secondary (Header Lesson Object) - lesson.id
+            if not lid:
+                try:
+                    lid = page.evaluate("document.querySelector('professor-header-editor')?.lesson?.id")
+                    if lid:
+                        log(f"[DEBUG] Found ID in Header (id): {lid}")
+                except Exception as e:
+                    log(f"[DEBUG] DOM Path 2 failed: {e}")
+
+            # 3. Tertiary (Header Lesson Object - Alternative) - lesson.uid
+            if not lid:
+                try:
+                    lid = page.evaluate("document.querySelector('professor-header-editor')?.lesson?.uid")
+                    if lid:
+                        log(f"[DEBUG] Found ID in Header (uid): {lid}")
+                except Exception as e:
+                    log(f"[DEBUG] DOM Path 3 failed: {e}")
 
         if lid:
             LESSON_IDS[c_type] = lid
