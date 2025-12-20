@@ -44,7 +44,7 @@ def log(msg):
 
 # --- Helper Functions ---
 
-def safe_click(page, selector, timeout=5000):
+def safe_click(page, selector, timeout=15000):
     log(f"Clicking: {selector}")
     try:
         page.click(selector, timeout=timeout)
@@ -85,8 +85,20 @@ def safe_fill_and_trigger(page, selector, value):
     """
     Fills an input and forces DOM events via JS evaluation to ensure LitElement/Frameworks detect the change.
     Bypasses Playwright's dispatch_event API version issues and correctly passes value as arg.
+    Uses type with delay for robust input in high latency environments.
     """
-    safe_fill(page, selector, value)
+    log(f"Typing into: {selector}")
+    try:
+        # Click to focus first
+        page.locator(selector).first.click()
+        # Clear first (fill clears the field)
+        page.locator(selector).first.fill("")
+        # Type with delay to simulate human and trigger events
+        page.locator(selector).first.type(value, delay=100)
+    except Exception as e:
+        log(f"Type failed for {selector}: {e}. Fallback to safe_fill...")
+        safe_fill(page, selector, value)
+
     log(f"Triggering events for: {selector}")
     try:
         page.locator(selector).first.evaluate("""(el, val) => {
@@ -280,13 +292,16 @@ def create_lesson(page, content_type_def):
         if not lid:
             log("[DEBUG] URL extraction failed. Attempting EXACT DOM extraction paths...")
 
-            # 1. Primary (Lesson Editor) - currentLessonId
-            try:
-                lid = page.evaluate("document.querySelector('lesson-editor')?.currentLessonId")
-                if lid:
-                    log(f"[DEBUG] Found ID in Lesson Editor: {lid}")
-            except Exception as e:
-                log(f"[DEBUG] DOM Path 1 failed: {e}")
+            # 1. Primary (Lesson Editor) - currentLessonId - RETRY LOOP
+            for attempt in range(5):
+                try:
+                    lid = page.evaluate("document.querySelector('lesson-editor')?.currentLessonId")
+                    if lid:
+                        log(f"[DEBUG] Found ID in Lesson Editor: {lid}")
+                        break
+                except Exception as e:
+                    log(f"[DEBUG] DOM Path 1 failed (Attempt {attempt+1}): {e}")
+                time.sleep(2)
 
             # 2. Secondary (Header Lesson Object) - lesson.id
             if not lid:
@@ -513,7 +528,7 @@ def run():
         context = browser.new_context()
         page = context.new_page()
         # Generous timeout for Full Diagnostic
-        page.set_default_timeout(60000)
+        page.set_default_timeout(90000)
 
         try:
             login_professor(page)
