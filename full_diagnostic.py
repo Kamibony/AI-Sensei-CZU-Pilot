@@ -412,6 +412,25 @@ def input_presentation(page):
         expect(page.locator(".bg-slate-50.relative").first).to_be_visible(timeout=30000)
 
 def input_quiz(page):
+    # Step 1: Negative Test (Empty Quiz)
+    log("[TEST] Testing Empty Quiz Save...")
+    try:
+        # Check if button is disabled first
+        save_btn = page.locator("professor-header-editor button:has-text('Uložit změny')")
+        if save_btn.is_disabled():
+             log("[LOGIC CHECK] Empty Quiz save prevented: SUCCESS (Button Disabled)")
+        else:
+             # Try clicking
+             save_btn.click(timeout=2000)
+             page.wait_for_timeout(1000)
+             if page.locator("text='Změny úspěšně uloženy'").is_visible():
+                 log("[LOGIC FAILURE] Empty Quiz save succeeded!")
+             else:
+                 log("[LOGIC CHECK] Empty Quiz save prevented: SUCCESS (Toast/No-Action)")
+    except Exception as e:
+        log(f"[LOGIC CHECK] Error checking empty quiz save: {e}")
+
+    # Step 2: Correction & Positive Data Entry
     log("Injecting Manual Quiz Data (Bypassing AI)...")
     quiz_data = {
         "questions": [
@@ -514,6 +533,23 @@ def input_mindmap(page):
     time.sleep(2)
 
 def input_audio(page):
+    # Step 1: Negative Test (Empty Audio)
+    log("[TEST] Testing Empty Audio Save...")
+    try:
+        save_btn = page.locator("professor-header-editor button:has-text('Uložit změny')")
+        if save_btn.is_disabled():
+             log("[LOGIC CHECK] Empty Podcast save prevented: SUCCESS (Button Disabled)")
+        else:
+             save_btn.click(timeout=2000)
+             page.wait_for_timeout(1000)
+             if page.locator("text='Změny úspěšně uloženy'").is_visible():
+                 log("[LOGIC FAILURE] Empty Podcast save succeeded!")
+             else:
+                 log("[LOGIC CHECK] Empty Podcast save prevented: SUCCESS (Toast/No-Action)")
+    except Exception as e:
+        log(f"[LOGIC CHECK] Error checking empty podcast save: {e}")
+
+    # Step 2: Correction
     selector = "#script-editor"
     if page.locator(selector).count() == 0:
         selector = "textarea[placeholder*='[Alex]']"
