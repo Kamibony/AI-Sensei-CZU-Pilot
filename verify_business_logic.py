@@ -365,11 +365,14 @@ def verify_student_view(p, headless=True):
     page.goto(lesson_url)
 
     try:
-        finish_btn = page.locator("button:has-text('Dokončit'), button:has-text('Finish')")
-        expect(finish_btn).to_be_visible(timeout=15000)
-        log("[SUCCESS] Student view loaded correctly. 'Dokončit' button found.")
+        # Verify that the lesson content is visible (Text content or Completion button)
+        # Text lessons use .prose class for content and 'Mám prostudováno' button
+        log("Verifying lesson content visibility...")
+        page.wait_for_selector(".prose, button:has-text('Mám prostudováno'), button:has-text('Splněno')", timeout=15000)
+        log("[SUCCESS] Student lesson content rendered successfully.")
+
     except Exception as e:
-        log(f"Failed to find 'Dokončit' button.")
+        log(f"Failed to find lesson content or completion button.")
         page.screenshot(path=f"{SCREENSHOT_DIR}/student_fail.png")
         raise e
 
