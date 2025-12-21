@@ -167,13 +167,17 @@ export class StudentLessonDetail extends LitElement {
     }
 
     async _fetchLessonDetail() {
+        console.log("Fetching lesson detail for ID:", this.lessonId);
         this.isLoading = true;
         this.lessonData = null;
         try {
             const docRef = doc(firebaseInit.db, "lessons", this.lessonId);
+            console.log("Calling getDoc...");
             const docSnap = await getDoc(docRef);
+            console.log("getDoc returned. Exists:", docSnap.exists());
 
             if (docSnap.exists()) {
+                console.log("Lesson data:", docSnap.data());
                 this.lessonData = normalizeLessonData(docSnap.data());
                 if (!this.activeTabId) {
                     this.activeTabId = this._getDefaultTab();
@@ -183,7 +187,12 @@ export class StudentLessonDetail extends LitElement {
             }
         } catch (error) {
             console.error("Error fetching lesson detail:", error);
+            // Verify permissions error
+            if (error.code === 'permission-denied') {
+                 console.error("PERMISSION DENIED. Check Security Rules.");
+            }
         } finally {
+            console.log("Fetch finished. isLoading = false");
             this.isLoading = false;
         }
     }
