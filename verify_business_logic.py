@@ -233,6 +233,17 @@ def verify_text_lesson_logic(page):
         safe_fill(page, "textarea#prompt-input", "This is a test content.")
         safe_click(page, "button:has-text('Generovat')")
         expect(page.locator(".prose")).to_be_visible(timeout=30000)
+
+        # Click the 'Accept/Save' button inside the AI panel to apply changes to the lesson
+        log("Accepting generated content...")
+        try:
+            # Try finding the button in the footer of the generation output
+            safe_click(page, "ai-generator-panel div.text-right button")
+            time.sleep(2)
+        except Exception as e:
+            log(f"Could not find AI accept button: {e}")
+            page.screenshot(path=f"{SCREENSHOT_DIR}/ai_button_fail.png")
+
     else:
         log("AI Generator not visible, assuming content needs manual entry or is already there?")
 
@@ -309,6 +320,7 @@ def verify_student_view(p, headless=True):
     log("Step 3: Verifying Student View...")
     browser = p.chromium.launch(headless=headless, args=['--no-sandbox'])
     page = browser.new_page()
+    page.on("console", lambda msg: log(f"[BROWSER] {msg.text}"))
 
     page.goto(f"{BASE_URL}/")
     time.sleep(1)

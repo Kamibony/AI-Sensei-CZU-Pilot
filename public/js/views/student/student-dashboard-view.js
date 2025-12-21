@@ -51,6 +51,7 @@ class StudentDashboard extends Localized(LitElement) {
         this.isJoining = false;
         this._unsubStudent = null;
         this._unsubLesson = null;
+        this._boundHandleHashChange = this._handleHashChange.bind(this);
     }
 
     createRenderRoot() {
@@ -60,12 +61,34 @@ class StudentDashboard extends Localized(LitElement) {
     connectedCallback() {
         super.connectedCallback();
         this._initData();
+        window.addEventListener('hashchange', this._boundHandleHashChange);
+        // Handle initial hash
+        setTimeout(() => this._handleHashChange(), 0);
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         if (this._unsubStudent) this._unsubStudent();
         if (this._unsubLesson) this._unsubLesson();
+        window.removeEventListener('hashchange', this._boundHandleHashChange);
+    }
+
+    _handleHashChange() {
+        const hash = window.location.hash;
+        if (!hash) return;
+
+        // Pattern: #student/class/:classId/lesson/:lessonId
+        // Matches standard Firestore IDs
+        const lessonMatch = hash.match(/^#student\/class\/([a-zA-Z0-9_-]+)\/lesson\/([a-zA-Z0-9_-]+)$/);
+
+        if (lessonMatch) {
+            const [_, classId, lessonId] = lessonMatch;
+            console.log("Routing to lesson:", lessonId, "from class:", classId);
+            this.selectedClassId = classId;
+            this.selectedLessonId = lessonId;
+            this.currentView = 'lessons';
+            return;
+        }
     }
 
     updated(changedProperties) {
