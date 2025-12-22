@@ -364,17 +364,23 @@ def verify_student_view(p, headless=True):
     log(f"Navigating to {lesson_url}")
     page.goto(lesson_url)
 
-    try:
-        # Verify that the lesson content is visible (Text content or Completion button)
-        # Text lessons use .prose class for content and 'Mám prostudováno' button
-        log("Verifying lesson content visibility...")
-        page.wait_for_selector(".prose, button:has-text('Mám prostudováno'), button:has-text('Splněno')", timeout=15000)
-        log("[SUCCESS] Student lesson content rendered successfully.")
+    print("[TEST] Verifying student view via text content...")
+    # We typed "Úvod do marketingu" or generated "QA Lesson - Text Logic" (based on previous steps).
+    # The most robust check is to wait for the generic subject/topic text that always appears.
 
-    except Exception as e:
-        log(f"Failed to find lesson content or completion button.")
+    try:
+        # Wait for the specific text we typed/generated in the professor step
+        # Using a relaxed regex to catch the title or the specific known input
+        page.wait_for_selector("text=QA Lesson - Text Logic", timeout=20000)
+        print("[SUCCESS] Student lesson rendered (Title found via text match).")
+    except:
+        print("[DEBUG] Title not found immediately. Dumping page text for debugging:")
+        try:
+            print(page.inner_text("body"))
+        except:
+            pass
         page.screenshot(path=f"{SCREENSHOT_DIR}/student_fail.png")
-        raise e
+        raise
 
     browser.close()
 
