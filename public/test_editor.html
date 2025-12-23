@@ -8,20 +8,20 @@
     <script type="importmap">
     {
         "imports": {
-            "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js": "/public/js/test_mocks.js",
-            "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js": "/public/js/test_mocks.js",
-            "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js": "/public/js/test_mocks.js",
-            "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js": "/public/js/test_mocks.js",
-            "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js": "/public/js/test_mocks.js",
-            "/public/js/views/professor/base-view.js": "/public/js/test_mocks.js",
-            "/public/js/firebase-init.js": "/public/js/test_mocks.js",
-            "/public/js/utils.js": "/public/js/test_mocks.js",
-            "/public/js/utils/translation-service.js": "/public/js/test_mocks.js",
-            "/public/js/gemini-api.js": "/public/js/test_mocks.js",
-            "/public/js/utils/upload-handler.js": "/public/js/test_mocks.js",
-            "/public/js/upload-handler.js": "/public/js/test_mocks.js",
-            "/public/js/utils/localization-mixin.js": "/public/js/test_mocks.js",
-            "/public/js/views/professor/editor/utils-parsing.mjs": "/public/js/test_mocks.js"
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js": "/js/test_mocks.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js": "/js/test_mocks.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js": "/js/test_mocks.js",
+            "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js": "/js/test_mocks.js",
+            "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js": "/js/test_mocks.js",
+            "/public/js/views/professor/base-view.js": "/js/test_mocks.js",
+            "/public/js/firebase-init.js": "/js/test_mocks.js",
+            "/public/js/utils.js": "/js/test_mocks.js",
+            "/public/js/utils/translation-service.js": "/js/test_mocks.js",
+            "/public/js/gemini-api.js": "/js/test_mocks.js",
+            "/public/js/utils/upload-handler.js": "/js/test_mocks.js",
+            "/public/js/upload-handler.js": "/js/test_mocks.js",
+            "/public/js/utils/localization-mixin.js": "/js/test_mocks.js",
+            "/public/js/views/professor/editor/utils-parsing.mjs": "/js/test_mocks.js"
         }
     }
     </script>
@@ -30,7 +30,7 @@
     <lesson-editor id="editor"></lesson-editor>
 
     <script type="module">
-        import '/public/js/views/professor/lesson-editor.js';
+        import '/js/views/professor/lesson-editor.js';
 
         // Expose helper to inject data easily from Playwright
         window.injectLessonData = async (type, data) => {
