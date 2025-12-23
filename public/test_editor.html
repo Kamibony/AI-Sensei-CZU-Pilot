@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Automagic Verification Harness</title>
+    <!-- Tailwind CSS (optional but good for visual verification) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js": "/public/js/test_mocks.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js": "/public/js/test_mocks.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js": "/public/js/test_mocks.js",
+            "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js": "/public/js/test_mocks.js",
+            "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js": "/public/js/test_mocks.js",
+            "/public/js/views/professor/base-view.js": "/public/js/test_mocks.js",
+            "/public/js/firebase-init.js": "/public/js/test_mocks.js",
+            "/public/js/utils.js": "/public/js/test_mocks.js",
+            "/public/js/utils/translation-service.js": "/public/js/test_mocks.js",
+            "/public/js/gemini-api.js": "/public/js/test_mocks.js",
+            "/public/js/utils/upload-handler.js": "/public/js/test_mocks.js",
+            "/public/js/upload-handler.js": "/public/js/test_mocks.js",
+            "/public/js/utils/localization-mixin.js": "/public/js/test_mocks.js",
+            "/public/js/views/professor/editor/utils-parsing.mjs": "/public/js/test_mocks.js"
+        }
+    }
+    </script>
+</head>
+<body class="bg-slate-50 h-screen w-screen overflow-hidden">
+    <lesson-editor id="editor"></lesson-editor>
+
+    <script type="module">
+        import '/public/js/views/professor/lesson-editor.js';
+
+        // Expose helper to inject data easily from Playwright
+        window.injectLessonData = async (type, data) => {
+            const editor = document.querySelector('lesson-editor');
+            if (!editor) throw new Error("Editor not found");
+
+            // Bypass wizard mode
+            editor._wizardMode = false;
+            editor.lesson = { ...editor.lesson, title: "Test Lesson" };
+
+            // Wait for initial render
+            await editor.requestUpdate();
+
+            // Prepare lesson data object
+            let newLesson = {
+                ...editor.lesson,
+                id: 'mock-lesson-id',
+                title: 'Mock Lesson',
+                subject: 'Mock Subject',
+                topic: 'Mock Topic',
+                contentType: type
+            };
+
+            // Inject type-specific data
+            // NOTE: This aligns with how _handleAutoMagic populates data in lesson-editor.js
+            if (type === 'quiz') {
+                 newLesson.quiz = { questions: data };
+            } else if (type === 'test') {
+                 newLesson.test = { questions: data };
+            } else if (type === 'presentation') {
+                 newLesson.presentation = { slides: data };
+            } else if (type === 'text') {
+                 newLesson.text_content = data;
+            } else if (type === 'post') {
+                 // For post, editor-view-post uses content.text
+                 newLesson.postContent = data;
+                 // Create a string representation if data is object, or use it if string
+                 const textVal = typeof data === 'string' ? data : (data.lesson ? data.lesson.title : "Post Content");
+                 newLesson.content = { text: textVal, author: 'ai_sensei' };
+            } else if (type === 'audio') {
+                 newLesson.content = { script: data };
+                 // Also set podcast_script for consistency if needed by editor
+                 newLesson.podcast_script = data;
+            } else if (type === 'mindmap') {
+                 newLesson.mindmap = data;
+            } else if (type === 'flashcards') {
+                 newLesson.flashcards = data;
+            } else if (type === 'comic') {
+                 newLesson.comic = data;
+            }
+
+            editor.lesson = newLesson;
+            editor._activeTool = type;
+            await editor.requestUpdate();
+
+            // Wait for child update
+            const activeEditor = editor.querySelector('#active-editor');
+            if(activeEditor) await activeEditor.requestUpdate();
+        };
+    </script>
+</body>
+</html>
