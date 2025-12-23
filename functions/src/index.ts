@@ -197,7 +197,7 @@ exports.generateContent = onCall({
         finalPrompt += `\n\n${langInstruction}`;
 
         // STRICT SYSTEM INSTRUCTION to silence conversational filler
-        finalPrompt += `\n\nSTRICT RULE: Return ONLY the raw content/JSON. Do NOT start with 'Here is', 'Sure', or 'Certainly'. No conversational filler.`;
+        finalPrompt += "\n\nSTRICT RULE: Return ONLY the raw content/JSON. Do NOT start with 'Here is', 'Sure', or 'Certainly'. No conversational filler.";
 
         if (isJson) {
             switch(contentType) {
