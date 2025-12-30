@@ -1,4 +1,5 @@
 import { db, auth, functions } from '../../firebase-init.js';
+import '../../components/guide-bot.js';
 import {
     collection,
     query,
@@ -209,6 +210,12 @@ class StudentDashboard extends Localized(LitElement) {
                 </main>
 
                 ${this.isJoinModalOpen ? this.renderJoinClassModal() : ''}
+
+                <guide-bot
+                    .userRole=${'student'}
+                    .currentView=${this.currentView}
+                    .contextData=${this.lastLesson}
+                ></guide-bot>
             </div>
         `;
     }
