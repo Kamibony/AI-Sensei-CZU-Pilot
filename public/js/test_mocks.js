@@ -34,3 +34,10 @@ export const GeminiAPI = { generate: async () => ({}) };
 export const UploadHandler = { upload: async () => ({}) };
 export const LocalizationMixin = (Base) => class extends Base { t(key) { return key; } };
 export const parseAIResponse = () => ({});
+
+// Mock for GuideBot
+export const getAiAssistantResponse = async () => ({ answer: "This is a mock response." });
+export const APP_KNOWLEDGE_BASE = "Mock Knowledge Base";
+export const auth = { currentUser: { uid: 'mock-user' } };
+export const db = {};
+export const functions = {};

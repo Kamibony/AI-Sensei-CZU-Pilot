@@ -16,6 +16,7 @@ import './admin-user-management-view.js';
 import './admin-settings-view.js';
 import './admin-dashboard-view.js'; // Nový import pre Dashboard
 
+import '../../components/guide-bot.js';
 import './navigation.js'; 
 
 // New Class-Centric Views
@@ -231,6 +232,12 @@ export class ProfessorApp extends LitElement {
                         ${this._renderMainContent()}
                     </main>
                 </div>
+
+                <guide-bot
+                    .userRole=${'professor'}
+                    .currentView=${this._currentView}
+                    .contextData=${this._currentData}
+                ></guide-bot>
             </div>
         `;
     }

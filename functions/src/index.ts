@@ -595,13 +595,19 @@ exports.getAiAssistantResponse = onCall({
         throw new HttpsError("invalid-argument", "Missing lessonId or userQuestion");
     }
     try {
-        const lessonRef = db.collection("lessons").doc(lessonId);
-        const lessonDoc = await lessonRef.get();
-        if (!lessonDoc.exists) {
-            throw new HttpsError("not-found", "Lesson not found");
+        let prompt;
+        // Special case for Guide Bot (no lesson lookup needed)
+        if (lessonId === 'guide-bot') {
+            prompt = userQuestion;
+        } else {
+            const lessonRef = db.collection("lessons").doc(lessonId);
+            const lessonDoc = await lessonRef.get();
+            if (!lessonDoc.exists) {
+                throw new HttpsError("not-found", "Lesson not found");
+            }
+            const lessonData = lessonDoc.data();
+            prompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${userQuestion}"`;
         }
-        const lessonData = lessonDoc.data();
-        const prompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${userQuestion}"`;
 
         const GeminiAPI = require("./gemini-api.js");
         const answer = await GeminiAPI.generateTextFromPrompt(prompt);
