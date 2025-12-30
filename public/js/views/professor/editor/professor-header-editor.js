@@ -10,22 +10,31 @@ export class ProfessorHeaderEditor extends Localized(LitElement) {
     createRenderRoot() { return this; }
 
     _dispatchBack() {
-        console.log('Header: Back clicked');
         // Dispatch with bubbles: true to ensure it reaches the parent (LessonEditor)
         this.dispatchEvent(new CustomEvent('back', { bubbles: true, composed: true }));
     }
 
     _dispatchSave() {
-        console.log('Header: Save clicked');
         // Dispatch with bubbles: true to ensure it reaches the parent (LessonEditor)
         this.dispatchEvent(new CustomEvent('save', { bubbles: true, composed: true }));
+    }
+
+    _dispatchAssign() {
+        this.dispatchEvent(new CustomEvent('assign-class', { bubbles: true, composed: true }));
+    }
+
+    _handleMetadataChange(e, field) {
+        const value = e.target.value;
+        this.dispatchEvent(new CustomEvent('lesson-updated', {
+            detail: { [field]: value },
+            bubbles: true,
+            composed: true
+        }));
     }
 
     render() {
         // Fallback title if lesson is null or title is empty
         const title = this.lesson?.title || this.t('professor.editor.lessonTitlePlaceholder') || this.t('editor.titleNew');
-        const subject = this.lesson?.subject || this.t('editor.no_subject');
-        const topic = this.lesson?.topic || this.t('editor.no_topic');
 
         return html`
         <div class="bg-white border-b border-slate-200 sticky top-0 z-30 flex-shrink-0">
@@ -44,15 +53,37 @@ export class ProfessorHeaderEditor extends Localized(LitElement) {
                      <h1 class="text-2xl font-extrabold text-slate-800 truncate" title="${title}">
                         ${title}
                      </h1>
-                    <div class="flex gap-2 text-xs text-slate-500 mt-1">
-                            <span>${subject}</span>
-                            <span>•</span>
-                            <span>${topic}</span>
+                    <div class="flex gap-2 items-center mt-1">
+                            <!-- Subject Input -->
+                            <input
+                                list="subjects-list"
+                                type="text"
+                                .value="${this.lesson?.subject || ''}"
+                                @change="${(e) => this._handleMetadataChange(e, 'subject')}"
+                                class="bg-transparent border-b border-slate-300 focus:border-indigo-500 text-xs text-slate-500 focus:outline-none focus:text-slate-800 transition-colors placeholder-slate-400 pb-0.5"
+                                placeholder="${this.t('professor.editor.subject') || 'Předmět'}">
+
+                            <span class="text-slate-300">•</span>
+
+                            <!-- Topic Input -->
+                            <input
+                                type="text"
+                                .value="${this.lesson?.topic || ''}"
+                                @change="${(e) => this._handleMetadataChange(e, 'topic')}"
+                                class="bg-transparent border-b border-slate-300 focus:border-indigo-500 text-xs text-slate-500 focus:outline-none focus:text-slate-800 transition-colors placeholder-slate-400 pb-0.5"
+                                placeholder="${this.t('professor.editor.topic') || 'Téma'}">
                     </div>
                 </div>
                 </div>
 
                 <div class="flex items-center gap-3 flex-shrink-0">
+
+                <!-- NEW: Assign Class Button -->
+                <button @click="${this._dispatchAssign}"
+                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none transition-all">
+                    ${this.t('professor.editor.assign_class') || 'Priradiť triede'}
+                </button>
+
                 <button @click="${this._dispatchSave}"
                         class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none transition-all ${this.isSaving ? 'opacity-75 cursor-wait' : ''}"
                         ?disabled="${this.isSaving}">
