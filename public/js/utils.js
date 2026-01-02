@@ -33,7 +33,41 @@ export const showToast = (message, type = 'info') => {
     } else {
         console.log(`[Toast ${type}]: ${message}`);
         // Fallback ak Toastify nie je načítané
-        alert(message);
+        // alert(message); // Alert je otravný, radšej len log
+    }
+};
+
+/**
+ * Zobrazí globálny spinner (načítavanie)
+ * @param {string} message - Text pod spinnerom
+ */
+export const showGlobalSpinner = (message = 'Načítám...') => {
+    const spinner = document.getElementById('global-loading-overlay');
+    // Skúsime nájsť aj alternatívne ID, ak sa v HTML volá inak
+    const spinnerAlt = document.getElementById('global-spinner');
+    const target = spinner || spinnerAlt;
+
+    if (target) {
+        target.classList.remove('hidden');
+        target.classList.add('flex'); // Uistíme sa, že je flex pre centrovanie
+        
+        // Skúsime nájsť text element
+        const textEl = target.querySelector('p') || document.getElementById('global-spinner-text');
+        if (textEl) textEl.textContent = message;
+    }
+};
+
+/**
+ * Skryje globálny spinner
+ */
+export const hideGlobalSpinner = () => {
+    const spinner = document.getElementById('global-loading-overlay');
+    const spinnerAlt = document.getElementById('global-spinner');
+    const target = spinner || spinnerAlt;
+
+    if (target) {
+        target.classList.add('hidden');
+        target.classList.remove('flex');
     }
 };
 
