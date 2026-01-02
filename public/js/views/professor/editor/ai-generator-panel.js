@@ -164,374 +164,238 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         document.getElementById('modal-confirm-btn')?.addEventListener('click', confirm);
         document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
         document.getElementById('modal-close-btn')?.addEventListener('click', close);
-     }
-
-    _renderDynamicInputs() {
-        if (!this.inputsConfig || this.inputsConfig.length === 0) {
-            return html`<slot name="ai-inputs"></slot>`;
-        }
-
-        return html`
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                ${this.inputsConfig.map(input => html`
-                    <div class="${input.fullWidth ? 'col-span-full' : ''}">
-                        <label class="block font-medium text-slate-600 text-sm mb-1" for="${input.id}">
-                            ${input.label}
-                        </label>
-                        ${input.type === 'select' 
-                            ? html`
-                                <select 
-                                    id="${input.id}" 
-                                    class="w-full border-slate-300 rounded-lg p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                                >
-                                    ${input.options.map(opt => html`
-                                        <option value="${opt}" ?selected="${opt === input.default}">${opt}</option>
-                                    `)}
-                                </select>`
-                            : html`
-                                <input 
-                                    id="${input.id}" 
-                                    type="${input.type}" 
-                                    class="w-full border-slate-300 rounded-lg p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                    value="${input.default || ''}"
-                                    min="${input.min || ''}"
-                                    max="${input.max || ''}"
-                                >`
-                        }
-                    </div>
-                `)}
-            </div>
-        `;
     }
 
-    async _handleGeneration(e) {
-        e.preventDefault();
-        
-        let filePaths = [];
-        if (this.files) {
-            // New logic: use props
-            filePaths = this.files.map(f => f.storagePath).filter(Boolean);
-        } else {
-            // Legacy logic: use global state
-            const selectedFiles = getSelectedFiles();
-            filePaths = selectedFiles.map(f => f.fullPath);
-        }
-
-        if (filePaths.length === 0) {
-            const confirmed = confirm(
-                `${this.t('editor.ai.alert_no_files_title')}\n\n` +
-                `${this.t('editor.ai.alert_no_files_msg')}`
-            );
-            if (!confirmed) return; 
-        }
-
-        const promptInput = this.querySelector('#prompt-input');
-        const topicInput = this.querySelector('#prompt-input-topic');
-        
-        let userPrompt = '';
-        if (this.contentType === 'presentation' && topicInput) {
-             userPrompt = topicInput.value.trim();
-        } else if (promptInput) {
-             userPrompt = promptInput.value.trim();
-        }
-
-        if (this.lesson && this.lesson.text_content) {
-            userPrompt += `\n\nContext: ${this.lesson.text_content}. Based on this context, generate the following content.`;
-        }
-
-        if (!userPrompt && this.contentType !== 'post' && this.contentType !== 'presentation') {
-            const fallbackInput = this.querySelector('#prompt-input-topic');
-            if (!fallbackInput || !fallbackInput.value.trim()) {
-                 alert(this.t('editor.ai.alert_no_prompt'));
-                 return;
-            }
-        }
-        if (this.contentType === 'presentation' && !userPrompt) {
-             alert(this.t('editor.ai.alert_no_topic'));
-             return;
-        }
-
+    async _handleGeneration() {
+        if (this._isLoading) return;
         this._isLoading = true;
-        this._generationOutput = null;
+        this._generationOutput = null; // Clear previous output, but NOT files
+
+        const promptData = {};
+        if (this.inputsConfig) {
+            this.inputsConfig.forEach(input => {
+                const el = this.shadowRoot.getElementById(input.id);
+                if (el) promptData[input.id] = el.value;
+            });
+        }
+
+        let filePaths = [];
+        // FIX: Extract file paths correctly whether passing objects or strings
+        if (this.files) {
+            filePaths = this.files.map(f => typeof f === 'string' ? f : f.storagePath).filter(Boolean);
+        } else {
+            filePaths = getSelectedFiles().map(f => f.storagePath);
+        }
 
         try {
-            const promptData = { userPrompt: userPrompt || this.promptPlaceholder, isMagic: true };
+            const result = await callGenerateContent({ 
+                contentType: this.contentType, 
+                promptData, 
+                filePaths 
+            });
 
-            if (this.inputsConfig && this.inputsConfig.length > 0) {
-                this.inputsConfig.forEach(conf => {
-                    const el = this.querySelector(`#${conf.id}`);
-                    if (el) {
-                        const key = conf.id.replace(/-/g, '_').replace('_input', ''); 
-                        promptData[key] = el.value;
-                    }
-                });
+            if (!result || result.error) throw new Error(result?.error || "Unknown error from AI service");
+
+            if (result.data) {
+                this._generationOutput = result.data;
+                showToast(this.t('editor.ai.generation_success'), "success");
             } else {
-                const slottedElements = this.querySelectorAll('[slot="ai-inputs"]');
-                slottedElements.forEach(el => {
-                    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName) && el.id) {
-                        promptData[el.id.replace(/-/g, '_').replace('_input', '')] = el.value;
-                    }
-                    const nestedInputs = el.querySelectorAll('input, select, textarea');
-                    nestedInputs.forEach(input => {
-                        if (input.id) promptData[input.id.replace(/-/g, '_').replace('_input', '')] = input.value;
-                    });
-                });
+                throw new Error("No data returned from AI.");
             }
 
-            if (this.contentType === 'presentation') {
-                const count = parseInt(promptData.slide_count, 10);
-                if (!count || count <= 0) {
-                    alert(this.t('editor.ai.alert_invalid_slides'));
-                    this._isLoading = false;
-                    return;
-                }
-            }
-
-            if (this.contentType === 'post' && !userPrompt) promptData.userPrompt = this.promptPlaceholder;
-
-            if (['test', 'quiz'].includes(this.contentType)) {
-                const count = promptData.question_count || promptData.question_count_input;
-                if (count) promptData.userPrompt += `\n\n` + this.t('prompts.instruction_questions', { count });
-                const diff = promptData.difficulty_select || promptData.difficulty;
-                if (diff) promptData.userPrompt += `\n` + this.t('prompts.instruction_difficulty', { diff });
-                const type = promptData.type_select || promptData.question_types;
-                if (type) promptData.userPrompt += `\n` + this.t('prompts.instruction_type', { type });
-            }
-
-            const result = await callGenerateContent({ contentType: this.contentType, promptData, filePaths });
-            if (!result || result.error) throw new Error(result?.error || "AI nevrátila žádná data.");
-            this._generationOutput = (this.contentType === 'text' && result.text) ? result.text : result;
-
-        } catch (err) {
-            console.error("Error during AI generation:", err);
-            this._generationOutput = { error: `Došlo k chybě: ${err.message}` };
+        } catch (error) {
+            console.error("AI Generation Error:", error);
+            showToast(this.t('editor.ai.generation_failed') + ": " + error.message, "error");
         } finally {
             this._isLoading = false;
         }
-     }
-
-    _renderStaticContent(viewId, data) {
-        if (!data) return html`<p>${this.t('common.no_data')}</p>`;
-        if (data.error) return html`<div class="p-4 bg-red-100 text-red-700 rounded-lg">${data.error}</div>`;
-        try {
-             if (viewId === 'text') return html`<div class="whitespace-pre-wrap font-sans text-sm">${(typeof data === 'string') ? data : (data.text || '')}</div>`;
-             if (viewId === 'presentation') return (data?.slides || []).map((slide, i) => html`<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm bg-slate-50 relative"><h4 class="font-bold text-green-700">${this.t('editor.ai.slide_n')} ${i + 1}: ${slide.title || this.t('editor.presentation.untitled_slide')}</h4><ul class="list-disc list-inside mt-2 text-sm text-slate-600">${(slide.points || []).map(p => html`<li>${p}</li>`)}</ul><span class="style-indicator text-xs font-mono text-gray-400 absolute top-1 right-2">${data?.styleId || 'default'}</span></div>`);
-             if (viewId === 'quiz' || viewId === 'test') return (data?.questions || []).map((q, i) => html`<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">${this.t('editor.ai.question_n')} ${i+1}: ${q.question_text}</h4><div class="mt-2 space-y-2">${(q.options || []).map((opt, j) => html`<div class="text-sm p-2 rounded-lg ${j === q.correct_option_index ? 'bg-green-100 font-semibold' : 'bg-slate-50'}">${opt}</div>`)}</div></div>`);
-             if (viewId === 'post') {
-                 if (data?.lesson && data?.podcast_series) {
-                     return html`
-                        <div class="space-y-8">
-                            <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
-                                <div class="border-b border-indigo-200 pb-4 mb-4">
-                                    <h3 class="text-2xl font-bold text-indigo-900">${data.lesson.title}</h3>
-                                    <p class="text-indigo-700 mt-2 italic">${data.lesson.description}</p>
-                                </div>
-                                <div class="space-y-4 mb-6">
-                                    ${(data.lesson.modules || []).map((m, idx) => html`
-                                        <div class="bg-white p-4 rounded-lg border border-indigo-100 shadow-sm">
-                                            <h4 class="font-bold text-indigo-800 text-sm uppercase tracking-wide mb-2">Module ${idx + 1}: ${m.title}</h4>
-                                            <p class="text-slate-700 text-sm leading-relaxed">${m.content}</p>
-                                        </div>
-                                    `)}
-                                </div>
-                                <div class="bg-indigo-100 p-4 rounded-lg border-l-4 border-indigo-500">
-                                    <h4 class="font-bold text-indigo-900 text-sm uppercase tracking-wider mb-1">🔑 Key Takeaway</h4>
-                                    <p class="text-indigo-800 font-medium">${data.lesson.summary}</p>
-                                </div>
-                            </div>
-                            <div>
-                                <div class="flex items-center justify-between mb-4">
-                                    <h3 class="text-xl font-bold text-slate-800 flex items-center">
-                                        <span class="text-3xl mr-3">🎙️</span> ${data.podcast_series.title}
-                                    </h3>
-                                    <span class="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500">Series of ${(data.podcast_series.episodes || []).length}</span>
-                                </div>
-                                <div class="space-y-6">
-                                    ${(data.podcast_series.episodes || []).map((ep, i) => html`
-                                        <div class="p-5 border border-slate-200 rounded-xl shadow-sm bg-white hover:shadow-md transition-shadow">
-                                            <div class="flex justify-between items-start mb-4 border-b border-slate-50 pb-2">
-                                                <div>
-                                                    <span class="text-xs font-bold text-indigo-600 uppercase tracking-wider">${this.t('editor.ai.episode_n')} ${ep.episode_number || i + 1}</span>
-                                                    <h4 class="font-bold text-slate-800 text-lg">${ep.title}</h4>
-                                                </div>
-                                                <span class="text-2xl opacity-20">🎧</span>
-                                            </div>
-                                            <div class="text-sm text-slate-600 font-mono bg-slate-50 p-4 rounded-lg border border-slate-100 max-h-60 overflow-y-auto custom-scrollbar mb-4">
-                                                ${(ep.script || '').split('\n').map(line => {
-                                                    const trimmed = line.trim();
-                                                    if (!trimmed) return nothing;
-                                                    if (trimmed.startsWith('[')) {
-                                                        const splitIdx = trimmed.indexOf(']:');
-                                                        if (splitIdx > -1) {
-                                                            const speaker = trimmed.substring(1, splitIdx);
-                                                            const text = trimmed.substring(splitIdx + 2);
-                                                            const isHost = speaker.toLowerCase().includes('alex');
-                                                            return html`<div class="mb-2"><strong class="${isHost ? 'text-blue-600' : 'text-purple-600'}">${speaker}:</strong> <span class="text-slate-700">${text}</span></div>`;
-                                                        }
-                                                    }
-                                                    return html`<div class="mb-1">${line}</div>`;
-                                                })}
-                                            </div>
-                                            <div class="flex justify-end">
-                                                ${this._audioUrls.has(i)
-                                                    ? html`<div class="w-full bg-slate-100 p-2 rounded-lg flex items-center gap-2"><audio controls class="w-full h-10" src="${this._audioUrls.get(i)}"></audio></div>`
-                                                    : html`<button @click=${() => this._handleGenerateAudio(data.lesson?.id || this.lesson?.id, ep.script, i)} ?disabled=${this._audioLoadingState.get(i) || !this.lesson?.id} class="${btnSecondary} px-4 py-2 text-sm flex items-center gap-2">${this._audioLoadingState.get(i) ? html`<div class="spinner w-4 h-4 border-2 border-indigo-600 border-t-transparent"></div> ${this.t('editor.ai.generating_audio')}` : html`<span>🎙️ ${this.t('editor.ai.generate_audio_btn')}</span>`}</button>${!this.lesson?.id ? html`<span class="text-xs text-orange-500 ml-2 self-center">${this.t('editor.ai.save_first')}</span>` : nothing}`}
-                                            </div>
-                                        </div>
-                                    `)}
-                                </div>
-                            </div>
-                        </div>
-                     `;
-                 }
-                 return (data?.episodes || []).map((ep, i) => html`<div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm"><h4 class="font-bold text-green-700">${this.t('editor.ai.episode_n')} ${i+1}: ${ep.title}</h4><pre class="mt-2 text-sm text-slate-600 whitespace-pre-wrap font-sans">${ep.script}</pre></div>`);
-             }
-             return html`<div class="p-4 bg-yellow-100">${this.t('editor.ai.unknown_type')}</div>`;
-        } catch(e) { return html`<div class="p-4 bg-red-100 text-red-700">${this.t('editor.ai.error_display')}${e.message}</div>`; }
     }
 
-    async _handleGenerateAudio(lessonId, script, episodeIndex) {
-        if (!lessonId || !script) return;
-        const newLoadingState = new Map(this._audioLoadingState);
-        newLoadingState.set(episodeIndex, true);
-        this._audioLoadingState = newLoadingState;
-        this.requestUpdate();
-        try {
-            const generatePodcastAudio = httpsCallable(firebaseInit.functions, 'generatePodcastAudio');
-            const result = await generatePodcastAudio({ lessonId: lessonId, text: script, episodeIndex: episodeIndex, language: 'cs-CZ' });
-            if (result.data && result.data.success && result.data.storagePath) {
-                const storageRef = ref(firebaseInit.storage, result.data.storagePath);
-                const url = await getDownloadURL(storageRef);
-                const newUrls = new Map(this._audioUrls);
-                newUrls.set(episodeIndex, url);
-                this._audioUrls = newUrls;
-            } else {
-                throw new Error("Generation failed or no path returned.");
-            }
-        } catch (error) {
-            console.error("Audio generation error:", error);
-            showToast(`Chyba generování audia: ${error.message}`, 'error');
-        } finally {
-            const finalLoadingState = new Map(this._audioLoadingState);
-            finalLoadingState.set(episodeIndex, false);
-            this._audioLoadingState = finalLoadingState;
-            this.requestUpdate();
-        }
-    }
-
-    _renderEditableContent(contentType, data) {
-        return contentType === 'text' ? html`<textarea id="editable-content-textarea-text" class="w-full border-slate-300 rounded-lg p-3 h-64 font-sans text-sm" .value=${data || ''}></textarea>` : this._renderStaticContent(contentType, data);
-    }
-
-    async _handleSaveGeneratedContent() {
+    async _handleSave() {
+        if (!this._generationOutput || this._isSaving) return;
         this._isSaving = true;
+
         try {
-            let dataToSave = this._generationOutput;
-            if (this.contentType === 'text') {
-                const textarea = this.querySelector('#editable-content-textarea-text');
-                if (textarea) dataToSave = textarea.value;
-            }
-            if (this.contentType === 'presentation') {
-                const styleSelector = this.querySelector('#presentation-style-selector');
-                dataToSave = { styleId: styleSelector ? styleSelector.value : 'default', slides: this._generationOutput.slides };
-            }
-
-            // If using props, we don't rely on getSelectedFiles() for saving unless we want to persist that back to the lesson
-            // But usually LessonEditor saves the files. Here we are saving CONTENT.
-            // However, we might want to save which files were used for RAG?
-            // The lesson object has 'ragFilePaths'.
-
-            let currentRagFiles = [];
-            if (this.files) {
-                currentRagFiles = this.files.map(f => f.storagePath);
-            } else {
-                currentRagFiles = getSelectedFiles().map(f => f.fullPath);
-            }
-
-            if (!this.lesson || !this.lesson.id) {
-                const lessonData = {
-                    title: this.t('editor.ai.new_lesson_title'),
-                    status: "Naplánováno",
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                    ownerId: firebaseInit.auth.currentUser.uid,
-                    [this.fieldToUpdate]: dataToSave,
-                    ragFilePaths: currentRagFiles
-                };
-                const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonData);
-                alert(this.t('editor.ai.success_created'));
-                 this.dispatchEvent(new CustomEvent('lesson-created', { detail: { newLessonId: docRef.id }, bubbles: true, composed: true }));
-            } else {
-                await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
-                    [this.fieldToUpdate]: dataToSave,
-                    ragFilePaths: currentRagFiles,
+            // If parent provided onSave callback, use it (preferred for modularity)
+            if (this.onSave) {
+                await this.onSave(this._generationOutput);
+            } 
+            // Fallback for legacy components (direct Firestore update)
+            else if (this.lesson?.id && this.fieldToUpdate) {
+                const db = firebaseInit.getDb();
+                const lessonRef = doc(db, 'lessons', this.lesson.id);
+                await updateDoc(lessonRef, {
+                    [this.fieldToUpdate]: this._generationOutput,
                     updatedAt: serverTimestamp()
                 });
+                // Dispatch event to notify parent to refresh
                 this.dispatchEvent(new CustomEvent('lesson-updated', {
-                    detail: { ...this.lesson, [this.fieldToUpdate]: dataToSave, ragFilePaths: currentRagFiles },
-                    bubbles: true, composed: true
+                    detail: { [this.fieldToUpdate]: this._generationOutput },
+                    bubbles: true,
+                    composed: true
                 }));
             }
+            
+            showToast(this.t('common.saved_success'), "success");
+            
+            // Clear output after save to reset state
             this._generationOutput = null;
-        } catch (e) {
-            console.error("Firebase Error:", e);
-            alert(this.t('editor.ai.error_saving') + e.message);
+            
+        } catch (error) {
+            console.error("Save Error:", error);
+            showToast(this.t('common.save_failed') + ": " + error.message, "error");
         } finally {
             this._isSaving = false;
         }
     }
 
-    async _handleDeleteGeneratedContent() {
-        if (!confirm(this.t('editor.ai.confirm_delete'))) return;
-        this._isLoading = true;
-        try {
-            await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), { [this.fieldToUpdate]: deleteField(), updatedAt: serverTimestamp() });
-            const upd = { ...this.lesson }; delete upd[this.fieldToUpdate];
-            this.dispatchEvent(new CustomEvent('lesson-updated', { detail: upd, bubbles: true, composed: true }));
-        } catch (e) { console.error(e); alert(this.t('editor.ai.error_deleting')); } finally { this._isLoading = false; }
+    _handleDiscard() {
+        if (confirm(this.t('editor.ai.discard_confirm'))) {
+            this._generationOutput = null;
+        }
+    }
+
+    // Helper to render AI output preview based on type
+    _renderStaticContent(viewId, data) {
+        if (!data) return nothing;
+
+        // FIX: Add Comic rendering support
+        if (viewId === 'comic' || viewId === 'comic-strip') {
+            return (data?.panels || []).map((panel, i) => html`
+            <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm bg-white flex gap-4">
+                <div class="font-bold text-indigo-600 text-xl self-center">#${i + 1}</div>
+                <div class="flex-grow">
+                    <div class="text-sm font-semibold text-slate-700 mb-1">Popis:</div>
+                    <div class="text-sm text-slate-600 italic mb-2">${panel.description}</div>
+                    <div class="text-sm font-semibold text-slate-700 mb-1">Dialog:</div>
+                    <div class="bg-slate-50 p-2 rounded text-sm font-mono text-slate-800">${panel.dialogue || panel.text}</div>
+                </div>
+            </div>
+            `);
+        }
+
+        switch (viewId) {
+            case 'text':
+                return html`<div class="prose max-w-none p-4 bg-white rounded border border-slate-200">${data.content || data.text}</div>`;
+            
+            case 'presentation':
+                return (data?.slides || []).map((slide, i) => html`
+                    <div class="p-3 border border-slate-200 rounded mb-2 bg-white">
+                        <div class="font-bold text-sm text-indigo-600">Slide ${i + 1}: ${slide.title}</div>
+                        <ul class="list-disc ml-5 text-xs text-slate-600 mt-1">
+                            ${(slide.bullets || []).map(b => html`<li>${b}</li>`)}
+                        </ul>
+                    </div>
+                `);
+
+            case 'quiz':
+            case 'test':
+                return (data?.questions || []).map((q, i) => html`
+                    <div class="p-3 border border-slate-200 rounded mb-2 bg-white">
+                        <div class="font-bold text-sm text-slate-800">${i+1}. ${q.question}</div>
+                        <div class="text-xs text-slate-500 mt-1 grid grid-cols-2 gap-2">
+                            ${(q.options || []).map((opt, idx) => html`
+                                <div class="${idx === q.correctAnswer ? 'text-green-600 font-bold' : ''}">
+                                    ${String.fromCharCode(65+idx)}) ${opt}
+                                </div>
+                            `)}
+                        </div>
+                    </div>
+                `);
+
+            case 'post':
+                return html`
+                    <div class="bg-white border border-slate-200 rounded-lg p-4 max-w-md mx-auto">
+                        <div class="font-bold text-lg mb-2">${data.headline || 'No Headline'}</div>
+                        <div class="text-sm text-slate-600 mb-4">${data.body || data.content}</div>
+                        <div class="text-xs text-blue-500 font-mono">${(data.hashtags || []).join(' ')}</div>
+                    </div>
+                `;
+
+            default:
+                return html`<div class="p-4 bg-red-50 text-red-600 border border-red-200 rounded">Unknown type preview: ${viewId}</div>`;
+        }
     }
 
     render() {
-        const hasContent = this.lesson && this.lesson[this.fieldToUpdate];
-        const isText = this.contentType === 'text';
         return html`
-            ${this._showBanner ? html`
-            <div class="bg-blue-50 border-l-4 border-blue-500 text-blue-700 p-4 mb-4 rounded shadow-sm relative">
-                <button @click=${() => this._showBanner = false} class="absolute top-2 right-2 text-blue-400 hover:text-blue-700 text-lg font-bold">&times;</button>
-                <p><strong>💡 ${this.t('editor.ai.tip_title')}</strong> ${this.t('editor.ai.tip_desc')}</p>
-            </div>` : nothing}
-            
-            <div class="flex justify-between items-start mb-6"><h2 class="text-3xl font-extrabold text-slate-800">${this.viewTitle}</h2>${hasContent ? html`<button @click=${this._handleDeleteGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnDestructive} px-4 py-2 text-sm">${this._isLoading?'...':this.t('editor.ai.delete_btn')} ${!isText?this.t('editor.ai.delete_and_new'):''}</button>`:nothing}</div>
-            
-            <div class="bg-white p-6 rounded-2xl shadow-lg">
-                ${hasContent ? html`
-                    ${this._renderEditableContent(this.contentType, this.lesson[this.fieldToUpdate])}
-                    <div class="flex flex-wrap items-center justify-between mt-6 gap-4 border-t border-slate-100 pt-4">
-                        <button @click=${this._handleDeleteGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnSecondary} px-4 py-2 text-sm font-medium border border-slate-200 shadow-sm hover:border-slate-300">
-                            🔄 ${this.t('editor.ai.regenerate_btn')}
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-gradient-to-r from-slate-50 to-indigo-50/30 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <span class="text-2xl">✨</span> ${this.viewTitle}
+                        </h2>
+                        <p class="text-sm text-slate-500 mt-0.5">${this.description}</p>
+                    </div>
+                    ${this._showBanner ? html`
+                        <button @click="${() => this._showBanner = false}" class="text-slate-400 hover:text-slate-600">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
-                        ${isText ? html`<div class="flex-grow max-w-xs"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?this.t('common.saving_dots'):'💾 ' + this.t('editor.ai.save_btn')}</button></div>` : nothing}
-                    </div>
-                `
-                : html`
-                    <p class="text-slate-500 mb-6">${this.description}</p>
+                    ` : nothing}
+                </div>
+
+                <div class="p-6">
                     ${this._createDocumentSelectorUI()}
-                    <div class="mt-6 pt-6 border-t border-slate-100">
-                        ${this._renderDynamicInputs()}
-                        ${this.contentType === 'presentation' ? html`<label class="block font-medium text-slate-600">${this.t('editor.ai.presentation_topic_label')}</label><input id="prompt-input-topic" type="text" class="w-full border-slate-300 rounded-lg p-2 mt-1 mb-4" placeholder=${this.promptPlaceholder || this.t('editor.ai.prompt_placeholder')}>`:html`<textarea id="prompt-input" class="w-full border-slate-300 rounded-lg p-2 h-24" placeholder=${this.promptPlaceholder || this.t('editor.ai.prompt_placeholder')}></textarea>`}
-                        <div class="flex items-center justify-end mt-4">
-                            <button @click=${this._handleGeneration} ?disabled=${this._isLoading||this._isSaving || this._isUploading} class="${btnGenerate}">
-                                ${this._isLoading ? html`<div class="spinner mr-2"></div> ${this.t('editor.ai.generating')}` : html`<span class="text-xl mr-2">✨</span> ${this.t('editor.ai.generate_btn')}`}
-                            </button>
+
+                    <div class="space-y-4 mb-6">
+                        ${this.inputsConfig.map(input => html`
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">
+                                    ${input.label}
+                                </label>
+                                ${input.type === 'textarea' 
+                                    ? html`<textarea id="${input.id}" rows="3" class="w-full rounded-lg border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm" placeholder="${input.placeholder || ''}"></textarea>`
+                                    : html`<input type="text" id="${input.id}" class="w-full rounded-lg border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm" placeholder="${input.placeholder || ''}">`
+                                }
+                            </div>
+                        `)}
+                    </div>
+
+                    <div class="flex justify-center mb-8">
+                        <button 
+                            @click="${this._handleGeneration}" 
+                            ?disabled="${this._isLoading}"
+                            class="${btnGenerate} ${this._isLoading ? 'opacity-75 cursor-wait' : ''}">
+                            ${this._isLoading ? html`
+                                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                ${this.t('editor.ai.generating')}
+                            ` : html`
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                ${this.t('editor.ai.generate_btn')}
+                            `}
+                        </button>
+                    </div>
+
+                    ${this._generationOutput ? html`
+                        <div class="animate-fade-in bg-slate-50 rounded-xl border border-slate-200 p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    ${this.t('editor.ai.result_preview')}
+                                </h3>
+                            </div>
+
+                            <div class="mb-6 max-h-[400px] overflow-y-auto custom-scrollbar">
+                                ${this._renderStaticContent(this.contentType, this._generationOutput)}
+                            </div>
+
+                            <div class="flex gap-3 pt-4 border-t border-slate-200">
+                                <button @click="${this._handleSave}" ?disabled="${this._isSaving}" class="${btnPrimary} flex-1">
+                                    ${this._isSaving ? this.t('common.saving') : this.t('common.save_changes')}
+                                </button>
+                                <button @click="${this._handleDiscard}" ?disabled="${this._isSaving}" class="${btnDestructive}">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                    <div id="generation-output" class="mt-6 border-t pt-6 text-slate-700 prose max-w-none">
-                        ${this._isLoading?html`<div class="p-8 text-center pulse-loader text-slate-500">🤖 ${this.t('editor.ai.thinking')}</div>`:''}
-                        ${this._generationOutput?this._renderStaticContent(this.contentType, this._generationOutput):(!this._isLoading?html`<div class="text-center p-8 text-slate-400">${this.t('editor.ai.output_placeholder')}</div>`:'')}
-                    </div>
-                    ${(this._generationOutput&&!this._generationOutput.error)?html`<div class="text-right mt-4"><button @click=${this._handleSaveGeneratedContent} ?disabled=${this._isLoading||this._isSaving} class="${btnPrimary}">${this._isSaving?this.t('common.saving_dots'):'💾 ' + this.t('editor.ai.save_btn')}</button></div>`:nothing}
-                `}
-            </div>`;
+                    ` : nothing}
+                </div>
+            </div>
+        `;
     }
 }
+
 customElements.define('ai-generator-panel', AiGeneratorPanel);
