@@ -84,198 +84,225 @@ export class ProfessorApp extends LitElement {
 
     _handleHashChange() {
         const hash = window.location.hash.slice(1);
-        if (!hash) {
-            if (this._currentView !== 'dashboard') {
-                this._showProfessorContent('dashboard');
+        const [view, id] = hash.split('/');
+
+        if (view === 'editor' && id) {
+            // Ak ideme priamo na URL editora s ID, musíme načítať dáta lekcie, ak ich nemáme
+            if (!this._currentData || this._currentData.id !== id) {
+                this._fetchLessonById(id).then(lesson => {
+                    if (lesson) {
+                        this._currentView = 'editor';
+                        this._currentData = lesson;
+                        // Notifikujeme guide bota o zmene kontextu
+                        this._updateBotContext('editor');
+                    } else {
+                        window.location.hash = 'dashboard';
+                    }
+                });
+                return;
             }
-            return;
         }
 
-        const [view, queryStr] = hash.split('?');
-        const params = new URLSearchParams(queryStr);
-        const data = {};
-        for (const [key, value] of params.entries()) {
-            data[key] = value;
-        }
-
-        if (view === 'class-detail' && data.groupId) {
-             this._showProfessorContent(view, data);
-        } else if (view === 'student-profile' && data.studentId) {
-             this._showProfessorContent(view, data.studentId);
+        if (view) {
+            this._currentView = view;
+            if (view !== 'editor') {
+                this._currentData = null;
+            }
+            // Update bot context
+            this._updateBotContext(view);
         } else {
-             this._showProfessorContent(view, data);
+            this._currentView = 'dashboard';
+            this._updateBotContext('dashboard');
         }
+    }
 
-        // Synchronizácia stavu navigácie
-        const nav = document.querySelector('professor-navigation');
-        if (nav) {
-            nav.currentView = view;
+    async _fetchLessonById(id) {
+        try {
+            const db = firebaseInit.getDb();
+            const q = query(collection(db, 'lessons'), where('id', '==', id));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                const doc = querySnapshot.docs[0];
+                return { id: doc.id, ...doc.data() };
+            }
+            return null;
+        } catch (error) {
+            console.error("Error fetching lesson by ID:", error);
+            showToast("Chyba pri načítaní lekcie.", "error");
+            return null;
         }
     }
 
     async _fetchLessons() {
         try {
-            const user = firebaseInit.auth.currentUser;
-            if (!user) {
-                this._lessonsData = [];
-                return;
-            }
-
-            const lessonsCollection = collection(firebaseInit.db, 'lessons');
-            let lessonQuery;
-
-            if (user.email === 'profesor@profesor.cz') {
-                lessonQuery = query(lessonsCollection, orderBy("createdAt"));
-            } else {
-                lessonQuery = query(lessonsCollection, where("ownerId", "==", user.uid), orderBy("createdAt"));
-            }
-
-            const querySnapshot = await getDocs(lessonQuery);
-            this._lessonsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
+            const db = firebaseInit.getDb();
+            const q = query(collection(db, "lessons"), orderBy("createdAt", "desc"));
+            const querySnapshot = await getDocs(q);
+            this._lessonsData = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            
+            // Update bot with lessons count
+            this._updateBotContext(this._currentView);
         } catch (error) {
             console.error("Error fetching lessons:", error);
-            showToast("Nepodařilo se načíst data lekcí.", true);
+            showToast("Nepodarilo sa načítať dáta lekcí.", true);
         }
     }
 
     _handleNavigation(e) {
         const { view, ...data } = e.detail;
-
-        // If navigating to editor from sidebar (no data), explicitly pass a "force reset" object
-        // We cannot pass 'null' because if _currentData is already null, LitElement won't detect a change.
-        // By passing a new object { _forceReset: ... }, we ensure updated() is called in LessonEditor.
-        const effectiveData = (view === 'editor' && Object.keys(data).length === 0)
-            ? { _forceReset: Date.now() }
-            : data;
-
-        let newHash = `#${view}`;
-        const params = new URLSearchParams();
-
-        if (data) {
-            if (data.groupId) params.set('groupId', data.groupId);
-            if (data.studentId) params.set('studentId', data.studentId);
-            if (typeof data === 'string') {
-                 if (view === 'student-profile') params.set('studentId', data);
-            }
-        }
-
-        const paramStr = params.toString();
-        if (paramStr) {
-            newHash += `?${paramStr}`;
-        }
-
-        if (window.location.hash !== newHash) {
-             history.pushState(null, '', newHash);
-        }
-
-        const nav = document.querySelector('professor-navigation');
-        if (nav) {
-            nav.currentView = view;
-        }
-
-        this._showProfessorContent(view, effectiveData);
-    }
-
-    _showProfessorContent(view, data = null) {
-        // Zoznam pohľadov, ktoré majú byť na celú šírku (bez bočného panela s lekciami)
-        // Pridaný 'admin-dashboard'
-        const fullWidthViews = [
-            'dashboard', 'class-detail', 'students', 'student-profile', 
-            'interactions', 'analytics', 'media', 'editor', 'classes', 
-            'admin', 'admin-settings', 'admin-dashboard', 'timeline', 'library'
-        ];
         
-        this._sidebarVisible = !fullWidthViews.includes(view);
-        
-        if (view === 'timeline') this._fetchLessons();
+        // If navigating from nav menu, e.detail might contain generic event data, ignore it if not intended
+        if (!view && e.type === 'navigate') {
+             // Toto ošetrí situáciu, ak event neobsahuje view (chyba v dispatch)
+             return; 
+        }
+
         this._currentView = view;
-        this._currentData = data;
-    }
+        if (Object.keys(data).length > 0) {
+            this._currentData = data;
+        } else if (view !== 'editor') {
+            this._currentData = null;
+        }
+        
+        this._updateBotContext(view);
 
-    _onLessonSelected(e) { this._showProfessorContent('editor', e.detail); }
-    _onAddNewLesson() { this._showProfessorContent('editor', null); }
-    _onLessonCreatedOrUpdated(e) {
-        // FIX: Merge to preserve lessonId (id) and prevent router reset
-        this._currentData = { ...this._currentData, ...e.detail };
-        if (this._currentView !== 'editor') this._fetchLessons();
-    }
-    _onNavigateToProfile(e) { this._showProfessorContent('student-profile', e.detail.studentId); }
-    _onBackToList() { this._showProfessorContent('students'); }
-    _onEditorExit(e) {
-        const targetView = e.detail?.view || 'library';
-        this._showProfessorContent(targetView);
+        window.location.hash = view === 'editor' && this._currentData?.id ? `editor/${this._currentData.id}` : view;
     }
 
     _handleAddToTimeline(e) {
         const lesson = e.detail;
-        if (this._currentView !== 'timeline') {
-            this._showProfessorContent('timeline');
-            setTimeout(() => {
-                 const timelineView = this.querySelector('professor-timeline-view');
-                 if (timelineView) timelineView.requestUpdate(); 
-            }, 500);
+        this._currentData = lesson;
+        this._currentView = 'timeline';
+        window.location.hash = 'timeline';
+        showToast(`Lekcia "${lesson.topic}" pridaná na časovú os.`);
+    }
+
+    _onAddNewLesson() {
+        this._currentData = null; // Reset pre novú lekciu
+        this._currentView = 'editor';
+        window.location.hash = 'editor';
+    }
+
+    _onLessonCreatedOrUpdated(e) {
+        // FIX: Merge new data with existing data to prevent ID loss and navigation reset
+        this._currentData = { ...this._currentData, ...e.detail };
+        
+        // Ak sme v editore, nevoláme fetchLessons, aby sme neprekreslili UI zbytočne
+        if (this._currentView !== 'editor') {
+            this._fetchLessons();
+        }
+        // Update URL if ID is available and not set
+        if (this._currentData.id && !window.location.hash.includes(this._currentData.id)) {
+             window.location.hash = `editor/${this._currentData.id}`;
+        }
+    }
+
+    _updateBotContext(view) {
+        const bot = this.shadowRoot.getElementById('guide-bot');
+        if (bot) {
+            // Safely get counts
+            const lessonsCount = this._lessonsData ? this._lessonsData.length : 0;
+            // Note: classes are managed in professor-classes-view, so we might not have access to them here directly 
+            // unless we lift state up. For now, sending what we have.
+            bot.updateContext(view, { 
+                lessons: lessonsCount,
+                role: 'professor'
+            });
         }
     }
 
     render() {
         return html`
-            <div id="dashboard-professor" class="w-full flex flex-row main-view active h-screen overflow-hidden">
-                <aside id="professor-sidebar"
-                       class="w-full md:w-80 lg:w-96 bg-slate-100 border-r border-slate-200 flex-col flex-shrink-0 h-full ${this._sidebarVisible ? 'flex' : 'hidden'} overflow-hidden z-10">
-                    ${this._renderSidebar()}
-                </aside>
-
-                <div class="flex-grow flex flex-col h-full overflow-hidden">
-                    ${this._currentView !== 'dashboard' ? html`<professor-header></professor-header>` : ''}
-
-                    <main id="main-content-area" class="flex-grow bg-slate-50 flex flex-col h-full overflow-hidden">
-                        ${this._renderMainContent()}
-                    </main>
+            <div class="flex h-screen bg-slate-50 overflow-hidden">
+                <div class="w-64 flex-shrink-0 bg-white border-r border-slate-200 hidden md:block z-20">
+                    <professor-navigation 
+                        .activeView="${this._currentView}"
+                        @navigate="${this._handleNavigation}">
+                    </professor-navigation>
                 </div>
 
-                <guide-bot
-                    .userRole=${'professor'}
-                    .currentView=${this._currentView}
-                    .contextData=${this._currentData}
-                ></guide-bot>
+                <div class="flex-1 flex flex-col h-full overflow-hidden relative">
+                    
+                    <professor-header 
+                        .user="${firebaseInit.auth.currentUser}"
+                        class="flex-shrink-0 z-10 bg-white border-b border-slate-200 shadow-sm">
+                    </professor-header>
+
+                    <main class="flex-1 overflow-y-auto p-6 md:p-8 relative">
+                        <div class="max-w-7xl mx-auto h-full">
+                            ${this._renderCurrentView()}
+                        </div>
+                    </main>
+                    
+                    <guide-bot id="guide-bot"></guide-bot>
+                </div>
             </div>
         `;
     }
 
-    _renderSidebar() {
-        if (this._sidebarVisible) {
-             return html`<lesson-library
-                            class="h-full flex flex-col"
-                            .lessonsData=${this._lessonsData}
-                            @lesson-selected=${this._onLessonSelected}
-                            @add-new-lesson=${this._onAddNewLesson}>
-                        </lesson-library>`;
-        }
-        return html``;
-    }
-
-    _renderMainContent() {
+    _renderCurrentView() {
         switch (this._currentView) {
-            case 'dashboard': return html`<professor-dashboard-view class="h-full flex flex-col"></professor-dashboard-view>`;
-            case 'class-detail': return html`<professor-class-detail-view class="h-full flex flex-col" .groupId=${this._currentData?.groupId}></professor-class-detail-view>`;
-            case 'classes': return html`<professor-classes-view class="h-full flex flex-col"></professor-classes-view>`;
-            case 'library': return html`<professor-library-view class="h-full flex flex-col"></professor-library-view>`;
-            case 'timeline': return html`<professor-timeline-view class="h-full flex flex-col" .lessonsData=${this._lessonsData}></professor-timeline-view>`;
-            case 'media': return html`<professor-media-view class="h-full flex flex-col"></professor-media-view>`;
-            case 'editor': return html`<lesson-editor class="h-full flex flex-col" .lesson=${this._currentData} @lesson-updated=${this._onLessonCreatedOrUpdated} @editor-exit=${this._onEditorExit}></lesson-editor>`;
-            case 'students': return html`<professor-students-view class="h-full flex flex-col" @navigate-to-profile=${this._onNavigateToProfile}></professor-students-view>`;
-            case 'student-profile': return html`<professor-student-profile-view class="h-full flex flex-col" .studentId=${this._currentData} @back-to-list=${this._onBackToList}></professor-student-profile-view>`;
-            case 'interactions': return html`<professor-interactions-view class="flex flex-grow h-full"></professor-interactions-view>`;
-            case 'analytics': return html`<professor-analytics-view class="h-full flex flex-col"></professor-analytics-view>`;
+            case 'dashboard':
+                return html`<professor-dashboard-view class="h-full flex flex-col"></professor-dashboard-view>`;
+            case 'class-detail':
+                return html`<professor-class-detail-view .classData="${this._currentData}"></professor-class-detail-view>`;
+            case 'classes':
+                return html`<professor-classes-view></professor-classes-view>`;
+            case 'library':
+                return html`
+                    <professor-library-view 
+                        .lessons="${this._lessonsData}"
+                        @edit-lesson="${(e) => { 
+                            this._currentData = e.detail; 
+                            this._currentView = 'editor';
+                            window.location.hash = `editor/${e.detail.id}`;
+                        }}"
+                        @add-new-lesson="${this._onAddNewLesson}">
+                    </professor-library-view>
+                `;
+            case 'media':
+                return html`<professor-media-view></professor-media-view>`;
+            case 'editor':
+                return html`
+                    <lesson-editor 
+                        .lesson="${this._currentData}"
+                        @lesson-updated="${this._onLessonCreatedOrUpdated}"
+                        @navigate="${this._handleNavigation}">
+                    </lesson-editor>
+                `;
+            case 'timeline':
+                return html`<timeline-view .lesson="${this._currentData}"></timeline-view>`;
+            case 'students':
+                return html`<professor-students-view></professor-students-view>`;
+            case 'student-profile':
+                return html`<professor-student-profile-view .studentId="${this._currentData?.id}"></professor-student-profile-view>`;
+            case 'interactions':
+                return html`<professor-interactions-view></professor-interactions-view>`;
+            case 'analytics':
+                return html`<professor-analytics-view></professor-analytics-view>`;
             
-            // ADMIN ROUTING
-            case 'admin': return html`<admin-user-management-view class="h-full flex flex-col"></admin-user-management-view>`;
-            case 'admin-settings': return html`<admin-settings-view class="h-full flex flex-col"></admin-settings-view>`;
-            case 'admin-dashboard': return html`<admin-dashboard-view class="h-full flex flex-col"></admin-dashboard-view>`;
-            
-            default: return html`<professor-dashboard-view class="h-full flex flex-col"></professor-dashboard-view>`;
+            // Admin Views
+            case 'admin-users':
+                return html`<admin-user-management-view></admin-user-management-view>`;
+            case 'admin-settings':
+                return html`<admin-settings-view></admin-settings-view>`;
+            case 'admin-dashboard':
+                return html`<admin-dashboard-view></admin-dashboard-view>`;
+
+            default:
+                return html`
+                    <div class="flex flex-col items-center justify-center h-full text-slate-400">
+                        <svg class="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <h2 class="text-xl font-semibold mb-2">Stránka nenájdená</h2>
+                        <p>Požadovaná stránka "${this._currentView}" neexistuje.</p>
+                        <button @click="${() => this._currentView = 'dashboard'}" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Späť na nástenku</button>
+                    </div>
+                `;
         }
     }
 }
+
 customElements.define('professor-app', ProfessorApp);
