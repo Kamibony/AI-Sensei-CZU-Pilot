@@ -8,6 +8,7 @@ import { Localized } from '../../utils/localization-mixin.js';
 const btnBase = "font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";
 const btnPrimary = `${btnBase} bg-green-700 text-white hover:bg-green-800 p-3 w-full`;
 const btnIconDestructive = `p-1 rounded-full text-slate-400 hover:bg-red-200 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity`;
+const btnIconPrimary = `p-1 rounded-full text-slate-400 hover:bg-indigo-100 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity`;
 // Nový štýl pre tlačidlo "+"
 const btnAddTimeline = `absolute top-2 right-2 p-1.5 bg-green-100 text-green-700 rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-green-200 hover:scale-110 shadow-sm z-10`;
 
@@ -98,6 +99,15 @@ export class LessonLibrary extends Localized(LitElement) {
         }, 1500);
     }
 
+    _handleAssignClick(e, lesson) {
+        e.stopPropagation();
+        // Dispatch global event for assignment - ProfessorApp or similar should handle this
+        // to show a class selector or navigate to a context where assignment is possible.
+        // For now, we assume an event 'request-assign-lesson' is appropriate.
+        document.dispatchEvent(new CustomEvent('request-assign-lesson', { detail: lesson }));
+        showToast(this.t('library.assign_hint') || "Vyberte třídu pro přiřazení lekce.", "info");
+    }
+
     firstUpdated() {
         const listEl = this.querySelector('#lesson-list-container');
         if (listEl && typeof Sortable !== 'undefined') {
@@ -132,11 +142,18 @@ export class LessonLibrary extends Localized(LitElement) {
                                 <h3 class="font-semibold text-slate-800 truncate" title="${lesson.title}">${lesson.title}</h3>
                                 <p class="text-sm text-slate-500 truncate" title="${lesson.subtitle || ''}">${lesson.subtitle || ' '}</p>
                             </div>
-                             <button class="delete-lesson-btn ${btnIconDestructive} flex-shrink-0" data-lesson-id="${lesson.id}"
-                                    title="${this.t('common.delete') || 'Smazat'}"
-                                    @click=${(e) => this._handleDeleteClick(e, lesson.id)}>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2 2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                            </button>
+                            <div class="flex items-center space-x-1">
+                                <button class="${btnIconPrimary}"
+                                        title="${this.t('class.assign_lesson_btn') || 'Přiřadit'}"
+                                        @click=${(e) => this._handleAssignClick(e, lesson)}>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+                                </button>
+                                <button class="delete-lesson-btn ${btnIconDestructive} flex-shrink-0" data-lesson-id="${lesson.id}"
+                                        title="${this.t('common.delete') || 'Smazat'}"
+                                        @click=${(e) => this._handleDeleteClick(e, lesson.id)}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2 2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `)}

@@ -309,6 +309,20 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
         }
     }
 
+    async _toggleLessonVisibility(lesson) {
+        try {
+            const newStatus = lesson.status === 'Aktivní' ? 'Naplánováno' : 'Aktivní';
+            const lessonRef = doc(firebaseInit.db, 'lessons', lesson.id);
+            await updateDoc(lessonRef, {
+                status: newStatus
+            });
+            showToast(this.t(newStatus === 'Aktivní' ? 'class.lesson_published' : 'class.lesson_unpublished'));
+        } catch (e) {
+            console.error("Error toggling visibility:", e);
+            showToast(`${this.t('common.error')}: ${e.message}`, true);
+        }
+    }
+
     async _removeLessonAssignment(lessonId) {
          if (confirm(this.t('class.remove_lesson_confirm'))) {
             try {
@@ -507,9 +521,20 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
                                             <p class="text-xs text-slate-500">${lesson.subtitle || ''}</p>
                                         </div>
                                     </div>
-                                    <button @click=${() => this._removeLessonAssignment(lesson.id)} class="text-slate-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors" title="${this.t('class.remove')}">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                    </button>
+                                    <div class="flex items-center space-x-4">
+                                        <label class="flex items-center cursor-pointer space-x-2">
+                                            <span class="text-sm font-medium text-slate-600">${this.t('class.published_label') || 'Publikováno'}</span>
+                                            <div class="relative">
+                                                <input type="checkbox" class="sr-only peer"
+                                                    ?checked="${lesson.status === 'Aktivní'}"
+                                                    @change="${() => this._toggleLessonVisibility(lesson)}">
+                                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                            </div>
+                                        </label>
+                                        <button @click=${() => this._removeLessonAssignment(lesson.id)} class="text-slate-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors" title="${this.t('class.remove')}">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                        </button>
+                                    </div>
                                 </div>
                             `)}
                         </div>
