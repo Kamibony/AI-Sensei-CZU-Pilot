@@ -196,7 +196,8 @@ export class ProfessorApp extends LitElement {
     _onLessonSelected(e) { this._showProfessorContent('editor', e.detail); }
     _onAddNewLesson() { this._showProfessorContent('editor', null); }
     _onLessonCreatedOrUpdated(e) {
-        this._currentData = e.detail;
+        // FIX: Merge to preserve lessonId (id) and prevent router reset
+        this._currentData = { ...this._currentData, ...e.detail };
         if (this._currentView !== 'editor') this._fetchLessons();
     }
     _onNavigateToProfile(e) { this._showProfessorContent('student-profile', e.detail.studentId); }

@@ -27,6 +27,14 @@ function getGenerativeModel() {
         vertex_ai = new VertexAI({ project: getGcloudProject(), location: LOCATION });
         model = vertex_ai.getGenerativeModel({
             model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
+            // INSERT START
+            systemInstruction: {
+                parts: [{ text: "You are a strict educational assistant. Generate content ONLY based on the provided source text. Do not invent facts outside the context. If information is missing, state it." }]
+            },
+            generationConfig: {
+                temperature: 0.2, // Low creativity for accuracy
+            },
+            // INSERT END
             safetySettings: [
                 { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
                 { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
