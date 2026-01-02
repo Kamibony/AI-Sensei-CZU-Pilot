@@ -83,6 +83,9 @@ export class EditorViewAudio extends Localized(LitElement) {
                     this.lesson.podcast_audio_path = result.data.storagePath;
                     await this._checkExistingAudio();
                 }
+            } else {
+                console.error("Audio generation failed:", result.data.error);
+                showToast(this.t('editor.audio.generation_failed') + ": " + (result.data.error || "Unknown error"), "error");
             }
 
         } catch (error) {
