@@ -14,12 +14,11 @@ import './professor-interactions-view.js';
 import './professor-analytics-view.js';
 import './admin-user-management-view.js';
 import './admin-settings-view.js';
-import './admin-dashboard-view.js'; // Nový import pre Dashboard
+import './admin-dashboard-view.js';
 
 import '../../components/guide-bot.js';
 import './navigation.js'; 
 
-// New Class-Centric Views
 import './professor-dashboard-view.js';
 import './professor-class-detail-view.js';
 import './professor-classes-view.js';
@@ -44,6 +43,7 @@ export class ProfessorApp extends LitElement {
         this._sidebarVisible = false;
     }
 
+    // DÔLEŽITÉ: Používame Light DOM, aby sme sa vyhli problémom s dedením štýlov a accessom
     createRenderRoot() { return this; }
 
     connectedCallback() {
@@ -58,7 +58,6 @@ export class ProfessorApp extends LitElement {
         document.addEventListener('add-lesson-to-timeline', this._boundHandleAddToTimeline);
         window.addEventListener('hashchange', this._boundHandleHashChange);
         
-        // Globálny listener pre navigáciu z ľavého menu
         window.addEventListener('navigate', this._boundHandleNavigation);
     }
 
@@ -71,10 +70,8 @@ export class ProfessorApp extends LitElement {
     }
 
     firstUpdated() {
-        const navContainer = document.getElementById('main-nav');
-        if (navContainer) {
-            navContainer.innerHTML = '<professor-navigation></professor-navigation>';
-        }
+        // FIX: Odstránená manuálna injekcia navigácie, ktorá spôsobovala "Dvojité Menu".
+        // Navigácia je už renderovaná v metóde render().
 
         const logoutBtn = document.getElementById('logout-btn-nav');
         if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
@@ -87,13 +84,11 @@ export class ProfessorApp extends LitElement {
         const [view, id] = hash.split('/');
 
         if (view === 'editor' && id) {
-            // Ak ideme priamo na URL editora s ID, musíme načítať dáta lekcie, ak ich nemáme
             if (!this._currentData || this._currentData.id !== id) {
                 this._fetchLessonById(id).then(lesson => {
                     if (lesson) {
                         this._currentView = 'editor';
                         this._currentData = lesson;
-                        // Notifikujeme guide bota o zmene kontextu
                         this._updateBotContext('editor');
                     } else {
                         window.location.hash = 'dashboard';
@@ -108,7 +103,6 @@ export class ProfessorApp extends LitElement {
             if (view !== 'editor') {
                 this._currentData = null;
             }
-            // Update bot context
             this._updateBotContext(view);
         } else {
             this._currentView = 'dashboard';
@@ -118,7 +112,7 @@ export class ProfessorApp extends LitElement {
 
     async _fetchLessonById(id) {
         try {
-            const db = firebaseInit.getDb();
+            const db = firebaseInit.db; 
             const q = query(collection(db, 'lessons'), where('id', '==', id));
             const querySnapshot = await getDocs(q);
             if (!querySnapshot.empty) {
@@ -135,7 +129,9 @@ export class ProfessorApp extends LitElement {
 
     async _fetchLessons() {
         try {
-            const db = firebaseInit.getDb();
+            const db = firebaseInit.db;
+            if (!db) throw new Error("Firebase DB not initialized");
+            
             const q = query(collection(db, "lessons"), orderBy("createdAt", "desc"));
             const querySnapshot = await getDocs(q);
             this._lessonsData = querySnapshot.docs.map(doc => ({
@@ -143,22 +139,17 @@ export class ProfessorApp extends LitElement {
                 ...doc.data()
             }));
             
-            // Update bot with lessons count
             this._updateBotContext(this._currentView);
         } catch (error) {
             console.error("Error fetching lessons:", error);
-            showToast("Nepodarilo sa načítať dáta lekcí.", true);
+            // Tichá chyba, aby sme nespamovali používateľa pri štarte
         }
     }
 
     _handleNavigation(e) {
         const { view, ...data } = e.detail;
         
-        // If navigating from nav menu, e.detail might contain generic event data, ignore it if not intended
-        if (!view && e.type === 'navigate') {
-             // Toto ošetrí situáciu, ak event neobsahuje view (chyba v dispatch)
-             return; 
-        }
+        if (!view && e.type === 'navigate') return; 
 
         this._currentView = view;
         if (Object.keys(data).length > 0) {
@@ -181,32 +172,30 @@ export class ProfessorApp extends LitElement {
     }
 
     _onAddNewLesson() {
-        this._currentData = null; // Reset pre novú lekciu
+        this._currentData = null;
         this._currentView = 'editor';
         window.location.hash = 'editor';
     }
 
     _onLessonCreatedOrUpdated(e) {
-        // FIX: Merge new data with existing data to prevent ID loss and navigation reset
+        // MERGE FIX: Zachovanie ID lekcie pri update
         this._currentData = { ...this._currentData, ...e.detail };
         
-        // Ak sme v editore, nevoláme fetchLessons, aby sme neprekreslili UI zbytočne
         if (this._currentView !== 'editor') {
             this._fetchLessons();
         }
-        // Update URL if ID is available and not set
         if (this._currentData.id && !window.location.hash.includes(this._currentData.id)) {
              window.location.hash = `editor/${this._currentData.id}`;
         }
     }
 
     _updateBotContext(view) {
-        const bot = this.shadowRoot.getElementById('guide-bot');
+        // FIX: this.querySelector namiesto this.shadowRoot.getElementById
+        // Pretože sme v Light DOMe (createRenderRoot vracia this)
+        const bot = this.querySelector('#guide-bot');
+        
         if (bot) {
-            // Safely get counts
             const lessonsCount = this._lessonsData ? this._lessonsData.length : 0;
-            // Note: classes are managed in professor-classes-view, so we might not have access to them here directly 
-            // unless we lift state up. For now, sending what we have.
             bot.updateContext(view, { 
                 lessons: lessonsCount,
                 role: 'professor'
@@ -283,8 +272,6 @@ export class ProfessorApp extends LitElement {
                 return html`<professor-interactions-view></professor-interactions-view>`;
             case 'analytics':
                 return html`<professor-analytics-view></professor-analytics-view>`;
-            
-            // Admin Views
             case 'admin-users':
                 return html`<admin-user-management-view></admin-user-management-view>`;
             case 'admin-settings':
@@ -295,9 +282,7 @@ export class ProfessorApp extends LitElement {
             default:
                 return html`
                     <div class="flex flex-col items-center justify-center h-full text-slate-400">
-                        <svg class="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         <h2 class="text-xl font-semibold mb-2">Stránka nenájdená</h2>
-                        <p>Požadovaná stránka "${this._currentView}" neexistuje.</p>
                         <button @click="${() => this._currentView = 'dashboard'}" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Späť na nástenku</button>
                     </div>
                 `;
