@@ -1,107 +1,104 @@
-export const showToast = () => {};
+/**
+ * Zobrazí notifikáciu (Toast)
+ * @param {string} message - Text správy
+ * @param {string} type - Typ správy: 'success', 'error', 'info', 'warning'
+ */
+export const showToast = (message, type = 'info') => {
+    let backgroundColor;
+    switch (type) {
+        case 'success':
+            backgroundColor = "linear-gradient(to right, #00b09b, #96c93d)";
+            break;
+        case 'error':
+            backgroundColor = "linear-gradient(to right, #ff5f6d, #ffc371)";
+            break;
+        case 'warning':
+            backgroundColor = "linear-gradient(to right, #f7971e, #ffd200)";
+            break;
+        default:
+            backgroundColor = "linear-gradient(to right, #4facfe, #00f2fe)";
+    }
 
-let toastContainer = null;
-
-function createToastContainer() {
-    if (!document.getElementById('toast-container')) {
-        toastContainer = document.createElement('div');
-        toastContainer.id = 'toast-container';
-        toastContainer.className = 'fixed bottom-5 right-5 z-50';
-        document.body.appendChild(toastContainer);
+    if (typeof Toastify === 'function') {
+        Toastify({
+            text: message,
+            duration: 3000,
+            close: true,
+            gravity: "top", 
+            position: "right", 
+            style: {
+                background: backgroundColor,
+            },
+        }).showToast();
     } else {
-        toastContainer = document.getElementById('toast-container');
+        console.log(`[Toast ${type}]: ${message}`);
+        // Fallback ak Toastify nie je načítané
+        alert(message);
     }
-}
+};
 
-// Override the empty export with the real implementation
-export function showToastReal(message, isError = false) {
-    if (!toastContainer) {
-        createToastContainer();
+/**
+ * Formátuje dátum (Fix pre "Invalid Date")
+ * Zvláda: Firebase Timestamp, JS Date object, ISO string, null
+ */
+export const formatDate = (date) => {
+    if (!date) return '';
+    
+    try {
+        // 1. Ak je to Firebase Timestamp (má metódu toDate)
+        if (date && typeof date.toDate === 'function') {
+            return date.toDate().toLocaleDateString('cs-CZ', {
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        // 2. Ak je to štandardný JS Date
+        if (date instanceof Date) {
+            return date.toLocaleDateString('cs-CZ', {
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // 3. Ak je to string (ISO) alebo číslo
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return ''; // Invalid Date check
+        
+        return d.toLocaleDateString('cs-CZ', {
+            day: '2-digit', 
+            month: '2-digit', 
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+    } catch (e) {
+        console.error("Error formatting date:", e);
+        return '';
     }
+};
 
-    const toast = document.createElement('div');
-    const baseClasses = 'px-4 py-3 rounded-lg shadow-lg text-white mb-2 transform transition-all duration-300 ease-in-out';
-    const colorClasses = isError ? 'bg-red-500' : 'bg-green-500';
+/**
+ * Generuje náhodné ID
+ */
+export const generateId = () => {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
 
-    toast.className = `${baseClasses} ${colorClasses}`;
-    toast.textContent = message;
-
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateY(20px)';
-
-    toastContainer.prepend(toast);
-
-    // Animate in
-    setTimeout(() => {
-        toast.style.opacity = '1';
-        toast.style.transform = 'translateY(0)';
-    }, 100);
-
-    // Animate out and remove
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateY(20px)';
-        toast.addEventListener('transitionend', () => toast.remove());
-    }, 5000);
-}
-
-// Since the original file had `export const showToast = () => {};` likely as a placeholder or it was just what I read,
-// I will provide the FULL content including the new formatDate.
-// Wait, the file I read HAD `showToast` implementation in the second read.
-// I should preserve the existing implementation and add formatDate.
-
-function createGlobalSpinner() {
-    if (!document.getElementById('global-spinner')) {
-        const spinnerContainer = document.createElement('div');
-        spinnerContainer.id = 'global-spinner';
-        spinnerContainer.className = 'fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 hidden';
-        spinnerContainer.innerHTML = `
-            <div class="bg-white p-6 rounded-lg shadow-xl flex items-center space-x-4">
-                <svg class="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span id="global-spinner-message" class="text-lg font-medium text-gray-700">Načítám...</span>
-            </div>
-        `;
-        document.body.appendChild(spinnerContainer);
+/**
+ * Bezpečné parsovanie JSON
+ */
+export const safeJsonParse = (str) => {
+    try {
+        return JSON.parse(str);
+    } catch (e) {
+        return null;
     }
-}
-
-export function showGlobalSpinner(message) {
-    createGlobalSpinner();
-    const spinner = document.getElementById('global-spinner');
-    const spinnerMessage = document.getElementById('global-spinner-message');
-
-    // Simple fallback if translationService is not globally available
-    const displayMsg = message || "Loading...";
-
-    if (spinnerMessage) {
-        spinnerMessage.textContent = displayMsg;
-    }
-    if (spinner) {
-        spinner.classList.remove('hidden');
-    }
-}
-
-export function hideGlobalSpinner() {
-    const spinner = document.getElementById('global-spinner');
-    if (spinner) {
-        spinner.classList.add('hidden');
-    }
-}
-
-export function formatDate(date) {
-    if (!date) return "";
-    // Handle Firebase Timestamp
-    if (typeof date.toDate === 'function') {
-        date = date.toDate();
-    }
-    // Handle generic date string/object
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return "";
-    return d.toLocaleDateString('cs-CZ');
-}
-
-// Re-export showToastReal as showToast to match existing imports
-export { showToastReal as showToast };
+};
