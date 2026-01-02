@@ -44,7 +44,8 @@ export class ProfessorApp extends LitElement {
         this._sidebarVisible = false;
     }
 
-    // DÔLEŽITÉ: Používame Light DOM
+    // DÔLEŽITÉ: Používame Light DOM, aby sme sa vyhli problémom s dedením štýlov a accessom
+    // Tým pádom this.shadowRoot je null, musíme používať this.querySelector
     createRenderRoot() { return this; }
 
     connectedCallback() {
@@ -60,6 +61,7 @@ export class ProfessorApp extends LitElement {
         document.addEventListener('add-lesson-to-timeline', this._boundHandleAddToTimeline);
         window.addEventListener('hashchange', this._boundHandleHashChange);
         
+        // Globálny listener pre navigáciu
         window.addEventListener('navigate', this._boundHandleNavigation);
     }
 
@@ -112,7 +114,7 @@ export class ProfessorApp extends LitElement {
     async _fetchLessonById(id) {
         try {
             const db = firebaseInit.db;
-            if (!db) return null; // Ak DB nie je ready, vrátime null
+            if (!db) return null;
             
             const q = query(collection(db, 'lessons'), where('id', '==', id));
             const querySnapshot = await getDocs(q);
@@ -123,7 +125,6 @@ export class ProfessorApp extends LitElement {
             return null;
         } catch (error) {
             console.warn("Lekcia sa nenašla alebo chýbajú práva:", error);
-            // Nevyhadzujeme toast, lebo to môže byť len problém s právami
             return null;
         }
     }
@@ -131,12 +132,27 @@ export class ProfessorApp extends LitElement {
     async _fetchLessons() {
         try {
             const db = firebaseInit.db;
+            const auth = firebaseInit.auth;
+
             if (!db) {
                 console.warn("DB not ready yet.");
                 return;
             }
             
-            const q = query(collection(db, "lessons"), orderBy("createdAt", "desc"));
+            // 1. Čakáme na prihlásenie používateľa
+            if (!auth.currentUser) {
+                console.log("Waiting for user auth...");
+                return; 
+            }
+
+            // 2. FIX: Pridaný filter 'where', aby sme splnili Security Rules
+            // DÔLEŽITÉ: Používame 'ownerId', lebo tak je to v firestore.rules
+            const q = query(
+                collection(db, "lessons"), 
+                where("ownerId", "==", auth.currentUser.uid),
+                orderBy("createdAt", "desc")
+            );
+
             const querySnapshot = await getDocs(q);
             this._lessonsData = querySnapshot.docs.map(doc => ({
                 id: doc.id,
@@ -146,8 +162,15 @@ export class ProfessorApp extends LitElement {
             this._updateBotContext(this._currentView);
         } catch (error) {
             console.error("Error fetching lessons:", error);
-            if (error.code === 'permission-denied') {
-                showToast("Chyba oprávnení: Nemáte prístup k zoznamu lekcií.", "warning");
+            
+            // 3. Ošetrenie chýbajúceho indexu (časté pri where + orderBy)
+            if (error.code === 'failed-precondition') {
+                console.warn("⚠️ Chýba index! Otvorte tento odkaz z konzoly prehliadača a vytvorte ho.");
+                showToast("Systém: Je potrebné vytvoriť index v databáze (viď konzola).", "warning");
+            } else if (error.code === 'permission-denied') {
+                showToast("Chyba oprávnení: Nemáte prístup k zoznamu lekcií.", "error");
+            } else {
+                showToast("Chyba pri načítaní dát.", "error");
             }
         }
     }
@@ -184,7 +207,7 @@ export class ProfessorApp extends LitElement {
     }
 
     _onLessonCreatedOrUpdated(e) {
-        // MERGE FIX
+        // MERGE FIX: Zachovanie ID lekcie pri update
         this._currentData = { ...this._currentData, ...e.detail };
         
         if (this._currentView !== 'editor') {
@@ -196,7 +219,7 @@ export class ProfessorApp extends LitElement {
     }
 
     _updateBotContext(view) {
-        // FIX: Bezpečný prístup k botovi
+        // FIX: Bezpečný prístup k botovi (Light DOM)
         try {
             const bot = this.querySelector('#guide-bot');
             
@@ -207,9 +230,6 @@ export class ProfessorApp extends LitElement {
                     lessons: lessonsCount,
                     role: 'professor'
                 });
-            } else {
-                // Tichý log pre debugging, ak bot ešte nie je ready
-                // console.log("Bot not ready yet");
             }
         } catch (e) {
             console.warn("Bot context update failed silently:", e);
