@@ -16,6 +16,7 @@ import './admin-user-management-view.js';
 import './admin-settings-view.js';
 import './admin-dashboard-view.js';
 
+// Guide Bot
 import '../../components/guide-bot.js';
 import './navigation.js'; 
 
@@ -43,12 +44,13 @@ export class ProfessorApp extends LitElement {
         this._sidebarVisible = false;
     }
 
-    // DÔLEŽITÉ: Používame Light DOM, aby sme sa vyhli problémom s dedením štýlov a accessom
+    // DÔLEŽITÉ: Používame Light DOM
     createRenderRoot() { return this; }
 
     connectedCallback() {
         super.connectedCallback();
-        this._fetchLessons();
+        // Načítanie lekcií s oneskorením, aby sme mali istotu, že auth je ready
+        setTimeout(() => this._fetchLessons(), 500);
         
         this._boundHandleNavigation = this._handleNavigation.bind(this);
         this._boundHandleAddToTimeline = this._handleAddToTimeline.bind(this);
@@ -70,9 +72,6 @@ export class ProfessorApp extends LitElement {
     }
 
     firstUpdated() {
-        // FIX: Odstránená manuálna injekcia navigácie, ktorá spôsobovala "Dvojité Menu".
-        // Navigácia je už renderovaná v metóde render().
-
         const logoutBtn = document.getElementById('logout-btn-nav');
         if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
 
@@ -112,7 +111,9 @@ export class ProfessorApp extends LitElement {
 
     async _fetchLessonById(id) {
         try {
-            const db = firebaseInit.db; 
+            const db = firebaseInit.db;
+            if (!db) return null; // Ak DB nie je ready, vrátime null
+            
             const q = query(collection(db, 'lessons'), where('id', '==', id));
             const querySnapshot = await getDocs(q);
             if (!querySnapshot.empty) {
@@ -121,8 +122,8 @@ export class ProfessorApp extends LitElement {
             }
             return null;
         } catch (error) {
-            console.error("Error fetching lesson by ID:", error);
-            showToast("Chyba pri načítaní lekcie.", "error");
+            console.warn("Lekcia sa nenašla alebo chýbajú práva:", error);
+            // Nevyhadzujeme toast, lebo to môže byť len problém s právami
             return null;
         }
     }
@@ -130,7 +131,10 @@ export class ProfessorApp extends LitElement {
     async _fetchLessons() {
         try {
             const db = firebaseInit.db;
-            if (!db) throw new Error("Firebase DB not initialized");
+            if (!db) {
+                console.warn("DB not ready yet.");
+                return;
+            }
             
             const q = query(collection(db, "lessons"), orderBy("createdAt", "desc"));
             const querySnapshot = await getDocs(q);
@@ -142,7 +146,9 @@ export class ProfessorApp extends LitElement {
             this._updateBotContext(this._currentView);
         } catch (error) {
             console.error("Error fetching lessons:", error);
-            // Tichá chyba, aby sme nespamovali používateľa pri štarte
+            if (error.code === 'permission-denied') {
+                showToast("Chyba oprávnení: Nemáte prístup k zoznamu lekcií.", "warning");
+            }
         }
     }
 
@@ -178,7 +184,7 @@ export class ProfessorApp extends LitElement {
     }
 
     _onLessonCreatedOrUpdated(e) {
-        // MERGE FIX: Zachovanie ID lekcie pri update
+        // MERGE FIX
         this._currentData = { ...this._currentData, ...e.detail };
         
         if (this._currentView !== 'editor') {
@@ -190,16 +196,23 @@ export class ProfessorApp extends LitElement {
     }
 
     _updateBotContext(view) {
-        // FIX: this.querySelector namiesto this.shadowRoot.getElementById
-        // Pretože sme v Light DOMe (createRenderRoot vracia this)
-        const bot = this.querySelector('#guide-bot');
-        
-        if (bot) {
-            const lessonsCount = this._lessonsData ? this._lessonsData.length : 0;
-            bot.updateContext(view, { 
-                lessons: lessonsCount,
-                role: 'professor'
-            });
+        // FIX: Bezpečný prístup k botovi
+        try {
+            const bot = this.querySelector('#guide-bot');
+            
+            // Overíme, či bot existuje A či má metódu updateContext
+            if (bot && typeof bot.updateContext === 'function') {
+                const lessonsCount = this._lessonsData ? this._lessonsData.length : 0;
+                bot.updateContext(view, { 
+                    lessons: lessonsCount,
+                    role: 'professor'
+                });
+            } else {
+                // Tichý log pre debugging, ak bot ešte nie je ready
+                // console.log("Bot not ready yet");
+            }
+        } catch (e) {
+            console.warn("Bot context update failed silently:", e);
         }
     }
 
