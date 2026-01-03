@@ -65,8 +65,8 @@ export class EditorViewPresentation extends Localized(LitElement) {
                 });
 
                 const visualText = slideData.visual_idea
-                    ? `🖼️ AI Suggestion:\n${slideData.visual_idea}`
-                    : "🖼️ AI Suggestion:\n(No visual suggestion)";
+                    ? `${this.t('editor.presentation.ai_suggestion_prefix')}\n${slideData.visual_idea}`
+                    : `${this.t('editor.presentation.ai_suggestion_prefix')}\n${this.t('editor.presentation.no_visual_suggestion')}`;
 
                 slide.addText(visualText, {
                     x: 5.3, y: 2.1, w: 4.3, h: 3.3,

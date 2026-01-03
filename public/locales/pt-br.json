@@ -66,6 +66,7 @@
     "delete": "Excluir",
     "edit": "Editar",
     "error": "Erro",
+    "errors": "Erros",
     "success": "Sucesso",
     "confirm_selection": "Confirmar seleção",
     "id": "ID",
@@ -117,7 +118,8 @@
     "no_classes_desc": "Crie sua primeira turma.",
     "create_first_class": "Criar turma",
     "enter_class_name": "Nome da turma:",
-    "class_name_placeholder": "Ex: História Avançada"
+    "class_name_placeholder": "Ex: História Avançada",
+    "no_classes_warning": "Você ainda não tem turmas. Para que os alunos vejam suas aulas, você deve criar uma turma primeiro."
   },
   "professor": {
     "dashboard_title": "Painel do Professor",
@@ -195,13 +197,19 @@
       "back": "Voltar",
       "title_required": "Título obrigatório",
       "magic_generator_desc": "Gere uma lição completa a partir de arquivos PDF.",
+      "generating_images": "Gerando imagens...",
+      "generating_comic": "Desenhando quadrinhos...",
+      "generating_audio": "Gerando áudio...",
       "rag_context": "Arquivos de Contexto (RAG)",
       "rag_help": "Carregue arquivos PDF, DOCX ou TXT para a IA utilizar como base.",
+      "ready_for_ai": "Pronto para IA",
+      "lesson_content": "Conteúdo da Lição",
       "library_btn": "Biblioteca",
       "upload_btn": "Enviar",
       "no_files_magic_hint": "Nenhum arquivo carregado. Adicione materiais para a Geração Mágica.",
       "creating_draft": "Criando rascunho...",
       "error_save_before_magic": "Erro ao salvar a lição antes da geração.",
+      "library_files_added": "Adicionado {count} arquivos da biblioteca.",
       "post": {
         "contentLabel": "Conteúdo",
         "contentPlaceholder": "Escreva aqui...",
@@ -277,7 +285,11 @@
       "ai_title": "Apresentação IA",
       "ai_description": "Gere slides a partir de um tópico.",
       "ai_placeholder": "Ex: Revolução Francesa",
-      "untitled_slide": "Sem título"
+      "untitled_slide": "Sem título",
+      "ai_suggestion_prefix": "🖼️ Sugestão de IA:",
+      "no_visual_suggestion": "(Sem sugestão visual)",
+      "slide_n": "Slide",
+      "topic_label": "Tópico"
     },
     "video": {
       "url_label": "URL do YouTube",
@@ -359,7 +371,9 @@
       "panel_label": "Cena (Prompt)",
       "prompt_placeholder": "Descrição visual...",
       "dialog_label": "Diálogo",
-      "dialog_placeholder": "O que dizem?"
+      "dialog_placeholder": "O que dizem?",
+      "description_label": "Descrição:",
+      "dialog_label": "Diálogo:"
     },
     "flashcards": {
       "title": "Flashcards",
@@ -384,8 +398,10 @@
       "error_parse": "Falha processamento.",
       "error_generation": "Erro geração: "
     },
+    "prompt_label": "Prompt para IA",
     "ai": {
       "title": "Gerador IA",
+      "panel_title": "Gerador de IA",
       "prompt_placeholder": "Prompt...",
       "context_title": "Contexto (RAG)",
       "context_none": "Sem arquivos",
@@ -431,7 +447,9 @@
       "success_created": "Sucesso!",
       "error_saving": "Erro salvar: ",
       "confirm_delete_content": "Excluir?",
-      "error_deleting": "Erro excluir."
+      "error_deleting": "Erro excluir.",
+      "missing_description": "Descrição ausente.",
+      "unknown_preview": "Tipo de visualização desconhecido: {type}"
     },
     "generate_presentation_first": "Gere a apresentação primeiro."
   },
@@ -492,7 +510,15 @@
     "app_init_error": "Erro init",
     "app_setting_account": "Conta...",
     "app_role_error": "Erro role",
-    "critical_login_error": "Erro crítico."
+    "critical_login_error": "Erro crítico.",
+    "magic_creating_title": "Criando mágica...",
+    "magic_creating_desc": "Gerando conteúdo da aula a partir dos seus arquivos",
+    "magic_files_required_tooltip": "Você deve enviar pelo menos um arquivo para a geração mágica.",
+    "draft_creating": "Criando rascunho da aula...",
+    "save_error_before_magic": "Falha ao salvar a aula antes da geração.",
+    "magic_requires_files": "Você deve enviar arquivos para mágica",
+    "upload_error": "Erro de upload",
+    "magic_done_stats": "Magia concluída! Sucesso: {success}/{total}."
   },
   "timeline": {
     "title": "Plano de Ensino",
