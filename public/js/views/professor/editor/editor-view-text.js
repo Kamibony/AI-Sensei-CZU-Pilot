@@ -56,7 +56,12 @@ export class EditorViewText extends Localized(LitElement) {
                                     contentType="text"
                                     fieldToUpdate="text_content"
                                     description="${this.t('editor.text.description')}"
-                                    promptPlaceholder="${this.t('editor.text.placeholder')}">
+                                    .inputsConfig=${[{
+                                        id: 'prompt-input',
+                                        type: 'textarea',
+                                        label: this.t('editor.prompt_label') || 'Zadání pro AI',
+                                        placeholder: this.t('editor.text.placeholder')
+                                    }]}>
                                 </ai-generator-panel>
                             </div>
                         `}
