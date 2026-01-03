@@ -79,7 +79,8 @@ export class LessonEditor extends BaseView {
     _wizardMode: { state: true, type: Boolean },
     _activeTool: { state: true, type: String },
     _isGenerating: { state: true, type: Boolean },
-    _magicStatus: { state: true, type: String }
+    _magicStatus: { state: true, type: String },
+    _longLoading: { state: true, type: Boolean }
   };
 
   constructor() {
@@ -112,6 +113,14 @@ export class LessonEditor extends BaseView {
     if (changedProperties.has('lesson')) {
         const oldLesson = changedProperties.get('lesson');
         const newLesson = this.lesson;
+
+        if (this.lesson) {
+            this._longLoading = false;
+            if (this._loadingTimeout) {
+                clearTimeout(this._loadingTimeout);
+                this._loadingTimeout = null;
+            }
+        }
 
         if (newLesson && newLesson.id) {
             this._selectedClassIds = newLesson.assignedToGroups || [];
@@ -178,8 +187,27 @@ export class LessonEditor extends BaseView {
 
   _handleLessonUpdatedEvent(e) {
       if (e.detail) {
-          this.lesson = { ...this.lesson, ...e.detail };
-          this.requestUpdate();
+          if (!this.lesson) {
+              this.lesson = e.detail;
+              this.requestUpdate();
+              return;
+          }
+
+          // Check if data actually changed to prevent render loops
+          const hasChanges = Object.keys(e.detail).some(key => {
+              // Simple strict equality check
+              // For objects/arrays, this relies on reference equality which is appropriate
+              // because immutable updates (creating new objects) should trigger re-render,
+              // but re-emitting same object reference shouldn't.
+              // If the issue is deep equality of identical new objects, this might be insufficient,
+              // but it's the standard first step for "Optimize Updates".
+              return this.lesson[key] !== e.detail[key];
+          });
+
+          if (hasChanges) {
+              this.lesson = { ...this.lesson, ...e.detail };
+              this.requestUpdate();
+          }
       }
   }
 
@@ -625,28 +653,30 @@ export class LessonEditor extends BaseView {
 
                     for (const [index, slide] of data.slides.entries()) {
                         if (slide.visual_idea) {
-                            let base64Data = null;
                             try {
-                                const imgResult = await callWithRetry(callGenerateImage, [slide.visual_idea], 3);
-                                base64Data = imgResult.imageBase64 || imgResult;
-                            } catch (err) {
-                                if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
-                                    console.warn(`[AutoMagic] Safety filter triggered for slide ${index}. Trying fallback...`);
-                                    try {
-                                        const safePrompt = `Educational illustration related to topic: ${this.lesson.title}, minimalist, abstract, safe content`;
-                                        const imgResult = await callGenerateImage(safePrompt);
-                                        base64Data = imgResult.imageBase64 || imgResult;
-                                    } catch (fallbackErr) {
-                                        console.warn(`[AutoMagic] Fallback image failed for slide ${index}`, fallbackErr);
+                                let base64Data = null;
+                                try {
+                                    const imgResult = await callWithRetry(callGenerateImage, [slide.visual_idea], 3);
+                                    base64Data = imgResult.imageBase64 || imgResult;
+                                } catch (err) {
+                                    if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
+                                        console.warn(`[AutoMagic] Safety filter triggered for slide ${index}. Trying fallback...`);
+                                        try {
+                                            const safePrompt = `Educational illustration related to topic: ${this.lesson.title}, minimalist, abstract, safe content`;
+                                            const imgResult = await callGenerateImage(safePrompt);
+                                            base64Data = imgResult.imageBase64 || imgResult;
+                                        } catch (fallbackErr) {
+                                            console.warn(`[AutoMagic] Fallback image failed for slide ${index}`, fallbackErr);
+                                            // Ensure we continue without throwing
+                                        }
+                                    } else {
+                                         console.warn(`[AutoMagic] Image gen failed for slide ${index}:`, err);
                                     }
-                                } else {
-                                     console.warn(`[AutoMagic] Image gen failed for slide ${index}:`, err);
                                 }
-                            }
 
-                            if (base64Data && typeof base64Data === 'string' && base64Data.length > 100) {
-                                 const fileName = `slide_${Date.now()}_${index}.png`;
-                                 const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
+                                if (base64Data && typeof base64Data === 'string' && base64Data.length > 100) {
+                                     const fileName = `slide_${Date.now()}_${index}.png`;
+                                     const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
 
                                  try {
                                      const url = await this._uploadBase64Image(base64Data, storagePath);
@@ -660,7 +690,6 @@ export class LessonEditor extends BaseView {
                                      // Continue without image, do not crash
                                  }
                             }
-                            await delay(2000);
                         }
                     }
                 }
@@ -671,28 +700,29 @@ export class LessonEditor extends BaseView {
 
                     for (const [index, panel] of data.panels.entries()) {
                          if (panel.description) {
-                            let base64Data = null;
                             try {
-                                const imgResult = await callWithRetry(callGenerateImage, [`Comic book style, ${panel.description}`], 3);
-                                base64Data = imgResult.imageBase64 || imgResult;
-                            } catch (err) {
-                                if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
-                                    console.warn(`[AutoMagic] Safety filter triggered for comic panel ${index}. Trying fallback...`);
-                                    try {
-                                        const safePrompt = `Comic book panel, educational scene about ${this.lesson.title}, safe content`;
-                                        const imgResult = await callGenerateImage(safePrompt);
-                                        base64Data = imgResult.imageBase64 || imgResult;
-                                    } catch (fallbackErr) {
-                                        console.warn(`[AutoMagic] Fallback comic failed for panel ${index}`, fallbackErr);
+                                let base64Data = null;
+                                try {
+                                    const imgResult = await callWithRetry(callGenerateImage, [`Comic book style, ${panel.description}`], 3);
+                                    base64Data = imgResult.imageBase64 || imgResult;
+                                } catch (err) {
+                                    if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
+                                        console.warn(`[AutoMagic] Safety filter triggered for comic panel ${index}. Trying fallback...`);
+                                        try {
+                                            const safePrompt = `Comic book panel, educational scene about ${this.lesson.title}, safe content`;
+                                            const imgResult = await callGenerateImage(safePrompt);
+                                            base64Data = imgResult.imageBase64 || imgResult;
+                                        } catch (fallbackErr) {
+                                            console.warn(`[AutoMagic] Fallback comic failed for panel ${index}`, fallbackErr);
+                                        }
+                                    } else {
+                                         console.warn(`[AutoMagic] Comic gen failed for panel ${index}:`, err);
                                     }
-                                } else {
-                                     console.warn(`[AutoMagic] Comic gen failed for panel ${index}:`, err);
                                 }
-                            }
 
-                            if (base64Data && typeof base64Data === 'string') {
-                                 const fileName = `comic_${Date.now()}_${index}.png`;
-                                 const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
+                                if (base64Data && typeof base64Data === 'string') {
+                                     const fileName = `comic_${Date.now()}_${index}.png`;
+                                     const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
 
                                  try {
                                      const url = await this._uploadBase64Image(base64Data, storagePath);
@@ -706,7 +736,6 @@ export class LessonEditor extends BaseView {
                                       // Continue without image
                                  }
                             }
-                            await delay(2000);
                          }
                     }
                 }
@@ -1251,6 +1280,17 @@ export class LessonEditor extends BaseView {
 
   render() {
       if (!this.lesson) {
+          if (this._longLoading) {
+             return html`
+                <div class="flex flex-col justify-center items-center h-full space-y-4">
+                    <p class="text-slate-500">${translationService.t('common.loading_slow') || 'Nahrávání trvá déle než obvykle...'}</p>
+                    <button @click="${() => window.location.reload()}"
+                            class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                        ${translationService.t('common.reload') || 'Načíst znovu'}
+                    </button>
+                </div>
+             `;
+          }
           return html`<div class="flex justify-center items-center h-full"><div class="spinner"></div></div>`;
       }
       if (this._wizardMode) {
