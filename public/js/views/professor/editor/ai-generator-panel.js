@@ -338,17 +338,39 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                     ${this._createDocumentSelectorUI()}
 
                     <div class="space-y-4 mb-6">
-                        ${this.inputsConfig.map(input => html`
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">
-                                    ${input.label}
-                                </label>
-                                ${input.type === 'textarea' 
-                                    ? html`<textarea id="${input.id}" rows="3" class="w-full rounded-lg border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm" placeholder="${input.placeholder || ''}"></textarea>`
-                                    : html`<input type="text" id="${input.id}" class="w-full rounded-lg border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm" placeholder="${input.placeholder || ''}">`
-                                }
-                            </div>
-                        `)}
+                        ${this.inputsConfig.map(input => {
+                            if (input.type === 'select') {
+                                return html`
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">${input.label}</label>
+                                        <select id="${input.id}" class="w-full rounded-lg border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                                            ${input.options.map(opt => html`<option value="${opt.value || opt}" ?selected="${(opt.value || opt) === input.default}">${opt.label || opt}</option>`)}
+                                        </select>
+                                    </div>
+                                `;
+                            }
+                            if (input.type === 'textarea') {
+                                return html`
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">${input.label}</label>
+                                        <textarea id="${input.id}" rows="3" class="w-full rounded-lg border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm" placeholder="${input.placeholder || ''}">${input.default || ''}</textarea>
+                                    </div>
+                                `;
+                            }
+                            return html`
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">${input.label}</label>
+                                    <input type="${input.type || 'text'}" id="${input.id}"
+                                        class="w-full rounded-lg border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                        placeholder="${input.placeholder || ''}"
+                                        value="${input.default || ''}"
+                                        min="${input.min || ''}"
+                                        max="${input.max || ''}">
+                                </div>
+                            `;
+                        })}
+
+                        <slot name="ai-inputs"></slot>
                     </div>
 
                     <div class="flex justify-center mb-8">

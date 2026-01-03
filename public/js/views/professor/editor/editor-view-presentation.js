@@ -107,28 +107,34 @@ export class EditorViewPresentation extends Localized(LitElement) {
                                     contentType="presentation"
                                     fieldToUpdate="presentation"
                                     description="${this.t('editor.presentation.ai_description')}"
-                                    promptPlaceholder="${this.t('editor.presentation.ai_placeholder')}">
-
-                                    <div slot="ai-inputs" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                        <div class="md:col-span-2">
-                                            </div>
-                                        <div>
-                                            <label class="block font-medium text-slate-600">${this.t('editor.presentation.slide_count')}</label>
-                                            <input id="slide-count-input"
-                                                type="number"
-                                                class="w-full border-slate-300 rounded-lg p-2 mt-1"
-                                                .value=${this._slideCount}
-                                                @input=${this._onSlideCountChange}>
-                                        </div>
-                                    </div>
-                                    <div slot="ai-inputs" class="mb-4">
-                                        <label for="presentation-style-selector" class="block text-sm font-medium text-gray-700 mb-1">${this.t('editor.presentation.style_label')}</label>
-                                        <select id="presentation-style-selector" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md" .value=${styleId}>
-                                            <option value="default">${this.t('editor.presentation.style_default')}</option>
-                                            <option value="modern">${this.t('editor.presentation.style_modern')}</option>
-                                            <option value="vibrant">${this.t('editor.presentation.style_vibrant')}</option>
-                                        </select>
-                                    </div>
+                                    promptPlaceholder="${this.t('editor.presentation.ai_placeholder')}"
+                                    .inputsConfig=${[
+                                        {
+                                            id: 'prompt-input-topic',
+                                            type: 'text',
+                                            label: this.t('editor.presentation.topic_label') || 'Téma / Klíčové body',
+                                            placeholder: this.t('editor.presentation.ai_placeholder') || 'O čem má prezentace být?'
+                                        },
+                                        {
+                                            id: 'slide_count',
+                                            type: 'number',
+                                            label: this.t('editor.presentation.slide_count') || 'Počet slidů',
+                                            default: 5,
+                                            min: 1,
+                                            max: 20
+                                        },
+                                        {
+                                            id: 'styleId',
+                                            type: 'select',
+                                            label: this.t('editor.presentation.style_label') || 'Styl',
+                                            options: [
+                                                { value: 'default', label: this.t('editor.presentation.style_default') || 'Standardní' },
+                                                { value: 'modern', label: this.t('editor.presentation.style_modern') || 'Moderní' },
+                                                { value: 'vibrant', label: this.t('editor.presentation.style_vibrant') || 'Živý' }
+                                            ],
+                                            default: styleId
+                                        }
+                                    ]}>
                                 </ai-generator-panel>
                             </div>
                         </div>
