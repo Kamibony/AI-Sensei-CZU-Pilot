@@ -100,9 +100,15 @@ export class LessonEditor extends BaseView {
     this._activeTool = null;
     this._isGenerating = false;
     this._magicStatus = '';
+    this._loadingTimeout = null;
   }
 
   updated(changedProperties) {
+    if (this.lesson && this._loadingTimeout) {
+        clearTimeout(this._loadingTimeout);
+        this._loadingTimeout = null;
+    }
+
     if (changedProperties.has('lesson')) {
         const oldLesson = changedProperties.get('lesson');
         const newLesson = this.lesson;
@@ -147,6 +153,14 @@ export class LessonEditor extends BaseView {
           }
       });
 
+      // Safety guard: if lesson is not initialized within 3s, force a new draft
+      this._loadingTimeout = setTimeout(() => {
+          if (!this.lesson) {
+              console.warn("Lesson initialization timed out, forcing draft mode.");
+              this._initNewLesson();
+          }
+      }, 3000);
+
       if (!this.lesson) {
           this._initNewLesson();
       } else if (this.lesson.id) {
@@ -159,6 +173,7 @@ export class LessonEditor extends BaseView {
       this.removeEventListener('lesson-updated', this._handleLessonUpdatedEvent);
       if (this._unsubscribe) this._unsubscribe();
       if (this._authUnsubscribe) this._authUnsubscribe();
+      if (this._loadingTimeout) clearTimeout(this._loadingTimeout);
   }
 
   _handleLessonUpdatedEvent(e) {
@@ -171,6 +186,22 @@ export class LessonEditor extends BaseView {
   _initNewLesson() {
       const intent = this.lesson?.intent || null;
 
+      // Check for global files from Dashboard upload
+      const globalFiles = getSelectedFiles();
+      let initialFiles = [];
+
+      if (globalFiles && globalFiles.length > 0) {
+          initialFiles = globalFiles.map(f => ({
+              id: f.id || 'unknown',
+              name: f.name,
+              url: '',
+              storagePath: f.fullPath,
+              uploadedAt: new Date().toISOString()
+          }));
+          // Clear global files so they don't duplicate if called again
+          clearSelectedFiles();
+      }
+
       this.lesson = {
           title: '',
           subject: '',
@@ -179,13 +210,19 @@ export class LessonEditor extends BaseView {
           content: { blocks: [] },
           assignedToGroups: [],
           status: 'draft',
-          files: [],
+          files: initialFiles,
           createdAt: new Date().toISOString(),
           intent: intent || null
       };
+
+      this._uploadedFiles = initialFiles;
       this._wizardMode = true;
       this._activeTool = null;
       this.requestUpdate();
+
+      if (initialFiles.length > 0) {
+          showToast(translationService.t('professor.editor.library_files_added', { count: initialFiles.length }));
+      }
   }
 
   async _fetchAvailableClasses() {
@@ -544,6 +581,10 @@ export class LessonEditor extends BaseView {
                     promptData: promptData,
                     filePaths: filePaths
                 });
+
+                if (result.data && result.data.error) {
+                    throw new Error(result.data.message || result.data.error);
+                }
                 
                 let data = JSON.parse(JSON.stringify(result.data));
 
@@ -607,12 +648,17 @@ export class LessonEditor extends BaseView {
                                  const fileName = `slide_${Date.now()}_${index}.png`;
                                  const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
 
-                                 const url = await this._uploadBase64Image(base64Data, storagePath);
-                                 
-                                 const newSlide = { ...slide, imageUrl: url };
-                                 if ('backgroundImage' in newSlide) delete newSlide.backgroundImage; 
+                                 try {
+                                     const url = await this._uploadBase64Image(base64Data, storagePath);
 
-                                 data.slides[index] = newSlide;
+                                     const newSlide = { ...slide, imageUrl: url };
+                                     if ('backgroundImage' in newSlide) delete newSlide.backgroundImage;
+
+                                     data.slides[index] = newSlide;
+                                 } catch (uploadErr) {
+                                     console.warn(`[AutoMagic] Failed to upload image for slide ${index}:`, uploadErr);
+                                     // Continue without image, do not crash
+                                 }
                             }
                             await delay(2000);
                         }
@@ -648,12 +694,17 @@ export class LessonEditor extends BaseView {
                                  const fileName = `comic_${Date.now()}_${index}.png`;
                                  const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
 
-                                 const url = await this._uploadBase64Image(base64Data, storagePath);
+                                 try {
+                                     const url = await this._uploadBase64Image(base64Data, storagePath);
 
-                                 data.panels[index] = {
-                                     ...panel,
-                                     imageUrl: url
-                                 };
+                                     data.panels[index] = {
+                                         ...panel,
+                                         imageUrl: url
+                                     };
+                                 } catch (uploadErr) {
+                                      console.warn(`[AutoMagic] Failed to upload image for comic panel ${index}:`, uploadErr);
+                                      // Continue without image
+                                 }
                             }
                             await delay(2000);
                          }
@@ -813,7 +864,7 @@ export class LessonEditor extends BaseView {
             <div class="w-full max-w-3xl bg-white rounded-3xl shadow-xl flex flex-col max-h-[90vh] animate-fade-in-up overflow-hidden">
 
                 <div class="bg-gradient-to-r from-indigo-600 to-violet-600 p-8 text-white relative flex-shrink-0">
-                    <button @click="${this._handleBackClick}" class="absolute left-4 top-4 p-2 text-indigo-200 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+                    <button @click="${this._handleBackClick}" class="absolute left-4 top-4 p-2 text-white hover:bg-white/10 rounded-full transition-colors" title="${translationService.t('common.back')}">
                          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                     </button>
                     <div class="relative z-10 text-center mt-4">
@@ -901,8 +952,11 @@ export class LessonEditor extends BaseView {
                                 `)}
                             </div>
                         ` : html`
-                            <div class="text-center py-8 border-2 border-dashed border-slate-200 rounded-lg">
+                            <div class="text-center py-8 border-2 border-dashed border-slate-200 rounded-lg flex flex-col items-center gap-3">
                                 <p class="text-slate-400 text-sm">${html`${translationService.t('professor.editor.no_files_magic_hint')}`}</p>
+                                <button @click="${this._handleOpenLibrary}" class="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors">
+                                    📂 ${translationService.t('professor.editor.library_btn')}
+                                </button>
                             </div>
                         `}
                     </div>
