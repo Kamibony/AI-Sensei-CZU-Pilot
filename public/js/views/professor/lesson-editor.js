@@ -328,7 +328,7 @@ export class LessonEditor extends BaseView {
       }
 
       if (!this.lesson.id) {
-          showToast(translationService.t('lesson.draft_creating') || "Zakládám koncept lekce...", false);
+          showToast(translationService.t('lesson.draft_creating'), false);
           try {
               await this._handleSave();
           } catch (err) {
@@ -421,7 +421,7 @@ export class LessonEditor extends BaseView {
                    this._uploadedFiles = [...this._uploadedFiles, ...uniqueNewFiles];
                    this.lesson = { ...this.lesson, files: this._uploadedFiles };
                    if(this.lesson.title) await this._handleSave();
-                   showToast(translationService.t('professor.editor.library_files_added', { count: uniqueNewFiles.length }) || `Pridáno ${uniqueNewFiles.length} souborů z knihovny.`);
+                   showToast(translationService.t('professor.editor.library_files_added', { count: uniqueNewFiles.length }));
                }
           }
           close();
@@ -467,7 +467,7 @@ export class LessonEditor extends BaseView {
       const filePaths = this._uploadedFiles ? this._uploadedFiles.map(f => f.storagePath).filter(Boolean) : [];
 
       if (this._uploadedFiles.length === 0) {
-          showToast(translationService.t('lesson.magic_requires_files') || "Pro magii musíte nahrát soubory", true);
+          showToast(translationService.t('lesson.magic_requires_files'), true);
           return;
       }
 
@@ -479,7 +479,7 @@ export class LessonEditor extends BaseView {
           this.requestUpdate();
       } catch (e) {
           console.error("Save failed before magic:", e);
-          showToast(translationService.t('lesson.save_error_before_magic') || "Nepodařilo se uložit lekci před generováním.", true);
+          showToast(translationService.t('lesson.save_error_before_magic'), true);
           this._isLoading = false;
           return;
       }
@@ -493,7 +493,7 @@ export class LessonEditor extends BaseView {
       try {
           for (const type of types) {
              try {
-                this._magicStatus = `${translationService.t('common.magic_status_generating') || 'Generuji'} (${successCount + failedTypes.length + 1}/${types.length}): ${(translationService.t(`content_types.${type}`) || type).toUpperCase()}...`;
+                this._magicStatus = `${translationService.t('common.magic_status_generating')} (${successCount + failedTypes.length + 1}/${types.length}): ${(translationService.t(`content_types.${type}`) || type).toUpperCase()}...`;
                 this.requestUpdate();
 
                 let promptData = { userPrompt: '', isMagic: true };
@@ -548,7 +548,7 @@ export class LessonEditor extends BaseView {
                 let data = JSON.parse(JSON.stringify(result.data));
 
                 if (type === 'post' && data.podcast_series && data.podcast_series.episodes) {
-                    this._magicStatus = `🎙️ ${translationService.t('professor.editor.generating_audio') || 'Generating audio...'}`;
+                    this._magicStatus = `🎙️ ${translationService.t('professor.editor.generating_audio')}`;
                     this.requestUpdate();
                     
                     const generateAudioFunc = httpsCallable(functions, 'generatePodcastAudio');
@@ -579,7 +579,7 @@ export class LessonEditor extends BaseView {
                 }
 
                 if (type === 'presentation' && data.slides) {
-                    this._magicStatus = `🎨 ${translationService.t('professor.editor.generating_images') || 'Generating images...'}`;
+                    this._magicStatus = `🎨 ${translationService.t('professor.editor.generating_images')}`;
                     this.requestUpdate();
 
                     for (const [index, slide] of data.slides.entries()) {
@@ -620,7 +620,7 @@ export class LessonEditor extends BaseView {
                 }
 
                 if (type === 'comic' && data.panels) {
-                    this._magicStatus = `🖍️ ${translationService.t('professor.editor.generating_comic') || 'Drawing comic...'}`;
+                    this._magicStatus = `🖍️ ${translationService.t('professor.editor.generating_comic')}`;
                     this.requestUpdate();
 
                     for (const [index, panel] of data.panels.entries()) {
@@ -720,8 +720,8 @@ export class LessonEditor extends BaseView {
              }
           }
 
-          const msg = `${translationService.t('lesson.magic_done_stats', { success: successCount, total: types.length }) || `Magic done! Success: ${successCount}/${types.length}.`}` +
-                      (failedTypes.length ? ` ${translationService.t('common.errors') || 'Errors'}: ${failedTypes.join(', ')}` : '');
+          const msg = `${translationService.t('lesson.magic_done_stats', { success: successCount, total: types.length })}` +
+                      (failedTypes.length ? ` ${translationService.t('common.errors')}: ${failedTypes.join(', ')}` : '');
           showToast(msg, failedTypes.length > 0);
 
       } catch (fatalError) {
@@ -788,8 +788,8 @@ export class LessonEditor extends BaseView {
           return html`
               <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
                  <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                 <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('professor.editor.magic_generating_title') || 'AI Sensei kouzlí...'}</h2>
-                 <p class="text-slate-500 mt-2">${this._magicStatus || translationService.t('professor.editor.magic_generating_desc') || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
+                 <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('lesson.magic_creating_title')}</h2>
+                 <p class="text-slate-500 mt-2">${this._magicStatus || translationService.t('lesson.magic_creating_desc')}</p>
               </div>
            `;
       }
@@ -817,8 +817,8 @@ export class LessonEditor extends BaseView {
                          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                     </button>
                     <div class="relative z-10 text-center mt-4">
-                        <h2 class="text-3xl font-extrabold mb-2">✨ ${translationService.t('lesson.new') || 'Nová lekce'}</h2>
-                        <p class="text-indigo-100">${translationService.t('professor.editor.magic_generator_desc') || 'Vytvořte lekci rychle pomocí AI nebo manuálně'}</p>
+                        <h2 class="text-3xl font-extrabold mb-2">✨ ${translationService.t('lesson.new')}</h2>
+                        <p class="text-indigo-100">${translationService.t('professor.editor.magic_generator_desc')}</p>
                     </div>
                     <div class="absolute right-0 top-0 h-full w-1/2 bg-white/10 transform skew-x-12 translate-x-12"></div>
                 </div>
@@ -827,7 +827,7 @@ export class LessonEditor extends BaseView {
                     <div class="space-y-4">
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-2">
-                                ${translationService.t('professor.editor.title') || 'Název lekce'} <span class="text-red-500">*</span>
+                                ${translationService.t('professor.editor.title')} <span class="text-red-500">*</span>
                             </label>
                             <input type="text"
                                 .value="${this.lesson.title || ''}"
@@ -862,15 +862,15 @@ export class LessonEditor extends BaseView {
                     <div class="bg-slate-50 border border-slate-200 rounded-xl p-6 mt-6">
                         <div class="flex items-center justify-between mb-4">
                             <div>
-                                <h3 class="font-bold text-slate-800 text-lg">📂 ${translationService.t('professor.editor.rag_context') || 'Podklady pro AI (RAG)'}</h3>
-                                <p class="text-slate-500 text-sm">${translationService.t('professor.editor.rag_help') || 'Nahrajte PDF, DOCX nebo TXT soubory, ze kterých má AI čerpat.'}</p>
+                                <h3 class="font-bold text-slate-800 text-lg">📂 ${translationService.t('professor.editor.rag_context')}</h3>
+                                <p class="text-slate-500 text-sm">${translationService.t('professor.editor.rag_help')}</p>
                             </div>
                             <div class="flex gap-2">
                                  <button @click="${this._handleOpenLibrary}" class="px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-100 text-sm font-semibold transition-colors">
-                                    ${translationService.t('professor.editor.library_btn') || 'Knihovna'}
+                                    ${translationService.t('professor.editor.library_btn')}
                                  </button>
                                  <label class="px-3 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg cursor-pointer hover:bg-indigo-100 text-sm font-bold transition-colors flex items-center gap-2">
-                                    <span>📤 ${translationService.t('professor.editor.upload_btn') || 'Nahrát'}</span>
+                                    <span>📤 ${translationService.t('professor.editor.upload_btn')}</span>
                                     <input type="file" multiple accept=".pdf,.docx,.txt" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
                                  </label>
                             </div>
@@ -879,7 +879,7 @@ export class LessonEditor extends BaseView {
                         ${this._uploading ? html`
                             <div class="flex items-center justify-center p-4 text-indigo-600">
                                 <div class="spinner w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mr-3"></div>
-                                <span class="text-sm font-medium">${translationService.t('lesson.upload_uploading') || 'Nahrávám soubory...'}</span>
+                                <span class="text-sm font-medium">${translationService.t('lesson.upload_uploading')}</span>
                             </div>
                         ` : ''}
 
@@ -891,7 +891,7 @@ export class LessonEditor extends BaseView {
                                             <span class="text-xl">📄</span>
                                             <div class="flex flex-col min-w-0">
                                                 <span class="text-sm font-semibold text-slate-700 truncate">${file.name}</span>
-                                                <span class="text-xs text-slate-400">${translationService.t('professor.editor.ready_for_ai') || 'Připraveno pro AI'}</span>
+                                                <span class="text-xs text-slate-400">${translationService.t('professor.editor.ready_for_ai')}</span>
                                             </div>
                                         </div>
                                         <button @click="${() => this._handleDeleteFile(index)}" class="p-1 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors">
@@ -902,7 +902,7 @@ export class LessonEditor extends BaseView {
                             </div>
                         ` : html`
                             <div class="text-center py-8 border-2 border-dashed border-slate-200 rounded-lg">
-                                <p class="text-slate-400 text-sm">${html`${translationService.t('professor.editor.no_files_magic_hint') || 'Zatím žádné soubory. <br>Nahrajte podklady pro "Magické generování".'}`}</p>
+                                <p class="text-slate-400 text-sm">${html`${translationService.t('professor.editor.no_files_magic_hint')}`}</p>
                             </div>
                         `}
                     </div>
@@ -920,7 +920,7 @@ export class LessonEditor extends BaseView {
                             </button>
                              ${this._uploadedFiles.length === 0 ? html`
                                 <div class="absolute bottom-full right-0 mb-2 w-64 p-2 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-center z-50">
-                                    Pro magické generování musíte nahrát alespoň jeden soubor.
+                                    ${translationService.t('lesson.magic_files_required_tooltip')}
                                 </div>
                             ` : ''}
                         </div>
@@ -1000,8 +1000,8 @@ export class LessonEditor extends BaseView {
           return html`
               <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
                  <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                 <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('professor.editor.magic_generating_title') || 'AI Sensei kouzlí...'}</h2>
-                 <p class="text-slate-500 mt-2">${this._magicStatus || translationService.t('professor.editor.magic_generating_desc') || 'Generuji veškerý obsah lekce. Může to chvíli trvat.'}</p>
+                 <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('lesson.magic_creating_title')}</h2>
+                 <p class="text-slate-500 mt-2">${this._magicStatus || translationService.t('lesson.magic_creating_desc')}</p>
               </div>
            `;
       }
@@ -1021,7 +1021,7 @@ export class LessonEditor extends BaseView {
               <div class="space-y-4">
                   <div class="flex items-center justify-between">
                      <h3 class="font-bold text-slate-800 text-xl flex items-center gap-2">
-                        ✨ ${translationService.t('professor.editor.lesson_content') || 'Obsah lekce'}
+                        ✨ ${translationService.t('professor.editor.lesson_content')}
                      </h3>
                   </div>
 
@@ -1030,7 +1030,7 @@ export class LessonEditor extends BaseView {
                       ${this._renderContentCard('presentation', '📊', translationService.t('content_types.presentation'), this.lesson.slides?.length > 0 || this.lesson.presentation?.slides?.length > 0)}
                       ${this._renderContentCard('quiz', '❓', translationService.t('content_types.quiz'), this.lesson.questions?.length > 0 || this.lesson.quiz?.questions?.length > 0)}
                       ${this._renderContentCard('test', '📝', translationService.t('content_types.test'), this.lesson.test?.questions?.length > 0)}
-                      ${this._renderContentCard('post', '📰', translationService.t('content_types.post') || 'Příspěvek', !!this.lesson.postContent)}
+                      ${this._renderContentCard('post', '📰', translationService.t('content_types.post'), !!this.lesson.postContent)}
                       ${this._renderContentCard('video', '🎥', translationService.t('content_types.video'), !!this.lesson.videoUrl)}
                       ${this._renderContentCard('audio', '🎙️', translationService.t('content_types.audio'), false)}
                       ${this._renderContentCard('comic', '💬', translationService.t('content_types.comic'), false)}
@@ -1056,7 +1056,7 @@ export class LessonEditor extends BaseView {
 
             ${hasContent ? html`
                 <div class="absolute top-3 right-3 text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                    ${translationService.t('common.done') || 'Hotovo'}
+                    ${translationService.t('common.done')}
                 </div>
             ` : nothing}
 

@@ -42,9 +42,9 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         super();
         this.lesson = null;
         this.files = null; // Default to null to distinguish if prop is passed
-        this.viewTitle = "AI Generátor"; 
+        this.viewTitle = this.t('editor.ai.panel_title') || "AI Generátor";
         this.promptPlaceholder = "";
-        this.description = "Popis chybí."; 
+        this.description = this.t('editor.ai.missing_description') || "Popis chybí.";
         this.inputsConfig = []; 
         this._generationOutput = null;
         this._isLoading = false; 
@@ -265,9 +265,9 @@ export class AiGeneratorPanel extends Localized(LitElement) {
             <div class="p-4 border border-slate-200 rounded-lg mb-4 shadow-sm bg-white flex gap-4">
                 <div class="font-bold text-indigo-600 text-xl self-center">#${i + 1}</div>
                 <div class="flex-grow">
-                    <div class="text-sm font-semibold text-slate-700 mb-1">Popis:</div>
+                    <div class="text-sm font-semibold text-slate-700 mb-1">${this.t('editor.comic.description_label')}</div>
                     <div class="text-sm text-slate-600 italic mb-2">${panel.description}</div>
-                    <div class="text-sm font-semibold text-slate-700 mb-1">Dialog:</div>
+                    <div class="text-sm font-semibold text-slate-700 mb-1">${this.t('editor.comic.dialog_label')}</div>
                     <div class="bg-slate-50 p-2 rounded text-sm font-mono text-slate-800">${panel.dialogue || panel.text}</div>
                 </div>
             </div>
@@ -281,7 +281,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
             case 'presentation':
                 return (data?.slides || []).map((slide, i) => html`
                     <div class="p-3 border border-slate-200 rounded mb-2 bg-white">
-                        <div class="font-bold text-sm text-indigo-600">Slide ${i + 1}: ${slide.title}</div>
+                        <div class="font-bold text-sm text-indigo-600">${this.t('editor.presentation.slide_n')} ${i + 1}: ${slide.title}</div>
                         <ul class="list-disc ml-5 text-xs text-slate-600 mt-1">
                             ${(slide.bullets || []).map(b => html`<li>${b}</li>`)}
                         </ul>
@@ -313,7 +313,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                 `;
 
             default:
-                return html`<div class="p-4 bg-red-50 text-red-600 border border-red-200 rounded">Unknown type preview: ${viewId}</div>`;
+                return html`<div class="p-4 bg-red-50 text-red-600 border border-red-200 rounded">${this.t('editor.ai.unknown_preview').replace('{type}', viewId)}</div>`;
         }
     }
 

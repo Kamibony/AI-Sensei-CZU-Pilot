@@ -59,7 +59,7 @@ export class EditorViewText extends Localized(LitElement) {
                                     .inputsConfig=${[{
                                         id: 'prompt-input',
                                         type: 'textarea',
-                                        label: this.t('editor.prompt_label') || 'Zadání pro AI',
+                                        label: this.t('editor.prompt_label'),
                                         placeholder: this.t('editor.text.placeholder')
                                     }]}>
                                 </ai-generator-panel>

@@ -117,6 +117,7 @@
     "active_lessons": "Aktivní lekce",
     "no_classes_title": "Zatím žádné třídy",
     "no_classes_desc": "Začněte vytvořením první třídy pro správu studentů.",
+    "no_classes_warning": "Zatím nemáte žádné třídy. Aby studenti viděli vaše lekce, musíte nejprve vytvořit třídu.",
     "create_first_class": "Vytvořit první třídu",
     "enter_class_name": "Zadejte název nové třídy:",
     "class_name_placeholder": "Např. Pokročilá analýza dat"
@@ -184,6 +185,7 @@
       "subject_placeholder": "Např. Dějepis",
       "context_files": "Podklady pro AI",
       "library_btn": "Knihovna",
+      "library_files_added": "Přidáno {count} souborů z knihovny.",
       "upload_btn": "Nahrát",
       "upload_files": "Nahrát soubory",
       "upload_pdf_hint": "Nahrajte PDF...",
@@ -192,7 +194,6 @@
       "ready_for_ai": "Připraveno pro AI",
       "no_files_magic_hint": "Zatím žádné soubory. <br>Nahrajte podklady pro \"Magické generování\".",
       "lesson_content": "Obsah lekce",
-      "library_files_added": "Přidáno {count} souborů z knihovny.",
       "magic_generating_title": "AI Sensei kouzlí...",
       "magic_generating_desc": "Generuji veškerý obsah lekce. Může to chvíli trvat.",
       "magic_title_animated": "Vytvářím magii...",
@@ -216,6 +217,9 @@
       "back": "Zpět",
       "title_required": "Název je povinný",
       "magic_generator_desc": "Vytvořte kompletní lekci z PDF souboru během vteřiny.",
+      "generating_images": "Generuji obrázky...",
+      "generating_comic": "Kreslím komiks...",
+      "generating_audio": "Generuji audio...",
       "post": {
         "contentLabel": "Obsah příspěvku",
         "contentPlaceholder": "Zde pište obsah příspěvku...",
@@ -291,7 +295,11 @@
       "ai_title": "AI Prezentace",
       "ai_description": "Zadejte téma a počet slidů. Můžete vybrat dokumenty (RAG).",
       "ai_placeholder": "Např. Klíčové momenty Římské republiky",
-      "untitled_slide": "Bez názvu"
+      "untitled_slide": "Bez názvu",
+      "ai_suggestion_prefix": "🖼️ AI Návrh:",
+      "no_visual_suggestion": "(Žádný vizuální návrh)",
+      "slide_n": "Slide",
+      "topic_label": "Téma / Klíčové body"
     },
     "video": {
       "url_label": "YouTube URL",
@@ -373,7 +381,9 @@
       "panel_label": "Popis scény (Promt)",
       "prompt_placeholder": "Co se děje na obrázku? Popište vizuální stránku...",
       "dialog_label": "Dialog / Bublina",
-      "dialog_placeholder": "Co postavy říkají?"
+      "dialog_placeholder": "Co postavy říkají?",
+      "description_label": "Popis:",
+      "dialog_label": "Dialog:"
     },
     "flashcards": {
       "title": "Studijní kartičky",
@@ -398,8 +408,10 @@
       "error_parse": "Nepodařilo se zpracovat výstup z AI.",
       "error_generation": "Chyba generování: "
     },
+    "prompt_label": "Zadání pro AI",
     "ai": {
       "title": "AI Generátor",
+      "panel_title": "AI Generátor",
       "prompt_placeholder": "Zadejte prompt...",
       "context_title": "Kontext pro AI (RAG)",
       "context_none": "Žádné soubory pro kontext",
@@ -445,7 +457,9 @@
       "success_created": "Úspěšně vytvořeno!",
       "error_saving": "Chyba ukládání: ",
       "confirm_delete_content": "Smazat obsah?",
-      "error_deleting": "Chyba mazání."
+      "error_deleting": "Chyba mazání.",
+      "missing_description": "Popis chybí.",
+      "unknown_preview": "Neznámý typ náhledu: {type}"
     },
     "generate_presentation_first": "Nejprve vygenerujte prezentaci."
   },
@@ -496,7 +510,7 @@
     "upload_ai_processing": "AI zpracování...",
     "upload_ai_error": "Chyba AI",
     "upload_done": "Hotovo!",
-    "upload_error": "Chyba!",
+    "upload_error": "Chyba nahrávání",
     "upload_success_all": "Všechny soubory byly úspěšně nahrány.",
     "upload_failed_some": "Některé soubory se nepodařilo nahrát.",
     "upload_login_required": "Nejste přihlášeni. Nahrávání zrušeno.",
@@ -511,7 +525,14 @@
     "app_init_error": "Chyba inicializace aplikace",
     "app_setting_account": "Nastavuji účet...",
     "app_role_error": "Nepodařilo se získat roli uživatele.",
-    "critical_login_error": "Kritická chyba při přihlášení. Zkuste obnovit stránku."
+    "critical_login_error": "Kritická chyba při přihlášení. Zkuste obnovit stránku.",
+    "magic_creating_title": "Vytvářím magii...",
+    "magic_creating_desc": "Generuji obsah lekce z vašich souborů",
+    "magic_files_required_tooltip": "Pro magické generování musíte nahrát alespoň jeden soubor.",
+    "draft_creating": "Zakládám koncept lekce...",
+    "save_error_before_magic": "Nepodařilo se uložit lekci před generováním.",
+    "magic_requires_files": "Pro magii musíte nahrát soubory",
+    "upload_error": "Chyba nahrávání"
   },
   "timeline": {
     "title": "Plán výuky (31 dní)",

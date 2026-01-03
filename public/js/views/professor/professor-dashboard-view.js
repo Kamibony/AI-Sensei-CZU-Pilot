@@ -134,12 +134,12 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                   </div>
                   <div class="ml-3">
                       <p class="text-sm text-yellow-700 font-bold">
-                          ${t('dashboard.no_classes_warning') || 'Zatím nemáte žádné třídy. Aby studenti viděli vaše lekce, musíte nejprve vytvořit třídu.'}
+                          ${t('dashboard.no_classes_warning')}
                       </p>
                   </div>
               </div>
               <button @click=${() => this._showCreateClassModal = true} class="ml-4 bg-yellow-100 text-yellow-800 text-xs font-bold px-4 py-2 rounded-lg hover:bg-yellow-200 transition-colors uppercase tracking-wide">
-                  ${t('professor.new_class') || 'Vytvořit třídu'}
+                  ${t('professor.new_class')}
               </button>
           </div>
       ` : '';
