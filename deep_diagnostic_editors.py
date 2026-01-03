@@ -328,21 +328,28 @@ def run_student_phase(p, headless=True):
 
 def input_text(page):
     if page.locator("ai-generator-panel").is_visible():
+        # Added wait step for dynamic rendering
+        page.wait_for_selector("textarea#prompt-input", state="attached", timeout=10000)
         safe_fill(page, "textarea#prompt-input", "Write a short paragraph about Testing.")
         safe_click(page, "button:has-text('Generovat')")
-        expect(page.locator(".prose")).to_be_visible(timeout=30000)
+        # Increased timeout for generation
+        expect(page.locator(".prose")).to_be_visible(timeout=45000)
     else:
         pass
 
 def input_presentation(page):
     if page.locator("ai-generator-panel").is_visible():
-        if page.locator("#prompt-input-topic").count() > 0:
-             safe_fill(page, "#prompt-input-topic", "Space Exploration")
-        else:
+        try:
+            # Added wait step for dynamic rendering
+            page.wait_for_selector("#prompt-input-topic", state="attached", timeout=10000)
+            safe_fill(page, "#prompt-input-topic", "Space Exploration")
+        except:
+             log("Warning: #prompt-input-topic not found, trying fallback...")
              safe_fill(page, "input[placeholder*='Klíčové momenty']", "Space Exploration")
 
         safe_click(page, "button:has-text('Generovat')")
-        expect(page.locator(".bg-slate-50.relative").first).to_be_visible(timeout=30000)
+        # Increased timeout for generation
+        expect(page.locator(".bg-slate-50.relative").first).to_be_visible(timeout=45000)
 
 def input_quiz(page):
     log("Injecting Manual Quiz Data (Bypassing AI)...")
