@@ -28,6 +28,9 @@ import { handleLogout } from '../../auth.js';
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils.js';
 
+// Import Data Service
+import { ProfessorDataService } from '../../services/professor-data-service.js';
+
 export class ProfessorApp extends LitElement {
     static properties = {
         _currentView: { state: true, type: String },
@@ -42,6 +45,9 @@ export class ProfessorApp extends LitElement {
         this._currentData = null;
         this._lessonsData = [];
         this._sidebarVisible = false;
+
+        // Inicializácia služby
+        this.dataService = new ProfessorDataService();
     }
 
     // DÔLEŽITÉ: Používame Light DOM, aby sme sa vyhli problémom s dedením štýlov a accessom
@@ -80,21 +86,20 @@ export class ProfessorApp extends LitElement {
         this._handleHashChange();
     }
 
-    _handleHashChange() {
+    async _handleHashChange() {
         const hash = window.location.hash.slice(1);
         const [view, id] = hash.split('/');
 
         if (view === 'editor' && id) {
             if (!this._currentData || this._currentData.id !== id) {
-                this._fetchLessonById(id).then(lesson => {
-                    if (lesson) {
-                        this._currentView = 'editor';
-                        this._currentData = lesson;
-                        this._updateBotContext('editor');
-                    } else {
-                        window.location.hash = 'dashboard';
-                    }
-                });
+                const lesson = await this.dataService.fetchLessonById(id);
+                if (lesson) {
+                    this._currentView = 'editor';
+                    this._currentData = lesson;
+                    this._updateBotContext('editor');
+                } else {
+                    window.location.hash = 'dashboard';
+                }
                 return;
             }
         }
@@ -111,68 +116,9 @@ export class ProfessorApp extends LitElement {
         }
     }
 
-    async _fetchLessonById(id) {
-        try {
-            const db = firebaseInit.db;
-            if (!db) return null;
-            
-            const q = query(collection(db, 'lessons'), where('id', '==', id));
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) {
-                const doc = querySnapshot.docs[0];
-                return { id: doc.id, ...doc.data() };
-            }
-            return null;
-        } catch (error) {
-            console.warn("Lekcia sa nenašla alebo chýbajú práva:", error);
-            return null;
-        }
-    }
-
     async _fetchLessons() {
-        try {
-            const db = firebaseInit.db;
-            const auth = firebaseInit.auth;
-
-            if (!db) {
-                console.warn("DB not ready yet.");
-                return;
-            }
-            
-            // 1. Čakáme na prihlásenie používateľa
-            if (!auth.currentUser) {
-                console.log("Waiting for user auth...");
-                return; 
-            }
-
-            // 2. FIX: Pridaný filter 'where', aby sme splnili Security Rules
-            // DÔLEŽITÉ: Používame 'ownerId', lebo tak je to v firestore.rules
-            const q = query(
-                collection(db, "lessons"), 
-                where("ownerId", "==", auth.currentUser.uid),
-                orderBy("createdAt", "desc")
-            );
-
-            const querySnapshot = await getDocs(q);
-            this._lessonsData = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            
-            this._updateBotContext(this._currentView);
-        } catch (error) {
-            console.error("Error fetching lessons:", error);
-            
-            // 3. Ošetrenie chýbajúceho indexu (časté pri where + orderBy)
-            if (error.code === 'failed-precondition') {
-                console.warn("⚠️ Chýba index! Otvorte tento odkaz z konzoly prehliadača a vytvorte ho.");
-                showToast("Systém: Je potrebné vytvoriť index v databáze (viď konzola).", "warning");
-            } else if (error.code === 'permission-denied') {
-                showToast("Chyba oprávnení: Nemáte prístup k zoznamu lekcií.", "error");
-            } else {
-                showToast("Chyba pri načítaní dát.", "error");
-            }
-        }
+        this._lessonsData = await this.dataService.fetchLessons();
+        this._updateBotContext(this._currentView);
     }
 
     _handleNavigation(e) {
