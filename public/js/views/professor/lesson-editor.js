@@ -653,45 +653,42 @@ export class LessonEditor extends BaseView {
 
                     for (const [index, slide] of data.slides.entries()) {
                         if (slide.visual_idea) {
-                            try {
-                                let base64Data = null;
-                                try {
-                                    const imgResult = await callWithRetry(callGenerateImage, [slide.visual_idea], 3);
-                                    base64Data = imgResult.imageBase64 || imgResult;
-                                } catch (err) {
-                                    if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
-                                        console.warn(`[AutoMagic] Safety filter triggered for slide ${index}. Trying fallback...`);
-                                        try {
-                                            const safePrompt = `Educational illustration related to topic: ${this.lesson.title}, minimalist, abstract, safe content`;
-                                            const imgResult = await callGenerateImage(safePrompt);
-                                            base64Data = imgResult.imageBase64 || imgResult;
-                                        } catch (fallbackErr) {
-                                            console.warn(`[AutoMagic] Fallback image failed for slide ${index}`, fallbackErr);
-                                            // Ensure we continue without throwing
-                                        }
-                                    } else {
-                                         console.warn(`[AutoMagic] Image gen failed for slide ${index}:`, err);
-                                    }
-                                }
+                            let base64Data = '';
 
-                                if (base64Data && typeof base64Data === 'string' && base64Data.length > 100) {
+                            // Step 1: Attempt Generation
+                            try {
+                                const imgResult = await callWithRetry(callGenerateImage, [slide.visual_idea], 3);
+                                base64Data = imgResult.imageBase64 || imgResult;
+                            } catch (err) {
+                                if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
+                                    console.warn(`[AutoMagic] Safety filter triggered for slide ${index}. Trying fallback...`);
+                                    try {
+                                        const safePrompt = `Educational illustration related to topic: ${this.lesson.title}, minimalist, abstract, safe content`;
+                                        const imgResult = await callGenerateImage(safePrompt);
+                                        base64Data = imgResult.imageBase64 || imgResult;
+                                    } catch (fallbackErr) {
+                                        console.warn(`[AutoMagic] Fallback image failed for slide ${index}`, fallbackErr);
+                                    }
+                                } else {
+                                     console.warn(`[AutoMagic] Image gen failed for slide ${index}:`, err);
+                                }
+                            }
+
+                            // Step 2: Attempt Upload
+                            if (base64Data && typeof base64Data === 'string' && base64Data.length > 100) {
+                                try {
                                      const fileName = `slide_${Date.now()}_${index}.png`;
                                      const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
-
-                                 try {
                                      const url = await this._uploadBase64Image(base64Data, storagePath);
 
                                      const newSlide = { ...slide, imageUrl: url };
                                      if ('backgroundImage' in newSlide) delete newSlide.backgroundImage;
 
                                      data.slides[index] = newSlide;
-                                 } catch (uploadErr) {
+                                } catch (uploadErr) {
                                      console.warn(`[AutoMagic] Failed to upload image for slide ${index}:`, uploadErr);
-                                     // Continue without image, do not crash
-                                 }
+                                }
                             }
-                        } catch (err) {
-                            console.warn(`[AutoMagic] Error processing slide ${index}:`, err);
                         }
                     }
                 }
@@ -702,44 +699,42 @@ export class LessonEditor extends BaseView {
 
                     for (const [index, panel] of data.panels.entries()) {
                          if (panel.description) {
-                            try {
-                                let base64Data = null;
-                                try {
-                                    const imgResult = await callWithRetry(callGenerateImage, [`Comic book style, ${panel.description}`], 3);
-                                    base64Data = imgResult.imageBase64 || imgResult;
-                                } catch (err) {
-                                    if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
-                                        console.warn(`[AutoMagic] Safety filter triggered for comic panel ${index}. Trying fallback...`);
-                                        try {
-                                            const safePrompt = `Comic book panel, educational scene about ${this.lesson.title}, safe content`;
-                                            const imgResult = await callGenerateImage(safePrompt);
-                                            base64Data = imgResult.imageBase64 || imgResult;
-                                        } catch (fallbackErr) {
-                                            console.warn(`[AutoMagic] Fallback comic failed for panel ${index}`, fallbackErr);
-                                        }
-                                    } else {
-                                         console.warn(`[AutoMagic] Comic gen failed for panel ${index}:`, err);
-                                    }
-                                }
+                            let base64Data = '';
 
-                                if (base64Data && typeof base64Data === 'string') {
+                            // Step 1: Attempt Generation
+                            try {
+                                const imgResult = await callWithRetry(callGenerateImage, [`Comic book style, ${panel.description}`], 3);
+                                base64Data = imgResult.imageBase64 || imgResult;
+                            } catch (err) {
+                                if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
+                                    console.warn(`[AutoMagic] Safety filter triggered for comic panel ${index}. Trying fallback...`);
+                                    try {
+                                        const safePrompt = `Comic book panel, educational scene about ${this.lesson.title}, safe content`;
+                                        const imgResult = await callGenerateImage(safePrompt);
+                                        base64Data = imgResult.imageBase64 || imgResult;
+                                    } catch (fallbackErr) {
+                                        console.warn(`[AutoMagic] Fallback comic failed for panel ${index}`, fallbackErr);
+                                    }
+                                } else {
+                                     console.warn(`[AutoMagic] Comic gen failed for panel ${index}:`, err);
+                                }
+                            }
+
+                            // Step 2: Attempt Upload
+                            if (base64Data && typeof base64Data === 'string') {
+                                try {
                                      const fileName = `comic_${Date.now()}_${index}.png`;
                                      const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
-
-                                 try {
                                      const url = await this._uploadBase64Image(base64Data, storagePath);
 
                                      data.panels[index] = {
                                          ...panel,
                                          imageUrl: url
                                      };
-                                 } catch (uploadErr) {
-                                      console.warn(`[AutoMagic] Failed to upload image for comic panel ${index}:`, uploadErr);
-                                      // Continue without image
-                                 }
+                                } catch (uploadErr) {
+                                     console.warn(`[AutoMagic] Failed to upload image for comic panel ${index}:`, uploadErr);
+                                }
                             }
-                         } catch (err) {
-                            console.warn(`[AutoMagic] Error processing comic panel ${index}:`, err);
                          }
                     }
                 }
