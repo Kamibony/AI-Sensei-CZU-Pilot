@@ -690,6 +690,8 @@ export class LessonEditor extends BaseView {
                                      // Continue without image, do not crash
                                  }
                             }
+                        } catch (err) {
+                            console.warn(`[AutoMagic] Error processing slide ${index}:`, err);
                         }
                     }
                 }
@@ -736,6 +738,8 @@ export class LessonEditor extends BaseView {
                                       // Continue without image
                                  }
                             }
+                         } catch (err) {
+                            console.warn(`[AutoMagic] Error processing comic panel ${index}:`, err);
                          }
                     }
                 }
