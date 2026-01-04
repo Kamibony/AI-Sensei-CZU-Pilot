@@ -12,7 +12,15 @@ export class ProfessorDataService {
         try {
             if (!this.db) return null;
 
-            const q = query(collection(this.db, 'lessons'), where('id', '==', id));
+            const user = this.auth.currentUser;
+            if (!user) return null;
+
+            const q = query(
+                collection(this.db, 'lessons'),
+                where('id', '==', id),
+                where('ownerId', '==', user.uid)
+            );
+
             const querySnapshot = await getDocs(q);
             if (!querySnapshot.empty) {
                 const doc = querySnapshot.docs[0];

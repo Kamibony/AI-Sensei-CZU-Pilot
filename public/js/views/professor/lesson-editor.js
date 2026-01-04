@@ -612,22 +612,15 @@ export class LessonEditor extends BaseView {
 
                 let responseData = result.data;
 
-                // 1. Handle Stringified JSON response
+                // Check for stringified JSON (just in case)
                 if (typeof responseData === 'string') {
-                    try {
-                        // Attempt to parse it, in case backend returned a JSON string
-                        const parsed = JSON.parse(responseData);
-                        if (typeof parsed === 'object' && parsed !== null) {
-                            responseData = parsed;
-                        }
-                    } catch (e) {
-                        // It's just a regular text string (valid content), ignore parse error
-                    }
+                    try { responseData = JSON.parse(responseData); } catch (e) {}
                 }
 
                 // 2. Validate Error (Now works for both Object and Parsed Object)
-                if (responseData && responseData.error) {
-                    throw new Error(responseData.message || responseData.error);
+                if (responseData && (responseData.error || responseData.chyba)) {
+                    const msg = responseData.message || responseData.zpráva || responseData.error || responseData.chyba;
+                    throw new Error(msg);
                 }
                 
                 let data = JSON.parse(JSON.stringify(responseData));
