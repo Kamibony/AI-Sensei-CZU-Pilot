@@ -610,11 +610,27 @@ export class LessonEditor extends BaseView {
                     filePaths: filePaths
                 });
 
-                if (result.data && result.data.error) {
-                    throw new Error(result.data.message || result.data.error);
+                let responseData = result.data;
+
+                // 1. Handle Stringified JSON response
+                if (typeof responseData === 'string') {
+                    try {
+                        // Attempt to parse it, in case backend returned a JSON string
+                        const parsed = JSON.parse(responseData);
+                        if (typeof parsed === 'object' && parsed !== null) {
+                            responseData = parsed;
+                        }
+                    } catch (e) {
+                        // It's just a regular text string (valid content), ignore parse error
+                    }
+                }
+
+                // 2. Validate Error (Now works for both Object and Parsed Object)
+                if (responseData && responseData.error) {
+                    throw new Error(responseData.message || responseData.error);
                 }
                 
-                let data = JSON.parse(JSON.stringify(result.data));
+                let data = JSON.parse(JSON.stringify(responseData));
 
                 if (type === 'post' && data.podcast_series && data.podcast_series.episodes) {
                     this._magicStatus = `🎙️ ${translationService.t('professor.editor.generating_audio')}`;
