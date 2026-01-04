@@ -529,11 +529,21 @@ export class LessonEditor extends BaseView {
           return;
       }
 
-      const filePaths = this._uploadedFiles ? this._uploadedFiles.map(f => f.storagePath).filter(Boolean) : [];
-
-      if (this._uploadedFiles.length === 0) {
+      if (!this._uploadedFiles || this._uploadedFiles.length === 0) {
           showToast(translationService.t('lesson.magic_requires_files'), true);
           return;
+      }
+
+      // DEBUG: Inspect the first file structure
+      console.log("File Object Structure:", JSON.stringify(this._uploadedFiles[0]));
+
+      const filePaths = this._uploadedFiles
+          .map(f => f.storagePath || f.fullPath || f.path || f.url || (f.file && f.file.fullPath))
+          .filter(p => typeof p === 'string' && p.length > 0);
+
+      // FAIL FAST if extraction failed
+      if (this._uploadedFiles.length > 0 && filePaths.length === 0) {
+          throw new Error(`Frontend Error: Failed to extract storage paths from ${this._uploadedFiles.length} selected files. See console for object structure.`);
       }
 
       this._isLoading = true;
@@ -612,9 +622,15 @@ export class LessonEditor extends BaseView {
 
                 let responseData = result.data;
 
-                // Check for stringified JSON (just in case)
                 if (typeof responseData === 'string') {
-                    try { responseData = JSON.parse(responseData); } catch (e) {}
+                    // STRIP MARKDOWN CODE BLOCKS
+                    const cleanJson = responseData.replace(/^```json\s*|\s*```$/g, '').trim();
+                    try {
+                        responseData = JSON.parse(cleanJson);
+                    } catch (e) {
+                        console.warn("Failed to parse JSON even after cleaning:", e);
+                        // Fallback: keep responseData as string
+                    }
                 }
 
                 // 2. Validate Error (Now works for both Object and Parsed Object)
