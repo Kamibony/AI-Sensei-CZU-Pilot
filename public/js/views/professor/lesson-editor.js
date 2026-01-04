@@ -523,6 +523,23 @@ export class LessonEditor extends BaseView {
     return await getDownloadURL(storageRef);
   }
 
+  _normalizeToGsUrl(fileObject) {
+      if (!fileObject) return null;
+      const path = fileObject.storagePath || fileObject.fullPath || fileObject.path || fileObject.url || (fileObject.file && fileObject.file.fullPath);
+
+      if (!path || typeof path !== 'string') return null;
+      if (path.startsWith('gs://')) return path;
+
+      const bucket = storage.app?.options?.storageBucket;
+      if (!bucket) {
+          console.error("Storage bucket not found in app options");
+          return path;
+      }
+
+      const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+      return `gs://${bucket}/${cleanPath}`;
+  }
+
   async _handleAutoMagic() {
       if (!this.lesson.title) {
           showToast(translationService.t('professor.editor.title_required'), true);
@@ -534,22 +551,13 @@ export class LessonEditor extends BaseView {
           return;
       }
 
-      // DEBUG: Inspect the first file structure
-      console.log("File Object Structure:", JSON.stringify(this._uploadedFiles[0]));
-
-      // 1. Path Normalization
-      const bucket = "gs://ai-sensei-czu-pilot.firebasestorage.app";
+      // 1. Dynamic Path Normalization
       const filePaths = this._uploadedFiles
-          .map(f => {
-              const p = f.storagePath || f.fullPath || f.path || f.url || (f.file && f.file.fullPath);
-              if (typeof p !== 'string' || p.length === 0) return null;
-              return p.startsWith('gs://') ? p : (p.startsWith('courses/') ? `${bucket}/${p}` : p);
-          })
+          .map(f => this._normalizeToGsUrl(f))
           .filter(Boolean);
 
-      // FAIL FAST if extraction failed
-      if (this._uploadedFiles.length > 0 && filePaths.length === 0) {
-          throw new Error(`Frontend Error: Failed to extract storage paths from ${this._uploadedFiles.length} selected files. See console for object structure.`);
+      if (filePaths.length === 0) {
+          throw new Error(`Frontend Error: Failed to extract storage paths from ${this._uploadedFiles.length} selected files.`);
       }
 
       this._isLoading = true;
@@ -565,9 +573,7 @@ export class LessonEditor extends BaseView {
           return;
       }
 
-      // FIX: Added 'audio' to types
       const allTypes = ['text', 'presentation', 'quiz', 'test', 'post', 'flashcards', 'mindmap', 'comic', 'audio'];
-      
       let successCount = 0;
       let failedTypes = [];
 
@@ -577,7 +583,8 @@ export class LessonEditor extends BaseView {
             this.requestUpdate();
 
             let promptData = { userPrompt: '', isMagic: true };
-            // Inject sourceText if available (Sequential Generation Fix)
+
+            // Phase 2: Dependents - Pass source text if available
             if (type !== 'text' && this.lesson.text_content) {
                 promptData.sourceText = this.lesson.text_content;
             }
@@ -630,14 +637,17 @@ export class LessonEditor extends BaseView {
 
             let responseData = result.data;
 
+            // RESPONSE GUARD: Check for error strings before anything else
             if (typeof responseData === 'string') {
+                if (responseData.includes('Error') || responseData.includes('Chyba')) {
+                    throw new Error(responseData);
+                }
                 // STRIP MARKDOWN CODE BLOCKS
                 const cleanJson = responseData.replace(/^```json\s*|\s*```$/g, '').trim();
                 try {
                     responseData = JSON.parse(cleanJson);
                 } catch (e) {
-                    console.warn("Failed to parse JSON even after cleaning:", e);
-                    // Fallback: keep responseData as string
+                    // console.warn("Failed to parse JSON...", e);
                 }
             }
 
@@ -819,12 +829,8 @@ export class LessonEditor extends BaseView {
       };
 
       try {
-          // 2. Prioritize Text
-          const typesList = [...allTypes];
-          const textIndex = typesList.indexOf('text');
-
-          if (textIndex > -1) {
-              typesList.splice(textIndex, 1);
+          // Phase 1: Prerequisite - Text
+          if (allTypes.includes('text')) {
               try {
                   await processType('text', allTypes.length);
               } catch (e) {
@@ -833,8 +839,10 @@ export class LessonEditor extends BaseView {
               }
           }
 
-          // 3. Generate Rest
-          for (const type of typesList) {
+          // Phase 2: Dependents - Everything else
+          const remainingTypes = allTypes.filter(t => t !== 'text');
+
+          for (const type of remainingTypes) {
              try {
                 await processType(type, allTypes.length);
              } catch (error) {
