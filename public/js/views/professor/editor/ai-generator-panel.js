@@ -174,7 +174,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         const promptData = {};
         if (this.inputsConfig) {
             this.inputsConfig.forEach(input => {
-                const el = this.shadowRoot.getElementById(input.id);
+                const el = this.querySelector(`#${input.id}`);
                 if (el) promptData[input.id] = el.value;
             });
         }
@@ -182,9 +182,9 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         let filePaths = [];
         // FIX: Extract file paths correctly whether passing objects or strings
         if (this.files) {
-            filePaths = this.files.map(f => typeof f === 'string' ? f : f.storagePath).filter(Boolean);
+            filePaths = this.files.map(f => typeof f === 'string' ? f : (f.storagePath || f.fullPath)).filter(Boolean);
         } else {
-            filePaths = getSelectedFiles().map(f => f.storagePath);
+            filePaths = getSelectedFiles().map(f => f.storagePath || f.fullPath).filter(Boolean);
         }
 
         try {
