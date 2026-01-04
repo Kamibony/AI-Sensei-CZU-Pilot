@@ -25,19 +25,6 @@ import './editor/professor-header-editor.js';
 
 import { getSelectedFiles, clearSelectedFiles } from '../../upload-handler.js';
 
-// --- HELPER: Normalize to GS URL ---
-function _normalizeToGsUrl(fileObj) {
-    if (!fileObj) return null;
-    const bucket = storage.app.options.storageBucket || "ai-sensei-czu-pilot.firebasestorage.app";
-    let path = fileObj.storagePath || fileObj.fullPath || fileObj.path;
-
-    if (!path) return null;
-    if (path.startsWith('gs://')) return path;
-    if (path.startsWith('/')) path = path.substring(1);
-
-    return `gs://${bucket}/${path}`;
-}
-
 export class LessonEditor extends BaseView {
   static properties = {
     lesson: { type: Object },
@@ -63,12 +50,62 @@ export class LessonEditor extends BaseView {
     this._loadError = false;
   }
 
+  // --- LOGIC: NORMALIZATION FIX ---
+  _normalizeToGsUrl(fileObj) {
+      if (!fileObj) return null;
+      const bucket = storage.app.options.storageBucket || "ai-sensei-czu-pilot.firebasestorage.app";
+      // Handle various property names from different upload flows
+      let path = fileObj.storagePath || fileObj.fullPath || fileObj.path;
+
+      if (!path) return null;
+      if (path.startsWith('gs://')) return path;
+      if (path.startsWith('/')) path = path.substring(1);
+
+      return `gs://${bucket}/${path}`;
+  }
+
+  // --- LOGIC: AI CALLER FIX ---
+  async _callAiGeneration(type, title, sourceText, filePaths) {
+      const generateContentFunc = httpsCallable(functions, 'generateContent');
+
+      const result = await generateContentFunc({
+          contentType: type,
+          promptData: {
+              userPrompt: `Create ${type} for ${title}`,
+              isMagic: true,
+              language: this.lesson.language || 'cs'
+          },
+          filePaths: filePaths,
+          sourceText: sourceText // Pass context to prevent "No source text" error
+      });
+
+      let data = result.data;
+      // Parse if string (handling Markdown pollution)
+      if (typeof data === 'string') {
+          const clean = data.replace(/^```json\s*|\s*```$/g, '').trim();
+          try {
+              data = JSON.parse(clean);
+          } catch (e) {
+              // If parse fails, check if it's an error message
+              const lower = clean.toLowerCase();
+              if (lower.includes('"error"') || lower.includes('nebyl poskytnut') || lower.includes('no source')) {
+                  throw new Error("AI Error: " + clean.substring(0, 100));
+              }
+              return clean; // It's valid raw text
+          }
+      }
+      // Check structured error
+      if (data && (data.error || data.chyba)) {
+          throw new Error(data.message || data.zpráva || data.error);
+      }
+      return data;
+  }
+
   async connectedCallback() {
     super.connectedCallback();
     const urlParams = new URLSearchParams(window.location.search);
     this.lessonId = urlParams.get('id');
 
-    // Timeout safety for infinite loading
     this._loadingTimeout = setTimeout(() => {
         if (!this.lesson && this._wizardMode) {
             console.warn("Safety timeout: Force-initializing lesson");
@@ -93,7 +130,6 @@ export class LessonEditor extends BaseView {
   }
 
   _initNewLesson() {
-    // Check global uploads
     const globalFiles = getSelectedFiles();
     if (globalFiles && globalFiles.length > 0) {
         this._uploadedFiles = [...globalFiles];
@@ -120,7 +156,6 @@ export class LessonEditor extends BaseView {
       try {
           const user = auth.currentUser;
           if (!user) return;
-          // Updated query with ownerId for security rules
           const q = query(collection(db, 'lessons'), where('id', '==', id), where('ownerId', '==', user.uid));
           const snapshot = await getDocs(q);
 
@@ -128,7 +163,6 @@ export class LessonEditor extends BaseView {
               this.lesson = snapshot.docs[0].data();
               this._wizardMode = false;
           } else {
-              console.error("Lesson not found or permission denied");
               this._loadError = true;
           }
       } catch (e) {
@@ -137,157 +171,93 @@ export class LessonEditor extends BaseView {
       }
   }
 
+  // --- LOGIC: SEQUENTIAL AUTOMAGIC FIX ---
   async _handleAutoMagic() {
       if (!this.lesson.title) {
-          showToast(translationService.t('professor.editor.title_required'), true);
+          showToast(translationService.t('professor.editor.title_required') || "Title required", true);
           return;
       }
 
-      // 1. Prepare Files with GS:// format
+      // 1. Prepare Paths
       const filePaths = this._uploadedFiles
-          .map(_normalizeToGsUrl)
+          .map(f => this._normalizeToGsUrl(f))
           .filter(p => p !== null);
 
-      console.log("🚀 AutoMagic Payload Files:", filePaths);
-
-      // Allow generation without files IF there is existing text, otherwise warn
-      if (filePaths.length === 0 && !this.lesson.text_content) {
-           console.warn("No files and no text content. AI might fail.");
-      }
+      console.log("🚀 Magic Payload:", filePaths);
 
       this._isLoading = true;
+      this.requestUpdate();
 
       try {
-          // Save Draft First
           if (!this.lesson.id) {
              const newRef = doc(collection(db, 'lessons'));
              this.lesson.id = newRef.id;
              this.lesson.ownerId = auth.currentUser.uid;
           }
           await this._handleSave();
-          this._wizardMode = false;
-          this.requestUpdate(); 
 
-          // Define Workload
-          const types = ['text', 'presentation', 'quiz', 'test', 'post', 'flashcards', 'mindmap', 'comic', 'audio'];
+          const types = ['text', 'presentation', 'quiz', 'test', 'post', 'flashcards', 'mindmap', 'comic'];
+          let generatedText = this.lesson.text_content || '';
           let successCount = 0;
-          let failedTypes = [];
 
-          // --- PHASE 1: TEXT GENERATION (Priority) ---
-          // We must generate text first so other components can use it as source
-          let generatedContextText = this.lesson.text_content || '';
-
+          // --- PHASE 1: TEXT ---
           if (types.includes('text')) {
-              this._magicStatus = `Generating Core Text...`;
+              this._magicStatus = "Generuji Text...";
               this.requestUpdate();
-
               try {
-                  const result = await this._callAiGeneration('text', this.lesson.title, null, filePaths);
-                  // Result might be object {text_content: "..."} or string
-                  generatedContextText = result.text_content || result.text || (typeof result === 'string' ? result : JSON.stringify(result));
-
-                  this.lesson.text_content = generatedContextText;
+                  const res = await this._callAiGeneration('text', this.lesson.title, null, filePaths);
+                  generatedText = res.text_content || res.text || (typeof res === 'string' ? res : JSON.stringify(res));
+                  this.lesson.text_content = generatedText;
                   await this._handleSave();
                   successCount++;
               } catch (e) {
-                  console.error("Text Gen Failed:", e);
-                  failedTypes.push('text');
+                  console.error("Text failed:", e);
               }
           }
 
-          // --- PHASE 2: DERIVATIVES (Dependent on Text) ---
+          // --- PHASE 2: DEPENDENTS ---
           for (const type of types) {
-              if (type === 'text') continue; // Skip, already done
+              if (type === 'text') continue;
 
-              this._magicStatus = `Generating ${type.toUpperCase()}...`;
+              this._magicStatus = `Generuji ${type}...`;
               this.requestUpdate();
 
               try {
-                  // PASS SOURCE TEXT explicitly so backend doesn't complain about missing files
-                  const result = await this._callAiGeneration(type, this.lesson.title, generatedContextText, filePaths);
+                  const res = await this._callAiGeneration(type, this.lesson.title, generatedText, filePaths);
 
-                  // Handle Specific Types
-                  if (type === 'quiz') this.lesson.quiz = { questions: result.questions || result };
-                  if (type === 'test') this.lesson.test = { questions: result.questions || result };
-                  if (type === 'post') this.lesson.post = result;
-                  if (type === 'flashcards') this.lesson.flashcards = result.flashcards || result;
-                  if (type === 'mindmap') this.lesson.mindmap = result;
+                  if (type === 'quiz') this.lesson.quiz = { questions: res.questions || res };
+                  if (type === 'test') this.lesson.test = { questions: res.questions || res };
+                  if (type === 'post') this.lesson.post = res;
+                  if (type === 'flashcards') this.lesson.flashcards = res.flashcards || res;
+                  if (type === 'mindmap') this.lesson.mindmap = res;
 
                   if (type === 'presentation') {
-                      let slides = result.slides || result;
-                      this.lesson.presentation = { slides: slides, styleId: 'default' };
-                      // Async image gen - don't await blocking
-                      this._generateImagesForSlides(slides).then(() => this._handleSave());
+                       this.lesson.presentation = { slides: res.slides || res, styleId: 'default' };
+                       if (this._generateImagesForSlides) this._generateImagesForSlides(this.lesson.presentation.slides);
                   }
-
                   if (type === 'comic') {
-                      let panels = result.panels || result;
-                      this.lesson.comic = { panels: panels };
-                      this._generateImagesForComic(panels).then(() => this._handleSave());
+                      this.lesson.comic = { panels: res.panels || res };
+                      if (this._generateImagesForComic) this._generateImagesForComic(this.lesson.comic.panels);
                   }
 
                   await this._handleSave();
                   successCount++;
               } catch (e) {
-                  console.warn(`Failed ${type}:`, e);
-                  failedTypes.push(type);
+                  console.warn(`Skipping ${type}:`, e);
               }
           }
 
-          showToast(`Magic Done! Success: ${successCount}, Failed: ${failedTypes.length}`);
+          showToast(`Magie dokončena! (${successCount} sekcí)`, false);
+          this._wizardMode = false;
 
-      } catch (fatalError) {
-          console.error("Fatal Magic Error:", fatalError);
-          showToast(fatalError.message, true);
+      } catch (e) {
+          console.error("Magic fatal:", e);
+          showToast("Chyba: " + e.message, true);
       } finally {
           this._isLoading = false;
           this._magicStatus = '';
-          this.requestUpdate();
+          this.requestUpdate(); 
       }
-  }
-
-  // --- HELPER: Centralized AI Call ---
-  async _callAiGeneration(type, title, sourceText, filePaths) {
-      const generateContentFunc = httpsCallable(functions, 'generateContent');
-
-      let promptData = {
-          userPrompt: `Create ${type} for ${title}`,
-          isMagic: true,
-          language: this.lesson.language || 'cs'
-      };
-
-      const result = await generateContentFunc({
-          contentType: type,
-          promptData: promptData,
-          filePaths: filePaths, // GS Paths
-          sourceText: sourceText // Explicit context
-      });
-
-      let data = result.data;
-
-      // Parse JSON string if needed
-      if (typeof data === 'string') {
-          // Strip Markdown
-          const clean = data.replace(/^```json\s*|\s*```$/g, '').trim();
-          try {
-              data = JSON.parse(clean);
-          } catch (e) {
-              // Check for Error Strings in raw text
-              const lower = clean.toLowerCase();
-              if (lower.includes('"error"') || lower.includes('"chyba"') || lower.includes('nebyl poskytnut')) {
-                  throw new Error("AI returned error message: " + clean.substring(0, 100));
-              }
-              // Return raw string if it's just text content
-              return clean;
-          }
-      }
-
-      // Check for structured error
-      if (data && (data.error || data.chyba)) {
-          throw new Error(data.message || data.zpráva || data.error || "Backend Error");
-      }
-
-      return data;
   }
 
   async _generateImagesForSlides(slides) {
@@ -301,9 +271,7 @@ export class LessonEditor extends BaseView {
                       slides[i].image = uploaded;
                       this.requestUpdate();
                   }
-              } catch (e) {
-                  console.warn("Image gen failed for slide", i, e);
-              }
+              } catch (e) { console.warn("Image skip", e); }
           }
       }
   }
@@ -319,9 +287,7 @@ export class LessonEditor extends BaseView {
                       panels[i].image_url = uploaded;
                       this.requestUpdate();
                   }
-              } catch (e) {
-                  console.warn("Image gen failed for panel", i, e);
-              }
+              } catch (e) { console.warn("Image skip", e); }
           }
       }
   }
@@ -346,7 +312,7 @@ export class LessonEditor extends BaseView {
       }
   }
 
-  // Basic Render
+  // --- VISUALS: RESTORED UI ---
   render() {
       if (this._loadError) {
           return html`<div class="p-8 text-center text-red-500">
@@ -418,15 +384,15 @@ export class LessonEditor extends BaseView {
                           <ul class="space-y-2">
                               ${this._uploadedFiles.map(f => html`
                                   <li class="flex items-center text-sm text-blue-700">
-                                      <span class="mr-2">📄</span> ${f.name || 'Unknown File'}
+                                      <span class="mr-2">📄</span> ${f.name || 'File'}
                                   </li>
                               `)}
                           </ul>
                       ` : html`
                           <div class="text-center py-4">
-                              <p class="text-blue-600 mb-2">No files selected from Dashboard.</p>
+                              <p class="text-blue-600 mb-2">No files selected.</p>
                               <button class="text-sm underline text-blue-800" @click="${() => window.location.href = '/professor/dashboard'}">
-                                  Go back to upload
+                                  Upload from Dashboard
                               </button>
                           </div>
                       `}
@@ -456,7 +422,8 @@ export class LessonEditor extends BaseView {
           { id: 'test', label: 'Final Test', icon: '📝' },
           { id: 'flashcards', label: 'Flashcards', icon: '🃏' },
           { id: 'comic', label: 'Comics', icon: '💬' },
-          // Add other sections...
+          { id: 'mindmap', label: 'Mind Map', icon: '🧠' },
+          { id: 'post', label: 'Social Post', icon: '📰' }
       ];
 
       return html`
@@ -484,6 +451,8 @@ export class LessonEditor extends BaseView {
           case 'test': return html`<editor-view-test .lesson="${this.lesson}"></editor-view-test>`;
           case 'flashcards': return html`<editor-view-flashcards .lesson="${this.lesson}"></editor-view-flashcards>`;
           case 'comic': return html`<editor-view-comic .lesson="${this.lesson}"></editor-view-comic>`;
+          case 'mindmap': return html`<editor-view-mindmap .lesson="${this.lesson}"></editor-view-mindmap>`;
+          case 'post': return html`<editor-view-post .lesson="${this.lesson}"></editor-view-post>`;
           default: return html`<div class="text-center text-gray-500 mt-20">Select a section to edit</div>`;
       }
   }
