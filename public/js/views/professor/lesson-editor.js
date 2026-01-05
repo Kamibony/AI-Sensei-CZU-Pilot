@@ -383,8 +383,17 @@ export class LessonEditor extends BaseView {
   }
 
   async _handleFilesSelected(e) {
-      const files = Array.from(e.target.files);
-      if (files.length === 0) return;
+      const allFiles = Array.from(e.target.files);
+      if (allFiles.length === 0) return;
+
+      const files = allFiles.filter(f => f.name.toLowerCase().endsWith('.pdf'));
+      if (files.length !== allFiles.length) {
+          showToast(translationService.t('professor.editor.pdf_only') || 'Only PDF files are allowed.', true);
+      }
+      if (files.length === 0) {
+          e.target.value = '';
+          return;
+      }
 
       if (!this.lesson.title) {
           showToast(translationService.t('professor.editor.title_required'), true);
@@ -624,6 +633,9 @@ export class LessonEditor extends BaseView {
                      promptData.userPrompt = translationService.t('prompts.audio_gen', { title }) || `Write a podcast script about ${title}`;
                      break;
             }
+
+            const currentLocale = translationService.locale || 'cs';
+            promptData.userPrompt += `\n\nIMPORTANT: The output MUST be in ${currentLocale} language only.`;
 
             const generateContentFunc = httpsCallable(functions, 'generateContent');
             const result = await generateContentFunc({
@@ -999,7 +1011,7 @@ export class LessonEditor extends BaseView {
                                  </button>
                                  <label class="px-3 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg cursor-pointer hover:bg-indigo-100 text-sm font-bold transition-colors flex items-center gap-2">
                                     <span>📤 ${translationService.t('professor.editor.upload_btn')}</span>
-                                    <input type="file" multiple accept=".pdf,.docx,.txt" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
+                                    <input type="file" multiple accept=".pdf" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
                                  </label>
                             </div>
                         </div>
@@ -1110,7 +1122,7 @@ export class LessonEditor extends BaseView {
                  <div class="flex gap-1">
                      <button @click="${this._handleOpenLibrary}" class="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg" title="${translationService.t('common.files_library')}">📂</button>
                      <label class="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer" title="${translationService.t('media.upload_title')}">
-                        📤 <input type="file" multiple accept=".pdf,.docx,.txt" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
+                        📤 <input type="file" multiple accept=".pdf" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
                      </label>
                  </div>
             </div>
