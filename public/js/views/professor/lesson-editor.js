@@ -535,6 +535,126 @@ export class LessonEditor extends BaseView {
       return `gs://${bucketName}/${relativePath}`;
   }
 
+  async _callAiGeneration(type, promptData, filePaths) {
+      const generateContentFunc = httpsCallable(functions, 'generateContent');
+
+      // Force language
+      const language = translationService.currentLanguage || 'cs';
+
+      try {
+          const result = await generateContentFunc({
+              contentType: type,
+              promptData: promptData,
+              filePaths: filePaths,
+              language: language
+          });
+
+          let responseData = result.data;
+
+          if (typeof responseData === 'string') {
+              const cleanJson = responseData.replace(/^```json\s*|\s*```$/g, '').trim();
+              try {
+                  responseData = JSON.parse(cleanJson);
+              } catch (e) {
+                  console.warn("Failed to parse JSON even after cleaning:", e);
+                  // If it's just text (e.g. for audio/text types), return it as is
+                  if (type === 'text' || type === 'audio') {
+                      // Keep it as string
+                  } else {
+                      throw new Error("Model returned malformed JSON");
+                  }
+              }
+          }
+
+          if (responseData && (responseData.error || responseData.chyba)) {
+              const msg = responseData.message || responseData.zpráva || responseData.error || responseData.chyba;
+              throw new Error(msg);
+          }
+
+          return responseData;
+
+      } catch (error) {
+          console.error(`AI Generation failed for ${type}:`, error);
+          if (error.message && error.message.includes('No source text')) {
+             throw new Error(translationService.t('lesson.error_no_source_text'));
+          }
+          throw error;
+      }
+  }
+
+  async _generateImagesForSlides(slides) {
+      this._magicStatus = `🎨 ${translationService.t('professor.editor.generating_images')}`;
+      this.requestUpdate();
+
+      const updatedSlides = [...slides];
+
+      for (const [index, slide] of updatedSlides.entries()) {
+          if (slide.visual_idea) {
+              let base64Data = '';
+              try {
+                  const imgResult = await callWithRetry(callGenerateImage, [slide.visual_idea], 3);
+                  base64Data = imgResult.imageBase64 || imgResult;
+              } catch (err) {
+                   console.warn(`Image generation failed for slide ${index}:`, err.message);
+                   // Fallback: Safe prompt
+                   if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT") || err.message.includes("Imagen"))) {
+                      try {
+                          const safePrompt = `Educational illustration: ${this.lesson.title}, minimalist`;
+                          const imgResult = await callGenerateImage(safePrompt);
+                          base64Data = imgResult.imageBase64 || imgResult;
+                      } catch (e) { console.warn("Fallback failed"); }
+                   }
+              }
+
+              if (base64Data && base64Data.length > 100) {
+                  try {
+                      const fileName = `slide_${Date.now()}_${index}.png`;
+                      const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
+                      const url = await this._uploadBase64Image(base64Data, storagePath);
+                      updatedSlides[index] = { ...slide, imageUrl: url };
+                      if ('backgroundImage' in updatedSlides[index]) delete updatedSlides[index].backgroundImage;
+                  } catch (e) { console.warn("Upload failed", e); }
+              }
+          }
+      }
+      return updatedSlides;
+  }
+
+  async _generateImagesForComic(panels) {
+       this._magicStatus = `🖍️ ${translationService.t('professor.editor.generating_comic')}`;
+       this.requestUpdate();
+
+       const updatedPanels = [...panels];
+
+       for (const [index, panel] of updatedPanels.entries()) {
+           if (panel.description) {
+              let base64Data = '';
+              try {
+                  const imgResult = await callWithRetry(callGenerateImage, [`Comic style, ${panel.description}`], 3);
+                  base64Data = imgResult.imageBase64 || imgResult;
+              } catch (err) {
+                  console.warn("Comic gen failed", err.message);
+                   if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
+                      try {
+                           const safePrompt = `Comic panel: ${this.lesson.title}`;
+                           const imgResult = await callGenerateImage(safePrompt);
+                           base64Data = imgResult.imageBase64 || imgResult;
+                      } catch (e) {}
+                   }
+              }
+              if (base64Data && base64Data.length > 100) {
+                   try {
+                       const fileName = `comic_${Date.now()}_${index}.png`;
+                       const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
+                       const url = await this._uploadBase64Image(base64Data, storagePath);
+                       updatedPanels[index] = { ...panel, imageUrl: url };
+                   } catch (e) {}
+              }
+           }
+       }
+       return updatedPanels;
+  }
+
   async _handleAutoMagic() {
       // 1. Strict Guard: Check files BEFORE anything else
       if (!this._uploadedFiles || this._uploadedFiles.length === 0) {
@@ -576,8 +696,8 @@ export class LessonEditor extends BaseView {
       let failedTypes = [];
 
       // Reusable generation logic
-      const processType = async (type, totalSteps) => {
-            this._magicStatus = `${translationService.t('common.magic_status_generating')} (${successCount + failedTypes.length + 1}/${totalSteps}): ${(translationService.t(`content_types.${type}`) || type).toUpperCase()}...`;
+      const processType = async (type) => {
+            this._magicStatus = `${translationService.t('common.magic_status_generating')} (${successCount + failedTypes.length + 1}/${allTypes.length}): ${(translationService.t(`content_types.${type}`) || type).toUpperCase()}...`;
             this.requestUpdate();
 
             let promptData = { userPrompt: '', isMagic: true };
@@ -587,7 +707,6 @@ export class LessonEditor extends BaseView {
                 promptData.sourceText = this.lesson.text_content;
             }
 
-            let contentType = type;
             const title = this.lesson.title;
             const topic = this.lesson.topic ? `(${this.lesson.topic})` : '';
 
@@ -626,35 +745,10 @@ export class LessonEditor extends BaseView {
                      break;
             }
 
-            const generateContentFunc = httpsCallable(functions, 'generateContent');
+            // Call AI
+            let data = await this._callAiGeneration(type, promptData, filePaths);
 
-            // STRICT: Pass language
-            const result = await generateContentFunc({
-                contentType: contentType,
-                promptData: promptData,
-                filePaths: filePaths,
-                language: translationService.currentLanguage
-            });
-
-            let responseData = result.data;
-
-            if (typeof responseData === 'string') {
-                const cleanJson = responseData.replace(/^```json\s*|\s*```$/g, '').trim();
-                try {
-                    responseData = JSON.parse(cleanJson);
-                } catch (e) {
-                    console.warn("Failed to parse JSON even after cleaning:", e);
-                }
-            }
-
-            if (responseData && (responseData.error || responseData.chyba)) {
-                const msg = responseData.message || responseData.zpráva || responseData.error || responseData.chyba;
-                throw new Error(msg);
-            }
-
-            let data = JSON.parse(JSON.stringify(responseData));
-
-            // ... (Handle Post Audio Generation) ...
+            // Post-processing: Images & Audio
             if (type === 'post' && data.podcast_series && data.podcast_series.episodes) {
                  this._magicStatus = `🎙️ ${translationService.t('professor.editor.generating_audio')}`;
                  this.requestUpdate();
@@ -677,72 +771,12 @@ export class LessonEditor extends BaseView {
                  }
             }
 
-            // ... (Handle Presentation Images) ...
             if (type === 'presentation' && data.slides) {
-                this._magicStatus = `🎨 ${translationService.t('professor.editor.generating_images')}`;
-                this.requestUpdate();
-                for (const [index, slide] of data.slides.entries()) {
-                    if (slide.visual_idea) {
-                        let base64Data = '';
-                        // STRICT: Try-catch for safety
-                        try {
-                            const imgResult = await callWithRetry(callGenerateImage, [slide.visual_idea], 3);
-                            base64Data = imgResult.imageBase64 || imgResult;
-                        } catch (err) {
-                             console.warn(`[AutoMagic] Image generation failed for slide ${index}:`, err.message);
-                             // Fallback logic
-                             if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT") || err.message.includes("Imagen"))) {
-                                try {
-                                    const safePrompt = `Educational illustration: ${this.lesson.title}, minimalist`;
-                                    const imgResult = await callGenerateImage(safePrompt);
-                                    base64Data = imgResult.imageBase64 || imgResult;
-                                } catch (e) { console.warn("Fallback failed"); }
-                             }
-                        }
-                        // Upload logic...
-                        if (base64Data && base64Data.length > 100) {
-                            try {
-                                const fileName = `slide_${Date.now()}_${index}.png`;
-                                const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
-                                const url = await this._uploadBase64Image(base64Data, storagePath);
-                                data.slides[index] = { ...slide, imageUrl: url }; // Update slide
-                                if ('backgroundImage' in data.slides[index]) delete data.slides[index].backgroundImage;
-                            } catch (e) { console.warn("Upload failed", e); }
-                        }
-                    }
-                }
+                data.slides = await this._generateImagesForSlides(data.slides);
             }
 
-            // ... (Handle Comic Images) ...
              if (type === 'comic' && data.panels) {
-                 this._magicStatus = `🖍️ ${translationService.t('professor.editor.generating_comic')}`;
-                 this.requestUpdate();
-                 for (const [index, panel] of data.panels.entries()) {
-                     if (panel.description) {
-                        let base64Data = '';
-                        try {
-                            const imgResult = await callWithRetry(callGenerateImage, [`Comic style, ${panel.description}`], 3);
-                            base64Data = imgResult.imageBase64 || imgResult;
-                        } catch (err) {
-                            console.warn("Comic gen failed", err.message);
-                             if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
-                                try {
-                                     const safePrompt = `Comic panel: ${this.lesson.title}`;
-                                     const imgResult = await callGenerateImage(safePrompt);
-                                     base64Data = imgResult.imageBase64 || imgResult;
-                                } catch (e) {}
-                             }
-                        }
-                        if (base64Data && base64Data.length > 100) {
-                             try {
-                                 const fileName = `comic_${Date.now()}_${index}.png`;
-                                 const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
-                                 const url = await this._uploadBase64Image(base64Data, storagePath);
-                                 data.panels[index] = { ...panel, imageUrl: url };
-                             } catch (e) {}
-                        }
-                     }
-                 }
+                 data.panels = await this._generateImagesForComic(data.panels);
              }
 
             // Apply data to lesson
@@ -792,23 +826,18 @@ export class LessonEditor extends BaseView {
 
       try {
           // STRICT Phase 1: Text First
-          const typesList = [...allTypes];
-          const textIndex = typesList.indexOf('text');
-
-          if (textIndex > -1) {
-              typesList.splice(textIndex, 1);
-              try {
-                  await processType('text', allTypes.length);
-              } catch (e) {
-                  console.error("Failed to generate text:", e);
-                  failedTypes.push('text');
-              }
+          try {
+              await processType('text');
+          } catch (e) {
+              console.error("Failed to generate text:", e);
+              failedTypes.push('text');
           }
 
           // STRICT Phase 2: Other types sequentially
-          for (const type of typesList) {
+          const otherTypes = allTypes.filter(t => t !== 'text');
+          for (const type of otherTypes) {
              try {
-                await processType(type, allTypes.length);
+                await processType(type);
              } catch (error) {
                  console.error(`Failed to generate ${type}:`, error);
                  failedTypes.push(type);
