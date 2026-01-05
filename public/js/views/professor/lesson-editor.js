@@ -706,6 +706,7 @@ export class LessonEditor extends BaseView {
 
       // Reusable generation logic
       const processType = async (type) => {
+            let contentType = type;
             this._magicStatus = `${translationService.t('common.magic_status_generating')} (${successCount + failedTypes.length + 1}/${allTypes.length}): ${(translationService.t(`content_types.${type}`) || type).toUpperCase()}...`;
             this.requestUpdate();
 
