@@ -240,6 +240,33 @@
     }
   },
   "editor": {
+    "wizard": {
+      "title": "Nová lekce",
+      "subtitle": "Rychlý průvodce tvorbou"
+    },
+    "fields": {
+      "title": "Název lekce",
+      "subject": "Předmět",
+      "topic": "Téma / Podtitul",
+      "class": "Přiřadit třídě",
+      "files": "Podklady (PDF)"
+    },
+    "placeholders": {
+      "title": "Např. Úvod do biologie",
+      "subject": "Např. Biologie",
+      "topic": "Např. Buňka a její struktura"
+    },
+    "options": {
+      "select_class": "Vyberte třídu (volitelné)"
+    },
+    "actions": {
+      "add_file": "Přidat soubor",
+      "manual": "Manuální tvorba",
+      "magic": "Magická tvorba"
+    },
+    "messages": {
+      "drag_drop_files": "Přetáhněte soubory sem nebo klikněte pro výběr"
+    },
     "step_basics": "Základy",
     "step_content": "Obsah",
     "step_done": "Hotovo",

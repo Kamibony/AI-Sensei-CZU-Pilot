@@ -1,0 +1,3 @@
+// Mock content for public/js/services/translation-service.js if it was not found, or maybe I should check utils/translation-service.js as imported in lesson-editor.js
+// Wait, I saw "public/js/utils/translation-service.js" in the file list.
+// The code imports from '../../utils/translation-service.js'
