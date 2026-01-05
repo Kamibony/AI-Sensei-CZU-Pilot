@@ -36,10 +36,10 @@ function getGenerativeModel() {
             },
             // INSERT END
             safetySettings: [
-                { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-                { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-                { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-                { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+                { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+                { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+                { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+                { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
             ],
         });
     }
@@ -48,19 +48,16 @@ function getGenerativeModel() {
 
 // --- POMOCNÁ FUNKCIA NA ČISTENIE CESTY ---
 function sanitizeStoragePath(path: string, bucketName: string): string {
-    // 1. Odstrániť prefix gs://
-    let clean = path.replace(/^gs:\/\//, "");
-    
-    // 2. Odstrániť názov bucketu, ak je na začiatku cesty (napr. bucket.app/folder/file -> folder/file)
-    if (clean.startsWith(bucketName + "/")) {
-        clean = clean.substring(bucketName.length + 1);
+    let clean = path;
+    if (clean.startsWith("gs://")) {
+        clean = clean.substring(5);
     }
-    
-    // 3. Odstrániť úvodné lomítko, ak tam ostalo
-    if (clean.startsWith("/")) {
+    if (clean.startsWith(bucketName)) {
+         clean = clean.substring(bucketName.length);
+    }
+    while (clean.startsWith("/")) {
         clean = clean.substring(1);
     }
-    
     return clean;
 }
 
@@ -207,9 +204,16 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
         
         try {
             const [fileBuffer] = await file.download();
+            let mimeType = "application/pdf";
+            if (cleanPath.toLowerCase().endsWith(".txt")) {
+                mimeType = "text/plain";
+            } else if (cleanPath.toLowerCase().endsWith(".json")) {
+                mimeType = "application/json";
+            }
+
             parts.push({
                 inlineData: {
-                    mimeType: "application/pdf", // Predpokladáme PDF, ak to chceš dynamicky, musíš to poslať z FE
+                    mimeType: mimeType,
                     data: fileBuffer.toString("base64"),
                 }
             });
