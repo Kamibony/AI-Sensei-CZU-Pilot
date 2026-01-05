@@ -198,30 +198,30 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
     
-    // OPRAVA: Iterácia s čistením cesty
+    // Download & Relay: Iterate through files and download them
     for (const rawPath of filePaths) {
         const cleanPath = sanitizeStoragePath(rawPath, bucket.name);
         const file = bucket.file(cleanPath);
         
-        console.log(`[gemini-api:generateTextFromDocuments] Reading file from gs://${bucket.name}/${cleanPath} (Original: ${rawPath})`);
+        console.log(`[gemini-api:generateTextFromDocuments] Downloading file from gs://${bucket.name}/${cleanPath}`);
         
         try {
             const [fileBuffer] = await file.download();
             parts.push({
                 inlineData: {
-                    mimeType: "application/pdf", // Predpokladáme PDF, ak to chceš dynamicky, musíš to poslať z FE
+                    mimeType: "application/pdf", // Using PDF as requested/detected
                     data: fileBuffer.toString("base64"),
                 }
             });
         } catch (err) {
-            logger.warn(`[gemini-api] Failed to download file: ${cleanPath}. Skipping. Error:`, err);
-            // Pokračujeme ďalej, nezastavíme celý proces kvoli jednému súboru
+            logger.warn(`[gemini-api] Failed to download file: ${cleanPath}. Skipping and continuing with others. Error:`, err);
         }
     }
     
+    // Fallback: If no files could be downloaded, use the prompt without file context
+    // This allows the "Fallback Instruction" in the prompt to take effect
     if (parts.length === 0) {
-        // Ak sa nepodarilo stiahnuť žiadne súbory, fallback na čistý text
-        return generateTextFromPrompt(prompt);
+        logger.warn("[gemini-api] No files could be processed. Falling back to text-only generation.");
     }
 
     parts.push({ text: prompt });
@@ -236,12 +236,12 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
     
-    // OPRAVA: Iterácia s čistením cesty
+    // Download & Relay: Iterate through files and download them
     for (const rawPath of filePaths) {
         const cleanPath = sanitizeStoragePath(rawPath, bucket.name);
         const file = bucket.file(cleanPath);
         
-        console.log(`[gemini-api:generateJsonFromDocuments] Reading file from gs://${bucket.name}/${cleanPath} (Original: ${rawPath})`);
+        console.log(`[gemini-api:generateJsonFromDocuments] Downloading file from gs://${bucket.name}/${cleanPath}`);
         
         try {
             const [fileBuffer] = await file.download();
@@ -254,6 +254,11 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
         } catch (err) {
              logger.warn(`[gemini-api] Failed to download file: ${cleanPath}. Skipping. Error:`, err);
         }
+    }
+
+    // Fallback logic handled by prompt instructions if parts has no files
+    if (parts.length === 0) {
+        logger.warn("[gemini-api] No files could be processed for JSON generation. Falling back to text-only context.");
     }
 
     const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
