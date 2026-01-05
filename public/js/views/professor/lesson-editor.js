@@ -523,6 +523,17 @@ export class LessonEditor extends BaseView {
     return await getDownloadURL(storageRef);
   }
 
+  _normalizeToGsUrl(file) {
+      const p = file.storagePath || file.fullPath || file.path || file.url || (file.file && file.file.fullPath);
+      if (typeof p !== 'string' || !p) return null;
+
+      if (p.startsWith('gs://')) return p;
+
+      const bucketName = storage.app.options.storageBucket || "ai-sensei-czu-pilot.firebasestorage.app";
+      const relativePath = p.startsWith('/') ? p.slice(1) : p;
+      return `gs://${bucketName}/${relativePath}`;
+  }
+
   async _handleAutoMagic() {
       if (!this.lesson.title) {
           showToast(translationService.t('professor.editor.title_required'), true);
@@ -534,22 +545,15 @@ export class LessonEditor extends BaseView {
           return;
       }
 
-      // DEBUG: Inspect the first file structure
-      console.log("File Object Structure:", JSON.stringify(this._uploadedFiles[0]));
-
-      // 1. Path Normalization
-      const bucket = "gs://ai-sensei-czu-pilot.firebasestorage.app";
+      // 1. Path Normalization using helper
       const filePaths = this._uploadedFiles
-          .map(f => {
-              const p = f.storagePath || f.fullPath || f.path || f.url || (f.file && f.file.fullPath);
-              if (typeof p !== 'string' || p.length === 0) return null;
-              return p.startsWith('gs://') ? p : (p.startsWith('courses/') ? `${bucket}/${p}` : p);
-          })
+          .map(f => this._normalizeToGsUrl(f))
           .filter(Boolean);
 
-      // FAIL FAST if extraction failed
-      if (this._uploadedFiles.length > 0 && filePaths.length === 0) {
-          throw new Error(`Frontend Error: Failed to extract storage paths from ${this._uploadedFiles.length} selected files. See console for object structure.`);
+      if (filePaths.length === 0) {
+           console.error("Frontend Error: Failed to extract storage paths", this._uploadedFiles);
+           showToast(translationService.t('lesson.upload_error'), true);
+           return;
       }
 
       this._isLoading = true;
@@ -691,18 +695,19 @@ export class LessonEditor extends BaseView {
                             const imgResult = await callWithRetry(callGenerateImage, [slide.visual_idea], 3);
                             base64Data = imgResult.imageBase64 || imgResult;
                         } catch (err) {
-                            if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
-                                console.warn(`[AutoMagic] Safety filter triggered for slide ${index}. Trying fallback...`);
+                             // Handle Safety/Imagen errors gracefully
+                             console.warn(`[AutoMagic] Image generation failed for slide ${index}. Reason:`, err.message);
+                             // Attempt fallback if specific safety error, otherwise just skip
+                             if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT") || err.message.includes("Imagen"))) {
                                 try {
+                                    console.warn(`[AutoMagic] Trying fallback image for slide ${index}...`);
                                     const safePrompt = `Educational illustration related to topic: ${this.lesson.title}, minimalist, abstract, safe content`;
                                     const imgResult = await callGenerateImage(safePrompt);
                                     base64Data = imgResult.imageBase64 || imgResult;
                                 } catch (fallbackErr) {
-                                    console.warn(`[AutoMagic] Fallback image failed for slide ${index}`, fallbackErr);
+                                    console.warn(`[AutoMagic] Fallback image also failed for slide ${index}`, fallbackErr);
                                 }
-                            } else {
-                                 console.warn(`[AutoMagic] Image gen failed for slide ${index}:`, err);
-                            }
+                             }
                         }
 
                         if (base64Data && typeof base64Data === 'string' && base64Data.length > 100) {
@@ -735,18 +740,17 @@ export class LessonEditor extends BaseView {
                             const imgResult = await callWithRetry(callGenerateImage, [`Comic book style, ${panel.description}`], 3);
                             base64Data = imgResult.imageBase64 || imgResult;
                         } catch (err) {
-                            if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
-                                console.warn(`[AutoMagic] Safety filter triggered for comic panel ${index}. Trying fallback...`);
+                             console.warn(`[AutoMagic] Comic generation failed for panel ${index}. Reason:`, err.message);
+                             if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT") || err.message.includes("Imagen"))) {
                                 try {
+                                    console.warn(`[AutoMagic] Trying fallback comic for panel ${index}...`);
                                     const safePrompt = `Comic book panel, educational scene about ${this.lesson.title}, safe content`;
                                     const imgResult = await callGenerateImage(safePrompt);
                                     base64Data = imgResult.imageBase64 || imgResult;
                                 } catch (fallbackErr) {
                                     console.warn(`[AutoMagic] Fallback comic failed for panel ${index}`, fallbackErr);
                                 }
-                            } else {
-                                 console.warn(`[AutoMagic] Comic gen failed for panel ${index}:`, err);
-                            }
+                             }
                         }
 
                         if (base64Data && typeof base64Data === 'string') {
@@ -819,11 +823,12 @@ export class LessonEditor extends BaseView {
       };
 
       try {
-          // 2. Prioritize Text
+          // 2. Prioritize Text - FIRST and WAIT
           const typesList = [...allTypes];
           const textIndex = typesList.indexOf('text');
 
           if (textIndex > -1) {
+              // Remove text from the general list
               typesList.splice(textIndex, 1);
               try {
                   await processType('text', allTypes.length);
@@ -833,7 +838,7 @@ export class LessonEditor extends BaseView {
               }
           }
 
-          // 3. Generate Rest
+          // 3. Generate Rest - Loop through other types
           for (const type of typesList) {
              try {
                 await processType(type, allTypes.length);
