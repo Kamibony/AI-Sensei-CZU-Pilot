@@ -383,8 +383,17 @@ export class LessonEditor extends BaseView {
   }
 
   async _handleFilesSelected(e) {
-      const files = Array.from(e.target.files);
-      if (files.length === 0) return;
+      const allFiles = Array.from(e.target.files);
+      if (allFiles.length === 0) return;
+
+      const files = allFiles.filter(f => f.name.toLowerCase().endsWith('.pdf'));
+      if (files.length !== allFiles.length) {
+          showToast(translationService.t('professor.editor.pdf_only') || 'Only PDF files are allowed.', true);
+      }
+      if (files.length === 0) {
+          e.target.value = '';
+          return;
+      }
 
       if (!this.lesson.title) {
           showToast(translationService.t('professor.editor.title_required'), true);
@@ -745,8 +754,35 @@ export class LessonEditor extends BaseView {
                      break;
             }
 
-            // Call AI
-            let data = await this._callAiGeneration(type, promptData, filePaths);
+            const currentLocale = translationService.locale || 'cs';
+            promptData.userPrompt += `\n\nIMPORTANT: The output MUST be in ${currentLocale} language only.`;
+
+            const generateContentFunc = httpsCallable(functions, 'generateContent');
+            const result = await generateContentFunc({
+                contentType: contentType,
+                promptData: promptData,
+                filePaths: filePaths
+            });
+
+            let responseData = result.data;
+
+            if (typeof responseData === 'string') {
+                // STRIP MARKDOWN CODE BLOCKS
+                const cleanJson = responseData.replace(/^```json\s*|\s*```$/g, '').trim();
+                try {
+                    responseData = JSON.parse(cleanJson);
+                } catch (e) {
+                    console.warn("Failed to parse JSON even after cleaning:", e);
+                    // Fallback: keep responseData as string
+                }
+            }
+
+            if (responseData && (responseData.error || responseData.chyba)) {
+                const msg = responseData.message || responseData.zpráva || responseData.error || responseData.chyba;
+                throw new Error(msg);
+            }
+
+            let data = JSON.parse(JSON.stringify(responseData));
 
             // Post-processing: Images & Audio
             if (type === 'post' && data.podcast_series && data.podcast_series.episodes) {
@@ -995,7 +1031,7 @@ export class LessonEditor extends BaseView {
                                  </button>
                                  <label class="px-3 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg cursor-pointer hover:bg-indigo-100 text-sm font-bold transition-colors flex items-center gap-2">
                                     <span>📤 ${translationService.t('professor.editor.upload_btn')}</span>
-                                    <input type="file" multiple accept=".pdf,.docx,.txt" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
+                                    <input type="file" multiple accept=".pdf" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
                                  </label>
                             </div>
                         </div>
@@ -1106,7 +1142,7 @@ export class LessonEditor extends BaseView {
                  <div class="flex gap-1">
                      <button @click="${this._handleOpenLibrary}" class="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg" title="${translationService.t('common.files_library')}">📂</button>
                      <label class="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer" title="${translationService.t('media.upload_title')}">
-                        📤 <input type="file" multiple accept=".pdf,.docx,.txt" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
+                        📤 <input type="file" multiple accept=".pdf" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
                      </label>
                  </div>
             </div>
