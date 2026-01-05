@@ -529,16 +529,8 @@ export class LessonEditor extends BaseView {
 
       if (p.startsWith('gs://')) return p;
 
-      // FIX: Dynamically get bucket or fallback
-      let bucketName = "ai-sensei-czu-pilot.firebasestorage.app";
-      try {
-          if (storage && storage.app && storage.app.options && storage.app.options.storageBucket) {
-              bucketName = storage.app.options.storageBucket;
-          }
-      } catch (e) {
-          console.warn("Could not detect storage bucket, using fallback:", bucketName);
-      }
-
+      // STRICT: Use the specific bucket requested
+      const bucketName = "ai-sensei-czu-pilot.firebasestorage.app";
       const relativePath = p.startsWith('/') ? p.slice(1) : p;
       return `gs://${bucketName}/${relativePath}`;
   }
@@ -548,11 +540,6 @@ export class LessonEditor extends BaseView {
 
       // Force language
       const language = translationService.currentLanguage || 'cs';
-
-      // FIX: Add Fallback Instruction
-      if (promptData && promptData.userPrompt) {
-          promptData.userPrompt += "\n\n[SYSTEM INSTRUCTION]: If you cannot read or process the provided file(s), you MUST generate the content based purely on the Title and Topic provided. Do NOT return an error about missing files.";
-      }
 
       try {
           const result = await generateContentFunc({
