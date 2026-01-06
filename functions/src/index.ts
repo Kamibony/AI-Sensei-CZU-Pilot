@@ -1303,20 +1303,35 @@ exports.getSecureUploadUrl = onCall({ region: DEPLOY_REGION }, async (request: C
         const bucket = storage.bucket(bucketName);
         const file = bucket.file(filePath);
 
-        const options = {
-            version: "v4" as const,
-            action: "write" as const,
-            expires: Date.now() + 15 * 60 * 1000, // 15 minút platnosť
-            contentType: contentType, // Vynútime presný typ obsahu
-            metadata: {
-                ownerId: userId,
-                firestoreDocId: docId
-            }
-        };
+        let url;
+        // DETECT EMULATOR
+        if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.FIREBASE_STORAGE_EMULATOR_HOST) {
+            // Construct local emulator URL
+            // Default port is 9199.
+            // URL format: http://<host>:<port>/v0/b/<bucket>/o/<encodedPath>?alt=media
+            // But for UPLOAD (PUT), we usually use the same endpoint.
+            const storageHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST || "127.0.0.1:9199";
+            // Use JSON API format for emulator (supports POST)
+            url = `http://${storageHost}/v0/b/${bucketName}/o?name=${encodeURIComponent(filePath)}`;
+            logger.log("Generating Emulator Upload URL:", url);
+        } else {
+            const options = {
+                version: "v4" as const,
+                action: "write" as const,
+                expires: Date.now() + 15 * 60 * 1000, // 15 minút platnosť
+                contentType: contentType, // Vynútime presný typ obsahu
+                metadata: {
+                    ownerId: userId,
+                    firestoreDocId: docId
+                }
+            };
 
-        const [url] = await file.getSignedUrl(options);
-        // Vrátime klientovi všetko, čo potrebuje
-        return { signedUrl: url, docId: docId, filePath: filePath };
+            const [signedUrl] = await file.getSignedUrl(options);
+            url = signedUrl;
+        }
+
+        // Vrátime klientovi všetko, čo potrebuje. Pridame 'uploadUrl' pre konzistenciu s frontendom.
+        return { uploadUrl: url, signedUrl: url, docId: docId, filePath: filePath };
     } catch (error) {
         logger.error("Chyba v getSecureUploadUrl:", error);
         if (error instanceof HttpsError) {

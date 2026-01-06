@@ -69,8 +69,8 @@ export class ProfessorMediaView extends Localized(LitElement) {
             if (user.email === 'profesor@profesor.cz') {
                 filesQuery = query(collection(firebaseInit.db, "fileMetadata"), where("courseId", "==", "main-course"));
             } else {
+                // Fetch ALL files belonging to the user, regardless of courseId
                 filesQuery = query(collection(firebaseInit.db, "fileMetadata"),
-                    where("courseId", "==", "main-course"),
                     where("ownerId", "==", user.uid)
                 );
             }
