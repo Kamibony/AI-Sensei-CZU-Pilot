@@ -201,7 +201,7 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
     const parts: Part[] = [];
     let loadedFiles = 0;
     
-    // OPRAVA: Iterácia s čistením cesty
+    // OPRAVA: Iterácia s čistením cesty a inteligentným fallbackom
     for (const rawPath of filePaths) {
         const cleanPath = sanitizeStoragePath(rawPath, bucket.name);
         const file = bucket.file(cleanPath);
@@ -261,7 +261,7 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
     
-    // OPRAVA: Iterácia s čistením cesty
+    // OPRAVA: Iterácia s čistením cesty a inteligentným fallbackom
     for (const rawPath of filePaths) {
         const cleanPath = sanitizeStoragePath(rawPath, bucket.name);
         const file = bucket.file(cleanPath);
