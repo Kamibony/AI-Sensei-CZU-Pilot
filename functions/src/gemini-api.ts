@@ -50,7 +50,7 @@ function getGenerativeModel() {
 function sanitizeStoragePath(path: string, bucketName: string): string {
     if (!path) return "";
 
-    path = decodeURIComponent(path); // SYSTEMIC FIX for special chars
+    path = decodeURIComponent(path).normalize('NFC'); // SYSTEMIC FIX for special chars
 
     // 1. Remove gs:// prefix
     let clean = path.replace(/^gs:\/\//, "");
@@ -199,6 +199,7 @@ exports.generateJsonFromPrompt = generateJsonFromPrompt;
 async function generateTextFromDocuments(filePaths: string[], prompt: string): Promise<string> {
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
+    let loadedFiles = 0;
     
     // OPRAVA: Iterácia s čistením cesty
     for (const rawPath of filePaths) {
@@ -220,15 +221,15 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
                     data: fileBuffer.toString("base64"),
                 }
             });
+            loadedFiles++;
         } catch (err) {
             logger.warn(`[gemini-api] Failed to download file: ${cleanPath}. Skipping. Error:`, err);
             // Pokračujeme ďalej, nezastavíme celý proces kvoli jednému súboru
         }
     }
     
-    if (parts.length === 0) {
-        // Ak sa nepodarilo stiahnuť žiadne súbory, fallback na čistý text
-        return generateTextFromPrompt(prompt);
+    if (loadedFiles === 0) {
+        throw new HttpsError('not-found', 'Backend could not read any source files. Please check file paths. Attempted path example: ' + (filePaths[0] || 'none'));
     }
 
     parts.push({ text: prompt });
@@ -343,12 +344,35 @@ async function generateImageFromPrompt(prompt: string): Promise<string> {
         console.log("[gemini-api:generateImageFromPrompt] Successfully received image from Imagen.");
         return imageBase64;
 
-    } catch (error) {
-        logger.error("[gemini-api:generateImageFromPrompt] Error generating image:", error);
-        if (error instanceof Error) {
-            throw new HttpsError("internal", `Imagen call failed: ${error.message}`);
+    } catch (error: any) {
+        console.warn("Imagen generation failed (likely safety). Using fallback.", error.message);
+
+        try {
+            const safeRequest = {
+                ...request,
+                instances: [
+                    helpers.toValue({
+                        prompt: "Abstract calm educational background, minimalist style, safe content",
+                    }),
+                ]
+            };
+            const [fallbackResponse] = await client.predict(safeRequest);
+
+            if (!fallbackResponse || !fallbackResponse.predictions || fallbackResponse.predictions.length === 0) {
+                throw new Error("Invalid fallback response");
+            }
+
+            const prediction = fallbackResponse.predictions[0];
+            const imageBase64 = prediction.structValue?.fields?.bytesBase64Encoded?.stringValue;
+
+            if (!imageBase64) {
+                throw new Error("No image in fallback response");
+            }
+            return imageBase64;
+        } catch (fatalError) {
+             console.error("Fallback also failed.");
+             throw new HttpsError("internal", "Image generation completely failed.");
         }
-        throw new HttpsError("internal", "An unknown error occurred while generating the image.");
     }
 }
 exports.generateImageFromPrompt = generateImageFromPrompt;
