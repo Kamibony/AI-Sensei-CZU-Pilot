@@ -273,18 +273,6 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
             logger.warn(`[gemini-api] Failed to download file after all retries: ${cleanPath}. Skipping.`, err);
             continue;
         }
-
-        let mimeType = "application/pdf";
-        if (effectivePath.toLowerCase().endsWith(".txt")) mimeType = "text/plain";
-        if (effectivePath.toLowerCase().endsWith(".json")) mimeType = "application/json";
-
-        parts.push({
-            inlineData: {
-                mimeType: mimeType,
-                data: fileBuffer.toString("base64"),
-            }
-        });
-        loadedFiles++;
     }
     
     if (loadedFiles === 0) {
@@ -325,17 +313,6 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
         } catch (err) {
             logger.warn(`[gemini-api] Failed to download file after all retries: ${cleanPath}. Skipping.`, err);
         }
-
-        let mimeType = "application/pdf";
-        if (effectivePath.toLowerCase().endsWith(".txt")) mimeType = "text/plain";
-        if (effectivePath.toLowerCase().endsWith(".json")) mimeType = "application/json";
-
-        parts.push({
-            inlineData: {
-                mimeType: mimeType,
-                data: fileBuffer.toString("base64"),
-            }
-        });
     }
 
     const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
