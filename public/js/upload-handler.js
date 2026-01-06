@@ -200,10 +200,10 @@ export async function renderMediaLibraryFiles(courseId, listElementId) {
 
         let q;
         if (user.email === 'profesor@profesor.cz') {
-            q = query(collection(firebaseInit.db, "fileMetadata"), where("courseId", "==", courseId));
+            q = query(collection(firebaseInit.db, "fileMetadata"), where("courseId", "==", "main-course"));
         } else {
+            // Fetch ALL files belonging to the user
             q = query(collection(firebaseInit.db, "fileMetadata"),
-                where("courseId", "==", courseId),
                 where("ownerId", "==", user.uid)
             );
         }

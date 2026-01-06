@@ -36,7 +36,10 @@ export async function uploadSingleFile(file, courseId, onProgress) {
         size: file.size // Include file size for Firestore metadata
     });
 
-    const { uploadUrl, fileId, storagePath } = data;
+    // Handle variable name differences between backend and frontend expectation
+    const uploadUrl = data.uploadUrl || data.signedUrl;
+    const fileId = data.docId || data.fileId;
+    const storagePath = data.filePath || data.storagePath;
 
     // 2. Upload to Storage via PUT to signed URL
     // Note: This bypasses Firebase SDK uploadBytesResumable for the actual transfer if using signed URL,
@@ -45,8 +48,26 @@ export async function uploadSingleFile(file, courseId, onProgress) {
 
     await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('PUT', uploadUrl);
+
+        // Check if using emulator (localhost or 127.0.0.1)
+        const isEmulator = uploadUrl.includes("127.0.0.1") || uploadUrl.includes("localhost");
+        const method = isEmulator ? 'POST' : 'PUT';
+
+        xhr.open(method, uploadUrl);
         xhr.setRequestHeader('Content-Type', file.type);
+
+        // Inject auth header for emulator to satisfy storage rules
+        if (isEmulator && auth.currentUser) {
+           auth.currentUser.getIdToken().then(token => {
+               xhr.setRequestHeader('Authorization', `Firebase ${token}`);
+               xhr.send(file);
+           }).catch(err => {
+               console.error("Failed to get token for emulator upload", err);
+               reject(err);
+           });
+           // Return here because we send inside the async callback
+           // Setup listeners first though
+        }
 
         xhr.upload.onprogress = (e) => {
             if (e.lengthComputable && onProgress) {
@@ -65,12 +86,15 @@ export async function uploadSingleFile(file, courseId, onProgress) {
 
         xhr.onerror = () => reject(new Error('Network error during upload'));
 
-        xhr.send(file);
+        if (!isEmulator) {
+            xhr.send(file);
+        }
     });
 
     // 3. Finalize Upload (notify backend to update metadata)
     const finalizeUpload = httpsCallable(functions, 'finalizeUpload');
-    await finalizeUpload({ fileId });
+    // Backend expects docId and filePath
+    await finalizeUpload({ docId: fileId, filePath: storagePath });
 
     // Return info needed for UI
     return {

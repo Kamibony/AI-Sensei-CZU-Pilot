@@ -470,8 +470,9 @@ export class LessonEditor extends BaseView {
       if (!modal) return;
 
       const user = auth.currentUser;
-      const courseId = user ? user.uid : 'main-course';
+      const courseId = user ? user.uid : null;
       clearSelectedFiles();
+      // Pass user.uid, but the handler logic will be updated to fetch all user files
       renderMediaLibraryFiles(courseId, "modal-media-list");
       modal.classList.remove('hidden');
 
