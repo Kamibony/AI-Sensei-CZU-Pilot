@@ -685,7 +685,8 @@ export class LessonEditor extends BaseView {
       else if (file.name) {
           const user = auth.currentUser;
           if (user && user.uid) {
-             candidatePath = `courses/${user.uid}/${file.name}`;
+             // FIX: Include 'media' folder in the path construction
+             candidatePath = `courses/${user.uid}/media/${file.name}`;
           }
       }
 
