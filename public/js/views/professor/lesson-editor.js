@@ -677,9 +677,27 @@ export class LessonEditor extends BaseView {
       }
 
       // Path Normalization
-      const filePaths = this._uploadedFiles
-          .map(f => f.storagePath) // SYSTEMIC FIX: Send direct relative path
-          .filter(Boolean);
+      const filePaths = this._uploadedFiles.map(f => {
+          // Priority 1: Direct storagePath property
+          if (f.storagePath) return f.storagePath;
+
+          // Priority 2: If it's a RAG file, it might be in metadata
+          if (f.metadata && f.metadata.fullPath) return f.metadata.fullPath;
+
+          // Priority 3: Construct from name (if user ID is available)
+          if (f.name && f.name.includes('.')) {
+               const user = auth.currentUser;
+               if (user) {
+                   return `courses/${user.uid}/${f.name}`;
+               }
+          }
+
+          console.warn("Could not determine storage path for file:", f);
+          return null;
+      })
+      .filter(p => p && p.includes('.')); // Filter out paths without extensions (IDs)
+
+      console.log("Sending filePaths to Backend:", filePaths);
 
       if (filePaths.length === 0) {
            console.error("Frontend Error: Failed to extract storage paths", this._uploadedFiles);
