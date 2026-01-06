@@ -679,7 +679,10 @@ export class LessonEditor extends BaseView {
       // Path Normalization
       const filePaths = this._uploadedFiles.map(f => {
           // Priority 1: Direct storagePath property
-          if (f.storagePath) return f.storagePath;
+          // FIX: Check if it's not the string "undefined" and looks like a path (has slash or dot)
+          if (f.storagePath && f.storagePath !== 'undefined' && (f.storagePath.includes('/') || f.storagePath.includes('.'))) {
+              return f.storagePath;
+          }
 
           // Priority 2: If it's a RAG file, it might be in metadata
           if (f.metadata && f.metadata.fullPath) return f.metadata.fullPath;
