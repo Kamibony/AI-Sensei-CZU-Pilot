@@ -249,7 +249,7 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
     const parts: Part[] = [];
     let loadedFiles = 0;
     
-    // OPRAVA: Iterácia s čistením cesty
+    // OPRAVA: Iterácia s čistením cesty a inteligentným fallbackom
     for (const rawPath of filePaths) {
         const cleanPath = sanitizeStoragePath(rawPath, bucket.name);
         const file = bucket.file(cleanPath);
@@ -273,6 +273,18 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
             logger.warn(`[gemini-api] Failed to download file after all retries: ${cleanPath}. Skipping.`, err);
             continue;
         }
+
+        let mimeType = "application/pdf";
+        if (effectivePath.toLowerCase().endsWith(".txt")) mimeType = "text/plain";
+        if (effectivePath.toLowerCase().endsWith(".json")) mimeType = "application/json";
+
+        parts.push({
+            inlineData: {
+                mimeType: mimeType,
+                data: fileBuffer.toString("base64"),
+            }
+        });
+        loadedFiles++;
     }
     
     if (loadedFiles === 0) {
@@ -291,7 +303,7 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
     
-    // OPRAVA: Iterácia s čistením cesty
+    // OPRAVA: Iterácia s čistením cesty a inteligentným fallbackom
     for (const rawPath of filePaths) {
         const cleanPath = sanitizeStoragePath(rawPath, bucket.name);
         const file = bucket.file(cleanPath);
@@ -313,6 +325,17 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
         } catch (err) {
             logger.warn(`[gemini-api] Failed to download file after all retries: ${cleanPath}. Skipping.`, err);
         }
+
+        let mimeType = "application/pdf";
+        if (effectivePath.toLowerCase().endsWith(".txt")) mimeType = "text/plain";
+        if (effectivePath.toLowerCase().endsWith(".json")) mimeType = "application/json";
+
+        parts.push({
+            inlineData: {
+                mimeType: mimeType,
+                data: fileBuffer.toString("base64"),
+            }
+        });
     }
 
     const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
