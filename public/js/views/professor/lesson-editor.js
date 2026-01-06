@@ -678,7 +678,7 @@ export class LessonEditor extends BaseView {
 
       // Path Normalization
       const filePaths = this._uploadedFiles
-          .map(f => this._normalizeToGsUrl(f))
+          .map(f => f.storagePath) // SYSTEMIC FIX: Send direct relative path
           .filter(Boolean);
 
       if (filePaths.length === 0) {
