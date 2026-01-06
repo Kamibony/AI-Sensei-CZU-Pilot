@@ -50,6 +50,8 @@ function getGenerativeModel() {
 function sanitizeStoragePath(path: string, bucketName: string): string {
     if (!path) return "";
 
+    path = decodeURIComponent(path); // SYSTEMIC FIX for special chars
+
     // 1. Remove gs:// prefix
     let clean = path.replace(/^gs:\/\//, "");
     
