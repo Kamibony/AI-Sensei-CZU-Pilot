@@ -91,6 +91,15 @@ async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<
          candidates.push(alternativePath.normalize('NFD'));
     }
 
+    // 3. URI Encoded Path (for files uploaded with %20 instead of spaces)
+    // Sometimes storage tools upload 'File Name.pdf' as 'File%20Name.pdf' literal object name.
+    if (primaryPath.includes(" ")) {
+        candidates.push(primaryPath.replace(/ /g, '%20'));
+    }
+    if (alternativePath && alternativePath.includes(" ")) {
+        candidates.push(alternativePath.replace(/ /g, '%20'));
+    }
+
     // Deduplicate candidates
     const uniqueCandidates = [...new Set(candidates)];
     console.log(`[gemini-api] Download candidates for '${cleanPath}':`, uniqueCandidates);
@@ -98,6 +107,7 @@ async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<
     // Iterate and try to download
     for (const path of uniqueCandidates) {
         try {
+            console.log(`[gemini-api] Trying to download: '${path}'`);
             const file = bucket.file(path);
             const [buffer] = await file.download();
             if (buffer && buffer.length > 0) {
@@ -106,8 +116,8 @@ async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<
                  }
                  return { buffer, finalPath: path };
             }
-        } catch (e) {
-            // Ignore individual failures, keep trying
+        } catch (e: any) {
+            console.warn(`[gemini-api] Failed attempt for '${path}':`, e.message);
         }
     }
 
