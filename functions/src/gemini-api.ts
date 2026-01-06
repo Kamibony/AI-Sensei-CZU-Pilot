@@ -66,6 +66,54 @@ function sanitizeStoragePath(path: string, bucketName: string): string {
     return clean;
 }
 
+// --- SYSTEMIC DOWNLOAD FIX ---
+async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<{ buffer: Buffer, finalPath: string }> {
+    // Generate candidates
+    const candidates: string[] = [];
+
+    // 1. Primary Path (as provided, sanitized) - Try NFC first (canonical), then NFD (Mac upload)
+    const primaryPath = cleanPath;
+    candidates.push(primaryPath.normalize('NFC'));
+    candidates.push(primaryPath.normalize('NFD'));
+
+    // 2. Legacy/Alternative Path (toggle /media/)
+    let alternativePath: string | null = null;
+    if (primaryPath.includes("/media/")) {
+        // Standard -> Legacy
+        alternativePath = primaryPath.replace("/media/", "/");
+    } else {
+        // Legacy -> Standard (unlikely but robust)
+        alternativePath = primaryPath.replace("courses/", "courses/media/");
+    }
+
+    if (alternativePath && alternativePath !== primaryPath) {
+         candidates.push(alternativePath.normalize('NFC'));
+         candidates.push(alternativePath.normalize('NFD'));
+    }
+
+    // Deduplicate candidates
+    const uniqueCandidates = [...new Set(candidates)];
+    console.log(`[gemini-api] Download candidates for '${cleanPath}':`, uniqueCandidates);
+
+    // Iterate and try to download
+    for (const path of uniqueCandidates) {
+        try {
+            const file = bucket.file(path);
+            const [buffer] = await file.download();
+            if (buffer && buffer.length > 0) {
+                 if (path !== primaryPath.normalize('NFC')) {
+                     logger.info(`[gemini-api] Recovered file using alternative path/normalization: '${path}' (Original: '${cleanPath}')`);
+                 }
+                 return { buffer, finalPath: path };
+            }
+        } catch (e) {
+            // Ignore individual failures, keep trying
+        }
+    }
+
+    throw new Error(`Failed to download file '${cleanPath}' after trying candidates: ${uniqueCandidates.join(', ')}`);
+}
+
 async function getEmbeddings(text: string): Promise<number[]> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
         console.log("EMULATOR_MOCK for getEmbeddings: Returning a mock vector.");
@@ -207,29 +255,23 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
         const file = bucket.file(cleanPath);
         
         console.log(`[gemini-api:generateTextFromDocuments] Reading file from gs://${bucket.name}/${cleanPath} (Original: ${rawPath})`);
-        
-        let fileBuffer;
-        let effectivePath = cleanPath;
-
         try {
-            [fileBuffer] = await file.download();
-        } catch (err: any) {
-            // RETRY LOGIC FOR LEGACY PATHS
-            if (cleanPath.includes("/media/")) {
-                const legacyPath = cleanPath.replace("/media/", "/");
-                logger.warn(`[gemini-api] Standard path failed for ${cleanPath}. Retrying legacy path: ${legacyPath}`);
-                const legacyFile = bucket.file(legacyPath);
-                try {
-                    [fileBuffer] = await legacyFile.download();
-                    effectivePath = legacyPath;
-                } catch (legacyErr) {
-                    logger.warn(`[gemini-api] Legacy path also failed. Skipping file.`, legacyErr);
-                    continue; // Skip this file
+            const { buffer, finalPath } = await downloadFileWithRetries(bucket, cleanPath);
+
+            let mimeType = "application/pdf";
+            if (finalPath.toLowerCase().endsWith(".txt")) mimeType = "text/plain";
+            if (finalPath.toLowerCase().endsWith(".json")) mimeType = "application/json";
+
+            parts.push({
+                inlineData: {
+                    mimeType: mimeType,
+                    data: buffer.toString("base64"),
                 }
-            } else {
-                logger.warn(`[gemini-api] Failed to download file: ${cleanPath}. Skipping.`, err);
-                continue;
-            }
+            });
+            loadedFiles++;
+        } catch (err) {
+            logger.warn(`[gemini-api] Failed to download file after all retries: ${cleanPath}. Skipping.`, err);
+            continue;
         }
 
         let mimeType = "application/pdf";
@@ -267,29 +309,21 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
         const file = bucket.file(cleanPath);
         
         console.log(`[gemini-api:generateJsonFromDocuments] Reading file from gs://${bucket.name}/${cleanPath} (Original: ${rawPath})`);
-        
-        let fileBuffer;
-        let effectivePath = cleanPath;
-
         try {
-            [fileBuffer] = await file.download();
-        } catch (err: any) {
-            // RETRY LOGIC FOR LEGACY PATHS
-            if (cleanPath.includes("/media/")) {
-                const legacyPath = cleanPath.replace("/media/", "/");
-                logger.warn(`[gemini-api] Standard path failed for ${cleanPath}. Retrying legacy path: ${legacyPath}`);
-                const legacyFile = bucket.file(legacyPath);
-                try {
-                    [fileBuffer] = await legacyFile.download();
-                    effectivePath = legacyPath;
-                } catch (legacyErr) {
-                    logger.warn(`[gemini-api] Legacy path also failed. Skipping file.`, legacyErr);
-                    continue; // Skip this file
+            const { buffer, finalPath } = await downloadFileWithRetries(bucket, cleanPath);
+
+            let mimeType = "application/pdf";
+            if (finalPath.toLowerCase().endsWith(".txt")) mimeType = "text/plain";
+            if (finalPath.toLowerCase().endsWith(".json")) mimeType = "application/json";
+
+            parts.push({
+                inlineData: {
+                    mimeType: mimeType,
+                    data: buffer.toString("base64"),
                 }
-            } else {
-                logger.warn(`[gemini-api] Failed to download file: ${cleanPath}. Skipping.`, err);
-                continue;
-            }
+            });
+        } catch (err) {
+            logger.warn(`[gemini-api] Failed to download file after all retries: ${cleanPath}. Skipping.`, err);
         }
 
         let mimeType = "application/pdf";
