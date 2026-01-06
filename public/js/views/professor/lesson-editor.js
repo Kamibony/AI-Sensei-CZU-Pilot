@@ -679,8 +679,8 @@ export class LessonEditor extends BaseView {
       // Path Normalization
       const filePaths = this._uploadedFiles.map(f => {
           // Priority 1: Direct storagePath property
-          // FIX: Check if it's not the string "undefined" and looks like a path (has slash or dot)
-          if (f.storagePath && f.storagePath !== 'undefined' && (f.storagePath.includes('/') || f.storagePath.includes('.'))) {
+          // FIX: explicitly ignore 'undefined' string and ensure it looks like a path
+          if (f.storagePath && f.storagePath !== 'undefined' && f.storagePath.includes('/')) {
               return f.storagePath;
           }
 

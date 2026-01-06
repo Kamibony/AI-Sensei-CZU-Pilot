@@ -257,9 +257,9 @@ export async function renderMediaLibraryFiles(courseId, listElementId) {
 
 function handleCheckboxChange(e) {
     const checkbox = e.target;
-    const fullPathVal = checkbox.dataset.fullpath;
-    const realPath = (fullPathVal && fullPathVal !== 'undefined') ? fullPathVal : null;
-    const fileData = { name: checkbox.dataset.filename, fullPath: realPath };
+    let rawPath = checkbox.dataset.fullpath;
+    if (rawPath === 'undefined') rawPath = null;
+    const fileData = { name: checkbox.dataset.filename, fullPath: rawPath };
     if (checkbox.checked) {
         if (!selectedFiles.some(f => f.fullPath === fileData.fullPath)) selectedFiles.push(fileData);
     } else {
