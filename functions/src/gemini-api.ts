@@ -201,7 +201,7 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
     const parts: Part[] = [];
     let loadedFiles = 0;
     
-    // OPRAVA: Iterácia s čistením cesty
+    // OPRAVA: Iterácia s čistením cesty a inteligentným fallbackom
     for (const rawPath of filePaths) {
         const cleanPath = sanitizeStoragePath(rawPath, bucket.name);
         const file = bucket.file(cleanPath);
@@ -209,7 +209,28 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
         console.log(`[gemini-api:generateTextFromDocuments] Reading file from gs://${bucket.name}/${cleanPath} (Original: ${rawPath})`);
         
         try {
-            const [fileBuffer] = await file.download();
+            // RETRY LOGIC (Pokus o stiahnutie + Záchrana pre staré súbory)
+            let fileBuffer;
+            try {
+                [fileBuffer] = await file.download();
+            } catch (err: any) {
+                console.warn(`[gemini-api] Primary download failed for ${cleanPath}. Checking legacy path...`);
+                
+                // Fallback for legacy files (missing /media/ prefix in storage but present in path)
+                if (cleanPath.includes('/media/')) {
+                    const legacyPath = cleanPath.replace('/media/', '/');
+                    const legacyFile = bucket.file(legacyPath);
+                    try {
+                        [fileBuffer] = await legacyFile.download();
+                        console.log(`[gemini-api] Recovered legacy file at: ${legacyPath}`);
+                    } catch (legacyErr) {
+                        console.error(`[gemini-api] Legacy path failed too.`, legacyErr);
+                        throw err; // Vyhodíme pôvodnú chybu, aby to zachytil vonkajší blok
+                    }
+                } else {
+                    throw err;
+                }
+            }
 
             let mimeType = "application/pdf";
             if (cleanPath.toLowerCase().endsWith(".txt")) mimeType = "text/plain";
@@ -224,7 +245,7 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
             loadedFiles++;
         } catch (err) {
             logger.warn(`[gemini-api] Failed to download file: ${cleanPath}. Skipping. Error:`, err);
-            // Pokračujeme ďalej, nezastavíme celý proces kvoli jednému súboru
+            // Pokračujeme ďalej, nezastavíme celý proces kvôli jednému súboru
         }
     }
     
@@ -244,7 +265,7 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
     
-    // OPRAVA: Iterácia s čistením cesty
+    // OPRAVA: Iterácia s čistením cesty a inteligentným fallbackom
     for (const rawPath of filePaths) {
         const cleanPath = sanitizeStoragePath(rawPath, bucket.name);
         const file = bucket.file(cleanPath);
@@ -252,7 +273,26 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
         console.log(`[gemini-api:generateJsonFromDocuments] Reading file from gs://${bucket.name}/${cleanPath} (Original: ${rawPath})`);
         
         try {
-            const [fileBuffer] = await file.download();
+            // RETRY LOGIC (Rovnaká logika ako pri texte)
+            let fileBuffer;
+            try {
+                [fileBuffer] = await file.download();
+            } catch (err: any) {
+                console.warn(`[gemini-api] Primary download failed for ${cleanPath}. Checking legacy path...`);
+                
+                if (cleanPath.includes('/media/')) {
+                    const legacyPath = cleanPath.replace('/media/', '/');
+                    const legacyFile = bucket.file(legacyPath);
+                    try {
+                        [fileBuffer] = await legacyFile.download();
+                        console.log(`[gemini-api] Recovered legacy file at: ${legacyPath}`);
+                    } catch (legacyErr) {
+                        throw err;
+                    }
+                } else {
+                    throw err;
+                }
+            }
 
             let mimeType = "application/pdf";
             if (cleanPath.toLowerCase().endsWith(".txt")) mimeType = "text/plain";
