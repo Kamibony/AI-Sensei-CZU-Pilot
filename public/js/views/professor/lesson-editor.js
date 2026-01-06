@@ -664,6 +664,46 @@ export class LessonEditor extends BaseView {
        return updatedPanels;
   }
 
+  _resolveStoragePath(file) {
+      if (!file) return null;
+
+      let candidatePath = null;
+
+      // 1. Direct storagePath check
+      if (file.storagePath &&
+          file.storagePath !== 'undefined' &&
+          file.storagePath !== 'null' &&
+          file.storagePath.includes('/') &&
+          file.storagePath.includes('.')) {
+          candidatePath = file.storagePath;
+      }
+      // 2. Metadata check
+      else if (file.metadata && file.metadata.fullPath) {
+          candidatePath = file.metadata.fullPath;
+      }
+      // 3. Canonical Construction
+      else if (file.name) {
+          const user = auth.currentUser;
+          if (user && user.uid) {
+             candidatePath = `courses/${user.uid}/${file.name}`;
+          }
+      }
+
+      // 4. Final Validation
+      if (candidatePath) {
+          // Check extension
+          const validExtensions = ['.pdf', '.docx', '.txt'];
+          const hasValidExt = validExtensions.some(ext => candidatePath.toLowerCase().endsWith(ext));
+
+          if (hasValidExt) {
+              return candidatePath;
+          }
+      }
+
+      console.warn("Invalid file path resolution:", file, candidatePath);
+      return null;
+  }
+
   async _handleAutoMagic() {
       // 1. Strict Guard: Check files BEFORE anything else
       if (!this._uploadedFiles || this._uploadedFiles.length === 0) {
@@ -676,37 +716,20 @@ export class LessonEditor extends BaseView {
           return;
       }
 
-      // Path Normalization
-      const filePaths = this._uploadedFiles.map(f => {
-          // Priority 1: Direct storagePath property
-          // FIX: explicitly ignore 'undefined' string and ensure it looks like a path
-          if (f.storagePath && f.storagePath !== 'undefined' && f.storagePath !== 'null' && f.storagePath.includes('/')) {
-              return f.storagePath;
-          }
+      // NEW LOGIC:
+      const validFiles = this._uploadedFiles
+          .map(f => ({ file: f, path: this._resolveStoragePath(f) }))
+          .filter(item => item.path !== null);
 
-          // Priority 2: If it's a RAG file, it might be in metadata
-          if (f.metadata && f.metadata.fullPath) return f.metadata.fullPath;
+      const filePaths = validFiles.map(item => item.path);
 
-          // Priority 3: Construct from name (if user ID is available)
-          if (f.name && f.name.includes('.')) {
-               const user = auth.currentUser;
-               if (user) {
-                   return `courses/${user.uid}/${f.name}`;
-               }
-          }
-
-          console.warn("Could not determine storage path for file:", f);
-          return null;
-      })
-      .filter(p => p && p.includes('/')); // STRICT: Ensure valid storage path with slash
+      // PRE-FLIGHT CHECK:
+      if (filePaths.length === 0) {
+          showToast("System Error: No valid file paths found. Please re-upload documents.", true);
+          return; // Stop immediately. Do not call AI.
+      }
 
       console.log("Sending filePaths to Backend:", filePaths);
-
-      if (filePaths.length === 0) {
-           console.error("Frontend Error: Failed to extract storage paths", this._uploadedFiles);
-           showToast(translationService.t('lesson.upload_error'), true);
-           return;
-      }
 
       this._isLoading = true;
       
@@ -888,7 +911,8 @@ export class LessonEditor extends BaseView {
               await processType('text');
           } catch (e) {
               console.error("Failed to generate text:", e);
-              failedTypes.push('text');
+              // CRITICAL FIX: Abort if source text generation fails
+              throw e;
           }
 
           // STRICT Phase 2: Other types sequentially
