@@ -680,7 +680,7 @@ export class LessonEditor extends BaseView {
       const filePaths = this._uploadedFiles.map(f => {
           // Priority 1: Direct storagePath property
           // FIX: explicitly ignore 'undefined' string and ensure it looks like a path
-          if (f.storagePath && f.storagePath !== 'undefined' && f.storagePath.includes('/')) {
+          if (f.storagePath && f.storagePath !== 'undefined' && f.storagePath !== 'null' && f.storagePath.includes('/')) {
               return f.storagePath;
           }
 
@@ -698,7 +698,7 @@ export class LessonEditor extends BaseView {
           console.warn("Could not determine storage path for file:", f);
           return null;
       })
-      .filter(p => p && p.includes('.')); // Filter out paths without extensions (IDs)
+      .filter(p => p && p.includes('/')); // STRICT: Ensure valid storage path with slash
 
       console.log("Sending filePaths to Backend:", filePaths);
 
