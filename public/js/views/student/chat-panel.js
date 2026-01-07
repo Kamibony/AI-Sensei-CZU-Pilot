@@ -3,10 +3,10 @@
 import { LitElement, html } from 'https://cdn.skypack.dev/lit';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { showToast } from '../utils.js';
-import { translationService } from '../utils/translation-service.js';
+import { showToast } from '../../utils/utils.js';
+import { translationService } from '../../utils/translation-service.js';
 import * as firebaseInit from '../firebase-init.js';
-import { getAiAssistantResponse } from '../gemini-api.js';
+import { getAiAssistantResponse } from '../../gemini-api.js';
 
 // --- Sem presúvame logiku pre Firebase Function ---
 let _sendMessageFromStudentCallable = null;

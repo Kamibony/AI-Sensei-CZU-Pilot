@@ -1,6 +1,6 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { getStorage, ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { translationService } from '../utils/translation-service.js';
+import { translationService } from '../../utils/translation-service.js';
 
 export class PodcastComponent extends LitElement {
     static properties = {
