@@ -2,7 +2,7 @@ import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@
 import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import confetti from 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/+esm';
 import * as firebaseInit from '../../firebase-init.js';
-import { showToast } from '../../utils.js';
+import { showToast } from '../../utils/utils.js';
 import { renderPresentation } from '../../student/presentation-handler.js';
 import { translationService } from '../../utils/translation-service.js';
 

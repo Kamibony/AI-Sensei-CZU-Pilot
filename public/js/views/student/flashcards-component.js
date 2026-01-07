@@ -1,5 +1,5 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { translationService } from '../utils/translation-service.js';
+import { translationService } from '../../utils/translation-service.js';
 
 export class FlashcardsComponent extends LitElement {
     static properties = {
