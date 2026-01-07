@@ -5,17 +5,17 @@ import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp 
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { showToast } from '../../utils/utils.js';
 import { translationService } from '../../utils/translation-service.js';
-import * as firebaseInit from '../../firebase-init.js';
+import { functions, db } from '../../firebase-init.js';
 
 // --- Sem presúvame logiku pre Firebase Function ---
 let _sendMessageFromStudentCallable = null;
 function getSendMessageFromStudentCallable() {
     if (!_sendMessageFromStudentCallable) {
-        if (!firebaseInit.functions) {
+        if (!functions) {
             console.error("CRITICAL: Firebase Functions object is still not available when trying to create sendMessageFromStudent callable!");
             throw new Error("Firebase Functions not initialized.");
         }
-        _sendMessageFromStudentCallable = httpsCallable(firebaseInit.functions, 'sendMessageFromStudent');
+        _sendMessageFromStudentCallable = httpsCallable(functions, 'sendMessageFromStudent');
     }
     return _sendMessageFromStudentCallable;
 }
@@ -248,7 +248,7 @@ export class ChatPanel extends LitElement {
 
         try {
             const q = query(
-                collection(firebaseInit.db, `conversations/${this.currentUserData.id}/messages`),
+                collection(db, `conversations/${this.currentUserData.id}/messages`),
                 where("lessonId", "==", this.lessonId),
                 where("type", "==", this.type), 
                 orderBy("timestamp", "asc")
@@ -301,7 +301,7 @@ export class ChatPanel extends LitElement {
         };
 
         try {
-             const messageRef = collection(firebaseInit.db, `conversations/${this.currentUserData.id}/messages`);
+             const messageRef = collection(db, `conversations/${this.currentUserData.id}/messages`);
              await addDoc(messageRef, messageData);
              console.log(`Student message saved to DB for type: ${this.type}`);
              // Zobrazenie v UI rieši onSnapshot
@@ -311,8 +311,8 @@ export class ChatPanel extends LitElement {
                 this.chatHistory = [...this.chatHistory, { sender: 'ai-typing', text: 'píše...' }];
 
                 try {
-                    const getAiAssistantResponse = httpsCallable(firebaseInit.functions, 'getAiAssistantResponse');
-                    const result = await getAiAssistantResponse({
+                    const getAi = httpsCallable(functions, 'getAiAssistantResponse');
+                    const result = await getAi({
                         lessonId: this.lessonId,
                         userQuestion: text
                     });
