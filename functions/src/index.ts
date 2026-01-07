@@ -357,9 +357,15 @@ Use exactly this structure:
                 // Ensure filePath is a valid string
                 if (!filePath || typeof filePath !== "string") continue;
 
+                // --- CRITICAL FIX FOR RAG ---
                 // Extract fileId from storage path `courses/{courseId}/media/{fileId}`
-                const fileId = filePath.split("/").pop();
-                if (!fileId) continue;
+                // Previously, we assumed fileId matches docId exactly.
+                // Now, storage path might be `.../docId.pdf`. We need to strip extension to find Firestore doc.
+                let rawFileId = filePath.split("/").pop();
+                if (!rawFileId) continue;
+
+                // Odstránime príponu (napr. .pdf, .txt), aby sme získali čisté ID dokumentu
+                const fileId = rawFileId.includes('.') ? rawFileId.split('.').shift() : rawFileId;
 
                 const chunksSnapshot = await db.collection(`fileMetadata/${fileId}/chunks`).get();
                 chunksSnapshot.forEach((doc: QueryDocumentSnapshot) => {
@@ -1277,7 +1283,12 @@ exports.getSecureUploadUrl = onCall({ region: DEPLOY_REGION }, async (request: C
         const userId = request.auth.uid;
         // Použijeme ID z Firestore ako unikátny názov súboru
         const docId = db.collection("fileMetadata").doc().id;
-        const filePath = `courses/${courseId}/media/${docId}`;
+        
+        // --- OPRAVA: Pridáme príponu k ID ---
+        const extension = fileName.includes('.') ? fileName.split('.').pop() : "";
+        const finalFileName = extension ? `${docId}.${extension}` : docId;
+        const filePath = `courses/${courseId}/media/${finalFileName}`;
+        // -------------------------------------
 
         // 2. Vytvoríme "placeholder" vo Firestore
         try {
@@ -1287,7 +1298,7 @@ exports.getSecureUploadUrl = onCall({ region: DEPLOY_REGION }, async (request: C
                 fileName: fileName,
                 contentType: contentType,
                 size: size || 0, // Default to 0 if undefined to prevent Firestore error
-                storagePath: filePath, // Uložíme finálnu cestu
+                storagePath: filePath, // Uložíme finálnu cestu (s príponou)
                 status: "pending_upload", // Zatiaľ čaká na nahratie
                 createdAt: FieldValue.serverTimestamp()
             });
