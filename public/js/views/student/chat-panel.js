@@ -6,7 +6,6 @@ import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { showToast } from '../../utils/utils.js';
 import { translationService } from '../../utils/translation-service.js';
 import * as firebaseInit from '../../firebase-init.js';
-import { getAiAssistantResponse } from '../../gemini-api.js';
 
 // --- Sem presúvame logiku pre Firebase Function ---
 let _sendMessageFromStudentCallable = null;
@@ -312,10 +311,12 @@ export class ChatPanel extends LitElement {
                 this.chatHistory = [...this.chatHistory, { sender: 'ai-typing', text: 'píše...' }];
 
                 try {
-                    const response = await getAiAssistantResponse({
+                    const getAiAssistantResponse = httpsCallable(firebaseInit.functions, 'getAiAssistantResponse');
+                    const result = await getAiAssistantResponse({
                         lessonId: this.lessonId,
                         userQuestion: text
                     });
+                    const response = result.data;
                     
                     let aiResponseText = response.error ? `Chyba AI: ${response.error}` : (response.answer || "Omlouvám se, nedostal jsem odpověď.");
 

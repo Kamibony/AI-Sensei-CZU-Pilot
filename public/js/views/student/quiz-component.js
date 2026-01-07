@@ -1,7 +1,7 @@
 // Súbor: public/js/student/quiz-component.js
 
 // ==== ZMENA 1: Opravené importy na verziu, ktorá funguje priamo v prehliadači (pomocou skypack) ====
-import { LitElement, html } from 'https://cdn.skypack.dev/lit';
+import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 // ==============================================================================================
 
 // Tieto importy sú v poriadku
