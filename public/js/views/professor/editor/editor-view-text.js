@@ -43,8 +43,9 @@ export class EditorViewText extends Localized(LitElement) {
                                 <div
                                     class="prose prose-lg prose-slate max-w-none focus:outline-none w-full h-full min-h-[400px]"
                                     contenteditable="true"
+                                    style="white-space: pre-wrap;"
                                     @input="${this._handleInput}"
-                                    .innerText="${this.lesson.text_content}"
+                                    .innerHTML="${this.lesson.text_content}"
                                 ></div>
                             </div>
                         ` : html`

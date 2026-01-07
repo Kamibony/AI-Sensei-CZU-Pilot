@@ -23,8 +23,7 @@ import './editor/editor-view-audio.js';
 import './editor/ai-generator-panel.js';
 import './editor/professor-header-editor.js';
 
-import { processFileForRAG, uploadMultipleFiles, uploadSingleFile } from '../../utils/upload-handler.js';
-import { renderMediaLibraryFiles, getSelectedFiles, clearSelectedFiles } from '../../upload-handler.js';
+import { processFileForRAG, uploadMultipleFiles, uploadSingleFile, renderMediaLibraryFiles, getSelectedFiles, clearSelectedFiles } from '../../utils/upload-handler.js';
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 

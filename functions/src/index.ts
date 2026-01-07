@@ -1560,6 +1560,83 @@ exports.emergency_restoreProfessors = onCall({ region: DEPLOY_REGION }, async (r
 // ==================================================================
 // =================== STUDENT ROLE MIGRATION =======================
 // ==================================================================
+// ==================================================================
+// =================== ADMIN NUKE FUNCTION ==========================
+// ==================================================================
+exports.admin_nuke_all_files = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540, memory: "1GiB" }, async (request: CallableRequest) => {
+    // 1. Authorize: Only the admin can run this
+    if (request.auth?.token.email !== "profesor@profesor.cz") {
+        throw new HttpsError("unauthenticated", "This action requires administrator privileges.");
+    }
+
+    logger.log("WARNING: Nuke initiated by admin. Deleting ALL fileMetadata and Storage files.");
+
+    const fileMetadataCollection = db.collection("fileMetadata");
+    const storage = getStorage();
+    const bucket = storage.bucket(STORAGE_BUCKET);
+
+    let deletedDocs = 0;
+    let deletedFiles = 0;
+    let errors = 0;
+
+    try {
+        // 1. Delete all fileMetadata documents
+        const snapshot = await fileMetadataCollection.get();
+        const batchSize = 400;
+        let batch = db.batch();
+        let operationCounter = 0;
+
+        for (const doc of snapshot.docs) {
+            batch.delete(doc.ref);
+            deletedDocs++;
+            operationCounter++;
+
+            if (operationCounter >= batchSize) {
+                await batch.commit();
+                batch = db.batch();
+                operationCounter = 0;
+            }
+        }
+        if (operationCounter > 0) {
+            await batch.commit();
+        }
+        logger.log(`Deleted ${deletedDocs} fileMetadata documents.`);
+
+        // 2. Delete all files in Storage
+        // WARNING: This deletes everything in the bucket.
+        // We might want to filter by 'courses/' prefix if the bucket is shared?
+        // The requirement says "Delete ALL files in the Storage bucket".
+
+        const [files] = await bucket.getFiles();
+        logger.log(`Found ${files.length} files in storage. Deleting...`);
+
+        // Delete in parallel chunks
+        const chunkSize = 50;
+        for (let i = 0; i < files.length; i += chunkSize) {
+            const chunk = files.slice(i, i + chunkSize);
+            await Promise.all(chunk.map(async (file: any) => {
+                try {
+                    await file.delete();
+                    deletedFiles++;
+                } catch (e) {
+                    logger.warn(`Failed to delete file ${file.name}:`, e);
+                    errors++;
+                }
+            }));
+        }
+        logger.log(`Deleted ${deletedFiles} files from Storage.`);
+
+        return {
+            success: true,
+            message: `Nuke complete. Deleted ${deletedDocs} docs and ${deletedFiles} files. Errors: ${errors}`
+        };
+
+    } catch (error) {
+        logger.error("Critical error during nuke:", error);
+        throw new HttpsError("internal", "Nuke failed.");
+    }
+});
+
 exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     // 1. Authorize: Only the admin can run this
     if (request.auth?.token.email !== "profesor@profesor.cz") {
