@@ -2,7 +2,7 @@ import {
     signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { auth } from './firebase-init.js';
-import { showToast } from './utils.js';
+import { showToast } from './utils/utils.js';
 import { translationService } from './utils/translation-service.js';
 
 // Logic moved to LoginView component. This file now serves as a utility for logout.

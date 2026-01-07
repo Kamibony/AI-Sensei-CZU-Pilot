@@ -38,6 +38,38 @@ export const showToast = (message, type = 'info') => {
 };
 
 /**
+ * Zobrazí globálny spinner s textom
+ * @param {string} message
+ */
+export const showGlobalSpinner = (message = 'Načítám...') => {
+    let spinner = document.getElementById('global-spinner');
+    if (!spinner) {
+        spinner = document.createElement('div');
+        spinner.id = 'global-spinner';
+        spinner.className = 'fixed inset-0 bg-white/80 z-[9999] flex flex-col items-center justify-center';
+        spinner.innerHTML = `
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+            <div id="global-spinner-text" class="text-slate-600 font-medium">${message}</div>
+        `;
+        document.body.appendChild(spinner);
+    } else {
+        const textEl = document.getElementById('global-spinner-text');
+        if (textEl) textEl.textContent = message;
+        spinner.classList.remove('hidden');
+    }
+};
+
+/**
+ * Skryje globálny spinner
+ */
+export const hideGlobalSpinner = () => {
+    const spinner = document.getElementById('global-spinner');
+    if (spinner) {
+        spinner.classList.add('hidden');
+    }
+};
+
+/**
  * Formátuje dátum (Fix pre "Invalid Date")
  * Zvláda: Firebase Timestamp, JS Date object, ISO string, null
  */

@@ -1,6 +1,6 @@
 import { collection, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db, auth } from '../firebase-init.js';
-import { showToast } from '../utils.js';
+import { showToast } from '../utils/utils.js';
 
 export class ProfessorDataService {
     constructor() {

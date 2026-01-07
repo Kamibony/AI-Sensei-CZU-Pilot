@@ -3,7 +3,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import { ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 import { storage } from '../../../firebase-init.js'; // FIX: Import shared storage instance
 import { Localized } from '../../../utils/localization-mixin.js';
-import { showToast } from '../../../utils.js';
+import { showToast } from '../../../utils/utils.js';
 import './professor-header-editor.js';
 
 export class EditorViewAudio extends Localized(LitElement) {

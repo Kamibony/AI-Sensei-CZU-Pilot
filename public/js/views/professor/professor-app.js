@@ -26,7 +26,7 @@ import './professor-classes-view.js';
 
 import { handleLogout } from '../../auth.js';
 import * as firebaseInit from '../../firebase-init.js';
-import { showToast } from '../../utils.js';
+import { showToast } from '../../utils/utils.js';
 
 // Import Data Service
 import { ProfessorDataService } from '../../services/professor-data-service.js';

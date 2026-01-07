@@ -2,12 +2,12 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { auth } from '../../firebase-init.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeCourseMediaUpload } from '../../upload-handler.js';
+import { initializeCourseMediaUpload } from '../../utils/upload-handler.js';
 import * as firebaseInit from '../../firebase-init.js';
 import { storage } from '../../firebase-init.js';
 import { ref, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { collection, query, where, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from '../../utils.js';
+import { showToast } from '../../utils/utils.js';
 import { Localized } from '../../utils/localization-mixin.js';
 
 export class ProfessorMediaView extends Localized(LitElement) {

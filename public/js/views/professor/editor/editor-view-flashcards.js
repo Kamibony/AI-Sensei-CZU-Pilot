@@ -1,7 +1,7 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { callGenerateContent } from '../../../gemini-api.js';
 import { Localized } from '../../../utils/localization-mixin.js';
-import { showToast } from '../../../utils.js';
+import { showToast } from '../../../utils/utils.js';
 import { parseAiResponse } from './utils-parsing.mjs';
 import './professor-header-editor.js';
 
