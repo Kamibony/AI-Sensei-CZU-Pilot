@@ -5,7 +5,7 @@ import { getDoc, doc, collection, query, where, getDocs, orderBy, Timestamp, add
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import * as firebaseInit from '../../firebase-init.js';
-import { showToast } from "../../utils.js";
+import { showToast } from "../../utils/utils.js";
 
 let _getAiStudentSummaryCallable = null;
 

@@ -3,7 +3,7 @@ import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/li
 import { collection, doc, updateDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../../firebase-init.js';
-import { showToast } from '../../utils.js';
+import { showToast } from '../../utils/utils.js';
 import { Localized } from '../../utils/localization-mixin.js';
 
 let sendMessageToStudentCallable = null;

@@ -4,7 +4,7 @@ import { getDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase
 import { initProfessorApp } from './professor.js';
 import { initStudentApp } from './student.js';
 import './views/login-view.js'; // Import component definition
-import { showToast, showGlobalSpinner, hideGlobalSpinner } from './utils.js';
+import { showToast, showGlobalSpinner, hideGlobalSpinner } from './utils/utils.js';
 import { translationService } from './utils/translation-service.js';
 
 // Pomocná funkcia na čakanie na rolu (Backoff strategy)

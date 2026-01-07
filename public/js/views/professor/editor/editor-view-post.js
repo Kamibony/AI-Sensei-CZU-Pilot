@@ -41,7 +41,7 @@ export class EditorViewPost extends LitElement {
     async _generateContent(params) {
         const { functions } = await import('../../../firebase-init.js');
         const { httpsCallable } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js");
-        const { showToast } = await import('../../../utils.js');
+        const { showToast } = await import('../../../utils/utils.js');
 
         const generateContentFunc = httpsCallable(functions, 'generateContent');
 

@@ -4,8 +4,8 @@ import { ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../../../firebase-init.js';
 import { Localized } from '../../../utils/localization-mixin.js';
-import { showToast } from '../../../utils.js';
-import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles, processAndStoreFile, addSelectedFile } from '../../../upload-handler.js';
+import { showToast } from '../../../utils/utils.js';
+import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from '../../../utils/upload-handler.js';
 import { callGenerateContent } from '../../../gemini-api.js';
 
 const btnBase = "px-5 py-2 font-semibold rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:scale-100 flex items-center justify-center";

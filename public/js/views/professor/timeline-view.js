@@ -1,6 +1,6 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from '../../utils.js';
+import { showToast } from '../../utils/utils.js';
 import * as firebaseInit from '../../firebase-init.js';
 import { Localized } from '../../utils/localization-mixin.js';
 import { translationService } from '../../utils/translation-service.js';

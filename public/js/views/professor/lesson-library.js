@@ -1,7 +1,7 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { collection, getDocs, doc, deleteDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
-import { showToast } from '../../utils.js';
+import { showToast } from '../../utils/utils.js';
 import { Localized } from '../../utils/localization-mixin.js';
 
 // === Štýly ===
