@@ -598,7 +598,8 @@ export class LessonEditor extends BaseView {
       const updatedSlides = [...slides];
 
       for (const [index, slide] of updatedSlides.entries()) {
-          if (slide.visual_idea) {
+          // Robust check: Ensure prompt exists and is not empty
+          if (slide.visual_idea && slide.visual_idea.trim().length > 0) {
               let base64Data = '';
               try {
                   const imgResult = await callWithRetry(callGenerateImage, [slide.visual_idea], 3);
@@ -624,6 +625,9 @@ export class LessonEditor extends BaseView {
                       if ('backgroundImage' in updatedSlides[index]) delete updatedSlides[index].backgroundImage;
                   } catch (e) { console.warn("Upload failed", e); }
               }
+          } else {
+              console.warn(`Slide ${index} missing visual_idea. Skipping image generation.`);
+              // Optional: Assign a placeholder or keep existing background
           }
       }
       return updatedSlides;
@@ -636,7 +640,8 @@ export class LessonEditor extends BaseView {
        const updatedPanels = [...panels];
 
        for (const [index, panel] of updatedPanels.entries()) {
-           if (panel.description) {
+           // Robust check: Ensure prompt exists
+           if (panel.description && panel.description.trim().length > 0) {
               let base64Data = '';
               try {
                   const imgResult = await callWithRetry(callGenerateImage, [`Comic style, ${panel.description}`], 3);
@@ -659,6 +664,8 @@ export class LessonEditor extends BaseView {
                        updatedPanels[index] = { ...panel, imageUrl: url };
                    } catch (e) {}
               }
+           } else {
+               console.warn(`Panel ${index} missing description. Skipping image generation.`);
            }
        }
        return updatedPanels;
