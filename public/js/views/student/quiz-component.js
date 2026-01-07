@@ -6,7 +6,7 @@ import { LitElement, html } from 'https://cdn.skypack.dev/lit';
 
 // Tieto importy sú v poriadku
 import { showToast } from '../../utils/utils.js';
-import * as firebaseInit from '../firebase-init.js';
+import * as firebaseInit from '../../firebase-init.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
 // --- Logika pre Firebase Function (zostáva rovnaká) ---
