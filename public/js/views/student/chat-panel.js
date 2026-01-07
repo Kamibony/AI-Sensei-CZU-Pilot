@@ -5,7 +5,7 @@ import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp 
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { showToast } from '../../utils/utils.js';
 import { translationService } from '../../utils/translation-service.js';
-import * as firebaseInit from '../firebase-init.js';
+import * as firebaseInit from '../../firebase-init.js';
 import { getAiAssistantResponse } from '../../gemini-api.js';
 
 // --- Sem presúvame logiku pre Firebase Function ---

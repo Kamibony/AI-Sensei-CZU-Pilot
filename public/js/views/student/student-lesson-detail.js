@@ -3,16 +3,16 @@ import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, setDoc } from "https://
 import confetti from 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/+esm';
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast } from '../../utils/utils.js';
-import { renderPresentation } from '../../student/presentation-handler.js';
+import { renderPresentation } from './presentation-handler.js';
 import { translationService } from '../../utils/translation-service.js';
 
-import '../../student/quiz-component.js';
-import '../../student/test-component.js';
-import '../../student/podcast-component.js';
-import '../../student/chat-panel.js';
-import '../../student/flashcards-component.js';
-import '../../student/mindmap-component.js';
-import '../../student/comic-component.js'; // Import Comic Component
+import './quiz-component.js';
+import './test-component.js';
+import './podcast-component.js';
+import './chat-panel.js';
+import './flashcards-component.js';
+import './mindmap-component.js';
+import './comic-component.js'; // Import Comic Component
 
 function normalizeLessonData(rawData) {
     const normalized = { ...rawData };
