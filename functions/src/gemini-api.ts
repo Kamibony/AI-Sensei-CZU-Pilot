@@ -433,6 +433,28 @@ async function generateImageFromPrompt(prompt: string): Promise<string> {
 }
 // exports.generateImageFromPrompt = generateImageFromPrompt;
 
+async function generateTextFromMultimodal(prompt: string, base64Data: string, mimeType: string): Promise<string> {
+    const model = await getGenerativeModel();
+    const result = await model.generateContent({
+        contents: [{
+            role: 'user',
+            parts: [
+                { text: prompt },
+                {
+                    inlineData: {
+                        mimeType: mimeType,
+                        data: base64Data
+                    }
+                }
+            ]
+        }]
+    });
+
+    const response = await result.response;
+    const text = response.candidates?.[0].content.parts[0].text;
+    return text || "";
+}
+
 export {
     getEmbeddings,
     calculateCosineSimilarity,
@@ -440,5 +462,6 @@ export {
     generateJsonFromPrompt,
     generateTextFromDocuments,
     generateJsonFromDocuments,
-    generateImageFromPrompt
+    generateImageFromPrompt,
+    generateTextFromMultimodal
 };
