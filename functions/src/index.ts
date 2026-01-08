@@ -13,8 +13,10 @@ const cors = require("cors");
 const fetch = require("node-fetch");
 const textToSpeech = require("@google-cloud/text-to-speech"); // Import pre TTS
 
+// Import local API using TypeScript syntax
+import * as GeminiAPI from './gemini-api';
+
 // Lazy load heavy dependencies
-// const GeminiAPI = require("./gemini-api.js");
 // const pdf = require("pdf-parse");
 
 const DEPLOY_REGION = "europe-west1";
@@ -49,6 +51,152 @@ async function sendTelegramMessage(chatId: number, text: string) {
         logger.error("Error sending Telegram message:", error);
     }
 }
+
+exports.startMagicGeneration = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 540,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can start magic generation.");
+    }
+
+    const { lessonId, filePaths, lessonTopic } = request.data;
+    if (!lessonId) {
+        throw new HttpsError("invalid-argument", "Missing lessonId.");
+    }
+
+    const lessonRef = db.collection("lessons").doc(lessonId);
+    await lessonRef.update({ magicStatus: "generating", magicProgress: "Starting analysis..." });
+
+    try {
+        const pdf = require("pdf-parse");
+        const bucket = getStorage().bucket(STORAGE_BUCKET);
+
+        // 1. PDF Extraction
+        let fullTextContext = "";
+        if (filePaths && filePaths.length > 0) {
+            await lessonRef.update({ magicProgress: "Reading files..." });
+            for (const path of filePaths) {
+                try {
+                     const file = bucket.file(path);
+                     const [exists] = await file.exists();
+                     if (!exists) {
+                         logger.warn(`File not found: ${path}`);
+                         continue;
+                     }
+
+                     const [buffer] = await file.download();
+                     let text = "";
+                     if (path.toLowerCase().endsWith(".pdf")) {
+                         const pdfData = await pdf(buffer);
+                         text = pdfData.text;
+                         logger.log(`[Magic] PDF ${path}: ${text.length} chars. Snippet: "${text.substring(0, 100)}..."`);
+                     } else {
+                         text = buffer.toString("utf-8");
+                         logger.log(`[Magic] Text File ${path}: ${text.length} chars.`);
+                     }
+
+                     if (!text || text.trim().length < 50) {
+                         logger.warn(`[Magic] File ${path} has very little text.`);
+                     }
+
+                     fullTextContext += `\n\n--- File: ${path} ---\n${text}`;
+                } catch (e: any) {
+                    logger.error(`Failed to read file ${path}`, e);
+                }
+            }
+        }
+
+        // 2. Generate Content (Task A)
+        await lessonRef.update({ magicProgress: "Generating study material..." });
+
+        const title = (await lessonRef.get()).data()?.title || "Lesson";
+        const topic = lessonTopic || "";
+        const lang = "Czech";
+
+        const contextPrompt = `
+        Source Material:
+        ${fullTextContext.substring(0, 30000)}
+
+        Task: Create a comprehensive study lesson about "${title}" ${topic ? `(${topic})` : ""}.
+        Language: ${lang}.
+        Output: JSON with structure { "title": "...", "sections": [ { "heading": "...", "content": "..." } ] }
+        `;
+
+        const textJson = await GeminiAPI.generateJsonFromPrompt(contextPrompt);
+
+        let markdownText = `# ${textJson.title}\n\n`;
+        if (textJson.sections && Array.isArray(textJson.sections)) {
+            markdownText += textJson.sections.map((s: any) => `## ${s.heading}\n${s.content}`).join("\n\n");
+        } else {
+            markdownText = JSON.stringify(textJson);
+        }
+
+        await lessonRef.update({
+            text_content: markdownText,
+            magicProgress: "Creating visual aids and quiz..."
+        });
+
+        // 3. Parallel Tasks (Images, Quiz, Flashcards)
+        const tasks = [];
+
+        // Task B: Presentation & Images
+        tasks.push((async () => {
+             const slidesPrompt = `Based on this text, create 8 presentation slides. Return JSON: { "slides": [ { "title": "...", "points": ["..."], "visual_idea": "..." } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
+             const slidesData = await GeminiAPI.generateJsonFromPrompt(slidesPrompt);
+
+             if (slidesData.slides) {
+                 const slidePromises = slidesData.slides.map(async (slide: any, index: number) => {
+                     if (slide.visual_idea && slide.visual_idea.trim() !== "") {
+                         try {
+                             const imageBase64 = await GeminiAPI.generateImageFromPrompt(slide.visual_idea);
+                             const fileName = `magic_slide_${lessonId}_${index}.png`;
+                             const storagePath = `courses/${request.auth!.uid}/media/generated/${fileName}`;
+                             const file = bucket.file(storagePath);
+                             await file.save(Buffer.from(imageBase64, 'base64'), { metadata: { contentType: 'image/png' } });
+                             const [url] = await file.getSignedUrl({ action: 'read', expires: '01-01-2030' });
+                             slide.imageUrl = url;
+                         } catch (err: any) {
+                             logger.warn(`Image gen failed for slide ${index}: ${err.message}`);
+                             slide.imageError = "Generation failed";
+                         }
+                     } else {
+                         slide.imageUrl = null;
+                     }
+                     return slide;
+                 });
+                 slidesData.slides = await Promise.all(slidePromises);
+             }
+             await lessonRef.update({ presentation: slidesData });
+        })());
+
+        // Task C: Quiz
+        tasks.push((async () => {
+             const quizPrompt = `Create 5 quiz questions based on this text. Return JSON: { "questions": [ { "question_text": "...", "options": ["..."], "correct_option_index": 0 } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
+             const quizData = await GeminiAPI.generateJsonFromPrompt(quizPrompt);
+             await lessonRef.update({ quiz: quizData });
+        })());
+
+        // Task D: Flashcards
+        tasks.push((async () => {
+             const fcPrompt = `Create 10 flashcards based on this text. Return JSON: { "cards": [ { "front": "...", "back": "..." } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
+             const fcData = await GeminiAPI.generateJsonFromPrompt(fcPrompt);
+             await lessonRef.update({ flashcards: fcData });
+        })());
+
+        await Promise.all(tasks);
+
+        await lessonRef.update({ magicStatus: "ready", magicProgress: "Done!" });
+        return { success: true };
+
+    } catch (error: any) {
+        logger.error("Magic Generation Error", error);
+        await lessonRef.update({ magicStatus: "error", magicProgress: `Error: ${error.message}` });
+        throw new HttpsError("internal", error.message);
+    }
+});
+
 
 // NOVÁ FUNKCIA: Generovanie profesionálneho audia (MP3) pomocou Google Cloud TTS - MULTI-VOICE
 exports.generatePodcastAudio = onCall({
