@@ -502,9 +502,11 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
             const pdfData = await pdf(fileBuffer);
             text = pdfData.text;
 
-            // Debug logs for PDF extraction
+            // --- DEBUG LOGGING FOR PDF EXTRACTION ---
             logger.log(`[RAG] PDF Stats - Pages: ${pdfData.numpages}, Text Length: ${text.length}`);
-            logger.log(`[RAG] Extracted Text Snippet (first 100 chars): ${text.substring(0, 100)}`);
+            logger.log(`[RAG] Extracted Text Snippet (first 100 chars): "${text.substring(0, 100)}"`);
+            // ----------------------------------------
+
         } catch (pdfError: any) {
             logger.error("[RAG] PDF parsing failed:", pdfError);
             throw new HttpsError("invalid-argument", `Failed to parse PDF file: ${pdfError.message || "Unknown PDF error"}`);
