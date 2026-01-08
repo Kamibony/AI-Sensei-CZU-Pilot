@@ -8,6 +8,7 @@ const { getStorage } = require("firebase-admin/storage");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onRequest } = require("firebase-functions/v2/https");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const functions = require("firebase-functions"); // Import v1 for triggers
 const logger = require("firebase-functions/logger");
 const cors = require("cors");
 const fetch = require("node-fetch");
@@ -1408,15 +1409,15 @@ exports.admin_setUserRole = onCall({ region: DEPLOY_REGION }, async (request: Ca
     }
 });
 
-exports.onUserCreate = onDocumentCreated({document: "users/{userId}", region: DEPLOY_REGION }, async (event: FirestoreEvent<QueryDocumentSnapshot | undefined>) => {
-    const snapshot = event.data;
-    if (!snapshot) {
+exports.onUserCreate = functions.region(DEPLOY_REGION).firestore.document("users/{userId}").onCreate(async (snapshot: any, context: any) => {
+    const data = snapshot.data();
+    if (!data) {
         logger.log("No data associated with the event");
         return;
     }
-    const data = snapshot.data();
+
     const role = data.role || "student"; // Default to 'student' if role is not set
-    const userId = event.params.userId;
+    const userId = context.params.userId;
 
     try {
         // Check if user already has a claim (e.g. set by registerUserWithRole)
