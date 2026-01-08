@@ -92,6 +92,18 @@ exports.startMagicGeneration = onCall({
                          const pdfData = await pdf(buffer);
                          text = pdfData.text;
                          logger.log(`[Magic] PDF ${path}: ${text.length} chars. Snippet: "${text.substring(0, 100)}..."`);
+
+                         // --- FALLBACK: Gemini Vision for Scans ---
+                         if (text.trim().length < 100) {
+                             logger.warn(`[Magic] Low text detected in ${path}. Attempting Vision OCR...`);
+                             // Convert PDF buffer to Base64
+                             const pdfBase64 = buffer.toString('base64');
+                             // Call Gemini Flash (cheaper/faster) to extract text
+                             const visionPrompt = "Extract all readable text from this document verbatim.";
+                             const visionText = await GeminiAPI.generateTextFromMultimodal(visionPrompt, pdfBase64, "application/pdf");
+                             text = visionText || "";
+                             logger.log(`[Magic] Vision OCR result: ${text.length} chars.`);
+                         }
                      } else {
                          text = buffer.toString("utf-8");
                          logger.log(`[Magic] Text File ${path}: ${text.length} chars.`);
