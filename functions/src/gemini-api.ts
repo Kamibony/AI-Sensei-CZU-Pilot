@@ -463,5 +463,7 @@ export {
     generateTextFromDocuments,
     generateJsonFromDocuments,
     generateImageFromPrompt,
-    generateTextFromMultimodal
+    generateTextFromMultimodal,
+    downloadFileWithRetries,
+    sanitizeStoragePath
 };

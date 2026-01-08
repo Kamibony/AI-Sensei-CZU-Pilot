@@ -78,25 +78,23 @@ exports.startMagicGeneration = onCall({
         let fullTextContext = "";
         if (filePaths && filePaths.length > 0) {
             await lessonRef.update({ magicProgress: "Reading files..." });
-            for (const path of filePaths) {
+            for (const rawPath of filePaths) {
                 try {
-                     const file = bucket.file(path);
-                     const [exists] = await file.exists();
-                     if (!exists) {
-                         logger.warn(`File not found: ${path}`);
-                         continue;
-                     }
+                     // USE ROBUST PATH FINDER
+                     const cleanPath = GeminiAPI.sanitizeStoragePath(rawPath, bucket.name);
+                     const { buffer, finalPath } = await GeminiAPI.downloadFileWithRetries(bucket, cleanPath);
 
-                     const [buffer] = await file.download();
+                     logger.log(`[Magic] Successfully read file. Original: '${rawPath}', Final: '${finalPath}'`);
+
                      let text = "";
-                     if (path.toLowerCase().endsWith(".pdf")) {
+                     if (finalPath.toLowerCase().endsWith(".pdf")) {
                          const pdfData = await pdf(buffer);
                          text = pdfData.text;
-                         logger.log(`[Magic] PDF ${path}: ${text.length} chars. Snippet: "${text.substring(0, 100)}..."`);
+                         logger.log(`[Magic] PDF ${finalPath}: ${text.length} chars. Snippet: "${text.substring(0, 100)}..."`);
 
                          // --- FALLBACK: Gemini Vision for Scans ---
                          if (text.trim().length < 100) {
-                             logger.warn(`[Magic] Low text detected in ${path}. Attempting Vision OCR...`);
+                             logger.warn(`[Magic] Low text detected in ${finalPath}. Attempting Vision OCR...`);
                              // Convert PDF buffer to Base64
                              const pdfBase64 = buffer.toString('base64');
                              // Call Gemini Flash (cheaper/faster) to extract text
@@ -107,16 +105,16 @@ exports.startMagicGeneration = onCall({
                          }
                      } else {
                          text = buffer.toString("utf-8");
-                         logger.log(`[Magic] Text File ${path}: ${text.length} chars.`);
+                         logger.log(`[Magic] Text File ${finalPath}: ${text.length} chars.`);
                      }
 
                      if (!text || text.trim().length < 50) {
-                         logger.warn(`[Magic] File ${path} has very little text.`);
+                         logger.warn(`[Magic] File ${finalPath} has very little text.`);
                      }
 
-                     fullTextContext += `\n\n--- File: ${path} ---\n${text}`;
+                     fullTextContext += `\n\n--- File: ${finalPath} ---\n${text}`;
                 } catch (e: any) {
-                    logger.error(`Failed to read file ${path}`, e);
+                    logger.error(`Failed to read file ${rawPath}`, e);
                 }
             }
         }
