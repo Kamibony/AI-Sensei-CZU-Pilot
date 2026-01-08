@@ -169,7 +169,7 @@ async function getEmbeddings(text: string): Promise<number[]> {
         throw new HttpsError("internal", "An unknown error occurred while generating embeddings.");
     }
 }
-exports.getEmbeddings = getEmbeddings;
+// exports.getEmbeddings = getEmbeddings;
 
 function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
     if (vecA.length !== vecB.length) {
@@ -190,7 +190,7 @@ function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
     }
     return dotProduct / (magA * magB);
 }
-exports.calculateCosineSimilarity = calculateCosineSimilarity;
+// exports.calculateCosineSimilarity = calculateCosineSimilarity;
 
 async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
     const functionName = requestBody.generationConfig?.responseMimeType === "application/json"
@@ -232,7 +232,7 @@ async function generateTextFromPrompt(prompt: string): Promise<string> {
     };
     return await streamGeminiResponse(request);
 }
-exports.generateTextFromPrompt = generateTextFromPrompt;
+// exports.generateTextFromPrompt = generateTextFromPrompt;
 
 async function generateJsonFromPrompt(prompt: string): Promise<any> {
     const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
@@ -252,7 +252,7 @@ async function generateJsonFromPrompt(prompt: string): Promise<any> {
         throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText });
     }
 }
-exports.generateJsonFromPrompt = generateJsonFromPrompt;
+// exports.generateJsonFromPrompt = generateJsonFromPrompt;
 
 async function generateTextFromDocuments(filePaths: string[], prompt: string): Promise<string> {
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
@@ -295,7 +295,7 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
     };
     return await streamGeminiResponse(request);
 }
-exports.generateTextFromDocuments = generateTextFromDocuments;
+// exports.generateTextFromDocuments = generateTextFromDocuments;
 
 async function generateJsonFromDocuments(filePaths: string[], prompt: string): Promise<any> {
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
@@ -344,7 +344,7 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
         throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText });
     }
 }
-exports.generateJsonFromDocuments = generateJsonFromDocuments;
+// exports.generateJsonFromDocuments = generateJsonFromDocuments;
 
 async function generateImageFromPrompt(prompt: string): Promise<string> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
@@ -431,4 +431,14 @@ async function generateImageFromPrompt(prompt: string): Promise<string> {
         }
     }
 }
-exports.generateImageFromPrompt = generateImageFromPrompt;
+// exports.generateImageFromPrompt = generateImageFromPrompt;
+
+export {
+    getEmbeddings,
+    calculateCosineSimilarity,
+    generateTextFromPrompt,
+    generateJsonFromPrompt,
+    generateTextFromDocuments,
+    generateJsonFromDocuments,
+    generateImageFromPrompt
+};

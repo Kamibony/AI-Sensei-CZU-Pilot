@@ -1,6 +1,6 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { BaseView } from './base-view.js';
-import { doc, getDoc, updateDoc, setDoc, arrayUnion, arrayRemove, collection, getDocs, where, query } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, updateDoc, setDoc, arrayUnion, arrayRemove, collection, getDocs, where, query, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { ref, getDownloadURL, uploadString } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { db, auth, functions, storage } from '../../firebase-init.js';
 import { showToast } from '../../utils/utils.js';
@@ -96,6 +96,7 @@ export class LessonEditor extends BaseView {
     this._uploadedFiles = [];
     this._unsubscribe = null;
     this._authUnsubscribe = null;
+    this._magicUnsubscribe = null;
     this._wizardMode = true;
     this._activeTool = null;
     this._isGenerating = false;
@@ -141,6 +142,10 @@ export class LessonEditor extends BaseView {
                 this._initNewLesson();
             }
         }
+
+        if (this.lesson && this.lesson.magicStatus === 'generating') {
+            this._startMagicListener();
+        }
     }
   }
 
@@ -181,6 +186,7 @@ export class LessonEditor extends BaseView {
       this.removeEventListener('lesson-updated', this._handleLessonUpdatedEvent);
       if (this._unsubscribe) this._unsubscribe();
       if (this._authUnsubscribe) this._authUnsubscribe();
+      if (this._magicUnsubscribe) this._magicUnsubscribe();
       if (this._loadingTimeout) clearTimeout(this._loadingTimeout);
   }
 
@@ -724,230 +730,86 @@ export class LessonEditor extends BaseView {
           return;
       }
 
-      // NEW LOGIC:
+      // 2. Resolve paths
       const validFiles = this._uploadedFiles
           .map(f => ({ file: f, path: this._resolveStoragePath(f) }))
           .filter(item => item.path !== null);
-
       const filePaths = validFiles.map(item => item.path);
 
-      // PRE-FLIGHT CHECK:
       if (filePaths.length === 0) {
           showToast("System Error: No valid file paths found. Please re-upload documents.", true);
-          return; // Stop immediately. Do not call AI.
-      }
-
-      console.log("Sending filePaths to Backend:", filePaths);
-
-      this._isLoading = true;
-      
-      try {
-          await this._handleSave();
-          this._wizardMode = false;
-          this.requestUpdate();
-      } catch (e) {
-          console.error("Save failed before magic:", e);
-          showToast(translationService.t('lesson.save_error_before_magic'), true);
-          this._isLoading = false;
           return;
       }
 
-      const allTypes = ['text', 'presentation', 'quiz', 'test', 'post', 'flashcards', 'mindmap', 'comic', 'audio'];
-      let successCount = 0;
-      let failedTypes = [];
-
-      // Reusable generation logic
-      const processType = async (type) => {
-            let contentType = type;
-            this._magicStatus = `${translationService.t('common.magic_status_generating')} (${successCount + failedTypes.length + 1}/${allTypes.length}): ${(translationService.t(`content_types.${type}`) || type).toUpperCase()}...`;
-            this.requestUpdate();
-
-            let promptData = { userPrompt: '', isMagic: true };
-
-            // STRICT: Pass sourceText if available (Sequential Generation Fix)
-            if (type !== 'text' && this.lesson.text_content) {
-                promptData.sourceText = this.lesson.text_content;
-            }
-
-            const title = this.lesson.title;
-            const topic = this.lesson.topic ? `(${this.lesson.topic})` : '';
-
-            switch (type) {
-                case 'text':
-                    promptData.userPrompt = translationService.t('prompts.text_gen', { title, topic });
-                    break;
-                case 'presentation':
-                    promptData.userPrompt = translationService.t('prompts.presentation_gen', { title });
-                    promptData.slide_count = 8;
-                    break;
-                case 'quiz':
-                    promptData.question_count = 5;
-                    promptData.userPrompt = translationService.t('prompts.quiz_gen', { title });
-                    break;
-                case 'test':
-                    promptData.question_count = 10;
-                    promptData.difficulty = 'Střední';
-                    promptData.userPrompt = translationService.t('prompts.test_gen', { title });
-                    break;
-                case 'post':
-                    promptData.episode_count = 3;
-                    promptData.userPrompt = translationService.t('prompts.podcast_gen', { title });
-                    break;
-                case 'flashcards':
-                    promptData.userPrompt = translationService.t('prompts.flashcards_gen', { title });
-                    break;
-                case 'mindmap':
-                    promptData.userPrompt = translationService.t('prompts.mindmap_gen', { title });
-                    break;
-                case 'comic':
-                    promptData.userPrompt = translationService.t('prompts.comic_gen', { title });
-                    break;
-                case 'audio':
-                     promptData.userPrompt = translationService.t('prompts.audio_gen', { title }) || `Write a podcast script about ${title}`;
-                     break;
-            }
-
-            const currentLocale = translationService.locale || 'cs';
-            promptData.userPrompt += `\n\nIMPORTANT: The output MUST be in ${currentLocale} language only.`;
-
-            const generateContentFunc = httpsCallable(functions, 'generateContent');
-            const result = await generateContentFunc({
-                contentType: contentType,
-                promptData: promptData,
-                filePaths: filePaths
-            });
-
-            let responseData = result.data;
-
-            if (typeof responseData === 'string') {
-                // STRIP MARKDOWN CODE BLOCKS
-                const cleanJson = responseData.replace(/^```json\s*|\s*```$/g, '').trim();
-                try {
-                    responseData = JSON.parse(cleanJson);
-                } catch (e) {
-                    console.warn("Failed to parse JSON even after cleaning:", e);
-                    // Fallback: keep responseData as string
-                }
-            }
-
-            if (responseData && (responseData.error || responseData.chyba)) {
-                const msg = responseData.message || responseData.zpráva || responseData.error || responseData.chyba;
-                throw new Error(msg);
-            }
-
-            let data = JSON.parse(JSON.stringify(responseData));
-
-            // Post-processing: Images & Audio
-            if (type === 'post' && data.podcast_series && data.podcast_series.episodes) {
-                 this._magicStatus = `🎙️ ${translationService.t('professor.editor.generating_audio')}`;
-                 this.requestUpdate();
-                 const generateAudioFunc = httpsCallable(functions, 'generatePodcastAudio');
-                 for (const [index, ep] of data.podcast_series.episodes.entries()) {
-                     if (!ep.script) continue;
-                     try {
-                        const audioResult = await generateAudioFunc({
-                            lessonId: this.lesson.id,
-                            text: ep.script,
-                            episodeIndex: index,
-                            language: translationService.currentLanguage
-                        });
-                        if (audioResult.data && audioResult.data.storagePath) {
-                            const storageRef = ref(storage, audioResult.data.storagePath);
-                            const url = await getDownloadURL(storageRef);
-                            data.podcast_series.episodes[index] = { ...ep, audioUrl: url, storagePath: audioResult.data.storagePath };
-                        }
-                     } catch (err) { console.warn("Audio gen failed", err); }
-                 }
-            }
-
-            if (type === 'presentation' && data.slides) {
-                data.slides = await this._generateImagesForSlides(data.slides);
-            }
-
-             if (type === 'comic' && data.panels) {
-                 data.panels = await this._generateImagesForComic(data.panels);
-             }
-
-            // Apply data to lesson
-            switch (type) {
-                case 'text':
-                    let textContent = data.text || data;
-                    if (typeof textContent === 'object') {
-                         if (textContent.prompts && Array.isArray(textContent.prompts)) {
-                            textContent = textContent.prompts.map(p => `### ${p.nadpis}\n${p.prompt}\n\n*${p.popis}*`).join('\n\n---\n\n');
-                         } else {
-                            textContent = JSON.stringify(textContent, null, 2);
-                         }
-                    }
-                    this.lesson = { ...this.lesson, text_content: textContent };
-                    break;
-                case 'presentation':
-                    this.lesson = { ...this.lesson, presentation: { slides: data.slides, styleId: 'default' } };
-                    break;
-                case 'quiz':
-                    this.lesson = { ...this.lesson, quiz: { questions: data.questions } };
-                    break;
-                case 'test':
-                    this.lesson = { ...this.lesson, test: { questions: data.questions } };
-                    break;
-                case 'post':
-                    const textRep = data.lesson ? `${data.lesson.title}\n\n${data.lesson.description}\n\n${(data.lesson.modules||[]).map(m=>m.title+': '+m.content).join('\n')}` : JSON.stringify(data);
-                    this.lesson = { ...this.lesson, postContent: data, content: { text: textRep, author: 'ai_sensei' } };
-                    break;
-                case 'flashcards':
-                    this.lesson = { ...this.lesson, flashcards: data };
-                    break;
-                case 'mindmap':
-                    this.lesson = { ...this.lesson, mindmap: data };
-                    break;
-                case 'comic':
-                    this.lesson = { ...this.lesson, comic: data };
-                    break;
-                case 'audio':
-                    const audioScript = data.script || data.text || (typeof data === 'string' ? data : '');
-                    this.lesson = { ...this.lesson, content: { ...this.lesson.content, script: audioScript } };
-                    break;
-            }
-
-            await this._handleSave();
-            successCount++;
-      };
+      console.log("Starting Magic Generation with files:", filePaths);
+      this._isLoading = true;
+      this._magicStatus = translationService.t('common.magic_status_generating') || "Starting magic...";
+      this.requestUpdate();
 
       try {
-          // STRICT Phase 1: Text First
-          try {
-              await processType('text');
-          } catch (e) {
-              console.error("Failed to generate text:", e);
-              // CRITICAL FIX: Abort if source text generation fails
-              throw e;
-          }
+          // Save lesson first
+          await this._handleSave();
 
-          // STRICT Phase 2: Other types sequentially
-          const otherTypes = allTypes.filter(t => t !== 'text');
-          for (const type of otherTypes) {
-             try {
-                await processType(type);
-             } catch (error) {
-                 console.error(`Failed to generate ${type}:`, error);
-                 failedTypes.push(type);
-             }
-          }
+          // Start listener immediately
+          this._startMagicListener();
 
-          const msg = `${translationService.t('lesson.magic_done_stats', { success: successCount, total: allTypes.length })}` +
-                      (failedTypes.length ? ` ${translationService.t('common.errors')}: ${failedTypes.join(', ')}` : '');
-          showToast(msg, failedTypes.length > 0);
+          // Call backend (fire and forget-ish, handled by listener)
+          const startMagic = httpsCallable(functions, 'startMagicGeneration');
+          startMagic({
+              lessonId: this.lesson.id,
+              filePaths: filePaths,
+              lessonTopic: this.lesson.topic || ""
+          }).catch(err => {
+              console.error("Magic Generation Start Error:", err);
+              showToast("Failed to start generation: " + err.message, true);
+              this._isLoading = false;
+          });
 
-      } catch (fatalError) {
-          console.error("Fatal Magic Error:", fatalError);
-          showToast(translationService.t('common.error'), true);
-      } finally {
+      } catch (e) {
+          console.error("Magic setup failed:", e);
+          showToast(translationService.t('lesson.save_error_before_magic'), true);
           this._isLoading = false;
-          this._magicStatus = '';
-          this._wizardMode = false;
-          this._activeTool = null;
-          this.requestUpdate();
       }
+  }
+
+  _startMagicListener() {
+      if (this._magicUnsubscribe) return;
+
+      console.log("Starting Magic Listener for lesson:", this.lesson.id);
+      const lessonRef = doc(db, 'lessons', this.lesson.id);
+
+      this._magicUnsubscribe = onSnapshot(lessonRef, (docSnap) => {
+          if (docSnap.exists()) {
+              const data = docSnap.data();
+              this.lesson = { ...this.lesson, ...data };
+
+              if (data.magicStatus === 'generating') {
+                   this._isLoading = true;
+                   this._magicStatus = data.magicProgress || "Generating...";
+              } else if (data.magicStatus === 'ready') {
+                   this._isLoading = false;
+                   this._magicStatus = "";
+                   this._wizardMode = false;
+                   showToast(translationService.t('lesson.magic_done') || "Magic generation complete!");
+
+                   // Clean up listener
+                   if (this._magicUnsubscribe) {
+                       this._magicUnsubscribe();
+                       this._magicUnsubscribe = null;
+                   }
+              } else if (data.magicStatus === 'error') {
+                   this._isLoading = false;
+                   showToast("Generation error occurred.", true);
+                   if (this._magicUnsubscribe) {
+                       this._magicUnsubscribe();
+                       this._magicUnsubscribe = null;
+                   }
+              }
+              this.requestUpdate();
+          }
+      }, (error) => {
+          console.error("Magic listener error:", error);
+      });
   }
 
   // ... rest of the file (methods after _handleAutoMagic)
