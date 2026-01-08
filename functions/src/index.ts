@@ -8,6 +8,7 @@ const { getStorage } = require("firebase-admin/storage");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onRequest } = require("firebase-functions/v2/https");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const functions = require("firebase-functions/v1"); // Import v1 for triggers
 const logger = require("firebase-functions/logger");
 const cors = require("cors");
 const fetch = require("node-fetch");
@@ -92,6 +93,18 @@ exports.startMagicGeneration = onCall({
                          const pdfData = await pdf(buffer);
                          text = pdfData.text;
                          logger.log(`[Magic] PDF ${path}: ${text.length} chars. Snippet: "${text.substring(0, 100)}..."`);
+
+                         // --- FALLBACK: Gemini Vision for Scans ---
+                         if (text.trim().length < 100) {
+                             logger.warn(`[Magic] Low text detected in ${path}. Attempting Vision OCR...`);
+                             // Convert PDF buffer to Base64
+                             const pdfBase64 = buffer.toString('base64');
+                             // Call Gemini Flash (cheaper/faster) to extract text
+                             const visionPrompt = "Extract all readable text from this document verbatim.";
+                             const visionText = await GeminiAPI.generateTextFromMultimodal(visionPrompt, pdfBase64, "application/pdf");
+                             text = visionText || "";
+                             logger.log(`[Magic] Vision OCR result: ${text.length} chars.`);
+                         }
                      } else {
                          text = buffer.toString("utf-8");
                          logger.log(`[Magic] Text File ${path}: ${text.length} chars.`);
@@ -1396,15 +1409,15 @@ exports.admin_setUserRole = onCall({ region: DEPLOY_REGION }, async (request: Ca
     }
 });
 
-exports.onUserCreate = onDocumentCreated({document: "users/{userId}", region: DEPLOY_REGION }, async (event: FirestoreEvent<QueryDocumentSnapshot | undefined>) => {
-    const snapshot = event.data;
-    if (!snapshot) {
+exports.onUserCreate = functions.firestore.document("users/{userId}").onCreate(async (snapshot: any, context: any) => {
+    const data = snapshot.data();
+    if (!data) {
         logger.log("No data associated with the event");
         return;
     }
-    const data = snapshot.data();
+
     const role = data.role || "student"; // Default to 'student' if role is not set
-    const userId = event.params.userId;
+    const userId = context.params.userId;
 
     try {
         // Check if user already has a claim (e.g. set by registerUserWithRole)
