@@ -1,5 +1,5 @@
 import { ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { collection, addDoc, doc, setDoc, updateDoc, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, addDoc, doc, setDoc, updateDoc, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { storage, db, functions, auth } from '../firebase-init.js';
 import { translationService } from "./translation-service.js";
@@ -86,8 +86,11 @@ export async function renderMediaLibraryFiles(courseId, listElementId) {
 
         let allFiles = querySnapshot.docs.map(doc => {
             const data = doc.data();
-            return { name: data.fileName, fullPath: data.storagePath, id: doc.id };
+            return { name: data.fileName, fullPath: data.storagePath, id: doc.id, ownerId: data.ownerId };
         });
+
+        // --- SECURITY FILTER: Double-check ownerId ---
+        allFiles = allFiles.filter(f => f.ownerId === user.uid);
 
         listEl.innerHTML = '';
         allFiles.forEach(file => {
@@ -164,6 +167,38 @@ export async function uploadMultipleFiles(files, courseId, onProgress) {
 }
 
 export async function uploadSingleFile(file, courseId, onProgress) {
+    // 0. Check for duplicates (Client-side pre-check)
+    try {
+        const user = auth.currentUser;
+        if (user) {
+            const q = query(
+                collection(db, "fileMetadata"),
+                where("ownerId", "==", user.uid),
+                where("courseId", "==", courseId),
+                where("fileName", "==", file.name),
+                limit(1)
+            );
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                console.log(`Skipping duplicate upload for ${file.name}`);
+                const existingDoc = querySnapshot.docs[0];
+                const existingData = existingDoc.data();
+
+                // Simulate successful upload return
+                if (onProgress) onProgress(100);
+
+                return {
+                    fileId: existingDoc.id,
+                    fileName: existingData.fileName,
+                    storagePath: existingData.storagePath,
+                    url: null // URL not available without resigning, but usually not needed for immediate display
+                };
+            }
+        }
+    } catch (err) {
+        console.warn("Duplicate check failed, proceeding with upload.", err);
+    }
+
     // 1. Get Secure Upload URL (and create metadata doc)
     const getSecureUploadUrl = httpsCallable(functions, 'getSecureUploadUrl');
 
