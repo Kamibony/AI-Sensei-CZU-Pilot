@@ -1409,7 +1409,7 @@ exports.admin_setUserRole = onCall({ region: DEPLOY_REGION }, async (request: Ca
     }
 });
 
-exports.onUserCreate = functions.region(DEPLOY_REGION).runWith({ memory: "256MB" }).firestore.document("users/{userId}").onCreate(async (snapshot: any, context: any) => {
+exports.onUserCreate = functions.firestore.document("users/{userId}").onCreate(async (snapshot: any, context: any) => {
     const data = snapshot.data();
     if (!data) {
         logger.log("No data associated with the event");
