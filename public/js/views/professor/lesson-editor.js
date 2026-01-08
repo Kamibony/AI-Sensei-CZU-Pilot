@@ -598,7 +598,7 @@ export class LessonEditor extends BaseView {
       const updatedSlides = [...slides];
 
       for (const [index, slide] of updatedSlides.entries()) {
-          if (slide.visual_idea) {
+          if (slide.visual_idea && slide.visual_idea.trim().length > 0) {
               let base64Data = '';
               try {
                   const imgResult = await callWithRetry(callGenerateImage, [slide.visual_idea], 3);
@@ -636,7 +636,7 @@ export class LessonEditor extends BaseView {
        const updatedPanels = [...panels];
 
        for (const [index, panel] of updatedPanels.entries()) {
-           if (panel.description) {
+           if (panel.description && panel.description.trim().length > 0) {
               let base64Data = '';
               try {
                   const imgResult = await callWithRetry(callGenerateImage, [`Comic style, ${panel.description}`], 3);
