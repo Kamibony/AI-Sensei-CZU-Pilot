@@ -37,8 +37,17 @@ function loadPdfParser(): (buffer: Buffer, options?: any) => Promise<any> {
     if (typeof parser === 'function') return parser;
     // 2. Default export (ESM interop)
     if (parser && typeof parser.default === 'function') return parser.default;
-    // 3. Nested default (Double interop edge case)
+    // 3. Named Export (CRITICAL FIX for recent versions)
+    if (parser && typeof parser.PDFParse === 'function') return parser.PDFParse;
+    // 4. Nested default (Double interop edge case)
     if (parser && parser.default && typeof parser.default.default === 'function') return parser.default.default;
+
+    // 5. CommonJS Fallback: Try requiring the internal file directly
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const internal = require("pdf-parse/lib/pdf-parse.js");
+        if (typeof internal === 'function') return internal;
+    } catch (e) { /* ignore */ }
 
     const type = typeof parser;
     const keys = (typeof parser === 'object' && parser !== null) ? Object.keys(parser).join(", ") : "null";
