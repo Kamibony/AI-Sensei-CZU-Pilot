@@ -464,8 +464,7 @@ export class LessonEditor extends BaseView {
   }
 
   async _handleDeleteFile(fileIndex) {
-      this._uploadedFiles.splice(fileIndex, 1);
-      this._uploadedFiles = [...this._uploadedFiles];
+      this._uploadedFiles = this._uploadedFiles.filter((_, i) => i !== fileIndex);
       this.lesson = { ...this.lesson, files: this._uploadedFiles };
       if(this.lesson.title) await this._handleSave();
   }
@@ -782,6 +781,12 @@ export class LessonEditor extends BaseView {
           if (docSnap.exists()) {
               const data = docSnap.data();
               this.lesson = { ...this.lesson, ...data };
+
+              if (data.debug_logs && Array.isArray(data.debug_logs)) {
+                  console.group("Magic Debug Logs");
+                  data.debug_logs.forEach(log => console.log(log));
+                  console.groupEnd();
+              }
 
               if (data.magicStatus === 'generating') {
                    this._isLoading = true;
