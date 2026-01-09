@@ -1,3 +1,54 @@
+// --- SAFELY WRAP PDF TOKEN COUNTING ---
+// This function wraps the PDF text extraction logic in a robust try-catch block.
+// It handles cases where the PDF library (pdfjsLib) is missing, undefined, or fails to parse the document.
+export async function extractTextFromPDF(file) {
+    try {
+        // 1. Check for global pdfjsLib
+        // We assume pdfjsLib is loaded globally via CDN or similar.
+        if (typeof pdfjsLib === 'undefined') {
+            console.warn("pdfjsLib not found. Skipping PDF text extraction.");
+            return { text: "", pageCount: 0 };
+        }
+
+        // 2. Configure Worker if not set
+        // Use a compatible version for the worker.
+        // We use a safe default if not already configured.
+        if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        // 3. Read File as ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer();
+
+        // 4. Load Document
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+
+        let fullText = "";
+        const numPages = pdf.numPages;
+
+        // 5. Extract text from each page
+        for (let i = 1; i <= numPages; i++) {
+            try {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                fullText += pageText + "\n";
+            } catch (pageError) {
+                console.warn(`Failed to extract text from page ${i}`, pageError);
+                // Continue to next page instead of failing entire document
+            }
+        }
+
+        return { text: fullText, pageCount: numPages };
+
+    } catch (error) {
+        console.warn("PDF preview failed, skipping...", error);
+        // Prevent crash, return safe defaults
+        return { text: "", pageCount: 0 };
+    }
+}
+
 export function parseAiResponse(data, expectedKey) {
     if (!data) return [];
 
