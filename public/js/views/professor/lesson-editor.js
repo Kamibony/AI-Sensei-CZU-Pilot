@@ -243,6 +243,7 @@ export class LessonEditor extends BaseView {
           content: { blocks: [] },
           assignedToGroups: [],
           status: 'draft',
+          isPublished: false,
           files: initialFiles,
           createdAt: new Date().toISOString(),
           intent: intent || null
