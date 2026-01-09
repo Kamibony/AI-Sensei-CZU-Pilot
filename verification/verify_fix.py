@@ -1,44 +1,38 @@
-from playwright.sync_api import sync_playwright, expect
-import time
 
-def verify_app_loads():
+from playwright.sync_api import sync_playwright, expect
+
+def test_editor_components():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
-        # Listen for console logs
-        page.on("console", lambda msg: print(f"Console: {msg.text}"))
-        page.on("pageerror", lambda err: print(f"Page Error: {err}"))
+        # Capture console logs
+        page.on("console", lambda msg: print(f"CONSOLE: {msg.text}"))
+        page.on("pageerror", lambda exc: print(f"PAGE ERROR: {exc}"))
 
-        # Listen for failed requests
-        page.on("requestfailed", lambda request: print(f"Request failed: {request.url} - {request.failure}"))
+        # Navigate to the test harness
+        print("Navigating to test harness...")
+        page.goto("http://localhost:8000/test_harness.html")
 
-        # Listen for responses to catch 404s/redirects that might look like success but are actually serving index.html
-        def check_response(response):
-            # If we request a JS file but get HTML, that's our error.
-            if response.request.resource_type == "script" and "text/html" in response.headers.get("content-type", ""):
-                print(f"MIME TYPE ERROR: Requested {response.url} but got text/html")
+        # Wait for components to render
+        print("Waiting for heading...")
+        expect(page.get_by_role("heading", name="Presentation Editor View")).to_be_visible()
 
-        page.on("response", check_response)
+        # Take screenshot for debugging state
+        page.screenshot(path="verification/debug_state.png", full_page=True)
 
+        print("Checking for Introduction input...")
+        # Check if we can find the input by value
         try:
-            print("Navigating to app...")
-            page.goto("http://127.0.0.1:5000/")
-
-            print("Waiting for content...")
-            # Wait for the login component to appear
-            page.wait_for_selector("login-view", timeout=5000)
-
-            print("Login view detected. Taking screenshot.")
-            page.screenshot(path="verification/app_loaded.png")
-
-            print("Verification successful: App loaded.")
-
+            expect(page.locator("input[value='Introduction']")).to_be_visible(timeout=5000)
+            print("Found Introduction input!")
         except Exception as e:
-            print(f"Verification failed: {e}")
-            page.screenshot(path="verification/error_state.png")
-        finally:
-            browser.close()
+            print(f"Failed to find Introduction input: {e}")
+
+        # Take final screenshot
+        page.screenshot(path="verification/components_verified.png", full_page=True)
+
+        browser.close()
 
 if __name__ == "__main__":
-    verify_app_loads()
+    test_editor_components()
