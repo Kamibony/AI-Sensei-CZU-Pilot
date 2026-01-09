@@ -37,17 +37,25 @@ function loadPdfParser(): (buffer: Buffer, options?: any) => Promise<any> {
     if (typeof parser === 'function') return parser;
     // 2. Default export (ESM interop)
     if (parser && typeof parser.default === 'function') return parser.default;
-    // 3. Named Export (CRITICAL FIX for recent versions)
-    if (parser && typeof parser.PDFParse === 'function') return parser.PDFParse;
-    // 4. Nested default (Double interop edge case)
+    // 3. Nested default (Double interop edge case)
     if (parser && parser.default && typeof parser.default.default === 'function') return parser.default.default;
 
-    // 5. CommonJS Fallback: Try requiring the internal file directly
-    try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const internal = require("pdf-parse/lib/pdf-parse.js");
-        if (typeof internal === 'function') return internal;
-    } catch (e) { /* ignore */ }
+    // 4. Class-based export (Version 2.x+)
+    // If the export is an object containing a 'PDFParse' class, we wrap it to match the v1.x API.
+    if (typeof parser === 'object' && parser !== null && typeof parser.PDFParse === 'function') {
+        const PDFParseClass = parser.PDFParse;
+        // Return a wrapper function that mimics standard v1 behavior: (buffer) => Promise<{ text: string }>
+        return async (buffer: Buffer) => {
+             // v2 requires Uint8Array, not Buffer
+             const uint8 = new Uint8Array(buffer);
+             const instance = new PDFParseClass(uint8);
+             const result = await instance.getText();
+             // result is likely an object { text: "...", ... } or just a string?
+             // Based on testing: { text: "...", pages: [...] }
+             // We ensure we return an object with a .text property.
+             return typeof result === 'string' ? { text: result } : result;
+        };
+    }
 
     const type = typeof parser;
     const keys = (typeof parser === 'object' && parser !== null) ? Object.keys(parser).join(", ") : "null";
