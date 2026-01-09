@@ -20,6 +20,51 @@ import * as GeminiAPI from './gemini-api';
 // Lazy load heavy dependencies
 // const pdf = require("pdf-parse");
 
+/**
+ * Dependency Adapter for pdf-parse.
+ * Normalizes imports to ensure a callable function in mixed CJS/ESM environments.
+ */
+function loadPdfParser(): (buffer: Buffer, options?: any) => Promise<any> {
+    const packageName = "pdf-parse";
+    let parser;
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        parser = require(packageName);
+    } catch (e: any) {
+        throw new Error(`Failed to require('${packageName}'): ${e.message}`);
+    }
+    // 1. Direct function export (Standard CJS)
+    if (typeof parser === 'function') return parser;
+    // 2. Default export (ESM interop)
+    if (parser && typeof parser.default === 'function') return parser.default;
+    // 3. Nested default (Double interop edge case)
+    if (parser && parser.default && typeof parser.default.default === 'function') return parser.default.default;
+
+    // 4. Class-based export (Version 2.x+)
+    // If the export is an object containing a 'PDFParse' class, we wrap it to match the v1.x API.
+    if (typeof parser === 'object' && parser !== null && typeof parser.PDFParse === 'function') {
+        const PDFParseClass = parser.PDFParse;
+        // Return a wrapper function that mimics standard v1 behavior: (buffer) => Promise<{ text: string }>
+        return async (buffer: Buffer) => {
+             // v2 requires Uint8Array, not Buffer
+             const uint8 = new Uint8Array(buffer);
+             const instance = new PDFParseClass(uint8);
+             const result = await instance.getText();
+             // result is likely an object { text: "...", ... } or just a string?
+             // Based on testing: { text: "...", pages: [...] }
+             // We ensure we return an object with a .text property.
+             return typeof result === 'string' ? { text: result } : result;
+        };
+    }
+
+    const type = typeof parser;
+    const keys = (typeof parser === 'object' && parser !== null) ? Object.keys(parser).join(", ") : "null";
+    throw new Error(
+        `Dependency Adapter Error: '${packageName}' did not export a function. ` +
+        `Received type: '${type}'. Keys: [${keys}].`
+    );
+}
+
 const DEPLOY_REGION = "europe-west1";
 // Dynamically determine storage bucket based on environment
 const FIREBASE_CONFIG = process.env.FIREBASE_CONFIG ? JSON.parse(process.env.FIREBASE_CONFIG) : {};
@@ -84,10 +129,7 @@ exports.startMagicGeneration = onCall({
     });
 
     try {
-        let pdf = require("pdf-parse");
-        if (typeof pdf !== 'function' && pdf.default) {
-            pdf = pdf.default;
-        }
+        const pdf = loadPdfParser();
 
         const bucket = getStorage().bucket(STORAGE_BUCKET);
 
@@ -706,10 +748,7 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
 
         // 2. Extract text from PDF
         logger.log("[RAG] Initializing pdf-parse...");
-        let pdf = require("pdf-parse");
-        if (typeof pdf !== 'function' && pdf.default) {
-            pdf = pdf.default;
-        }
+        const pdf = loadPdfParser();
         logger.log("[RAG] Parsing PDF content...");
         let text = "";
         try {
