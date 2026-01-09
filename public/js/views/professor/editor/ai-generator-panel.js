@@ -2,7 +2,7 @@ import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@
 import { doc, updateDoc, deleteField, serverTimestamp, addDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import * as firebaseInit from '../../../firebase-init.js';
+import { db } from '../../../firebase-init.js';
 import { Localized } from '../../../utils/localization-mixin.js';
 import { showToast } from '../../../utils/utils.js';
 import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from '../../../utils/upload-handler.js';
@@ -222,7 +222,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
             } 
             // Fallback for legacy components (direct Firestore update)
             else if (this.lesson?.id && this.fieldToUpdate) {
-                const db = firebaseInit.getDb();
+                // const db = firebaseInit.getDb(); // Removed incorrect usage
                 const lessonRef = doc(db, 'lessons', this.lesson.id);
                 await updateDoc(lessonRef, {
                     [this.fieldToUpdate]: this._generationOutput,

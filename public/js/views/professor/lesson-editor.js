@@ -753,7 +753,7 @@ export class LessonEditor extends BaseView {
           this._startMagicListener();
 
           // Call backend (fire and forget-ish, handled by listener)
-          const startMagic = httpsCallable(functions, 'startMagicGeneration');
+          const startMagic = httpsCallable(functions, 'startMagicGeneration', { timeout: 540000 });
           startMagic({
               lessonId: this.lesson.id,
               filePaths: filePaths,
