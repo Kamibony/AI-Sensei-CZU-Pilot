@@ -139,7 +139,13 @@ export class LessonLibrary extends Localized(LitElement) {
                         <div class="lesson-bubble-in-library p-4 bg-white border rounded-lg cursor-pointer hover:shadow-md flex justify-between items-center"
                              @click=${() => this._handleLessonClick(lesson.id)}>
                             <div class="min-w-0 flex-grow mr-6"> 
-                                <h3 class="font-semibold text-slate-800 truncate" title="${lesson.title}">${lesson.title}</h3>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <h3 class="font-semibold text-slate-800 truncate" title="${lesson.title}">${lesson.title}</h3>
+                                    ${lesson.isPublished
+                                        ? html`<span class="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wide border border-emerald-200">Publikované</span>`
+                                        : html`<span class="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wide border border-slate-200">Koncept</span>`
+                                    }
+                                </div>
                                 <p class="text-sm text-slate-500 truncate" title="${lesson.subtitle || ''}">${lesson.subtitle || ' '}</p>
                             </div>
                             <div class="flex items-center space-x-1">

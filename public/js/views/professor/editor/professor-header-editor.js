@@ -23,6 +23,15 @@ export class ProfessorHeaderEditor extends Localized(LitElement) {
         this.dispatchEvent(new CustomEvent('assign-class', { bubbles: true, composed: true }));
     }
 
+    _togglePublish() {
+        const newValue = !this.lesson?.isPublished;
+        this.dispatchEvent(new CustomEvent('lesson-updated', {
+            detail: { isPublished: newValue },
+            bubbles: true,
+            composed: true
+        }));
+    }
+
     _handleMetadataChange(e, field) {
         const value = e.target.value;
         this.dispatchEvent(new CustomEvent('lesson-updated', {
@@ -78,10 +87,17 @@ export class ProfessorHeaderEditor extends Localized(LitElement) {
 
                 <div class="flex items-center gap-3 flex-shrink-0">
 
+                <!-- Publish Toggle -->
+                <button @click="${this._togglePublish}"
+                        class="inline-flex items-center px-4 py-2 border text-sm font-bold rounded-full shadow-sm focus:outline-none transition-all ${this.lesson?.isPublished ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}">
+                    <span class="mr-2 h-2.5 w-2.5 rounded-full ${this.lesson?.isPublished ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}"></span>
+                    ${this.lesson?.isPublished ? (this.t('professor.editor.published') || 'Publikované') : (this.t('professor.editor.draft') || 'Koncept')}
+                </button>
+
                 <!-- NEW: Assign Class Button -->
                 <button @click="${this._dispatchAssign}"
-                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none transition-all">
-                    ${this.t('professor.editor.assign_class') || 'Priradiť triede'}
+                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none transition-all">
+                    ${this.t('professor.editor.assign_class') || 'Přiřadit třídě'}
                 </button>
 
                 <button @click="${this._dispatchSave}"
