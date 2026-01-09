@@ -263,7 +263,7 @@ exports.startMagicGeneration = onCall({
         // Task B: Presentation & Images
         tasks.push((async () => {
              try {
-                 const slidesPrompt = `Based on this text, create exactly ${magicSlidesCount} presentation slides. Return JSON: { "slides": [ { "title": "...", "points": ["..."], "visual_idea": "..." } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
+                 const slidesPrompt = `Based on this text, create exactly ${magicSlidesCount} presentation slides. Output JSON: { "slides": [ ... ] (MANDATORY: Generate exactly ${magicSlidesCount} slides. Empty array is a failure.) }. Each item has "title", "points", "visual_idea".\n\nText:\n${markdownText.substring(0, 10000)}`;
                  const slidesData = await GeminiAPI.generateJsonFromPrompt(slidesPrompt, systemPrompt);
 
                  if (slidesData.slides) {
@@ -299,7 +299,7 @@ exports.startMagicGeneration = onCall({
         // Task C: Quiz
         tasks.push((async () => {
              try {
-                 const quizPrompt = `Create exactly ${magicQuizCount} quiz questions based on this text. Return JSON: { "questions": [ { "question_text": "...", "options": ["..."], "correct_option_index": 0 } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
+                 const quizPrompt = `Create exactly ${magicQuizCount} quiz questions based on this text. Output JSON: { "questions": [ ... ] (MANDATORY: Generate exactly ${magicQuizCount} questions. Empty array is a failure.) }. Each item has "question_text", "options" (array of strings), "correct_option_index" (number).\n\nText:\n${markdownText.substring(0, 10000)}`;
                  const quizData = await GeminiAPI.generateJsonFromPrompt(quizPrompt, systemPrompt);
                  await lessonRef.update({ quiz: quizData, debug_logs: debugLogs });
              } catch (e: any) {
@@ -311,7 +311,7 @@ exports.startMagicGeneration = onCall({
         // Task D: Flashcards
         tasks.push((async () => {
              try {
-                 const fcPrompt = `Create exactly ${magicFlashcardCount} flashcards based on this text. Return JSON: { "cards": [ { "front": "...", "back": "..." } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
+                 const fcPrompt = `Create exactly ${magicFlashcardCount} flashcards based on this text. Output JSON: { "cards": [ ... ] (MANDATORY: Generate exactly ${magicFlashcardCount} cards. Empty array is a failure.) }. Each item has "front", "back".\n\nText:\n${markdownText.substring(0, 10000)}`;
                  const fcData = await GeminiAPI.generateJsonFromPrompt(fcPrompt, systemPrompt);
                  await lessonRef.update({ flashcards: fcData, debug_logs: debugLogs });
              } catch (e: any) {
@@ -484,40 +484,56 @@ exports.generateContent = onCall({
         finalPrompt += "\n\nSTRICT RULE: Return ONLY the raw content/JSON. Do NOT start with 'Here is', 'Sure', or 'Certainly'. No conversational filler.";
 
         if (isJson) {
+            // Load Magic Defaults
+            const magicSlidesCount = parseInt(config.magic_presentation_slides) || 8;
+            const magicQuizCount = parseInt(config.magic_quiz_questions) || 5;
+            const magicTestCount = parseInt(config.magic_test_questions) || 5;
+            const magicFlashcardCount = parseInt(config.magic_flashcard_count) || 10;
+
             switch(contentType) {
                 case "presentation":
-                    
-                    logger.log("Generating presentation, received slide_count:", promptData.slide_count);
-                    
-                    // 1. Prevedieme hodnotu na číslo. Ak je to "" alebo "abc", výsledok bude NaN (Not a Number)
-                    const requestedCount = parseInt(promptData.slide_count, 10);
-
-                    // 2. Ak je výsledok neplatné číslo alebo je 0 či menší, vyhodíme chybu
-                    if (!requestedCount || requestedCount <= 0) {
-                        logger.error("Invalid slide_count received:", promptData.slide_count);
-                        // Vyhodíme chybu, ktorá sa zobrazí používateľovi na frontende
-                        throw new HttpsError(
-                            "invalid-argument", 
-                            `Neplatný počet slidů. Zadejte prosím kladné číslo (dostali jsme '${promptData.slide_count || ""}').`
-                        );
+                    let targetSlides = parseInt(promptData.slide_count, 10);
+                    if (promptData.isMagic) {
+                        targetSlides = magicSlidesCount;
                     }
+
+                    if (!targetSlides || targetSlides <= 0) targetSlides = 8;
+
+                    logger.log("Generating presentation. Target slides:", targetSlides, "Magic Mode:", promptData.isMagic);
 
                     // Capture presentation style
                     const style = promptData.presentation_style_selector ? `Visual Style: ${promptData.presentation_style_selector}.` : "";
                     
-                    // 3. Ak je všetko v poriadku, použijeme finálne číslo v prompte
-                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${requestedCount} slidy. ${style} Odpověď musí být JSON objekt s klíčem 'slides', ktorý obsahuje pole objektů, kde každý objekt má klíče 'title' (string), 'points' (pole stringů) a 'visual_idea' (string - popis obrázku pro tento slide, např. 'Schéma buňky' nebo 'Foto historické budovy'). ${langInstruction}`;
-                    logger.log(`Final prompt will use ${requestedCount} slides.`);
-                    
+                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${targetSlides} slidy. ${style}
+${langInstruction}
+
+FORMAT: JSON
+{
+  "slides": [ ... ] (MANDATORY: Generate exactly ${targetSlides} slides. Empty array is a failure.)
+}
+Each slide object must have: 'title' (string), 'points' (array of strings), 'visual_idea' (string - detailní popis obrázku).`;
                     break;
 
                 case "quiz":
-                    finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number). ${langInstruction}`;
+                    const targetQuizQs = promptData.isMagic ? magicQuizCount : 5;
+
+                    finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}".
+${langInstruction}
+
+FORMAT: JSON
+{
+  "questions": [ ... ] (MANDATORY: Generate exactly ${targetQuizQs} questions. Empty array is a failure.)
+}
+Each question object must have: 'question_text' (string), 'options' (array of 4 strings), 'correct_option_index' (number 0-3).`;
                     break;
+
                 case "test":
                     // OPRAVA: Mapovanie premenných z frontendu (snake_case) a fallbacky
                     // Frontend posiela 'question_count', backend čakal 'questionCount'
-                    const testCount = parseInt(promptData.question_count || promptData.questionCount || "5", 10);
+                    let testCount = parseInt(promptData.question_count || promptData.questionCount || "5", 10);
+                    if (promptData.isMagic) {
+                        testCount = magicTestCount;
+                    }
                     
                     // Frontend posiela 'difficulty_select', backend čakal 'difficulty'
                     const testDifficulty = promptData.difficulty_select || promptData.difficulty || "Střední";
@@ -525,7 +541,14 @@ exports.generateContent = onCall({
                     // Frontend posiela 'type_select', backend čakal 'questionTypes'
                     const testTypes = promptData.type_select || promptData.questionTypes || "Mix";
 
-                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${testCount} otázkami. Obtížnost: ${testDifficulty}. Typy otázek: ${testTypes}. Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number). ${langInstruction}`;
+                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${testCount} otázkami. Obtížnost: ${testDifficulty}. Typy otázek: ${testTypes}.
+${langInstruction}
+
+FORMAT: JSON
+{
+  "questions": [ ... ] (MANDATORY: Generate exactly ${testCount} questions. Empty array is a failure.)
+}
+Each question object must have: 'question_text' (string), 'type' (string), 'options' (array of strings), 'correct_option_index' (number).`;
                     break;
                 case "post":
                      const epCount = promptData.episode_count || promptData.episodeCount || 3;
@@ -592,7 +615,15 @@ Use exactly this structure:
                      break;
 
                 case "flashcards":
-                    finalPrompt = `Vytvoř sadu 10 studijních kartiček na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'cards', který obsahuje pole objektů. Každý objekt musí mít klíče: 'front' (pojem/otázka) a 'back' (definice/odpověď). ${langInstruction}`;
+                    const fcCount = promptData.isMagic ? magicFlashcardCount : 10;
+                    finalPrompt = `Vytvoř sadu ${fcCount} studijních kartiček na téma "${promptData.userPrompt}".
+${langInstruction}
+
+FORMAT: JSON
+{
+  "cards": [ ... ] (MANDATORY: Generate exactly ${fcCount} cards. Empty array is a failure.)
+}
+Each card object must have: 'front' (pojem/otázka), 'back' (definice/odpověď).`;
                     break;
 
                 case "mindmap":
@@ -605,23 +636,10 @@ Use exactly this structure:
             }
         }
 
-        // Aplikujeme pravidlá LEN pre magické generovanie
+        // Aplikujeme pravidlá LEN pre magické generovanie (Text only here, others handled in switch)
         if (promptData.isMagic) {
             if (contentType === "text" && config.magic_text_rules) {
                 finalPrompt += `\n\n[SYSTEM INSTRUCTION]: ${config.magic_text_rules}`;
-            }
-            else if (contentType === "presentation" && config.magic_presentation_slides) {
-                // Prepíšeme requestedCount na hodnotu z configu
-                const magicSlides = parseInt(config.magic_presentation_slides) || 8;
-                const regex = /s přesně \d+ slidy/;
-                if (regex.test(finalPrompt)) {
-                    finalPrompt = finalPrompt.replace(regex, `s přesně ${magicSlides} slidy`);
-                } else {
-                    finalPrompt += `\n\n[SYSTEM INSTRUCTION]: Vytvoř prezentaci s přesně ${magicSlides} slidy.`;
-                }
-            }
-            else if ((contentType === "quiz" || contentType === "test") && config.magic_test_questions) {
-                 finalPrompt += `\n\n[SYSTEM INSTRUCTION]: Vytvoř přesně ${config.magic_test_questions} otázek.`;
             }
         }
 
