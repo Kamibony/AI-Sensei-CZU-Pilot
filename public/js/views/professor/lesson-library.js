@@ -139,12 +139,17 @@ export class LessonLibrary extends Localized(LitElement) {
                         <div class="lesson-bubble-in-library p-4 bg-white border rounded-lg cursor-pointer hover:shadow-md flex justify-between items-center"
                              @click=${() => this._handleLessonClick(lesson.id)}>
                             <div class="min-w-0 flex-grow mr-6"> 
-                                <div class="flex items-center gap-2 mb-1">
+                                <div class="flex items-center gap-2">
                                     <h3 class="font-semibold text-slate-800 truncate" title="${lesson.title}">${lesson.title}</h3>
-                                    ${lesson.isPublished
-                                        ? html`<span class="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wide border border-emerald-200">Publikované</span>`
-                                        : html`<span class="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wide border border-slate-200">Koncept</span>`
-                                    }
+                                    ${lesson.isPublished ? html`
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800" title="${this.t('lesson.status_published') || 'Publikované'}">
+                                            ${this.t('lesson.status_published') || 'Publikované'}
+                                        </span>
+                                    ` : html`
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600" title="${this.t('lesson.status_draft') || 'Koncept'}">
+                                            ${this.t('lesson.status_draft') || 'Koncept'}
+                                        </span>
+                                    `}
                                 </div>
                                 <p class="text-sm text-slate-500 truncate" title="${lesson.subtitle || ''}">${lesson.subtitle || ' '}</p>
                             </div>
