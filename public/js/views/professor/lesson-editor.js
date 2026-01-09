@@ -464,8 +464,11 @@ export class LessonEditor extends BaseView {
   }
 
   async _handleDeleteFile(fileIndex) {
-      this._uploadedFiles.splice(fileIndex, 1);
-      this._uploadedFiles = [...this._uploadedFiles];
+      // FIX: Immutable update to prevent stale state
+      const newFiles = [...this._uploadedFiles];
+      newFiles.splice(fileIndex, 1);
+      this._uploadedFiles = newFiles;
+
       this.lesson = { ...this.lesson, files: this._uploadedFiles };
       if(this.lesson.title) await this._handleSave();
   }
@@ -782,6 +785,12 @@ export class LessonEditor extends BaseView {
           if (docSnap.exists()) {
               const data = docSnap.data();
               this.lesson = { ...this.lesson, ...data };
+
+              if (data.debug_logs) {
+                  console.groupCollapsed("🚀 BACKEND LOGS");
+                  console.log(data.debug_logs);
+                  console.groupEnd();
+              }
 
               if (data.magicStatus === 'generating') {
                    this._isLoading = true;

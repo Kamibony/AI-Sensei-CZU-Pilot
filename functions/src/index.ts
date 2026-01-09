@@ -67,19 +67,36 @@ exports.startMagicGeneration = onCall({
         throw new HttpsError("invalid-argument", "Missing lessonId.");
     }
 
+    const debugLogs: string[] = [];
+    const logDebug = (msg: string) => {
+        logger.log(msg);
+        debugLogs.push(`[${new Date().toISOString()}] ${msg}`);
+    };
+
     const lessonRef = db.collection("lessons").doc(lessonId);
-    await lessonRef.update({ magicStatus: "generating", magicProgress: "Starting analysis..." });
+    await lessonRef.update({
+        magicStatus: "generating",
+        magicProgress: "Starting analysis...",
+        debug_logs: debugLogs
+    });
 
     try {
-        const pdf = require("pdf-parse");
+        let pdf = require("pdf-parse");
+        if (typeof pdf !== 'function' && pdf.default) {
+            pdf = pdf.default;
+        }
+
         const bucket = getStorage().bucket(STORAGE_BUCKET);
 
         // 1. PDF Extraction
         let fullTextContext = "";
         if (filePaths && filePaths.length > 0) {
-            await lessonRef.update({ magicProgress: "Reading files..." });
+            logDebug(`Found ${filePaths.length} files to process.`);
+            await lessonRef.update({ magicProgress: "Reading files...", debug_logs: debugLogs });
+
             for (const rawPath of filePaths) {
                 try {
+                     logDebug(`Processing file: ${rawPath}`);
                      // --- ENFORCE STRICT DATA OWNERSHIP ---
                      const fileName = rawPath.split('/').pop();
                      const ownerId = request.auth.uid;
@@ -117,43 +134,44 @@ exports.startMagicGeneration = onCall({
                          }
                      }
 
-                     logger.log(`[Magic] Successfully read file. Target: '${targetPath}', Final: '${finalPath}'`);
+                     logDebug(`[Magic] Successfully read file. Target: '${targetPath}', Final: '${finalPath}'`);
 
                      let text = "";
                      if (finalPath.toLowerCase().endsWith(".pdf")) {
                          const pdfData = await pdf(buffer);
                          text = pdfData.text;
-                         logger.log(`[Magic] PDF ${finalPath}: ${text.length} chars. Snippet: "${text.substring(0, 100)}..."`);
+                         logDebug(`[Magic] PDF ${finalPath}: ${text.length} chars. Snippet: "${text.substring(0, 100)}..."`);
 
                          // --- FALLBACK: Gemini Vision for Scans ---
                          if (text.trim().length < 100) {
-                             logger.warn(`[Magic] Low text detected in ${finalPath}. Attempting Vision OCR...`);
+                             logDebug(`[Magic] Low text detected in ${finalPath}. Attempting Vision OCR...`);
                              // Convert PDF buffer to Base64
                              const pdfBase64 = buffer.toString('base64');
                              // Call Gemini Flash (cheaper/faster) to extract text
                              const visionPrompt = "Extract all readable text from this document verbatim.";
                              const visionText = await GeminiAPI.generateTextFromMultimodal(visionPrompt, pdfBase64, "application/pdf");
                              text = visionText || "";
-                             logger.log(`[Magic] Vision OCR result: ${text.length} chars.`);
+                             logDebug(`[Magic] Vision OCR result: ${text.length} chars.`);
                          }
                      } else {
                          text = buffer.toString("utf-8");
-                         logger.log(`[Magic] Text File ${finalPath}: ${text.length} chars.`);
+                         logDebug(`[Magic] Text File ${finalPath}: ${text.length} chars.`);
                      }
 
                      if (!text || text.trim().length < 50) {
-                         logger.warn(`[Magic] File ${finalPath} has very little text.`);
+                         logDebug(`[Magic] File ${finalPath} has very little text.`);
                      }
 
                      fullTextContext += `\n\n--- File: ${finalPath} ---\n${text}`;
                 } catch (e: any) {
+                    logDebug(`Failed to read file ${rawPath}: ${e.message}`);
                     logger.error(`Failed to read file ${rawPath}`, e);
                 }
             }
         }
 
         // 2. Generate Content (Task A)
-        await lessonRef.update({ magicProgress: "Generating study material..." });
+        await lessonRef.update({ magicProgress: "Generating study material...", debug_logs: debugLogs });
 
         const title = (await lessonRef.get()).data()?.title || "Lesson";
         const topic = lessonTopic || "";
@@ -179,7 +197,8 @@ exports.startMagicGeneration = onCall({
 
         await lessonRef.update({
             text_content: markdownText,
-            magicProgress: "Creating visual aids and quiz..."
+            magicProgress: "Creating visual aids and quiz...",
+            debug_logs: debugLogs
         });
 
         // 3. Parallel Tasks (Images, Quiz, Flashcards)
@@ -231,12 +250,14 @@ exports.startMagicGeneration = onCall({
 
         await Promise.all(tasks);
 
-        await lessonRef.update({ magicStatus: "ready", magicProgress: "Done!" });
+        logDebug("All tasks completed.");
+        await lessonRef.update({ magicStatus: "ready", magicProgress: "Done!", debug_logs: debugLogs });
         return { success: true };
 
     } catch (error: any) {
+        logDebug(`Error: ${error.message}`);
         logger.error("Magic Generation Error", error);
-        await lessonRef.update({ magicStatus: "error", magicProgress: `Error: ${error.message}` });
+        await lessonRef.update({ magicStatus: "error", magicProgress: `Error: ${error.message}`, debug_logs: debugLogs });
         throw new HttpsError("internal", error.message);
     }
 });
@@ -687,7 +708,10 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
 
         // 2. Extract text from PDF
         logger.log("[RAG] Initializing pdf-parse...");
-        const pdf = require("pdf-parse");
+        let pdf = require("pdf-parse");
+        if (typeof pdf !== 'function' && pdf.default) {
+            pdf = pdf.default;
+        }
         logger.log("[RAG] Parsing PDF content...");
         let text = "";
         try {
