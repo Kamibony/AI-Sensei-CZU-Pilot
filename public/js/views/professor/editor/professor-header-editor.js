@@ -32,6 +32,15 @@ export class ProfessorHeaderEditor extends Localized(LitElement) {
         this.dispatchEvent(new CustomEvent('assign-class', { bubbles: true, composed: true }));
     }
 
+    _togglePublish() {
+        const newValue = !this.lesson?.isPublished;
+        this.dispatchEvent(new CustomEvent('lesson-updated', {
+            detail: { isPublished: newValue },
+            bubbles: true,
+            composed: true
+        }));
+    }
+
     _handleMetadataChange(e, field) {
         const value = e.target.value;
         this.dispatchEvent(new CustomEvent('lesson-updated', {

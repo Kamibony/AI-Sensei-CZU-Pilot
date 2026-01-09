@@ -257,70 +257,110 @@ exports.startMagicGeneration = onCall({
             debug_logs: debugLogs
         });
 
-        // 3. Parallel Tasks (Images, Quiz, Flashcards) - ROBUST ERROR HANDLING
-        const tasks = [];
+        // --- PHASE 1: Content Generation (Critical) ---
+        // Generate Quiz, Flashcards, and Slide Text. Store in memory first.
+        await lessonRef.update({ magicProgress: "Drafting slides and quizzes...", debug_logs: debugLogs });
 
-        // Task B: Presentation & Images
-        tasks.push((async () => {
+        let slidesData: any = null;
+        let quizData: any = null;
+        let flashcardsData: any = null;
+
+        const contentTasks = [];
+
+        // Task B: Presentation (Text Only)
+        contentTasks.push((async () => {
              try {
                  const slidesPrompt = `Based on this text, create exactly ${magicSlidesCount} presentation slides. Output JSON: { "slides": [ ... ] (MANDATORY: Generate exactly ${magicSlidesCount} slides. Empty array is a failure.) }. Each item has "title", "points", "visual_idea".\n\nText:\n${markdownText.substring(0, 10000)}`;
-                 const slidesData = await GeminiAPI.generateJsonFromPrompt(slidesPrompt, systemPrompt);
-
-                 if (slidesData.slides) {
-                     const slidePromises = slidesData.slides.map(async (slide: any, index: number) => {
-                         if (slide.visual_idea && slide.visual_idea.trim() !== "") {
-                             try {
-                                 const imageBase64 = await GeminiAPI.generateImageFromPrompt(slide.visual_idea);
-                                 const fileName = `magic_slide_${lessonId}_${index}.png`;
-                                 const storagePath = `courses/${request.auth!.uid}/media/generated/${fileName}`;
-                                 const file = bucket.file(storagePath);
-                                 await file.save(Buffer.from(imageBase64, 'base64'), { metadata: { contentType: 'image/png' } });
-                                 const [url] = await file.getSignedUrl({ action: 'read', expires: '01-01-2030' });
-                                 slide.imageUrl = url;
-                             } catch (err: any) {
-                                 log(`Image gen failed for slide ${index}: ${err.message}`);
-                                 slide.imageError = "Generation failed";
-                             }
-                         } else {
-                             slide.imageUrl = null;
-                         }
-                         return slide;
-                     });
-                     slidesData.slides = await Promise.all(slidePromises);
-                 }
-                 await lessonRef.update({ presentation: slidesData, debug_logs: debugLogs });
+                 slidesData = await GeminiAPI.generateJsonFromPrompt(slidesPrompt, systemPrompt);
              } catch (e: any) {
-                 log(`Task B (Slides) failed: ${e.message}`);
-                 // Don't throw, just log and skip this part
-                 await lessonRef.update({ debug_logs: debugLogs });
+                 log(`Phase 1 (Slides Text) failed: ${e.message}`);
              }
         })());
 
         // Task C: Quiz
-        tasks.push((async () => {
+        contentTasks.push((async () => {
              try {
                  const quizPrompt = `Create exactly ${magicQuizCount} quiz questions based on this text. Output JSON: { "questions": [ ... ] (MANDATORY: Generate exactly ${magicQuizCount} questions. Empty array is a failure.) }. Each item has "question_text", "options" (array of strings), "correct_option_index" (number).\n\nText:\n${markdownText.substring(0, 10000)}`;
-                 const quizData = await GeminiAPI.generateJsonFromPrompt(quizPrompt, systemPrompt);
-                 await lessonRef.update({ quiz: quizData, debug_logs: debugLogs });
+                 quizData = await GeminiAPI.generateJsonFromPrompt(quizPrompt, systemPrompt);
              } catch (e: any) {
-                 log(`Task C (Quiz) failed: ${e.message}`);
-                 // Don't throw
+                 log(`Phase 1 (Quiz) failed: ${e.message}`);
              }
         })());
 
         // Task D: Flashcards
-        tasks.push((async () => {
+        contentTasks.push((async () => {
              try {
                  const fcPrompt = `Create exactly ${magicFlashcardCount} flashcards based on this text. Output JSON: { "cards": [ ... ] (MANDATORY: Generate exactly ${magicFlashcardCount} cards. Empty array is a failure.) }. Each item has "front", "back".\n\nText:\n${markdownText.substring(0, 10000)}`;
-                 const fcData = await GeminiAPI.generateJsonFromPrompt(fcPrompt, systemPrompt);
-                 await lessonRef.update({ flashcards: fcData, debug_logs: debugLogs });
+                 flashcardsData = await GeminiAPI.generateJsonFromPrompt(fcPrompt, systemPrompt);
              } catch (e: any) {
-                 log(`Task D (Flashcards) failed: ${e.message}`);
-                 // Don't throw
+                 log(`Phase 1 (Flashcards) failed: ${e.message}`);
              }
         })());
 
-        await Promise.all(tasks);
+        // Wait for all content generation
+        await Promise.all(contentTasks);
+
+        // Update Firestore with available text content
+        const updateData: any = { debug_logs: debugLogs };
+        if (slidesData) updateData.presentation = slidesData;
+        if (quizData) updateData.quiz = quizData;
+        if (flashcardsData) updateData.flashcards = flashcardsData;
+
+        await lessonRef.update(updateData);
+
+
+        // --- PHASE 2: Media Generation (Parallel & Optional) ---
+        if (slidesData && slidesData.slides && Array.isArray(slidesData.slides)) {
+            await lessonRef.update({ magicProgress: "Generating visuals...", debug_logs: debugLogs });
+
+            const slides = slidesData.slides;
+
+            // Create array of promises (DO NOT await inside loop)
+            const imagePromises = slides.map((slide: any, index: number) => {
+                if (slide.visual_idea && slide.visual_idea.trim() !== "") {
+                     // Return the promise directly
+                     return (async () => {
+                         try {
+                             const imageBase64 = await GeminiAPI.generateImageFromPrompt(slide.visual_idea);
+                             const fileName = `magic_slide_${lessonId}_${index}.png`;
+                             const storagePath = `courses/${request.auth!.uid}/media/generated/${fileName}`;
+                             const file = bucket.file(storagePath);
+                             await file.save(Buffer.from(imageBase64, 'base64'), { metadata: { contentType: 'image/png' } });
+                             const [url] = await file.getSignedUrl({ action: 'read', expires: '01-01-2030' });
+                             return url;
+                         } catch (err: any) {
+                             throw new Error(`Image gen failed for slide ${index}: ${err.message}`);
+                         }
+                     })();
+                } else {
+                    return Promise.resolve(null);
+                }
+            });
+
+            // Execute concurrently
+            const results = await Promise.allSettled(imagePromises);
+
+            // --- PHASE 3: Merge & Save ---
+            results.forEach((result, index) => {
+                const slide = slides[index];
+                if (result.status === 'fulfilled') {
+                    slide.imageUrl = result.value; // URL or null
+                } else {
+                    log(`Phase 2 (Image ${index}) failed: ${result.reason}`);
+                    slide.imageError = "Generation failed";
+                    slide.imageUrl = "https://placehold.co/600x400?text=Image+Generation+Failed"; // Placeholder
+                }
+
+                // Legacy/Schema check: Ensure imageUrl is at least null if not set
+                if (slide.imageUrl === undefined) slide.imageUrl = null;
+            });
+
+            // Update presentation with images
+            await lessonRef.update({
+                presentation: { slides: slides },
+                debug_logs: debugLogs
+            });
+        }
 
         await lessonRef.update({ magicStatus: "ready", magicProgress: "Done!", debug_logs: debugLogs });
         return { success: true };
