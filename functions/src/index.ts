@@ -80,11 +80,44 @@ exports.startMagicGeneration = onCall({
             await lessonRef.update({ magicProgress: "Reading files..." });
             for (const rawPath of filePaths) {
                 try {
-                     // USE ROBUST PATH FINDER
-                     const cleanPath = GeminiAPI.sanitizeStoragePath(rawPath, bucket.name);
-                     const { buffer, finalPath } = await GeminiAPI.downloadFileWithRetries(bucket, cleanPath);
+                     // --- ENFORCE STRICT DATA OWNERSHIP ---
+                     const fileName = rawPath.split('/').pop();
+                     const ownerId = request.auth.uid;
 
-                     logger.log(`[Magic] Successfully read file. Original: '${rawPath}', Final: '${finalPath}'`);
+                     // 1. Construct Strict Path (courses/{userId}/media/{fileName})
+                     // This ignores the client-provided path prefix (e.g. 'main-course') and enforces the user's ID
+                     const targetPath = `courses/${ownerId}/media/${fileName}`;
+
+                     // 2. Legacy Fallback Check
+                     // If the file was historically in 'main-course', we check if we should allow it.
+                     const isLegacy = rawPath.includes("courses/main-course/");
+                     const isAdmin = request.auth.token.email === "profesor@profesor.cz";
+
+                     let buffer, finalPath;
+
+                     try {
+                         // Try Strict Path First
+                         const cleanPath = GeminiAPI.sanitizeStoragePath(targetPath, bucket.name);
+                         const result = await GeminiAPI.downloadFileWithRetries(bucket, cleanPath);
+                         buffer = result.buffer;
+                         finalPath = result.finalPath;
+                     } catch (strictError) {
+                         // Strict path failed (file not found in user's folder).
+                         // Check if we can fallback to legacy.
+                         if (isLegacy && isAdmin) {
+                             logger.warn(`[Magic] Strict path failed for ${fileName}. Admin fallback to legacy path: ${rawPath}`);
+                             const cleanLegacy = GeminiAPI.sanitizeStoragePath(rawPath, bucket.name);
+                             const result = await GeminiAPI.downloadFileWithRetries(bucket, cleanLegacy);
+                             buffer = result.buffer;
+                             finalPath = result.finalPath;
+                         } else {
+                             // Not admin or not legacy -> Enforce isolation (Fail)
+                             logger.warn(`[Magic] Strict path failed for ${fileName} and fallback denied. Owner: ${ownerId}, Legacy: ${isLegacy}, Admin: ${isAdmin}`);
+                             throw strictError;
+                         }
+                     }
+
+                     logger.log(`[Magic] Successfully read file. Target: '${targetPath}', Final: '${finalPath}'`);
 
                      let text = "";
                      if (finalPath.toLowerCase().endsWith(".pdf")) {
@@ -1445,15 +1478,20 @@ exports.getSecureUploadUrl = onCall({ region: DEPLOY_REGION }, async (request: C
             throw new HttpsError("invalid-argument", "Chýbajú povinné údaje (fileName, contentType, courseId).");
         }
 
+        // Define userId from auth context
         const userId = request.auth.uid;
+
         // Použijeme ID z Firestore ako unikátny názov súboru
         const docId = db.collection("fileMetadata").doc().id;
         
         // --- OPRAVA: Pridáme príponu k ID ---
         const extension = fileName.includes('.') ? fileName.split('.').pop() : "";
         const finalFileName = extension ? `${docId}.${extension}` : docId;
-        const filePath = `courses/${courseId}/media/${finalFileName}`;
-        // -------------------------------------
+
+        // --- SECURITY FIX: MANDATORY USER ID IN PATH ---
+        // We ignore courseId for the path and enforce request.auth.uid to ensure ownership.
+        const filePath = `courses/${userId}/media/${finalFileName}`;
+        // -----------------------------------------------
 
         // 2. Vytvoríme "placeholder" vo Firestore
         try {
