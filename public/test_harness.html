@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Verification</title>
+    <!-- Tailwind CSS -->
+    <link href="./styles.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #f0f4f8; padding: 20px; font-family: sans-serif; }
+        .component-container {
+            border: 1px solid #ccc;
+            margin-bottom: 40px;
+            background: white;
+            height: 800px;
+            position: relative;
+            overflow: hidden; /* Let the component scroll */
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        h2 { margin: 0; background: #333; color: white; padding: 10px; font-size: 1.25rem; flex-shrink: 0; }
+
+        /* CRITICAL FIX: Ensure custom elements have height so they fill the flex container */
+        editor-view-presentation,
+        editor-view-quiz,
+        editor-view-test {
+            display: block;
+            height: 100%;
+            overflow: hidden; /* Manage overflow internally */
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Frontend Verification Harness</h1>
+
+    <div class="component-container">
+        <h2>Presentation Editor View</h2>
+        <editor-view-presentation id="presentation-editor"></editor-view-presentation>
+    </div>
+
+    <div class="component-container">
+        <h2>Quiz Editor View</h2>
+        <editor-view-quiz id="quiz-editor"></editor-view-quiz>
+    </div>
+
+    <div class="component-container">
+        <h2>Test Editor View</h2>
+        <editor-view-test id="test-editor"></editor-view-test>
+    </div>
+
+    <script type="module">
+        import './js/views/professor/editor/editor-view-presentation.js';
+        import './js/views/professor/editor/editor-view-quiz.js';
+        import './js/views/professor/editor/editor-view-test.js';
+
+        const mockPresentationLesson = {
+            title: "Test Presentation",
+            presentation: {
+                slides: [
+                    { title: "Introduction", points: ["Welcome everyone", "Overview of topics"], visual_idea: "A handshake" },
+                    { title: "Deep Dive", content: "Detailed analysis of the core subject matter." },
+                    { title: "Conclusion", points: ["Summary", "Q&A"], imageUrl: "https://via.placeholder.com/150" }
+                ]
+            }
+        };
+
+        const mockQuizLesson = {
+            title: "Math Quiz",
+            quiz: {
+                questions: [
+                    {
+                        question_text: "What is 2 + 2?",
+                        options: ["3", "4", "5", "22"],
+                        correct_option_index: 1
+                    },
+                    {
+                        question_text: "Capital of France?",
+                        options: ["London", "Berlin", "Madrid", "Paris"],
+                        correct_option_index: 3
+                    }
+                ]
+            }
+        };
+
+        const mockTestLesson = {
+            title: "Final Exam",
+            subject: "Mathematics",
+            topic: "Algebra",
+            test: {
+                questions: [
+                    {
+                        question_text: "Solve for x: 2x + 4 = 10",
+                        options: ["2", "3", "4", "5"],
+                        correct_option_index: 1
+                    }
+                ]
+            }
+        };
+
+        async function init() {
+            await Promise.all([
+                customElements.whenDefined('editor-view-presentation'),
+                customElements.whenDefined('editor-view-quiz'),
+                customElements.whenDefined('editor-view-test')
+            ]);
+
+            console.log("Custom elements defined");
+
+            const presEditor = document.getElementById('presentation-editor');
+            presEditor.lesson = mockPresentationLesson;
+            await presEditor.updateComplete;
+            console.log("Presentation editor updated");
+
+            const quizEditor = document.getElementById('quiz-editor');
+            quizEditor.lesson = mockQuizLesson;
+            await quizEditor.updateComplete;
+            console.log("Quiz editor updated");
+
+            const testEditor = document.getElementById('test-editor');
+            testEditor.lesson = mockTestLesson;
+            await testEditor.updateComplete;
+            console.log("Test editor updated");
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
