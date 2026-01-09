@@ -129,8 +129,20 @@ exports.startMagicGeneration = onCall({
     });
 
     try {
-        const pdf = loadPdfParser();
+        // --- 0. DYNAMIC CONFIGURATION FETCH ---
+        log("[Magic] Fetching AI system configuration...");
+        const configSnap = await db.collection("system_settings").doc("ai_config").get();
+        const config = configSnap.exists ? configSnap.data() : {};
 
+        const systemPrompt = config.system_prompt || undefined;
+        const magicSlidesCount = parseInt(config.magic_presentation_slides) || 8;
+        const magicQuizCount = parseInt(config.magic_quiz_questions) || 5;
+        const magicFlashcardCount = parseInt(config.magic_flashcard_count) || 10;
+        const magicTextRules = config.magic_text_rules ? `\n\nSYSTEM RULES:\n${config.magic_text_rules}` : "";
+
+        log(`[Magic] Config loaded: Slides=${magicSlidesCount}, Quiz=${magicQuizCount}, Flashcards=${magicFlashcardCount}`);
+
+        const pdf = loadPdfParser();
         const bucket = getStorage().bucket(STORAGE_BUCKET);
 
         // 1. PDF Extraction
@@ -226,9 +238,11 @@ exports.startMagicGeneration = onCall({
         Task: Create a comprehensive study lesson about "${title}" ${topic ? `(${topic})` : ""}.
         Language: ${lang}.
         Output: JSON with structure { "title": "...", "sections": [ { "heading": "...", "content": "..." } ] }
+        ${magicTextRules}
         `;
 
-        const textJson = await GeminiAPI.generateJsonFromPrompt(contextPrompt);
+        // Pass systemPrompt to Gemini
+        const textJson = await GeminiAPI.generateJsonFromPrompt(contextPrompt, systemPrompt);
 
         let markdownText = `# ${textJson.title}\n\n`;
         if (textJson.sections && Array.isArray(textJson.sections)) {
@@ -243,51 +257,67 @@ exports.startMagicGeneration = onCall({
             debug_logs: debugLogs
         });
 
-        // 3. Parallel Tasks (Images, Quiz, Flashcards)
+        // 3. Parallel Tasks (Images, Quiz, Flashcards) - ROBUST ERROR HANDLING
         const tasks = [];
 
         // Task B: Presentation & Images
         tasks.push((async () => {
-             const slidesPrompt = `Based on this text, create 8 presentation slides. Return JSON: { "slides": [ { "title": "...", "points": ["..."], "visual_idea": "..." } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
-             const slidesData = await GeminiAPI.generateJsonFromPrompt(slidesPrompt);
+             try {
+                 const slidesPrompt = `Based on this text, create exactly ${magicSlidesCount} presentation slides. Return JSON: { "slides": [ { "title": "...", "points": ["..."], "visual_idea": "..." } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
+                 const slidesData = await GeminiAPI.generateJsonFromPrompt(slidesPrompt, systemPrompt);
 
-             if (slidesData.slides) {
-                 const slidePromises = slidesData.slides.map(async (slide: any, index: number) => {
-                     if (slide.visual_idea && slide.visual_idea.trim() !== "") {
-                         try {
-                             const imageBase64 = await GeminiAPI.generateImageFromPrompt(slide.visual_idea);
-                             const fileName = `magic_slide_${lessonId}_${index}.png`;
-                             const storagePath = `courses/${request.auth!.uid}/media/generated/${fileName}`;
-                             const file = bucket.file(storagePath);
-                             await file.save(Buffer.from(imageBase64, 'base64'), { metadata: { contentType: 'image/png' } });
-                             const [url] = await file.getSignedUrl({ action: 'read', expires: '01-01-2030' });
-                             slide.imageUrl = url;
-                         } catch (err: any) {
-                             log(`Image gen failed for slide ${index}: ${err.message}`);
-                             slide.imageError = "Generation failed";
+                 if (slidesData.slides) {
+                     const slidePromises = slidesData.slides.map(async (slide: any, index: number) => {
+                         if (slide.visual_idea && slide.visual_idea.trim() !== "") {
+                             try {
+                                 const imageBase64 = await GeminiAPI.generateImageFromPrompt(slide.visual_idea);
+                                 const fileName = `magic_slide_${lessonId}_${index}.png`;
+                                 const storagePath = `courses/${request.auth!.uid}/media/generated/${fileName}`;
+                                 const file = bucket.file(storagePath);
+                                 await file.save(Buffer.from(imageBase64, 'base64'), { metadata: { contentType: 'image/png' } });
+                                 const [url] = await file.getSignedUrl({ action: 'read', expires: '01-01-2030' });
+                                 slide.imageUrl = url;
+                             } catch (err: any) {
+                                 log(`Image gen failed for slide ${index}: ${err.message}`);
+                                 slide.imageError = "Generation failed";
+                             }
+                         } else {
+                             slide.imageUrl = null;
                          }
-                     } else {
-                         slide.imageUrl = null;
-                     }
-                     return slide;
-                 });
-                 slidesData.slides = await Promise.all(slidePromises);
+                         return slide;
+                     });
+                     slidesData.slides = await Promise.all(slidePromises);
+                 }
+                 await lessonRef.update({ presentation: slidesData, debug_logs: debugLogs });
+             } catch (e: any) {
+                 log(`Task B (Slides) failed: ${e.message}`);
+                 // Don't throw, just log and skip this part
+                 await lessonRef.update({ debug_logs: debugLogs });
              }
-             await lessonRef.update({ presentation: slidesData, debug_logs: debugLogs });
         })());
 
         // Task C: Quiz
         tasks.push((async () => {
-             const quizPrompt = `Create 5 quiz questions based on this text. Return JSON: { "questions": [ { "question_text": "...", "options": ["..."], "correct_option_index": 0 } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
-             const quizData = await GeminiAPI.generateJsonFromPrompt(quizPrompt);
-             await lessonRef.update({ quiz: quizData, debug_logs: debugLogs });
+             try {
+                 const quizPrompt = `Create exactly ${magicQuizCount} quiz questions based on this text. Return JSON: { "questions": [ { "question_text": "...", "options": ["..."], "correct_option_index": 0 } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
+                 const quizData = await GeminiAPI.generateJsonFromPrompt(quizPrompt, systemPrompt);
+                 await lessonRef.update({ quiz: quizData, debug_logs: debugLogs });
+             } catch (e: any) {
+                 log(`Task C (Quiz) failed: ${e.message}`);
+                 // Don't throw
+             }
         })());
 
         // Task D: Flashcards
         tasks.push((async () => {
-             const fcPrompt = `Create 10 flashcards based on this text. Return JSON: { "cards": [ { "front": "...", "back": "..." } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
-             const fcData = await GeminiAPI.generateJsonFromPrompt(fcPrompt);
-             await lessonRef.update({ flashcards: fcData, debug_logs: debugLogs });
+             try {
+                 const fcPrompt = `Create exactly ${magicFlashcardCount} flashcards based on this text. Return JSON: { "cards": [ { "front": "...", "back": "..." } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
+                 const fcData = await GeminiAPI.generateJsonFromPrompt(fcPrompt, systemPrompt);
+                 await lessonRef.update({ flashcards: fcData, debug_logs: debugLogs });
+             } catch (e: any) {
+                 log(`Task D (Flashcards) failed: ${e.message}`);
+                 // Don't throw
+             }
         })());
 
         await Promise.all(tasks);
@@ -440,6 +470,7 @@ exports.generateContent = onCall({
         // Načítanie konfigurácie pre magický režim
         const configSnap = await db.collection("system_settings").doc("ai_config").get();
         const config = configSnap.exists ? configSnap.data() : {};
+        const systemPrompt = config.system_prompt || undefined;
 
         let finalPrompt = promptData.userPrompt;
         const language = promptData.language || "cs";
@@ -630,8 +661,8 @@ Use exactly this structure:
             if (allChunks.length === 0) {
                  logger.warn("[RAG] No chunks found for the provided files. Falling back to non-RAG generation.");
                  return isJson
-                    ? await GeminiAPI.generateJsonFromDocuments(filePaths, finalPrompt)
-                    : { text: await GeminiAPI.generateTextFromDocuments(filePaths, finalPrompt) };
+                    ? await GeminiAPI.generateJsonFromDocuments(filePaths, finalPrompt, systemPrompt)
+                    : { text: await GeminiAPI.generateTextFromDocuments(filePaths, finalPrompt, systemPrompt) };
             }
 
             // 3. Calculate Cosine Similarity and sort
@@ -653,15 +684,15 @@ Use exactly this structure:
             // Use the standard text/json generation with the new augmented prompt.
             // Note: We don't pass the filePaths to these functions anymore, as the context is in the prompt.
             return isJson
-                ? await GeminiAPI.generateJsonFromPrompt(augmentedPrompt)
-                : { text: await GeminiAPI.generateTextFromPrompt(augmentedPrompt) };
+                ? await GeminiAPI.generateJsonFromPrompt(augmentedPrompt, systemPrompt)
+                : { text: await GeminiAPI.generateTextFromPrompt(augmentedPrompt, systemPrompt) };
 
         } else {
             // Standard non-RAG response
             const GeminiAPI = require("./gemini-api.js");
             return isJson
-                ? await GeminiAPI.generateJsonFromPrompt(finalPrompt)
-                : { text: await GeminiAPI.generateTextFromPrompt(finalPrompt) };
+                ? await GeminiAPI.generateJsonFromPrompt(finalPrompt, systemPrompt)
+                : { text: await GeminiAPI.generateTextFromPrompt(finalPrompt, systemPrompt) };
         }
     } catch (error) {
         logger.error(`Error in generateContent for type ${contentType}:`, error);
@@ -961,10 +992,7 @@ exports.sendMessageToStudent = onCall({ region: DEPLOY_REGION, secrets: ["TELEGR
     }
 });
 
-// ==================================================================
-// =================== ZAČIATOK ÚPRAVY PRE ANALÝZU =====================
-// ==================================================================
-
+// ... (Rest of file unchanged) ...
 exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     try {
         // ... (kód zostáva nezmenený) ...

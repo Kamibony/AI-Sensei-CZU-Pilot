@@ -11,7 +11,6 @@ const STORAGE_BUCKET = process.env.STORAGE_BUCKET || FIREBASE_CONFIG.storageBuck
 
 // Lazy loading global variables
 let vertex_ai: any = null;
-let model: any = null;
 
 function getGcloudProject() {
     const project = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
@@ -21,29 +20,32 @@ function getGcloudProject() {
     return project;
 }
 
-function getGenerativeModel() {
-    if (!model) {
-        const { VertexAI, HarmCategory, HarmBlockThreshold } = require("@google-cloud/vertexai");
+function getGenerativeModel(systemInstruction?: string) {
+    if (!vertex_ai) {
+        const { VertexAI } = require("@google-cloud/vertexai");
         vertex_ai = new VertexAI({ project: getGcloudProject(), location: LOCATION });
-        model = vertex_ai.getGenerativeModel({
-            model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
-            // INSERT START
-            systemInstruction: {
-                parts: [{ text: "You are a strict educational assistant. Generate content ONLY based on the provided source text. Do not invent facts outside the context. If information is missing, state it." }]
-            },
-            generationConfig: {
-                temperature: 0.2, // Low creativity for accuracy
-            },
-            // INSERT END
-            safetySettings: [
-                { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-                { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-                { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-                { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-            ],
-        });
     }
-    return model;
+
+    const { HarmCategory, HarmBlockThreshold } = require("@google-cloud/vertexai");
+
+    // Default system instruction if none provided
+    const defaultInstruction = "You are a strict educational assistant. Generate content ONLY based on the provided source text. Do not invent facts outside the context. If information is missing, state it.";
+
+    return vertex_ai.getGenerativeModel({
+        model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
+        systemInstruction: {
+            parts: [{ text: systemInstruction || defaultInstruction }]
+        },
+        generationConfig: {
+            temperature: 0.2, // Low creativity for accuracy
+        },
+        safetySettings: [
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+        ],
+    });
 }
 
 // --- POMOCNÁ FUNKCIA NA ČISTENIE CESTY ---
@@ -192,7 +194,7 @@ function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
 }
 // exports.calculateCosineSimilarity = calculateCosineSimilarity;
 
-async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
+async function streamGeminiResponse(requestBody: GenerateContentRequest, systemInstruction?: string): Promise<string> {
     const functionName = requestBody.generationConfig?.responseMimeType === "application/json"
         ? "generateJson"
         : "generateText";
@@ -206,7 +208,7 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
     try {
         const modelId = process.env.GEMINI_MODEL || "gemini-2.5-pro";
         console.log(`[gemini-api:${functionName}] Sending request to Vertex AI with model '${modelId}' in '${LOCATION}'...`);
-        const modelInstance = getGenerativeModel();
+        const modelInstance = getGenerativeModel(systemInstruction);
         const streamResult = await modelInstance.generateContentStream(requestBody);
         let fullText = "";
         for await (const item of streamResult.stream) {
@@ -226,15 +228,15 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
     }
 }
 
-async function generateTextFromPrompt(prompt: string): Promise<string> {
+async function generateTextFromPrompt(prompt: string, systemInstruction?: string): Promise<string> {
     const request: GenerateContentRequest = {
         contents: [{ role: "user", parts: [{ text: prompt }] }],
     };
-    return await streamGeminiResponse(request);
+    return await streamGeminiResponse(request, systemInstruction);
 }
 // exports.generateTextFromPrompt = generateTextFromPrompt;
 
-async function generateJsonFromPrompt(prompt: string): Promise<any> {
+async function generateJsonFromPrompt(prompt: string, systemInstruction?: string): Promise<any> {
     const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
     const request: GenerateContentRequest = {
         contents: [{ role: "user", parts: [{ text: jsonPrompt }] }],
@@ -242,7 +244,7 @@ async function generateJsonFromPrompt(prompt: string): Promise<any> {
             responseMimeType: "application/json",
         },
     };
-    const rawJsonText = await streamGeminiResponse(request);
+    const rawJsonText = await streamGeminiResponse(request, systemInstruction);
     try {
         const parsedJson = JSON.parse(rawJsonText);
         return parsedJson;
@@ -254,7 +256,7 @@ async function generateJsonFromPrompt(prompt: string): Promise<any> {
 }
 // exports.generateJsonFromPrompt = generateJsonFromPrompt;
 
-async function generateTextFromDocuments(filePaths: string[], prompt: string): Promise<string> {
+async function generateTextFromDocuments(filePaths: string[], prompt: string, systemInstruction?: string): Promise<string> {
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
     let loadedFiles = 0;
@@ -293,11 +295,11 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string): P
     const request: GenerateContentRequest = {
         contents: [{ role: "user", parts: parts }],
     };
-    return await streamGeminiResponse(request);
+    return await streamGeminiResponse(request, systemInstruction);
 }
 // exports.generateTextFromDocuments = generateTextFromDocuments;
 
-async function generateJsonFromDocuments(filePaths: string[], prompt: string): Promise<any> {
+async function generateJsonFromDocuments(filePaths: string[], prompt: string, systemInstruction?: string): Promise<any> {
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
     
@@ -334,7 +336,7 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string): P
             responseMimeType: "application/json",
         },
     };
-    const rawJsonText = await streamGeminiResponse(request);
+    const rawJsonText = await streamGeminiResponse(request, systemInstruction);
     try {
         const parsedJson = JSON.parse(rawJsonText);
         return parsedJson;
