@@ -152,6 +152,7 @@ export class LessonEditor extends BaseView {
   async connectedCallback() {
       super.connectedCallback();
       this.addEventListener('lesson-updated', this._handleLessonUpdatedEvent);
+      this.addEventListener('publish-changed', this._handlePublishChanged);
       this._unsubscribe = translationService.subscribe(() => this.requestUpdate());
 
       this._authUnsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -184,6 +185,7 @@ export class LessonEditor extends BaseView {
   disconnectedCallback() {
       super.disconnectedCallback();
       this.removeEventListener('lesson-updated', this._handleLessonUpdatedEvent);
+      this.removeEventListener('publish-changed', this._handlePublishChanged);
       if (this._unsubscribe) this._unsubscribe();
       if (this._authUnsubscribe) this._authUnsubscribe();
       if (this._magicUnsubscribe) this._magicUnsubscribe();
@@ -216,6 +218,12 @@ export class LessonEditor extends BaseView {
       }
   }
 
+  _handlePublishChanged(e) {
+      const isPublished = e.detail.isPublished;
+      this.lesson = { ...this.lesson, isPublished: isPublished };
+      this.requestUpdate();
+  }
+
   _initNewLesson() {
       const intent = this.lesson?.intent || null;
 
@@ -243,6 +251,7 @@ export class LessonEditor extends BaseView {
           content: { blocks: [] },
           assignedToGroups: [],
           status: 'draft',
+          isPublished: false,
           files: initialFiles,
           createdAt: new Date().toISOString(),
           intent: intent || null
@@ -1188,6 +1197,14 @@ export class LessonEditor extends BaseView {
             </div>
 
             <div class="flex items-center gap-3 flex-shrink-0">
+               <!-- Publish Toggle -->
+               <button @click="${() => this._handlePublishChanged({ detail: { isPublished: !this.lesson.isPublished } })}"
+                       class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white transition-all ${this.lesson?.isPublished ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-500 hover:bg-slate-600'}"
+                       title="${this.lesson?.isPublished ? (translationService.t('lesson.status_published') || 'Publikované') : (translationService.t('lesson.status_draft') || 'Koncept')}">
+                   <span class="mr-2">${this.lesson?.isPublished ? '🚀' : '📝'}</span>
+                   ${this.lesson?.isPublished ? (translationService.t('lesson.status_published') || 'Publikované') : (translationService.t('lesson.status_draft') || 'Koncept')}
+               </button>
+
                <button @click="${this._handleSave}"
                       class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none transition-all ${this.isSaving ? 'opacity-75 cursor-wait' : ''}"
                       ?disabled="${this.isSaving}">
