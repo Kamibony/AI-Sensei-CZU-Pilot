@@ -38,6 +38,7 @@ function getGenerativeModel(systemInstruction?: string) {
         },
         generationConfig: {
             temperature: 0.2, // Low creativity for accuracy
+            maxOutputTokens: 8192,
         },
         safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },

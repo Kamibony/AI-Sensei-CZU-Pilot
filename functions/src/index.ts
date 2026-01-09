@@ -232,17 +232,23 @@ exports.startMagicGeneration = onCall({
         const lang = "Czech";
 
         const contextPrompt = `
-        Source Material:
-        ${fullTextContext.substring(0, 30000)}
+        ROLE: You are an expert educational content creator.
+        TASK: Create a comprehensive study lesson about "${title}" ${topic ? `(${topic})` : ""}.
+        LANGUAGE: ${lang}.
 
-        Task: Create a comprehensive study lesson about "${title}" ${topic ? `(${topic})` : ""}.
-        Language: ${lang}.
-        Output: JSON with structure { "title": "...", "sections": [ { "heading": "...", "content": "..." } ] }
+        --- SOURCE MATERIAL BEGIN ---
+        ${fullTextContext.substring(0, 30000)}
+        --- SOURCE MATERIAL END ---
+
+        CRITICAL OUTPUT INSTRUCTIONS:
+        1. You MUST return a valid JSON object.
+        2. Structure: { "title": "...", "sections": [ { "heading": "...", "content": "..." } ] }
         ${magicTextRules}
         `;
 
         // Pass systemPrompt to Gemini
         const textJson = await GeminiAPI.generateJsonFromPrompt(contextPrompt, systemPrompt);
+        log(`Generated Text Content Keys: ${Object.keys(textJson).join(", ")}`);
 
         let markdownText = `# ${textJson.title}\n\n`;
         if (textJson.sections && Array.isArray(textJson.sections)) {
@@ -270,8 +276,21 @@ exports.startMagicGeneration = onCall({
         // Task B: Presentation (Text Only)
         contentTasks.push((async () => {
              try {
-                 const slidesPrompt = `Based on this text, create exactly ${magicSlidesCount} presentation slides. Output JSON: { "slides": [ ... ] (MANDATORY: Generate exactly ${magicSlidesCount} slides. Empty array is a failure.) }. Each item has "title", "points", "visual_idea".\n\nText:\n${markdownText.substring(0, 10000)}`;
+                 const slidesPrompt = `
+ROLE: You are an expert presentation designer.
+TASK: Create exactly ${magicSlidesCount} presentation slides based on the provided text.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. You MUST generate exactly ${magicSlidesCount} slides.
+2. Output valid JSON only.
+3. Structure: { "slides": [ { "title": "...", "points": ["...", "..."], "visual_idea": "..." }, ... ] }
+`;
                  slidesData = await GeminiAPI.generateJsonFromPrompt(slidesPrompt, systemPrompt);
+                 log(`Generated Slides Keys: ${slidesData ? Object.keys(slidesData).join(", ") : "null"}`);
              } catch (e: any) {
                  log(`Phase 1 (Slides Text) failed: ${e.message}`);
              }
@@ -280,8 +299,21 @@ exports.startMagicGeneration = onCall({
         // Task C: Quiz
         contentTasks.push((async () => {
              try {
-                 const quizPrompt = `Create exactly ${magicQuizCount} quiz questions based on this text. Output JSON: { "questions": [ ... ] (MANDATORY: Generate exactly ${magicQuizCount} questions. Empty array is a failure.) }. Each item has "question_text", "options" (array of strings), "correct_option_index" (number).\n\nText:\n${markdownText.substring(0, 10000)}`;
+                 const quizPrompt = `
+ROLE: You are an expert quiz creator.
+TASK: Create exactly ${magicQuizCount} quiz questions based on the provided text.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. You MUST generate exactly ${magicQuizCount} questions.
+2. Output valid JSON only.
+3. Structure: { "questions": [ { "question_text": "...", "options": ["...", "...", "...", "..."], "correct_option_index": 0 }, ... ] }
+`;
                  quizData = await GeminiAPI.generateJsonFromPrompt(quizPrompt, systemPrompt);
+                 log(`Generated Quiz Keys: ${quizData ? Object.keys(quizData).join(", ") : "null"}`);
              } catch (e: any) {
                  log(`Phase 1 (Quiz) failed: ${e.message}`);
              }
@@ -290,8 +322,21 @@ exports.startMagicGeneration = onCall({
         // Task D: Flashcards
         contentTasks.push((async () => {
              try {
-                 const fcPrompt = `Create exactly ${magicFlashcardCount} flashcards based on this text. Output JSON: { "cards": [ ... ] (MANDATORY: Generate exactly ${magicFlashcardCount} cards. Empty array is a failure.) }. Each item has "front", "back".\n\nText:\n${markdownText.substring(0, 10000)}`;
+                 const fcPrompt = `
+ROLE: You are an expert study aid creator.
+TASK: Create exactly ${magicFlashcardCount} flashcards based on the provided text.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. You MUST generate exactly ${magicFlashcardCount} cards.
+2. Output valid JSON only.
+3. Structure: { "cards": [ { "front": "...", "back": "..." }, ... ] }
+`;
                  flashcardsData = await GeminiAPI.generateJsonFromPrompt(fcPrompt, systemPrompt);
+                 log(`Generated Flashcards Keys: ${flashcardsData ? Object.keys(flashcardsData).join(", ") : "null"}`);
              } catch (e: any) {
                  log(`Phase 1 (Flashcards) failed: ${e.message}`);
              }
