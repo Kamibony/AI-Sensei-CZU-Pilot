@@ -68,16 +68,33 @@ exports.startMagicGeneration = onCall({
     }
 
     const lessonRef = db.collection("lessons").doc(lessonId);
-    await lessonRef.update({ magicStatus: "generating", magicProgress: "Starting analysis..." });
+
+    // --- DEBUG LOGGING SETUP ---
+    const debugLogs: string[] = [];
+    const log = (message: string) => {
+        logger.log(message);
+        debugLogs.push(`[${new Date().toISOString()}] ${message}`);
+    };
+    // ---------------------------
+
+    await lessonRef.update({
+        magicStatus: "generating",
+        magicProgress: "Starting analysis...",
+        debug_logs: debugLogs
+    });
 
     try {
-        const pdf = require("pdf-parse");
+        let pdf = require("pdf-parse");
+        if (typeof pdf !== 'function' && pdf.default) {
+            pdf = pdf.default;
+        }
+
         const bucket = getStorage().bucket(STORAGE_BUCKET);
 
         // 1. PDF Extraction
         let fullTextContext = "";
         if (filePaths && filePaths.length > 0) {
-            await lessonRef.update({ magicProgress: "Reading files..." });
+            await lessonRef.update({ magicProgress: "Reading files...", debug_logs: debugLogs });
             for (const rawPath of filePaths) {
                 try {
                      // --- ENFORCE STRICT DATA OWNERSHIP ---
@@ -105,55 +122,56 @@ exports.startMagicGeneration = onCall({
                          // Strict path failed (file not found in user's folder).
                          // Check if we can fallback to legacy.
                          if (isLegacy && isAdmin) {
-                             logger.warn(`[Magic] Strict path failed for ${fileName}. Admin fallback to legacy path: ${rawPath}`);
+                             log(`[Magic] Strict path failed for ${fileName}. Admin fallback to legacy path: ${rawPath}`);
                              const cleanLegacy = GeminiAPI.sanitizeStoragePath(rawPath, bucket.name);
                              const result = await GeminiAPI.downloadFileWithRetries(bucket, cleanLegacy);
                              buffer = result.buffer;
                              finalPath = result.finalPath;
                          } else {
                              // Not admin or not legacy -> Enforce isolation (Fail)
-                             logger.warn(`[Magic] Strict path failed for ${fileName} and fallback denied. Owner: ${ownerId}, Legacy: ${isLegacy}, Admin: ${isAdmin}`);
+                             log(`[Magic] Strict path failed for ${fileName} and fallback denied. Owner: ${ownerId}, Legacy: ${isLegacy}, Admin: ${isAdmin}`);
                              throw strictError;
                          }
                      }
 
-                     logger.log(`[Magic] Successfully read file. Target: '${targetPath}', Final: '${finalPath}'`);
+                     log(`[Magic] Successfully read file. Target: '${targetPath}', Final: '${finalPath}'`);
 
                      let text = "";
                      if (finalPath.toLowerCase().endsWith(".pdf")) {
                          const pdfData = await pdf(buffer);
                          text = pdfData.text;
-                         logger.log(`[Magic] PDF ${finalPath}: ${text.length} chars. Snippet: "${text.substring(0, 100)}..."`);
+                         log(`[Magic] PDF ${finalPath}: ${text.length} chars. Snippet: "${text.substring(0, 100)}..."`);
 
                          // --- FALLBACK: Gemini Vision for Scans ---
                          if (text.trim().length < 100) {
-                             logger.warn(`[Magic] Low text detected in ${finalPath}. Attempting Vision OCR...`);
+                             log(`[Magic] Low text detected in ${finalPath}. Attempting Vision OCR...`);
                              // Convert PDF buffer to Base64
                              const pdfBase64 = buffer.toString('base64');
                              // Call Gemini Flash (cheaper/faster) to extract text
                              const visionPrompt = "Extract all readable text from this document verbatim.";
                              const visionText = await GeminiAPI.generateTextFromMultimodal(visionPrompt, pdfBase64, "application/pdf");
                              text = visionText || "";
-                             logger.log(`[Magic] Vision OCR result: ${text.length} chars.`);
+                             log(`[Magic] Vision OCR result: ${text.length} chars.`);
                          }
                      } else {
                          text = buffer.toString("utf-8");
-                         logger.log(`[Magic] Text File ${finalPath}: ${text.length} chars.`);
+                         log(`[Magic] Text File ${finalPath}: ${text.length} chars.`);
                      }
 
                      if (!text || text.trim().length < 50) {
-                         logger.warn(`[Magic] File ${finalPath} has very little text.`);
+                         log(`[Magic] File ${finalPath} has very little text.`);
                      }
 
                      fullTextContext += `\n\n--- File: ${finalPath} ---\n${text}`;
                 } catch (e: any) {
                     logger.error(`Failed to read file ${rawPath}`, e);
+                    log(`Failed to read file ${rawPath}: ${e.message}`);
                 }
             }
         }
 
         // 2. Generate Content (Task A)
-        await lessonRef.update({ magicProgress: "Generating study material..." });
+        await lessonRef.update({ magicProgress: "Generating study material...", debug_logs: debugLogs });
 
         const title = (await lessonRef.get()).data()?.title || "Lesson";
         const topic = lessonTopic || "";
@@ -179,7 +197,8 @@ exports.startMagicGeneration = onCall({
 
         await lessonRef.update({
             text_content: markdownText,
-            magicProgress: "Creating visual aids and quiz..."
+            magicProgress: "Creating visual aids and quiz...",
+            debug_logs: debugLogs
         });
 
         // 3. Parallel Tasks (Images, Quiz, Flashcards)
@@ -202,7 +221,7 @@ exports.startMagicGeneration = onCall({
                              const [url] = await file.getSignedUrl({ action: 'read', expires: '01-01-2030' });
                              slide.imageUrl = url;
                          } catch (err: any) {
-                             logger.warn(`Image gen failed for slide ${index}: ${err.message}`);
+                             log(`Image gen failed for slide ${index}: ${err.message}`);
                              slide.imageError = "Generation failed";
                          }
                      } else {
@@ -212,31 +231,31 @@ exports.startMagicGeneration = onCall({
                  });
                  slidesData.slides = await Promise.all(slidePromises);
              }
-             await lessonRef.update({ presentation: slidesData });
+             await lessonRef.update({ presentation: slidesData, debug_logs: debugLogs });
         })());
 
         // Task C: Quiz
         tasks.push((async () => {
              const quizPrompt = `Create 5 quiz questions based on this text. Return JSON: { "questions": [ { "question_text": "...", "options": ["..."], "correct_option_index": 0 } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
              const quizData = await GeminiAPI.generateJsonFromPrompt(quizPrompt);
-             await lessonRef.update({ quiz: quizData });
+             await lessonRef.update({ quiz: quizData, debug_logs: debugLogs });
         })());
 
         // Task D: Flashcards
         tasks.push((async () => {
              const fcPrompt = `Create 10 flashcards based on this text. Return JSON: { "cards": [ { "front": "...", "back": "..." } ] }\n\nText:\n${markdownText.substring(0, 10000)}`;
              const fcData = await GeminiAPI.generateJsonFromPrompt(fcPrompt);
-             await lessonRef.update({ flashcards: fcData });
+             await lessonRef.update({ flashcards: fcData, debug_logs: debugLogs });
         })());
 
         await Promise.all(tasks);
 
-        await lessonRef.update({ magicStatus: "ready", magicProgress: "Done!" });
+        await lessonRef.update({ magicStatus: "ready", magicProgress: "Done!", debug_logs: debugLogs });
         return { success: true };
 
     } catch (error: any) {
-        logger.error("Magic Generation Error", error);
-        await lessonRef.update({ magicStatus: "error", magicProgress: `Error: ${error.message}` });
+        log(`Magic Generation Error: ${error.message}`);
+        await lessonRef.update({ magicStatus: "error", magicProgress: `Error: ${error.message}`, debug_logs: debugLogs });
         throw new HttpsError("internal", error.message);
     }
 });
@@ -687,7 +706,10 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
 
         // 2. Extract text from PDF
         logger.log("[RAG] Initializing pdf-parse...");
-        const pdf = require("pdf-parse");
+        let pdf = require("pdf-parse");
+        if (typeof pdf !== 'function' && pdf.default) {
+            pdf = pdf.default;
+        }
         logger.log("[RAG] Parsing PDF content...");
         let text = "";
         try {
