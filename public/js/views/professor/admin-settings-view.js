@@ -13,9 +13,12 @@ export class AdminSettingsView extends Localized(LitElement) {
     constructor() {
         super();
         this._settings = {
-            presentation_slides: 8,
-            text_instructions: "Rozsah 300 slov. Rozdělte text do logických odstavců. Používejte nadpisy pro lepší orientaci.",
-            test_questions: 10
+            magic_presentation_slides: 8,
+            magic_text_rules: "Rozsah 300 slov. Rozdělte text do logických odstavců. Používejte nadpisy pro lepší orientaci.",
+            magic_test_questions: 10,
+            magic_quiz_questions: 5,
+            magic_flashcard_count: 10,
+            system_prompt: "" // Default system instruction
         };
         this._isLoading = true;
     }
@@ -93,6 +96,28 @@ export class AdminSettingsView extends Localized(LitElement) {
 
                         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                             <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
+                                <span class="bg-indigo-100 text-indigo-600 p-2 rounded-lg mr-3">🤖</span>
+                                System Prompt (Global)
+                            </h2>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                        System Instruction
+                                    </label>
+                                    <textarea
+                                           name="system_prompt"
+                                           .value=${this._settings.system_prompt || ""}
+                                           @input=${this._handleInputChange}
+                                           rows="3"
+                                           placeholder="You are a strict educational assistant..."
+                                           class="w-full rounded-xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></textarea>
+                                    <p class="text-xs text-slate-500 mt-1">This overrides the default system instruction for all AI operations.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
                                 <span class="bg-indigo-100 text-indigo-600 p-2 rounded-lg mr-3">📊</span>
                                 ${this.t('admin.settings.presentation_section')}
                             </h2>
@@ -102,8 +127,8 @@ export class AdminSettingsView extends Localized(LitElement) {
                                         <span>📊</span> ${this.t('admin.settings.slides_label')}
                                     </label>
                                     <input type="number"
-                                           name="presentation_slides"
-                                           .value=${this._settings.presentation_slides}
+                                           name="magic_presentation_slides"
+                                           .value=${this._settings.magic_presentation_slides}
                                            @input=${this._handleInputChange}
                                            min="1" max="20"
                                            class="w-full rounded-xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
@@ -126,8 +151,8 @@ export class AdminSettingsView extends Localized(LitElement) {
                                         <span>📝</span> ${this.t('admin.settings.text_instructions_label')}
                                     </label>
                                     <textarea
-                                           name="text_instructions"
-                                           .value=${this._settings.text_instructions}
+                                           name="magic_text_rules"
+                                           .value=${this._settings.magic_text_rules}
                                            @input=${this._handleInputChange}
                                            rows="4"
                                            class="w-full rounded-xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></textarea>
@@ -139,16 +164,34 @@ export class AdminSettingsView extends Localized(LitElement) {
                         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                             <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
                                 <span class="bg-green-100 text-green-600 p-2 rounded-lg mr-3">✅</span>
-                                ${this.t('admin.settings.tests_section')}
+                                Content Limits (Magic Gen)
                             </h2>
-                            <div class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">${this.t('admin.settings.questions_label')}</label>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Test Questions</label>
                                     <input type="number"
-                                           name="test_questions"
-                                           .value=${this._settings.test_questions}
+                                           name="magic_test_questions"
+                                           .value=${this._settings.magic_test_questions}
                                            @input=${this._handleInputChange}
                                            min="1" max="50"
+                                           class="w-full rounded-xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Quiz Questions</label>
+                                    <input type="number"
+                                           name="magic_quiz_questions"
+                                           .value=${this._settings.magic_quiz_questions}
+                                           @input=${this._handleInputChange}
+                                           min="1" max="20"
+                                           class="w-full rounded-xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Flashcards</label>
+                                    <input type="number"
+                                           name="magic_flashcard_count"
+                                           .value=${this._settings.magic_flashcard_count}
+                                           @input=${this._handleInputChange}
+                                           min="1" max="30"
                                            class="w-full rounded-xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 </div>
                             </div>
