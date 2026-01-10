@@ -446,11 +446,11 @@ CRITICAL OUTPUT INSTRUCTIONS:
         if (quizData) updateData.quiz = quizData;
         if (flashcardsData) updateData.flashcards = flashcardsData;
 
-        // NEW CONTENT TYPES
-        if (testData) updateData.test = testData;
-        if (podcastData) updateData.podcast_script = podcastData;
-        if (comicData) updateData.comic = comicData;
-        if (mindmapData) updateData.mindmap = mindmapData;
+        // NEW CONTENT TYPES (Flattened for consumption)
+        if (testData && testData.questions) updateData.test = testData.questions;
+        if (podcastData && podcastData.script) updateData.podcast_script = podcastData.script;
+        if (comicData && comicData.panels) updateData.comic_script = comicData.panels;
+        if (mindmapData && mindmapData.mermaid) updateData.mindmap = mindmapData.mermaid;
 
         await lessonRef.update(updateData);
 
@@ -509,7 +509,7 @@ CRITICAL OUTPUT INSTRUCTIONS:
         }
 
         await lessonRef.update({ magicStatus: "ready", magicProgress: "Done!", debug_logs: debugLogs });
-        return { success: true };
+        return { success: true, data: updateData };
 
     } catch (error: any) {
         log(`Magic Generation Error: ${error.message}`);
