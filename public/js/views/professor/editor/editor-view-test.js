@@ -59,8 +59,8 @@ export class EditorViewTest extends Localized(LitElement) {
     }
 
     _getQuestions() {
-        // Priority: this.lesson.test.questions -> this.lesson.content.questions -> []
-        const fromTest = this.lesson?.test?.questions;
+        // Priority: this.lesson.test (Array) -> this.lesson.test.questions (Legacy) -> this.lesson.content.questions (Legacy)
+        const fromTest = Array.isArray(this.lesson?.test) ? this.lesson.test : this.lesson?.test?.questions;
         const fromContent = this.lesson?.content?.questions;
 
         // Return a DEEP COPY to ensure we don't mutate state directly before dispatch
@@ -70,10 +70,10 @@ export class EditorViewTest extends Localized(LitElement) {
     }
 
     _dispatchUpdate(questions) {
-        // IMPORTANT: We now dispatch to 'test' object to align with Student View expectation
+        // IMPORTANT: Dispatched as a flat array to 'test' key, matching new backend structure
         this.dispatchEvent(new CustomEvent('lesson-updated', {
             detail: {
-                test: { questions: questions }
+                test: questions
             },
             bubbles: true,
             composed: true
@@ -81,7 +81,7 @@ export class EditorViewTest extends Localized(LitElement) {
     }
 
     render() {
-        const questions = this.lesson?.test?.questions || this.lesson?.content?.questions || [];
+        const questions = this._getQuestions();
         const hasContent = questions.length > 0;
 
         return html`

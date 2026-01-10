@@ -446,11 +446,11 @@ CRITICAL OUTPUT INSTRUCTIONS:
         if (quizData) updateData.quiz = quizData;
         if (flashcardsData) updateData.flashcards = flashcardsData;
 
-        // NEW CONTENT TYPES
-        if (testData) updateData.test = testData;
-        if (podcastData) updateData.podcast_script = podcastData;
-        if (comicData) updateData.comic = comicData;
-        if (mindmapData) updateData.mindmap = mindmapData;
+        // NEW CONTENT TYPES (Flattened for consumption)
+        if (testData && testData.questions) updateData.test = testData.questions;
+        if (podcastData && podcastData.script) updateData.podcast_script = podcastData.script;
+        if (comicData && comicData.panels) updateData.comic_script = comicData.panels;
+        if (mindmapData && mindmapData.mermaid) updateData.mindmap = mindmapData.mermaid;
 
         await lessonRef.update(updateData);
 
@@ -509,7 +509,7 @@ CRITICAL OUTPUT INSTRUCTIONS:
         }
 
         await lessonRef.update({ magicStatus: "ready", magicProgress: "Done!", debug_logs: debugLogs });
-        return { success: true };
+        return { success: true, data: updateData };
 
     } catch (error: any) {
         log(`Magic Generation Error: ${error.message}`);
@@ -1924,7 +1924,11 @@ exports.finalizeUpload = onCall({ region: DEPLOY_REGION }, async (request: Calla
 // ==================================================================
 // =================== DATA MIGRATION FUNCTION ======================
 // ==================================================================
-exports.admin_migrateFileMetadata = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+exports.admin_migrateFileMetadata = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 540,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
     // 1. Authorize: Only the admin can run this
     if (request.auth?.token.email !== "profesor@profesor.cz") {
         throw new HttpsError("unauthenticated", "This action requires administrator privileges.");
@@ -1995,7 +1999,11 @@ exports.admin_migrateFileMetadata = onCall({ region: DEPLOY_REGION }, async (req
 // ==================================================================
 // =================== EMERGENCY ROLE RESTORE =======================
 // ==================================================================
-exports.emergency_restoreProfessors = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+exports.emergency_restoreProfessors = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
     // 1. Authorize: Bypass role check, use email for the admin
     if (request.auth?.token.email !== "profesor@profesor.cz") {
         logger.warn(`Unauthorized emergency role restore attempt by ${request.auth?.token.email}`);
@@ -2133,7 +2141,11 @@ exports.admin_nuke_all_files = onCall({ region: DEPLOY_REGION, timeoutSeconds: 5
     }
 });
 
-exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+exports.admin_migrateStudentRoles = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 540,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
     // 1. Authorize: Only the admin can run this
     if (request.auth?.token.email !== "profesor@profesor.cz") {
         logger.warn(`Unauthorized role migration attempt by ${request.auth?.token.email}`);
