@@ -789,7 +789,18 @@ export class LessonEditor extends BaseView {
       this._magicUnsubscribe = onSnapshot(lessonRef, (docSnap) => {
           if (docSnap.exists()) {
               const data = docSnap.data();
-              this.lesson = { ...this.lesson, ...data };
+
+              // Explicitly map new fields with safe defaults to ensure frontend stability
+              const safeData = {
+                  ...data,
+                  test: data.test || { questions: [] },
+                  podcast_script: data.podcast_script || { script: [] },
+                  comic: data.comic || { panels: [] },
+                  mindmap: data.mindmap || { mermaid: '' },
+                  flashcards: data.flashcards || { cards: [] }
+              };
+
+              this.lesson = { ...this.lesson, ...safeData };
 
               if (data.debug_logs && Array.isArray(data.debug_logs)) {
                   console.group("Magic Debug Logs");
@@ -1125,10 +1136,10 @@ export class LessonEditor extends BaseView {
                       ${this._renderContentCard('test', '📝', translationService.t('content_types.test'), this.lesson.test?.questions?.length > 0)}
                       ${this._renderContentCard('post', '📰', translationService.t('content_types.post'), !!this.lesson.postContent)}
                       ${this._renderContentCard('video', '🎥', translationService.t('content_types.video'), !!this.lesson.videoUrl)}
-                      ${this._renderContentCard('audio', '🎙️', translationService.t('content_types.audio'), false)}
-                      ${this._renderContentCard('comic', '💬', translationService.t('content_types.comic'), false)}
-                      ${this._renderContentCard('flashcards', '🃏', translationService.t('content_types.flashcards'), false)}
-                      ${this._renderContentCard('mindmap', '🧠', translationService.t('content_types.mindmap'), false)}
+                      ${this._renderContentCard('audio', '🎙️', translationService.t('content_types.audio'), (this.lesson.podcast_script?.script?.length > 0) || !!this.lesson.audioContent)}
+                      ${this._renderContentCard('comic', '💬', translationService.t('content_types.comic'), this.lesson.comic?.panels?.length > 0)}
+                      ${this._renderContentCard('flashcards', '🃏', translationService.t('content_types.flashcards'), this.lesson.flashcards?.cards?.length > 0)}
+                      ${this._renderContentCard('mindmap', '🧠', translationService.t('content_types.mindmap'), !!this.lesson.mindmap?.mermaid)}
                   </div>
               </div>
 

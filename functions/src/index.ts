@@ -265,11 +265,15 @@ exports.startMagicGeneration = onCall({
 
         // --- PHASE 1: Content Generation (Critical) ---
         // Generate Quiz, Flashcards, and Slide Text. Store in memory first.
-        await lessonRef.update({ magicProgress: "Drafting slides and quizzes...", debug_logs: debugLogs });
+        await lessonRef.update({ magicProgress: "Drafting slides, quizzes, and extra content...", debug_logs: debugLogs });
 
         let slidesData: any = null;
         let quizData: any = null;
         let flashcardsData: any = null;
+        let testData: any = null;
+        let podcastData: any = null;
+        let comicData: any = null;
+        let mindmapData: any = null;
 
         const contentTasks = [];
 
@@ -342,6 +346,97 @@ CRITICAL OUTPUT INSTRUCTIONS:
              }
         })());
 
+        // Task E: Test (Assessment)
+        contentTasks.push((async () => {
+             try {
+                 const testPrompt = `
+ROLE: You are an expert exam creator.
+TASK: Create a test with 5 distinct questions based on the provided text.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. You MUST generate exactly 5 questions.
+2. Output valid JSON only.
+3. Structure: { "questions": [ { "question_text": "...", "type": "multiple_choice", "options": ["...", "..."], "correct_option_index": 0 }, ... ] }
+`;
+                 testData = await GeminiAPI.generateJsonFromPrompt(testPrompt, systemPrompt);
+                 log(`Generated Test Keys: ${testData ? Object.keys(testData).join(", ") : "null"}`);
+             } catch (e: any) {
+                 log(`Phase 1 (Test) failed: ${e.message}`);
+             }
+        })());
+
+        // Task F: Podcast Script
+        contentTasks.push((async () => {
+             try {
+                 const podcastPrompt = `
+ROLE: You are an expert podcast producer.
+TASK: Create a conversational script between two hosts (Alex and Sarah) about the provided text.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. Create a dialogue script for one episode.
+2. Output valid JSON only.
+3. Structure: { "script": [ { "speaker": "Alex", "text": "..." }, { "speaker": "Sarah", "text": "..." } ] }
+`;
+                 podcastData = await GeminiAPI.generateJsonFromPrompt(podcastPrompt, systemPrompt);
+                 log(`Generated Podcast Keys: ${podcastData ? Object.keys(podcastData).join(", ") : "null"}`);
+             } catch (e: any) {
+                 log(`Phase 1 (Podcast) failed: ${e.message}`);
+             }
+        })());
+
+        // Task G: Comic Script
+        contentTasks.push((async () => {
+             try {
+                 const comicPrompt = `
+ROLE: You are a comic book writer.
+TASK: Create a 4-panel comic script based on the text.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. You MUST generate exactly 4 panels.
+2. Output valid JSON only.
+3. Structure: { "panels": [ { "panel_number": 1, "description": "...", "dialogue": "..." }, ... ] }
+`;
+                 comicData = await GeminiAPI.generateJsonFromPrompt(comicPrompt, systemPrompt);
+                 log(`Generated Comic Keys: ${comicData ? Object.keys(comicData).join(", ") : "null"}`);
+             } catch (e: any) {
+                 log(`Phase 1 (Comic) failed: ${e.message}`);
+             }
+        })());
+
+        // Task H: Mindmap
+        contentTasks.push((async () => {
+             try {
+                 const mindmapPrompt = `
+ROLE: You are an expert in knowledge visualization.
+TASK: Create a hierarchical mindmap of the key concepts.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. Output valid JSON only.
+2. Structure: { "mermaid": "graph TD\\nA-->B..." } (Mermaid.js syntax string)
+`;
+                 mindmapData = await GeminiAPI.generateJsonFromPrompt(mindmapPrompt, systemPrompt);
+                 log(`Generated Mindmap Keys: ${mindmapData ? Object.keys(mindmapData).join(", ") : "null"}`);
+             } catch (e: any) {
+                 log(`Phase 1 (Mindmap) failed: ${e.message}`);
+             }
+        })());
+
         // Wait for all content generation
         await Promise.all(contentTasks);
 
@@ -350,6 +445,12 @@ CRITICAL OUTPUT INSTRUCTIONS:
         if (slidesData) updateData.presentation = slidesData;
         if (quizData) updateData.quiz = quizData;
         if (flashcardsData) updateData.flashcards = flashcardsData;
+
+        // NEW CONTENT TYPES
+        if (testData) updateData.test = testData;
+        if (podcastData) updateData.podcast_script = podcastData;
+        if (comicData) updateData.comic = comicData;
+        if (mindmapData) updateData.mindmap = mindmapData;
 
         await lessonRef.update(updateData);
 
