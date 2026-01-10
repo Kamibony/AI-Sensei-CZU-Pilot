@@ -274,6 +274,7 @@ exports.startMagicGeneration = onCall({
         let podcastData: any = null;
         let comicData: any = null;
         let mindmapData: any = null;
+        let socialPostData: any = null;
 
         const contentTasks = [];
 
@@ -437,6 +438,28 @@ CRITICAL OUTPUT INSTRUCTIONS:
              }
         })());
 
+        // Task I: Social Post
+        contentTasks.push((async () => {
+             try {
+                 const postPrompt = `
+ROLE: You are a social media expert.
+TASK: Create a professional social media post to promote this lesson.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. Output valid JSON only.
+2. Structure: { "platform": "LinkedIn", "content": "...", "hashtags": "#..." }
+`;
+                 socialPostData = await GeminiAPI.generateJsonFromPrompt(postPrompt, systemPrompt);
+                 log(`Generated Social Post Keys: ${socialPostData ? Object.keys(socialPostData).join(", ") : "null"}`);
+             } catch (e: any) {
+                 log(`Phase 1 (Social Post) failed: ${e.message}`);
+             }
+        })());
+
         // Wait for all content generation
         await Promise.all(contentTasks);
 
@@ -451,6 +474,7 @@ CRITICAL OUTPUT INSTRUCTIONS:
         if (podcastData && podcastData.script) updateData.podcast_script = podcastData.script;
         if (comicData && comicData.panels) updateData.comic_script = comicData.panels;
         if (mindmapData && mindmapData.mermaid) updateData.mindmap = mindmapData.mermaid;
+        if (socialPostData) updateData.social_post = socialPostData;
 
         await lessonRef.update(updateData);
 
