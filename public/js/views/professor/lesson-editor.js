@@ -758,24 +758,43 @@ export class LessonEditor extends BaseView {
           // Save lesson first
           await this._handleSave();
 
-          // Start listener immediately
+          // Start listener immediately (Backup / Fallback)
           this._startMagicListener();
 
-          // Call backend (fire and forget-ish, handled by listener)
+          // Call backend AND await result for Optimistic Update
           const startMagic = httpsCallable(functions, 'startMagicGeneration', { timeout: 540000 });
-          startMagic({
+          const result = await startMagic({
               lessonId: this.lesson.id,
               filePaths: filePaths,
               lessonTopic: this.lesson.topic || ""
-          }).catch(err => {
-              console.error("Magic Generation Start Error:", err);
-              showToast("Failed to start generation: " + err.message, true);
-              this._isLoading = false;
           });
 
+          // OPTIMISTIC UPDATE: Inject data immediately
+          if (result.data && result.data.data) {
+              console.log("Optimistic Update with Magic Data:", result.data.data);
+              const newData = result.data.data;
+
+              // Helper to normalize optimistically
+              const safeOptimistic = {
+                  ...newData,
+                  test: Array.isArray(newData.test) ? newData.test : (newData.test?.questions || []),
+                  podcast_script: Array.isArray(newData.podcast_script) ? newData.podcast_script : (newData.podcast_script?.script || []),
+                  comic_script: Array.isArray(newData.comic_script) ? newData.comic_script : (newData.comic?.panels || []),
+                  mindmap: typeof newData.mindmap === 'string' ? newData.mindmap : (newData.mindmap?.mermaid || ''),
+                  flashcards: newData.flashcards || { cards: [] }
+              };
+
+              this.lesson = { ...this.lesson, ...safeOptimistic, magicStatus: 'ready' };
+              this._isLoading = false;
+              this._magicStatus = "";
+              this._wizardMode = false;
+              showToast(translationService.t('lesson.magic_done') || "Magic generation complete!");
+              this.requestUpdate();
+          }
+
       } catch (e) {
-          console.error("Magic setup failed:", e);
-          showToast(translationService.t('lesson.save_error_before_magic'), true);
+          console.error("Magic generation failed:", e);
+          showToast(translationService.t('lesson.magic_failed') || "Generation failed", true);
           this._isLoading = false;
       }
   }
@@ -791,12 +810,13 @@ export class LessonEditor extends BaseView {
               const data = docSnap.data();
 
               // Explicitly map new fields with safe defaults to ensure frontend stability
+              // Handles both Flattened (New) and Nested (Legacy) structures
               const safeData = {
                   ...data,
-                  test: data.test || { questions: [] },
-                  podcast_script: data.podcast_script || { script: [] },
-                  comic: data.comic || { panels: [] },
-                  mindmap: data.mindmap || { mermaid: '' },
+                  test: Array.isArray(data.test) ? data.test : (data.test?.questions || []),
+                  podcast_script: Array.isArray(data.podcast_script) ? data.podcast_script : (data.podcast_script?.script || []),
+                  comic_script: Array.isArray(data.comic_script) ? data.comic_script : (data.comic?.panels || []),
+                  mindmap: typeof data.mindmap === 'string' ? data.mindmap : (data.mindmap?.mermaid || ''),
                   flashcards: data.flashcards || { cards: [] }
               };
 

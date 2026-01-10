@@ -44,8 +44,9 @@ export class EditorViewComic extends Localized(LitElement) {
     }
 
     render() {
-        const script = this.lesson?.comic_script || [];
-        const hasContent = Array.isArray(script) && script.length > 0;
+        const rawScript = this.lesson?.comic_script;
+        const script = Array.isArray(rawScript) ? rawScript : [];
+        const hasContent = script.length > 0;
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
