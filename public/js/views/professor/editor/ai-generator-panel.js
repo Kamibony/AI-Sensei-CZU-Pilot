@@ -216,21 +216,29 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         this._isSaving = true;
 
         try {
+            // Normalize data before saving if needed (e.g. unwrap arrays)
+            let dataToSave = this._generationOutput;
+
+            if (this.contentType === 'comic' && dataToSave.panels) {
+                dataToSave = dataToSave.panels;
+            } else if (this.contentType === 'podcast' && !Array.isArray(dataToSave) && (dataToSave.script || dataToSave.podcast_script)) {
+                dataToSave = dataToSave.script || dataToSave.podcast_script;
+            }
+
             // If parent provided onSave callback, use it (preferred for modularity)
             if (this.onSave) {
-                await this.onSave(this._generationOutput);
+                await this.onSave(dataToSave);
             } 
             // Fallback for legacy components (direct Firestore update)
             else if (this.lesson?.id && this.fieldToUpdate) {
-                // const db = firebaseInit.getDb(); // Removed incorrect usage
                 const lessonRef = doc(db, 'lessons', this.lesson.id);
                 await updateDoc(lessonRef, {
-                    [this.fieldToUpdate]: this._generationOutput,
+                    [this.fieldToUpdate]: dataToSave,
                     updatedAt: serverTimestamp()
                 });
                 // Dispatch event to notify parent to refresh
                 this.dispatchEvent(new CustomEvent('lesson-updated', {
-                    detail: { [this.fieldToUpdate]: this._generationOutput },
+                    detail: { [this.fieldToUpdate]: dataToSave },
                     bubbles: true,
                     composed: true
                 }));
@@ -275,6 +283,20 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         }
 
         switch (viewId) {
+            case 'podcast':
+                // Handle both array or wrapper object
+                const script = Array.isArray(data) ? data : (data.script || data.podcast_script || []);
+                return script.map(line => html`
+                    <div class="flex gap-3 mb-3">
+                        <div class="font-bold ${line.speaker === 'Host' ? 'text-indigo-600' : 'text-pink-600'} w-16 flex-shrink-0 text-right">
+                            ${line.speaker}:
+                        </div>
+                        <div class="bg-slate-50 p-2 rounded text-sm text-slate-700 flex-1 border border-slate-100">
+                            ${line.text}
+                        </div>
+                    </div>
+                `);
+
             case 'text':
                 return html`<div class="prose max-w-none p-4 bg-white rounded border border-slate-200">${data.content || data.text}</div>`;
             

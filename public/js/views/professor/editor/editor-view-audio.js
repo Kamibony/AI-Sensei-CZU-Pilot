@@ -1,122 +1,48 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
-import { ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
-import { storage } from '../../../firebase-init.js'; // FIX: Import shared storage instance
 import { Localized } from '../../../utils/localization-mixin.js';
-import { showToast } from '../../../utils/utils.js';
 import './professor-header-editor.js';
+import './ai-generator-panel.js';
 
 export class EditorViewAudio extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
-        isSaving: { type: Boolean },
-        isGenerating: { type: Boolean },
-        audioUrl: { type: String }
+        isSaving: { type: Boolean }
     };
 
     createRenderRoot() { return this; }
 
-    constructor() {
-        super();
-        this.lesson = {};
-        this.isGenerating = false;
-        this.audioUrl = null;
-    }
-
-    firstUpdated() {
-        this._checkExistingAudio();
-    }
-
-    async _checkExistingAudio() {
-        // If lesson has a podcast path, try to get the URL
-        if (this.lesson.podcast_audio_path) {
-            try {
-                // FIX: Use the imported storage instance
-                const audioRef = ref(storage, this.lesson.podcast_audio_path);
-                this.audioUrl = await getDownloadURL(audioRef);
-                this.requestUpdate();
-            } catch (error) {
-                console.error("Error loading existing audio:", error);
-            }
-        }
-    }
-
-    _handleScriptChange(e) {
-        const val = e.target.value;
-
-        // Dispatch update for auto-save targeting podcast_script
+    _updateScript(newScript) {
         this.dispatchEvent(new CustomEvent('lesson-updated', {
-            detail: {
-                podcast_script: val
-            },
+            detail: { podcast_script: newScript },
             bubbles: true,
             composed: true
         }));
     }
 
-    async _generateAudio() {
-        // Check podcast_script, falling back to content.script for safety if old data exists
-        const script = this.lesson.podcast_script || this.lesson.content?.script;
-
-        if (!script || script.trim().length === 0) {
-            showToast(this.t('editor.audio.error_no_script'), "warning");
-            return;
-        }
-
-        this.isGenerating = true;
-
-        try {
-            const functions = getFunctions();
-            const generatePodcastAudio = httpsCallable(functions, 'generatePodcastAudio');
-
-            const result = await generatePodcastAudio({
-                lessonId: this.lesson.id,
-                text: script,
-                language: 'cs-CZ' // Default to CZ for now, could be dynamic
-            });
-
-            if (result.data.success) {
-                showToast(this.t('editor.audio.success_generated'), "success");
-                // Update lesson with new path if returned, or just refresh audio
-                if (result.data.storagePath) {
-                    // Update internal lesson object to match backend state
-                    this.lesson.podcast_audio_path = result.data.storagePath;
-                    await this._checkExistingAudio();
-                }
-            } else {
-                console.error("Audio generation failed:", result.data.error);
-                showToast(this.t('editor.audio.generation_failed') + ": " + (result.data.error || "Unknown error"), "error");
-            }
-
-        } catch (error) {
-            console.error("Error generating audio:", error);
-            showToast(`${this.t('editor.audio.error_generation')}${error.message}`, "error");
-        } finally {
-            this.isGenerating = false;
-        }
+    _handleLineChange(index, field, value) {
+        const script = [...(this.lesson.podcast_script || [])];
+        script[index] = { ...script[index], [field]: value };
+        this._updateScript(script);
     }
 
-    _insertTag(tag) {
-        const textarea = this.querySelector('#script-editor');
-        if (!textarea) return;
+    _addLine() {
+        const script = [...(this.lesson.podcast_script || [])];
+        // Alternate speaker if possible
+        const lastSpeaker = script.length > 0 ? script[script.length - 1].speaker : 'Guest';
+        const newSpeaker = lastSpeaker === 'Host' ? 'Guest' : 'Host';
+        script.push({ speaker: newSpeaker, text: '' });
+        this._updateScript(script);
+    }
 
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const text = textarea.value;
-        const before = text.substring(0, start);
-        const after = text.substring(end, text.length);
-
-        textarea.value = before + tag + after;
-        textarea.selectionStart = textarea.selectionEnd = start + tag.length;
-        textarea.focus();
-
-        // Trigger input event manually
-        textarea.dispatchEvent(new Event('input'));
+    _deleteLine(index) {
+        const script = [...(this.lesson.podcast_script || [])];
+        script.splice(index, 1);
+        this._updateScript(script);
     }
 
     render() {
-        // Read from podcast_script or fallback
-        const script = this.lesson.podcast_script || this.lesson.content?.script || '';
+        const script = this.lesson?.podcast_script || [];
+        const hasContent = Array.isArray(script) && script.length > 0;
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
@@ -126,63 +52,76 @@ export class EditorViewAudio extends Localized(LitElement) {
                     <div class="absolute inset-0 overflow-y-auto custom-scrollbar p-6">
                         <div class="max-w-5xl mx-auto space-y-6">
 
-                            <div class="bg-white rounded-3xl p-8 shadow-sm border border-slate-200 flex flex-col md:flex-row gap-8 items-start">
-                                <div class="flex-1">
-                                    <h2 class="text-2xl font-bold text-slate-800 mb-2">${this.t('editor.audio.title')}</h2>
-                                    <p class="text-slate-500">${this.t('editor.audio.subtitle')}</p>
+                            ${hasContent ? html`
+                                <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8">
+                                    <div class="flex justify-between items-center mb-6">
+                                        <div>
+                                            <h2 class="text-2xl font-bold text-slate-800">${this.t('editor.audio.title')}</h2>
+                                            <p class="text-slate-500">${this.t('editor.audio.subtitle')}</p>
+                                        </div>
+                                    </div>
 
-                                    <div class="flex gap-2 mt-4">
-                                        <button @click="${() => this._insertTag('[Alex]: ')}" class="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-100 transition-colors">
-                                            ${this.t('editor.audio.add_alex')}
-                                        </button>
-                                        <button @click="${() => this._insertTag('[Sarah]: ')}" class="px-3 py-1 bg-pink-50 text-pink-700 rounded-lg text-sm font-medium hover:bg-pink-100 transition-colors">
-                                            ${this.t('editor.audio.add_sarah')}
+                                    <div class="space-y-4">
+                                        ${script.map((line, index) => html`
+                                            <div class="flex gap-4 group">
+                                                <div class="w-32 flex-shrink-0 pt-1">
+                                                    <select
+                                                        .value="${line.speaker}"
+                                                        @change="${e => this._handleLineChange(index, 'speaker', e.target.value)}"
+                                                        class="w-full text-sm font-semibold rounded-lg border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 ${line.speaker === 'Host' ? 'text-indigo-600 bg-indigo-50' : 'text-pink-600 bg-pink-50'}"
+                                                    >
+                                                        <option value="Host">Host</option>
+                                                        <option value="Guest">Guest</option>
+                                                    </select>
+                                                </div>
+                                                <div class="flex-1 relative">
+                                                    <textarea
+                                                        .value="${line.text || ''}"
+                                                        @input="${e => this._handleLineChange(index, 'text', e.target.value)}"
+                                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none overflow-hidden"
+                                                        rows="2"
+                                                        style="min-height: 80px"
+                                                        placeholder="${this.t('editor.audio.text_placeholder')}"
+                                                    ></textarea>
+                                                    <button
+                                                        @click="${() => this._deleteLine(index)}"
+                                                        class="absolute -right-3 -top-3 p-1 bg-white rounded-full text-slate-400 hover:text-red-500 shadow-sm border border-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        title="${this.t('common.delete')}"
+                                                    >
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        `)}
+                                    </div>
+
+                                    <div class="mt-8 flex justify-center">
+                                        <button
+                                            @click="${this._addLine}"
+                                            class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                        >
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                            ${this.t('editor.audio.add_line')}
                                         </button>
                                     </div>
                                 </div>
-
-                                <div class="w-full md:w-80 bg-slate-50 rounded-2xl p-4 border border-slate-200">
-                                    ${this.audioUrl ? html`
-                                        <div class="mb-3 text-sm font-medium text-slate-700">${this.t('editor.audio.preview_label')}</div>
-                                        <audio controls class="w-full mb-3" src="${this.audioUrl}"></audio>
-                                        <a href="${this.audioUrl}" download="podcast.mp3" class="text-xs text-indigo-600 hover:underline block text-center">${this.t('editor.audio.download_mp3')}</a>
-                                    ` : html`
-                                        <div class="h-24 flex items-center justify-center text-slate-400 text-sm italic border-2 border-dashed border-slate-200 rounded-lg">
-                                            ${this.t('editor.audio.not_generated')}
-                                        </div>
-                                    `}
-
-                                    <button
-                                        @click="${this._generateAudio}"
-                                        ?disabled="${this.isGenerating}"
-                                        class="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-xl font-medium transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
-                                    >
-                                        ${this.isGenerating ? html`
-                                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            ${this.t('editor.audio.generating')}
-                                        ` : html`
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
-                                            ${this.t('editor.audio.generate_btn')}
-                                        `}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
-                                <div class="bg-slate-50 px-6 py-3 border-b border-slate-200 text-xs font-medium text-slate-500 uppercase tracking-wider">
-                                    ${this.t('editor.audio.script_label')}
-                                </div>
-                                <textarea
-                                    id="script-editor"
-                                    class="flex-1 w-full p-6 text-base leading-relaxed text-slate-800 focus:outline-none resize-none font-mono"
-                                    placeholder="${this.t('editor.audio.script_placeholder')}"
-                                    .value="${script}"
-                                    @input="${this._handleScriptChange}"
-                                ></textarea>
-                            </div>
+                            ` : html`
+                                <ai-generator-panel
+                                    .lesson="${this.lesson}"
+                                    viewTitle="${this.t('editor.audio.title')}"
+                                    contentType="podcast"
+                                    fieldToUpdate="podcast_script"
+                                    description="${this.t('editor.audio.description')}"
+                                    .inputsConfig=${[{
+                                        id: 'episode_count',
+                                        type: 'number',
+                                        label: 'Počet epizod (aktuálně fixně 1)',
+                                        default: 1,
+                                        min: 1,
+                                        max: 1
+                                    }]}
+                                ></ai-generator-panel>
+                            `}
 
                         </div>
                     </div>
