@@ -242,7 +242,16 @@ exports.startMagicGeneration = onCall({
 
         CRITICAL OUTPUT INSTRUCTIONS:
         1. You MUST return a valid JSON object.
-        2. Structure: { "title": "...", "sections": [ { "heading": "...", "content": "..." } ] }
+        2. Structure: {
+            "title": "...",
+            "sections": [ { "heading": "...", "content": "..." } ],
+            "test": { "questions": [ { "question_text": "...", "type": "multiple_choice", "options": ["..."], "correct_option_index": 0 } ] },
+            "podcast_script": "Dialogue script between Host (Alex) and Guest (Sarah) summarizing the lesson...",
+            "comic_script": [ { "panel": 1, "description": "...", "dialogue": "..." } ],
+            "mindmap": { "mermaid": "graph TD\\nA[Root]-->B[Branch]..." }
+        }
+        MANDATORY: You must also generate a 'podcast_script', a 'comic_script' for a 4-panel comic, and 'mindmap' data (containing a valid Mermaid.js string in 'mermaid' key).
+        MANDATORY: You must also generate a 'test' object with an array of 5 questions.
         ${magicTextRules}
         `;
 
@@ -257,8 +266,18 @@ exports.startMagicGeneration = onCall({
             markdownText = JSON.stringify(textJson);
         }
 
+        // Extract new fields
+        const testData = textJson.test || { questions: [] };
+        const podcastScript = textJson.podcast_script || "";
+        const comicScript = textJson.comic_script || [];
+        const mindmapData = textJson.mindmap || {};
+
         await lessonRef.update({
             text_content: markdownText,
+            test: testData,
+            podcast_script: podcastScript,
+            comic_script: comicScript,
+            mindmap: mindmapData,
             magicProgress: "Creating visual aids and quiz...",
             debug_logs: debugLogs
         });
@@ -408,7 +427,15 @@ CRITICAL OUTPUT INSTRUCTIONS:
         }
 
         await lessonRef.update({ magicStatus: "ready", magicProgress: "Done!", debug_logs: debugLogs });
-        return { success: true };
+
+        // Return full data to frontend
+        return {
+            success: true,
+            ...textJson,
+            presentation: slidesData,
+            quiz: quizData,
+            flashcards: flashcardsData
+        };
 
     } catch (error: any) {
         log(`Magic Generation Error: ${error.message}`);

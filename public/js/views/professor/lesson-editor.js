@@ -761,17 +761,24 @@ export class LessonEditor extends BaseView {
           // Start listener immediately
           this._startMagicListener();
 
-          // Call backend (fire and forget-ish, handled by listener)
+          // Call backend (await result to map new fields)
           const startMagic = httpsCallable(functions, 'startMagicGeneration', { timeout: 540000 });
-          startMagic({
+          const result = await startMagic({
               lessonId: this.lesson.id,
               filePaths: filePaths,
               lessonTopic: this.lesson.topic || ""
-          }).catch(err => {
-              console.error("Magic Generation Start Error:", err);
-              showToast("Failed to start generation: " + err.message, true);
-              this._isLoading = false;
           });
+
+          // Explicitly map new fields to local state
+          if (result && result.data) {
+             const data = result.data;
+             this.lesson.test = data.test || { questions: [] };
+             this.lesson.podcast_script = data.podcast_script || "";
+             this.lesson.comic_script = data.comic_script || [];
+             this.lesson.mindmap = data.mindmap || {};
+
+             this.requestUpdate();
+          }
 
       } catch (e) {
           console.error("Magic setup failed:", e);
