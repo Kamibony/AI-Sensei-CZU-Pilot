@@ -1,227 +1,218 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { translationService } from '../../../utils/translation-service.js';
+import { Localized } from '../../../utils/localization-mixin.js';
 import './professor-header-editor.js';
+import './ai-generator-panel.js';
 
-export class EditorViewPost extends LitElement {
+export class EditorViewPost extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean }
     };
 
-    constructor() {
-        super();
-        this._unsubscribe = null;
-    }
-
     createRenderRoot() { return this; }
 
-    connectedCallback() {
-        super.connectedCallback();
-        this._unsubscribe = translationService.subscribe(() => this.requestUpdate());
-    }
-
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        if (this._unsubscribe) this._unsubscribe();
-    }
-
-    _handleInput(field, value) {
-        const newContent = { ...this.lesson.content, [field]: value };
-        this.dispatchEvent(new CustomEvent('update', {
-            detail: { content: newContent },
+    _updatePost(newPost) {
+        this.dispatchEvent(new CustomEvent('lesson-updated', {
+            detail: { social_post: newPost },
             bubbles: true,
             composed: true
         }));
     }
 
-    handleAiGeneration(params) {
-        this._generateContent(params);
-    }
+    _handleFieldChange(field, value) {
+        const post = { ...this.lesson.social_post };
 
-    async _generateContent(params) {
-        const { functions } = await import('../../../firebase-init.js');
-        const { httpsCallable } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js");
-        const { showToast } = await import('../../../utils/utils.js');
-
-        const generateContentFunc = httpsCallable(functions, 'generateContent');
-
-        try {
-            showToast(translationService.t('lesson.magic_preparing'));
-
-            const result = await generateContentFunc({
-                ...params,
-                contentType: 'post'
-            });
-
-            const generatedData = result.data;
-            const newContent = {
-                ...this.lesson.content,
-                text: generatedData.content || generatedData.text || '',
-                author: 'ai_sensei'
-            };
-
-            this.dispatchEvent(new CustomEvent('update', {
-                detail: { content: newContent },
-                bubbles: true,
-                composed: true
-            }));
-
-            showToast(translationService.t('lesson.magic_done'));
-
-        } catch (error) {
-            console.error("AI Generation failed:", error);
-            showToast(translationService.t('lesson.magic_error'), true);
+        if (field === 'hashtags') {
+            // Handle hashtags as string input but store as either string or array depending on backend expectation.
+            // The prompt says "Input for Hashtags", but the object structure example just says "hashtags".
+            // Previous code joined them. Let's keep it simple and store as is, or maybe split.
+            // Requirement says "Input for Hashtags".
+            // Let's store as string for editing, but maybe backend returns array?
+            // The prompt says "Object { platform, content, hashtags }".
+            // I will store as string to be safe for the input, or maybe split by space if needed.
+            // Let's assume string is fine for now, or split if the backend strictly requires array.
+            // The previous implementation used an array.
+            // Let's try to split by space/comma for storage if it looks like tags.
+            // Actually, for simplicity and robustness, keeping it as the user typed value is often better
+            // unless we have specific validation.
+            // However, the display logic `post.hashtags.join(' ')` implies it might be an array.
+            // Let's check if we can detect.
+            // If I save it as a string, `join` will fail.
+            // Let's save as array.
+            const tags = value.split(/[\s,]+/).filter(tag => tag.length > 0);
+            post.hashtags = tags;
+        } else {
+            post[field] = value;
         }
+
+        this._updatePost(post);
     }
 
     render() {
-        const t = (key, params) => translationService.t(key, params);
-        const contentText = this.lesson.content?.text || '';
-        const author = this.lesson.content?.author || 'ai_sensei';
-        const defaultPrompt = t('professor.editor.post.defaultPrompt', { topic: this.lesson.topic || 'Obecné téma' });
+        const post = this.lesson?.social_post;
+        // Check if object is empty or missing required fields.
+        // If post is null/undefined, or if it's an empty object, treat as "no content"
+        const hasContent = post && (post.content || post.platform);
 
-        // Helper to format text for preview (simple line breaks)
-        const formattedText = contentText.split('\n').map(line => html`${line}<br>`);
+        const platformColors = {
+            'Twitter': 'bg-sky-500',
+            'LinkedIn': 'bg-blue-700',
+            'Instagram': 'bg-pink-600'
+        };
+        const currentPlatformColor = platformColors[post?.platform] || 'bg-slate-700';
+
+        // Prepare hashtag value for input (convert array to string if needed)
+        let hashtagValue = '';
+        if (Array.isArray(post?.hashtags)) {
+            hashtagValue = post.hashtags.join(' ');
+        } else if (post?.hashtags) {
+            hashtagValue = post.hashtags;
+        }
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
 
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
-                    <div class="max-w-5xl mx-auto w-full">
+                    <div class="max-w-6xl mx-auto w-full">
 
-                        <div class="mb-6">
-                            <h2 class="text-2xl font-bold text-slate-800">Příspěvek</h2>
-                            <p class="text-slate-500 text-sm">Vytvořte krátký příspěvek pro sociální sítě nebo školní nástěnku.</p>
-                        </div>
-
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-                            <!-- Left Column: Editor -->
-                            <div class="space-y-6">
-                                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
-                                            ${t('professor.editor.post.contentLabel')}
-                                        </label>
-                                        <textarea
-                                            .value="${contentText}"
-                                            @input="${e => this._handleInput('text', e.target.value)}"
-                                            rows="12"
-                                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none"
-                                            placeholder="${t('professor.editor.post.contentPlaceholder')}"></textarea>
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
-                                            ${t('professor.editor.post.authorLabel')}
-                                        </label>
-                                        <select
-                                            .value="${author}"
-                                            @change="${e => this._handleInput('author', e.target.value)}"
-                                            class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500">
-                                            <option value="ai_sensei">AI Sensei</option>
-                                            <option value="professor">${t('professor.default_name')}</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <!-- AI Hint -->
-                                <div class="bg-indigo-50/50 rounded-xl p-4 border border-indigo-100 flex gap-3">
-                                    <div class="p-2 bg-white rounded-lg shadow-sm h-fit text-indigo-600">
-                                        ✨
-                                    </div>
-                                    <div>
-                                        <h4 class="text-sm font-bold text-indigo-900 mb-1">${t('professor.editor.post.ai_tip_title')}</h4>
-                                        <p class="text-xs text-indigo-700 leading-relaxed">
-                                            ${t('professor.editor.post.ai_tip_desc')}
-                                            <span class="font-mono bg-indigo-100 px-1 rounded cursor-pointer hover:bg-indigo-200 transition-colors"
-                                                @click="${e => navigator.clipboard.writeText(e.target.innerText)}">
-                                                ${defaultPrompt}
-                                            </span>
-                                        </p>
-                                    </div>
-                                </div>
+                        ${hasContent ? html`
+                            <div class="mb-6">
+                                <h2 class="text-2xl font-bold text-slate-800">${this.t('editor.post.title')}</h2>
+                                <p class="text-slate-500 text-sm">${this.t('editor.post.subtitle')}</p>
                             </div>
 
-                            <!-- Right Column: Mobile Preview -->
-                            <div class="flex justify-center items-start pt-4">
-                                <div class="relative w-[320px] h-[600px] bg-slate-900 rounded-[3rem] shadow-2xl border-4 border-slate-800 overflow-hidden ring-4 ring-slate-200/50">
-                                    <!-- Phone Status Bar -->
-                                    <div class="absolute top-0 w-full h-8 bg-slate-900 z-20 flex justify-between items-center px-6 text-[10px] text-white font-medium">
-                                        <span>9:41</span>
-                                        <div class="flex gap-1.5">
-                                            <div class="w-3 h-3 bg-white rounded-full opacity-20"></div>
-                                            <div class="w-3 h-3 bg-white rounded-full opacity-20"></div>
-                                            <div class="w-4 h-2.5 border border-white rounded-sm"></div>
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+                                <!-- Left Column: Editor -->
+                                <div class="space-y-6">
+                                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
+                                        <div>
+                                            <label class="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                                                ${this.t('editor.post.platform_label')}
+                                            </label>
+                                            <select
+                                                .value="${post.platform || 'Twitter'}"
+                                                @change="${e => this._handleFieldChange('platform', e.target.value)}"
+                                                class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                            >
+                                                <option value="Twitter">Twitter / X</option>
+                                                <option value="LinkedIn">LinkedIn</option>
+                                                <option value="Instagram">Instagram</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                                                ${this.t('editor.post.content_label')}
+                                            </label>
+                                            <textarea
+                                                .value="${post.content || ''}"
+                                                @input="${e => this._handleFieldChange('content', e.target.value)}"
+                                                rows="8"
+                                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none"
+                                                placeholder="${this.t('editor.post.content_placeholder')}"
+                                            ></textarea>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                                                ${this.t('editor.post.hashtags_label')}
+                                            </label>
+                                            <input
+                                                type="text"
+                                                .value="${hashtagValue}"
+                                                @input="${e => this._handleFieldChange('hashtags', e.target.value)}"
+                                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                                placeholder="#education #ai"
+                                            />
+                                            <p class="text-xs text-slate-400 mt-1">${this.t('editor.post.hashtags_hint')}</p>
                                         </div>
                                     </div>
-                                    <!-- Notch -->
-                                    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900 rounded-b-xl z-20"></div>
+                                </div>
 
-                                    <!-- Phone Screen Content -->
-                                    <div class="w-full h-full bg-slate-50 pt-10 overflow-y-auto custom-scrollbar">
-
-                                        <!-- Mock App Header -->
-                                        <div class="bg-white p-4 border-b border-slate-100 sticky top-0 z-10 flex items-center justify-between">
-                                            <div class="font-bold text-slate-800">Feed</div>
-                                            <div class="w-8 h-8 bg-slate-100 rounded-full"></div>
+                                <!-- Right Column: Mobile Preview -->
+                                <div class="flex justify-center items-start pt-4">
+                                    <div class="relative w-[320px] h-[600px] bg-slate-900 rounded-[3rem] shadow-2xl border-4 border-slate-800 overflow-hidden ring-4 ring-slate-200/50">
+                                        <!-- Phone Status Bar -->
+                                        <div class="absolute top-0 w-full h-8 bg-slate-900 z-20 flex justify-between items-center px-6 text-[10px] text-white font-medium">
+                                            <span>9:41</span>
+                                            <div class="flex gap-1.5">
+                                                <div class="w-3 h-3 bg-white rounded-full opacity-20"></div>
+                                                <div class="w-3 h-3 bg-white rounded-full opacity-20"></div>
+                                                <div class="w-4 h-2.5 border border-white rounded-sm"></div>
+                                            </div>
                                         </div>
+                                        <!-- Notch -->
+                                        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900 rounded-b-xl z-20"></div>
 
-                                        <!-- Post Card -->
-                                        <div class="p-4">
-                                            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                                                <!-- Post Header -->
-                                                <div class="p-4 flex items-center gap-3">
-                                                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm
-                                                        ${author === 'ai_sensei' ? 'bg-gradient-to-br from-indigo-500 to-purple-600' : 'bg-slate-700'}">
-                                                        ${author === 'ai_sensei' ? 'A' : 'P'}
-                                                    </div>
-                                                    <div>
-                                                        <div class="font-bold text-slate-900 text-sm">
-                                                            ${author === 'ai_sensei' ? 'AI Sensei' : t('professor.default_name')}
+                                        <!-- Phone Screen Content -->
+                                        <div class="w-full h-full bg-slate-50 pt-10 overflow-y-auto custom-scrollbar">
+
+                                            <!-- Mock App Header -->
+                                            <div class="bg-white p-4 border-b border-slate-100 sticky top-0 z-10 flex items-center justify-between">
+                                                <div class="font-bold text-slate-800">${post.platform || 'Social'}</div>
+                                                <div class="w-8 h-8 bg-slate-100 rounded-full"></div>
+                                            </div>
+
+                                            <!-- Post Card -->
+                                            <div class="p-4">
+                                                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                                                    <!-- Post Header -->
+                                                    <div class="p-4 flex items-center gap-3">
+                                                        <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm ${currentPlatformColor}">
+                                                            ${(post.platform || 'S').charAt(0)}
                                                         </div>
-                                                        <div class="text-xs text-slate-400">${t('professor.editor.post.just_now')}</div>
+                                                        <div>
+                                                            <div class="font-bold text-slate-900 text-sm">
+                                                                AI Sensei
+                                                            </div>
+                                                            <div class="text-xs text-slate-400">Just now</div>
+                                                        </div>
                                                     </div>
-                                                </div>
 
-                                                <!-- Post Content -->
-                                                <div class="px-4 pb-4 text-slate-800 text-sm leading-relaxed">
-                                                    ${contentText ? formattedText : html`<span class="text-slate-300 italic">${t('professor.editor.post.preview_placeholder')}</span>`}
-                                                </div>
-
-                                                <!-- Post Footer / Stats -->
-                                                <div class="px-4 py-3 border-t border-slate-50 flex justify-between text-slate-400 text-xs">
-                                                    <div class="flex gap-4">
-                                                        <span class="flex items-center gap-1 hover:text-red-500 transition-colors cursor-pointer">
-                                                            ❤️ 24
-                                                        </span>
-                                                        <span class="flex items-center gap-1 hover:text-blue-500 transition-colors cursor-pointer">
-                                                            💬 3
-                                                        </span>
+                                                    <!-- Post Content -->
+                                                    <div class="px-4 pb-4 text-slate-800 text-sm leading-relaxed whitespace-pre-wrap">
+                                                        ${post.content || html`<span class="text-slate-300 italic">No content...</span>`}
+                                                        <div class="mt-2 text-blue-500 font-medium">
+                                                            ${hashtagValue}
+                                                        </div>
                                                     </div>
-                                                    <span class="flex items-center gap-1 hover:text-slate-600 transition-colors cursor-pointer">
-                                                        ↗️ ${t('professor.editor.post.share')}
-                                                    </span>
+
+                                                    <!-- Post Footer / Stats -->
+                                                    <div class="px-4 py-3 border-t border-slate-50 flex justify-between text-slate-400 text-xs">
+                                                        <div class="flex gap-4">
+                                                            <span class="flex items-center gap-1">❤️ 42</span>
+                                                            <span class="flex items-center gap-1">💬 5</span>
+                                                        </div>
+                                                        <span class="flex items-center gap-1">↗️ Share</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <!-- Other Content Mockup -->
-                                        <div class="px-4 pb-4 space-y-4 opacity-50 pointer-events-none grayscale">
-                                            <div class="bg-white h-32 rounded-2xl border border-slate-100"></div>
-                                            <div class="bg-white h-32 rounded-2xl border border-slate-100"></div>
-                                        </div>
-
+                                        <!-- Phone Home Bar -->
+                                        <div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-slate-800 rounded-full z-20"></div>
                                     </div>
-
-                                    <!-- Phone Home Bar -->
-                                    <div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-slate-800 rounded-full z-20"></div>
                                 </div>
                             </div>
-
-                        </div>
-                     </div>
+                        ` : html`
+                            <ai-generator-panel
+                                .lesson="${this.lesson}"
+                                viewTitle="${this.t('editor.post.title')}"
+                                contentType="post"
+                                fieldToUpdate="social_post"
+                                description="${this.t('editor.post.description')}"
+                                .inputsConfig=${[{
+                                    id: 'platform',
+                                    type: 'select',
+                                    label: 'Platforma',
+                                    options: ['Twitter', 'LinkedIn', 'Instagram'],
+                                    default: 'Twitter'
+                                }]}
+                            ></ai-generator-panel>
+                        `}
+                    </div>
                 </div>
             </div>
         `;

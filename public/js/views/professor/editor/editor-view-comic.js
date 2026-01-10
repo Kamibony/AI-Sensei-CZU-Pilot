@@ -6,148 +6,136 @@ import './ai-generator-panel.js';
 export class EditorViewComic extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
-        isSaving: { type: Boolean },
-        _panels: { state: true, type: Array } // Array of { image_prompt: string, text: string }
+        isSaving: { type: Boolean }
     };
-
-    constructor() {
-        super();
-        this.lesson = null;
-        this._panels = Array(4).fill({ image_prompt: '', text: '' });
-    }
 
     createRenderRoot() { return this; }
 
-    willUpdate(changedProperties) {
-        if (changedProperties.has('lesson')) {
-            const data = this.lesson?.comic;
-            if (Array.isArray(data) && data.length > 0) {
-                // Ensure we always have 4 panels for the grid layout
-                this._panels = data.slice(0, 4);
-                while (this._panels.length < 4) {
-                    this._panels.push({ image_prompt: '', text: '' });
-                }
-            } else if (!data) {
-                // Reset to empty if no data
-                 this._panels = Array(4).fill({ image_prompt: '', text: '' });
-            }
-            // If still empty, we don't initialize default array yet, so we can show the AI/Start screen
-        }
-    }
-
-    save() {
-        // Filter out completely empty panels to save space, but maybe we want to keep structure?
-        // Let's keep the structure as arrays of objects are expected.
+    _updateScript(newScript) {
         this.dispatchEvent(new CustomEvent('lesson-updated', {
-            detail: { comic: this._panels },
+            detail: { comic_script: newScript },
             bubbles: true,
             composed: true
         }));
     }
 
-    _updatePanel(index, field, value) {
-        const newPanels = [...this._panels];
-        newPanels[index] = { ...newPanels[index], [field]: value };
-        this._panels = newPanels;
-        this.save();
+    _handlePanelChange(index, field, value) {
+        const script = [...(this.lesson.comic_script || [])];
+        script[index] = { ...script[index], [field]: value };
+        this._updateScript(script);
     }
 
-    _renderPanel(panel, index) {
-        return html`
-            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col h-[320px] relative group hover:shadow-md transition-shadow">
-                <div class="absolute top-3 right-3 text-xs font-bold text-slate-300 pointer-events-none group-hover:text-indigo-200">
-                    PANEL ${index + 1}
-                </div>
-
-                <!-- Scene Description (Top Half) -->
-                <div class="flex-1 mb-3 flex flex-col">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">${this.t('editor.comic.panel_label')}</label>
-                    <textarea
-                        .value="${panel.image_prompt || ''}"
-                        @input="${e => this._updatePanel(index, 'image_prompt', e.target.value)}"
-                        class="flex-1 w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder-slate-300"
-                        placeholder="${this.t('editor.comic.prompt_placeholder')}"
-                    ></textarea>
-                </div>
-
-                <!-- Dialogue (Bottom Half) -->
-                <div class="h-[100px] flex flex-col">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">${this.t('editor.comic.dialog_label')}</label>
-                    <div class="relative flex-1">
-                        <textarea
-                            .value="${panel.text || ''}"
-                            @input="${e => this._updatePanel(index, 'text', e.target.value)}"
-                            class="w-full h-full p-3 pl-4 bg-indigo-50/50 border border-indigo-100 rounded-lg rounded-tl-none text-sm text-slate-800 font-medium resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder-indigo-200"
-                            placeholder="${this.t('editor.comic.dialog_placeholder')}"
-                        ></textarea>
-                         <!-- Speech Bubble Tail Decor -->
-                        <div class="absolute -top-2 left-0 w-4 h-4 bg-indigo-50/50 border-t border-l border-indigo-100 transform skew-y-12"></div>
-                    </div>
-                </div>
-            </div>
-        `;
+    _addPanel() {
+        const script = [...(this.lesson.comic_script || [])];
+        script.push({
+            panel_number: script.length + 1,
+            description: '',
+            dialogue: ''
+        });
+        this._updateScript(script);
     }
 
-    _switchToManual() {
-        // Just ensures panels are initialized, which they are by default in constructor
-        this._panels = Array(4).fill({ image_prompt: '', text: '' });
-        // Force update just in case
-        this.requestUpdate();
+    _deletePanel(index) {
+        const script = [...(this.lesson.comic_script || [])];
+        script.splice(index, 1);
+        // Re-number panels
+        const renumbered = script.map((panel, i) => ({ ...panel, panel_number: i + 1 }));
+        this._updateScript(renumbered);
     }
 
     render() {
-        const isEmpty = this._panels.every(p => !p.image_prompt && !p.text);
+        const script = this.lesson?.comic_script || [];
+        const hasContent = Array.isArray(script) && script.length > 0;
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
 
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
-                    <div class="max-w-5xl mx-auto w-full space-y-6">
+                    <div class="max-w-6xl mx-auto w-full space-y-6">
 
-                         <!-- Header -->
-                        <div class="mb-4">
-                            <h2 class="text-2xl font-bold text-slate-800">${this.t('editor.comic.title')}</h2>
-                            <p class="text-slate-500 text-sm">${this.t('editor.comic.subtitle')}</p>
-                        </div>
-
-                        ${isEmpty ? html`
-                            <!-- Magic / Empty State -->
-                            <div class="space-y-6">
-                                <ai-generator-panel
-                                    .lesson="${this.lesson}"
-                                    .files="${this.lesson?.ragFilePaths || []}"
-                                    viewTitle="${this.t('editor.comic.ai_title')}"
-                                    contentType="comic"
-                                    fieldToUpdate="comic"
-                                    description="${this.t('editor.comic.ai_description')}"
-                                    promptPlaceholder="${this.t('editor.comic.ai_placeholder')}"
-                                ></ai-generator-panel>
-
-                                <div class="text-center pt-8 border-t border-slate-200">
-                                     <button
-                                        @click="${this._switchToManual}"
-                                        class="px-5 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 font-medium hover:bg-slate-50 hover:border-slate-400 transition-colors shadow-sm text-sm"
-                                    >
-                                        ✍️ ${this.t('editor.comic.empty_btn')}
-                                    </button>
+                        ${hasContent ? html`
+                            <div class="flex justify-between items-center mb-4">
+                                <div>
+                                    <h2 class="text-2xl font-bold text-slate-800">${this.t('editor.comic.title')}</h2>
+                                    <p class="text-slate-500 text-sm">${this.t('editor.comic.subtitle')}</p>
                                 </div>
-                            </div>
-                        ` : html`
-                            <!-- 2x2 Grid Editor -->
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                                ${this._panels.map((panel, index) => this._renderPanel(panel, index))}
-                            </div>
-
-                            <div class="flex justify-end pt-4">
-                                 <button
-                                    @click="${() => { if(confirm(this.t('editor.comic.confirm_delete'))) { this._panels = Array(4).fill({ image_prompt: '', text: '' }); this.save(); } }}"
-                                    class="text-xs text-red-500 hover:text-red-700 hover:underline"
+                                <button
+                                    @click="${this._addPanel}"
+                                    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"
                                 >
-                                    ${this.t('editor.comic.delete_all')}
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                    ${this.t('editor.comic.add_panel')}
                                 </button>
                             </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                ${script.map((panel, index) => html`
+                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col h-[360px] relative group hover:shadow-md transition-shadow">
+                                        <div class="absolute top-3 right-3 text-xs font-bold text-slate-300 pointer-events-none group-hover:text-indigo-200">
+                                            PANEL ${index + 1}
+                                        </div>
+
+                                        <button
+                                            @click="${() => this._deletePanel(index)}"
+                                            class="absolute top-2 right-2 p-1.5 bg-white text-slate-400 hover:text-red-500 rounded-full shadow-sm border border-slate-200 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                            title="${this.t('common.delete')}"
+                                        >
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                        </button>
+
+                                        <!-- Visual Description -->
+                                        <div class="flex-1 mb-3 flex flex-col">
+                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">${this.t('editor.comic.description_label')}</label>
+                                            <textarea
+                                                .value="${panel.description || ''}"
+                                                @input="${e => this._handlePanelChange(index, 'description', e.target.value)}"
+                                                class="flex-1 w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder-slate-300"
+                                                placeholder="${this.t('editor.comic.prompt_placeholder')}"
+                                            ></textarea>
+                                        </div>
+
+                                        <!-- Dialogue -->
+                                        <div class="h-[120px] flex flex-col">
+                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">${this.t('editor.comic.dialog_label')}</label>
+                                            <div class="relative flex-1">
+                                                <textarea
+                                                    .value="${panel.dialogue || ''}"
+                                                    @input="${e => this._handlePanelChange(index, 'dialogue', e.target.value)}"
+                                                    class="w-full h-full p-3 pl-4 bg-indigo-50/50 border border-indigo-100 rounded-lg rounded-tl-none text-sm text-slate-800 font-medium resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder-indigo-200"
+                                                    placeholder="${this.t('editor.comic.dialog_placeholder')}"
+                                                ></textarea>
+                                                <!-- Speech Bubble Tail Decor -->
+                                                <div class="absolute -top-2 left-0 w-4 h-4 bg-indigo-50/50 border-t border-l border-indigo-100 transform skew-y-12"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `)}
+                            </div>
+                        ` : html`
+                            <ai-generator-panel
+                                .lesson="${this.lesson}"
+                                viewTitle="${this.t('editor.comic.title')}"
+                                contentType="comic"
+                                fieldToUpdate="comic_script"
+                                description="${this.t('editor.comic.description')}"
+                                .inputsConfig=${[{
+                                    id: 'style',
+                                    type: 'select',
+                                    label: 'Styl komiksu',
+                                    options: ['Manga', 'Marvel', 'Line Art', 'Pixar'],
+                                    default: 'Line Art'
+                                }, {
+                                    id: 'panel_count',
+                                    type: 'number',
+                                    label: 'Počet panelů',
+                                    default: 4,
+                                    min: 1,
+                                    max: 8
+                                }]}
+                            ></ai-generator-panel>
                         `}
+
                     </div>
                 </div>
             </div>
