@@ -141,7 +141,7 @@ export class StudentLessonList extends LitElement {
         const subjects = Object.keys(groupedLessons).sort();
 
         return html`
-            <div class="max-w-7xl mx-auto px-6 py-8 space-y-12">
+            <div class="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-8 md:space-y-12">
 
                 ${this.error ? html`<div class="bg-red-50 p-4 text-red-700 rounded-xl border border-red-100 mb-6 flex items-center gap-3"><span class="text-2xl">⚠️</span>${this.error}</div>` : nothing}
 
@@ -164,61 +164,69 @@ export class StudentLessonList extends LitElement {
 
                 ${subjects.map(subject => html`
                     <div class="animate-fade-in-up">
-                        <div class="flex items-center gap-3 mb-6">
-                            <div class="h-8 w-1.5 bg-indigo-500 rounded-full"></div>
-                            <h2 class="text-2xl font-bold text-slate-900 tracking-tight">${subject}</h2>
-                            <span class="px-2.5 py-0.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-full">
+                        <div class="flex items-center gap-3 mb-4 md:mb-6">
+                            <div class="h-6 md:h-8 w-1 md:w-1.5 bg-indigo-500 rounded-full"></div>
+                            <h2 class="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">${subject}</h2>
+                            <span class="px-2 md:px-2.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] md:text-xs font-bold rounded-full">
                                 ${groupedLessons[subject].length}
                             </span>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        <!-- Adaptive Grid: Columns on Desktop, Stack on Mobile (handled by card flex-row) -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                             ${groupedLessons[subject].map(lesson => html`
                                 <div @click=${() => this._handleLessonClick(lesson.id)}
-                                     class="group bg-white rounded-3xl shadow-sm hover:shadow-xl hover:shadow-indigo-100/50 cursor-pointer transition-all duration-300 transform hover:-translate-y-1 flex flex-col h-full border border-slate-100 relative overflow-hidden">
+                                     class="group bg-white rounded-2xl md:rounded-3xl shadow-sm hover:shadow-xl hover:shadow-indigo-100/50 cursor-pointer transition-all duration-200 transform active:scale-95 flex flex-row md:flex-col h-auto md:h-full border border-slate-100 relative overflow-hidden">
 
                                     ${this._isNew(lesson.createdAt) ? html`
-                                        <div class="absolute top-4 right-4 z-10">
-                                            <span class="px-2 py-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg shadow-sm">
+                                        <div class="absolute top-2 right-2 md:top-4 md:right-4 z-10">
+                                            <span class="px-1.5 py-0.5 md:px-2 md:py-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-wider rounded-md md:rounded-lg shadow-sm">
                                                 Novinka
                                             </span>
                                         </div>
                                     ` : ''}
 
-                                    <div class="h-40 bg-slate-50 relative overflow-hidden flex items-center justify-center">
+                                    <!-- Thumbnail: Fixed Width on Mobile (Left), Full Width on Desktop (Top) -->
+                                    <div class="w-24 sm:w-32 md:w-full h-auto min-h-[6rem] md:h-40 bg-slate-50 relative flex-shrink-0 flex items-center justify-center border-r md:border-r-0 md:border-b border-slate-100">
                                         <!-- Placeholder Pattern -->
                                         <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:16px_16px]"></div>
 
-                                        <div class="text-6xl transform group-hover:scale-110 transition-transform duration-300">
+                                        <div class="text-4xl md:text-6xl transform group-hover:scale-110 transition-transform duration-300">
                                             ${this._getIconForTopic(lesson.topic)}
                                         </div>
 
-                                        <div class="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-white to-transparent"></div>
+                                        <!-- Gradient overlay only on Desktop -->
+                                        <div class="hidden md:block absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-white to-transparent"></div>
                                     </div>
 
-                                    <div class="p-6 flex flex-col flex-grow relative">
-                                        <div class="flex justify-between items-start mb-2">
-                                            <span class="text-xs font-bold text-indigo-600 uppercase tracking-wider">
-                                                ${lesson.topic || 'Obecné'}
-                                            </span>
-                                            ${lesson.status !== 'published' ? html`<span class="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-100">Draft</span>` : ''}
+                                    <!-- Content -->
+                                    <div class="p-3 md:p-6 flex flex-col flex-grow justify-between min-w-0">
+
+                                        <div>
+                                            <div class="flex justify-between items-start mb-1 md:mb-2">
+                                                <span class="text-xs md:text-xs font-bold text-indigo-600 uppercase tracking-wider truncate pr-2">
+                                                    ${lesson.topic || 'Obecné'}
+                                                </span>
+                                                ${lesson.status !== 'published' ? html`<span class="flex-shrink-0 text-[9px] md:text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">Draft</span>` : ''}
+                                            </div>
+
+                                            <h3 class="text-sm md:text-lg font-bold text-slate-900 mb-1 md:mb-2 line-clamp-2 group-hover:text-indigo-600 transition-colors leading-tight">
+                                                ${lesson.title}
+                                            </h3>
+
+                                            ${lesson.subtitle ? html`
+                                                <p class="text-xs md:text-sm text-slate-500 line-clamp-1 md:line-clamp-2 mb-2 md:mb-4 leading-relaxed hidden sm:block">${lesson.subtitle}</p>
+                                            ` : ''}
                                         </div>
 
-                                        <h3 class="text-lg font-bold text-slate-900 mb-2 line-clamp-2 group-hover:text-indigo-600 transition-colors leading-tight">
-                                            ${lesson.title}
-                                        </h3>
-
-                                        ${lesson.subtitle ? html`
-                                            <p class="text-sm text-slate-500 line-clamp-2 mb-4 leading-relaxed">${lesson.subtitle}</p>
-                                        ` : ''}
-
-                                        <div class="mt-auto pt-4 flex items-center justify-between text-xs font-medium text-slate-400 border-t border-slate-50">
+                                        <div class="mt-auto pt-2 md:pt-4 flex items-center justify-between text-[10px] md:text-xs font-medium text-slate-400 border-t border-slate-50 md:border-slate-50">
                                             <div class="flex items-center gap-1">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                                <svg class="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                                                 <span>${new Date(lesson.createdAt).toLocaleDateString('cs-CZ')}</span>
                                             </div>
                                             <span class="group-hover:translate-x-1 transition-transform text-indigo-600 flex items-center gap-1">
-                                                Otevřít <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                                <span class="hidden md:inline">Otevřít</span>
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                                             </span>
                                         </div>
                                     </div>
