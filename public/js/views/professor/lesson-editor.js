@@ -781,6 +781,7 @@ export class LessonEditor extends BaseView {
                   podcast_script: Array.isArray(newData.podcast_script) ? newData.podcast_script : (newData.podcast_script?.script || []),
                   comic_script: Array.isArray(newData.comic_script) ? newData.comic_script : (newData.comic?.panels || []),
                   mindmap: typeof newData.mindmap === 'string' ? newData.mindmap : (newData.mindmap?.mermaid || ''),
+                  social_post: newData.social_post || { platform: 'LinkedIn', content: '', hashtags: '' },
                   flashcards: newData.flashcards || { cards: [] }
               };
 
@@ -817,6 +818,7 @@ export class LessonEditor extends BaseView {
                   podcast_script: Array.isArray(data.podcast_script) ? data.podcast_script : (data.podcast_script?.script || []),
                   comic_script: Array.isArray(data.comic_script) ? data.comic_script : (data.comic?.panels || []),
                   mindmap: typeof data.mindmap === 'string' ? data.mindmap : (data.mindmap?.mermaid || ''),
+                  social_post: data.social_post || { platform: 'LinkedIn', content: '', hashtags: '' },
                   flashcards: data.flashcards || { cards: [] }
               };
 
@@ -1290,7 +1292,7 @@ export class LessonEditor extends BaseView {
           case 'post': 
               return html`<editor-view-post @back=${this._handleBackToHub} @save=${this._handleSave}
                   .lesson=${this.lesson} .isSaving=${this.isSaving}
-                  @update=${(e) => { this.lesson = { ...this.lesson, content: e.detail.content }; }} 
+                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, social_post: e.detail.social_post }; }}
                   id="active-editor" class="w-full h-full block"></editor-view-post>`;
           
           case 'video': 
