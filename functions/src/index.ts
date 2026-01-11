@@ -727,7 +727,7 @@ exports.generateContent = onCall({
 
         let finalPrompt = promptData.userPrompt;
         const language = promptData.language || "cs";
-        const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap"].includes(contentType);
+        const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap", "podcast", "audio"].includes(contentType);
 
         // Add language instruction
         const langInstruction = language === "pt-br" ? "Responda em Português do Brasil." : "Odpovídej v češtině.";
@@ -885,6 +885,18 @@ Each card object must have: 'front' (pojem/otázka), 'back' (definice/odpověď)
 
                 case "comic":
                     finalPrompt = `Vytvoř scénář pro komiks (4 panely). Odpověď musí být JSON objekt s klíčem 'panels' (pole objektů: panel_number, description, dialogue). ${langInstruction}`;
+                    break;
+
+                case "podcast":
+                case "audio":
+                    finalPrompt = `Vytvoř scénář pro audio podcast na téma "${promptData.userPrompt}".
+${langInstruction}
+
+FORMAT: JSON
+{
+  "script": [ ... ] (MANDATORY: Generate a dialogue script. Empty array is a failure.)
+}
+Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
                     break;
             }
         }
