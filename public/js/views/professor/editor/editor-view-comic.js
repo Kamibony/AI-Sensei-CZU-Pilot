@@ -21,7 +21,7 @@ export class EditorViewComic extends Localized(LitElement) {
 
     _updateScript(newScript) {
         this.dispatchEvent(new CustomEvent('lesson-updated', {
-            detail: { comic_script: newScript },
+            detail: { partial: { comic_script: newScript } },
             bubbles: true,
             composed: true
         }));
