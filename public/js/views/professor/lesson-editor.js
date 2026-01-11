@@ -207,7 +207,10 @@ export class LessonEditor extends BaseView {
               return;
           }
 
-          // 1. Update Local State (Optimistic)
+          // FIX: Ensure immediate optimistic update before scheduling save
+          // This guarantees the UI reflects changes instantly, even if the save is delayed or fails.
+
+          // 1. Update Local State (Optimistic) - IMMEDIATE
           this.lesson = { ...this.lesson, ...updates };
           this.requestUpdate();
 
@@ -885,7 +888,21 @@ export class LessonEditor extends BaseView {
                   flashcards: data.flashcards || { cards: [] }
               };
 
-              this.lesson = { ...this.lesson, ...safeData };
+              // CRITICAL FIX: Local State Priority
+              // Prevent stale server snapshot from wiping out optimistic Magic data or recent user edits.
+              const hasPendingUpdates = Object.keys(this._pendingUpdates).length > 0;
+
+              if (this.isSaving || hasPendingUpdates) {
+                  // Server data is base, but Local state and Pending updates take precedence
+                  this.lesson = {
+                      ...safeData,
+                      ...this.lesson,
+                      ...this._pendingUpdates
+                  };
+              } else {
+                  // Standard behavior (Server wins)
+                  this.lesson = { ...this.lesson, ...safeData };
+              }
 
               if (data.debug_logs && Array.isArray(data.debug_logs)) {
                   console.group("Magic Debug Logs");
@@ -893,10 +910,13 @@ export class LessonEditor extends BaseView {
                   console.groupEnd();
               }
 
-              if (data.magicStatus === 'generating') {
+              // Use merged state for logic control to prevent UI flicker
+              const currentStatus = this.lesson.magicStatus;
+
+              if (currentStatus === 'generating') {
                    this._isLoading = true;
                    this._magicStatus = data.magicProgress || "Generating...";
-              } else if (data.magicStatus === 'ready') {
+              } else if (currentStatus === 'ready') {
                    this._isLoading = false;
                    this._magicStatus = "";
                    this._wizardMode = false;
@@ -907,7 +927,7 @@ export class LessonEditor extends BaseView {
                        this._magicUnsubscribe();
                        this._magicUnsubscribe = null;
                    }
-              } else if (data.magicStatus === 'error') {
+              } else if (currentStatus === 'error') {
                    this._isLoading = false;
                    showToast("Generation error occurred.", true);
                    if (this._magicUnsubscribe) {
