@@ -888,6 +888,37 @@ export class LessonEditor extends BaseView {
                   flashcards: data.flashcards || { cards: [] }
               };
 
+              // --- ANTI-WIPE GUARD ---
+              // Detects if the server snapshot is "stale" (empty) while local state is populated.
+              // This prevents a boomerang effect where a slow server response wipes out optimistic Magic content.
+              const criticalFields = ['podcast_script', 'comic_script', 'test', 'mindmap', 'flashcards', 'social_post', 'content', 'slides', 'questions'];
+
+              const checkContent = (v) => {
+                  if (!v) return false;
+                  if (Array.isArray(v)) return v.length > 0;
+                  if (typeof v === 'string') return v.length > 0;
+                  // Handle object wrappers
+                  if (v.cards && Array.isArray(v.cards)) return v.cards.length > 0;
+                  if (v.content && typeof v.content === 'string') return v.content.length > 0; // social_post
+                  if (v.questions && Array.isArray(v.questions)) return v.questions.length > 0;
+                  if (v.slides && Array.isArray(v.slides)) return v.slides.length > 0;
+                  if (v.blocks && Array.isArray(v.blocks)) return v.blocks.length > 0;
+                  if (v.panels && Array.isArray(v.panels)) return v.panels.length > 0;
+                  if (v.mermaid && typeof v.mermaid === 'string') return v.mermaid.length > 0;
+                  if (v.script && Array.isArray(v.script)) return v.script.length > 0;
+                  return false;
+              };
+
+              criticalFields.forEach(field => {
+                  const localVal = this.lesson[field];
+                  const serverVal = safeData[field];
+
+                  if (checkContent(localVal) && !checkContent(serverVal)) {
+                       console.warn(`[Anti-Wipe] Ignoring stale server snapshot for field '${field}' to protect local content.`);
+                       safeData[field] = localVal;
+                  }
+              });
+
               // CRITICAL FIX: Local State Priority
               // Prevent stale server snapshot from wiping out optimistic Magic data or recent user edits.
               const hasPendingUpdates = Object.keys(this._pendingUpdates).length > 0;
