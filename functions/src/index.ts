@@ -657,11 +657,78 @@ exports.generatePodcastAudio = onCall({
             podcast_generated_at: FieldValue.serverTimestamp()
         });
 
-        return { success: true, storagePath: filePath };
+        // Generate Signed URL / Public URL
+        let publicUrl;
+        if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.FIREBASE_STORAGE_EMULATOR_HOST) {
+            const storageHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST || "127.0.0.1:9199";
+            publicUrl = `http://${storageHost}/v0/b/${bucket.name}/o/${encodeURIComponent(filePath)}?alt=media`;
+        } else {
+            const [signedUrl] = await file.getSignedUrl({
+                action: 'read',
+                expires: '01-01-2050' // Long expiration
+            });
+            publicUrl = signedUrl;
+        }
+
+        return { success: true, storagePath: filePath, audioUrl: publicUrl };
 
     } catch (error: any) {
         logger.error("Error generating podcast audio:", error);
         throw new HttpsError("internal", `Audio generation failed: ${error.message}`);
+    }
+});
+
+exports.generateComicPanelImage = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can generate images.");
+    }
+
+    const { lessonId, panelIndex, panelPrompt } = request.data;
+    if (!lessonId || typeof panelIndex === 'undefined' || !panelPrompt) {
+        throw new HttpsError("invalid-argument", "Missing lessonId, panelIndex, or panelPrompt.");
+    }
+
+    try {
+        const GeminiAPI = require("./gemini-api.js");
+        const imageBase64 = await GeminiAPI.generateImageFromPrompt(panelPrompt);
+
+        const bucket = getStorage().bucket(STORAGE_BUCKET);
+        const fileName = `comic_${lessonId}_${panelIndex}_${Date.now()}.png`;
+        const storagePath = `courses/${request.auth.uid}/media/generated/${fileName}`;
+        const file = bucket.file(storagePath);
+
+        await file.save(Buffer.from(imageBase64, 'base64'), {
+            metadata: {
+                contentType: 'image/png',
+                metadata: {
+                    lessonId: lessonId,
+                    panelIndex: String(panelIndex),
+                    generatedBy: request.auth.uid
+                }
+            }
+        });
+
+        let imageUrl;
+        if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.FIREBASE_STORAGE_EMULATOR_HOST) {
+            const storageHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST || "127.0.0.1:9199";
+            imageUrl = `http://${storageHost}/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media`;
+        } else {
+            const [signedUrl] = await file.getSignedUrl({
+                action: 'read',
+                expires: '01-01-2050'
+            });
+            imageUrl = signedUrl;
+        }
+
+        return { success: true, imageUrl: imageUrl };
+
+    } catch (error: any) {
+        logger.error("Error generating comic panel:", error);
+        throw new HttpsError("internal", `Image generation failed: ${error.message}`);
     }
 });
 
@@ -684,7 +751,7 @@ exports.generateContent = onCall({
 
         let finalPrompt = promptData.userPrompt;
         const language = promptData.language || "cs";
-        const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap"].includes(contentType);
+        const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap", "podcast", "audio"].includes(contentType);
 
         // Add language instruction
         const langInstruction = language === "pt-br" ? "Responda em Português do Brasil." : "Odpovídej v češtině.";
@@ -842,6 +909,18 @@ Each card object must have: 'front' (pojem/otázka), 'back' (definice/odpověď)
 
                 case "comic":
                     finalPrompt = `Vytvoř scénář pro komiks (4 panely). Odpověď musí být JSON objekt s klíčem 'panels' (pole objektů: panel_number, description, dialogue). ${langInstruction}`;
+                    break;
+
+                case "podcast":
+                case "audio":
+                    finalPrompt = `Vytvoř scénář pro audio podcast na téma "${promptData.userPrompt}".
+${langInstruction}
+
+FORMAT: JSON
+{
+  "script": [ ... ] (MANDATORY: Generate a dialogue script. Empty array is a failure.)
+}
+Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
                     break;
             }
         }

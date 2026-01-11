@@ -1,4 +1,6 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { functions } from '../../../firebase-init.js';
 import { Localized } from '../../../utils/localization-mixin.js';
 import './professor-header-editor.js';
 import './ai-generator-panel.js';
@@ -6,8 +8,14 @@ import './ai-generator-panel.js';
 export class EditorViewComic extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
-        isSaving: { type: Boolean }
+        isSaving: { type: Boolean },
+        _generatingPanels: { state: true, type: Object }
     };
+
+    constructor() {
+        super();
+        this._generatingPanels = {};
+    }
 
     createRenderRoot() { return this; }
 
@@ -43,6 +51,47 @@ export class EditorViewComic extends Localized(LitElement) {
         this._updateScript(renumbered);
     }
 
+    async _generatePanelImage(index) {
+        if (this._generatingPanels[index]) return;
+
+        const panel = this.lesson.comic_script[index];
+        if (!panel.description || panel.description.trim() === '') {
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: 'Popis panelu je prázdný.', type: 'error' }
+            }));
+            return;
+        }
+
+        this._generatingPanels = { ...this._generatingPanels, [index]: true };
+        this.requestUpdate();
+
+        try {
+            const generateImage = httpsCallable(functions, 'generateComicPanelImage');
+            const result = await generateImage({
+                lessonId: this.lesson.id,
+                panelIndex: index,
+                panelPrompt: panel.description
+            });
+
+            if (result.data && result.data.imageUrl) {
+                this._handlePanelChange(index, 'image_url', result.data.imageUrl);
+                window.dispatchEvent(new CustomEvent('show-toast', {
+                    detail: { message: 'Obrázek úspěšně vygenerován.', type: 'success' }
+                }));
+            }
+        } catch (error) {
+            console.error('Image generation failed:', error);
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: `Generování selhalo: ${error.message}`, type: 'error' }
+            }));
+        } finally {
+            const newGeneratingState = { ...this._generatingPanels };
+            delete newGeneratingState[index];
+            this._generatingPanels = newGeneratingState;
+            this.requestUpdate();
+        }
+    }
+
     render() {
         const rawScript = this.lesson?.comic_script;
         const script = Array.isArray(rawScript) ? rawScript : [];
@@ -72,18 +121,50 @@ export class EditorViewComic extends Localized(LitElement) {
 
                             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 ${script.map((panel, index) => html`
-                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col h-[360px] relative group hover:shadow-md transition-shadow">
-                                        <div class="absolute top-3 right-3 text-xs font-bold text-slate-300 pointer-events-none group-hover:text-indigo-200">
+                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col h-[500px] relative group hover:shadow-md transition-shadow">
+                                        <div class="absolute top-3 right-3 text-xs font-bold text-slate-300 pointer-events-none group-hover:text-indigo-200 z-10">
                                             PANEL ${index + 1}
                                         </div>
 
                                         <button
                                             @click="${() => this._deletePanel(index)}"
-                                            class="absolute top-2 right-2 p-1.5 bg-white text-slate-400 hover:text-red-500 rounded-full shadow-sm border border-slate-200 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                            class="absolute top-2 right-2 p-1.5 bg-white text-slate-400 hover:text-red-500 rounded-full shadow-sm border border-slate-200 opacity-0 group-hover:opacity-100 transition-opacity z-20"
                                             title="${this.t('common.delete')}"
                                         >
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                         </button>
+
+                                        <!-- Image Area -->
+                                        <div class="h-48 mb-3 bg-slate-100 rounded-lg overflow-hidden relative border border-slate-200">
+                                            ${panel.image_url ? html`
+                                                <img src="${panel.image_url}" class="w-full h-full object-cover">
+                                                <button
+                                                    @click="${() => this._generatePanelImage(index)}"
+                                                    class="absolute bottom-2 right-2 p-1.5 bg-white/90 hover:bg-white text-indigo-600 rounded-lg shadow-sm border border-slate-200 transition-colors"
+                                                    title="Pře-generovat obrázek"
+                                                >
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                                </button>
+                                            ` : html`
+                                                <div class="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                                                    ${this._generatingPanels[index] ? html`
+                                                        <svg class="animate-spin h-8 w-8 text-indigo-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                        </svg>
+                                                        <span class="text-xs font-medium">Generuji...</span>
+                                                    ` : html`
+                                                        <button
+                                                            @click="${() => this._generatePanelImage(index)}"
+                                                            class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-colors shadow-sm flex items-center gap-1.5"
+                                                        >
+                                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                                            Generovat Obrázek
+                                                        </button>
+                                                    `}
+                                                </div>
+                                            `}
+                                        </div>
 
                                         <!-- Visual Description -->
                                         <div class="flex-1 mb-3 flex flex-col">

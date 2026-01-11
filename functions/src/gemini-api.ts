@@ -202,7 +202,25 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest, systemI
     if (process.env.FUNCTIONS_EMULATOR === "true") {
         console.log(`EMULATOR_MOCK for ${functionName}: Bypassing real API call.`);
         if (functionName === "generateJson") {
-            return JSON.stringify({ mock: "This is a mock JSON response from the emulator." });
+            return JSON.stringify({
+                mock: "This is a mock JSON response from the emulator.",
+                // Mock data for Podcast
+                script: [
+                    { speaker: "Host", text: "Welcome to the AI Sensei Podcast. Today we discuss the topic." },
+                    { speaker: "Guest", text: "It is great to be here. Let's dive in." }
+                ],
+                // Mock data for Comic
+                panels: [
+                    { panel_number: 1, description: "A futuristic classroom with a robot teacher.", dialogue: "Good morning class!" },
+                    { panel_number: 2, description: "Students looking at holograms.", dialogue: "Wow, look at that!" }
+                ],
+                // Mock data for Quiz/Test
+                questions: [
+                    { question: "What is 2+2?", options: ["3", "4", "5", "6"], correctAnswer: 1 }
+                ],
+                // Mock for Mindmap
+                mermaid: "graph TD; A-->B;"
+            });
         }
         return "This is a mock response from the emulator for a text prompt.";
     }
