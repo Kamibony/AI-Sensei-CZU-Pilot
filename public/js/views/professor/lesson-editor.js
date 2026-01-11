@@ -102,6 +102,8 @@ export class LessonEditor extends BaseView {
     this._isGenerating = false;
     this._magicStatus = '';
     this._loadingTimeout = null;
+    this._pendingUpdates = {};
+    this._saveTimeout = null;
   }
 
   updated(changedProperties) {
@@ -200,22 +202,65 @@ export class LessonEditor extends BaseView {
               return;
           }
 
-          // Check if data actually changed to prevent render loops
-          const hasChanges = Object.keys(e.detail).some(key => {
-              // Simple strict equality check
-              // For objects/arrays, this relies on reference equality which is appropriate
-              // because immutable updates (creating new objects) should trigger re-render,
-              // but re-emitting same object reference shouldn't.
-              // If the issue is deep equality of identical new objects, this might be insufficient,
-              // but it's the standard first step for "Optimize Updates".
-              return this.lesson[key] !== e.detail[key];
-          });
+          // 1. Update Local State (Optimistic)
+          this.lesson = { ...this.lesson, ...e.detail };
+          this.requestUpdate();
 
-          if (hasChanges) {
-              this.lesson = { ...this.lesson, ...e.detail };
-              this.requestUpdate();
-          }
+          // 2. Accumulate Patch
+          this._pendingUpdates = { ...this._pendingUpdates, ...e.detail };
+
+          // 3. Trigger Auto-Save
+          this._debouncedSave();
       }
+  }
+
+  _debouncedSave() {
+      if (this._saveTimeout) clearTimeout(this._saveTimeout);
+
+      this.isSaving = true; // Show "Saving..." immediately
+      this.requestUpdate();
+
+      this._saveTimeout = setTimeout(async () => {
+          if (Object.keys(this._pendingUpdates).length === 0) {
+               this.isSaving = false;
+               this.requestUpdate();
+               return;
+          }
+
+          const updatesToCommit = { ...this._pendingUpdates };
+          this._pendingUpdates = {}; // Clear pending queue
+
+          try {
+              if (!this.lesson.id) {
+                  // If lesson is new and not saved yet, we cannot patch.
+                  // Fallback to full save if ID is missing (should be handled by initial save)
+                   console.warn("Attempting patch on unsaved lesson. Skipping.");
+                   return;
+              }
+
+              // Add timestamp
+              updatesToCommit.updatedAt = new Date().toISOString();
+
+              console.log("Auto-saving patch:", updatesToCommit); // VERIFICATION LOG
+
+              const lessonRef = doc(db, 'lessons', this.lesson.id);
+              await updateDoc(lessonRef, updatesToCommit);
+
+              // If no new updates arrived during save, stop spinner
+              if (Object.keys(this._pendingUpdates).length === 0) {
+                  this.isSaving = false;
+              }
+              this.requestUpdate();
+
+          } catch (error) {
+              console.error("Auto-save failed", error);
+              this.isSaving = false;
+              this.requestUpdate();
+              // Restore pending updates to retry next time
+              this._pendingUpdates = { ...updatesToCommit, ...this._pendingUpdates };
+              showToast(translationService.t('common.error'), true);
+          }
+      }, 2000); // 2 second debounce
   }
 
   _handlePublishChanged(e) {
@@ -1238,11 +1283,19 @@ export class LessonEditor extends BaseView {
                    ${this.lesson?.isPublished ? (translationService.t('lesson.status_published') || 'Publikované') : (translationService.t('lesson.status_draft') || 'Koncept')}
                </button>
 
-               <button @click="${this._handleSave}"
-                      class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none transition-all ${this.isSaving ? 'opacity-75 cursor-wait' : ''}"
-                      ?disabled="${this.isSaving}">
-                ${this.isSaving ? translationService.t('common.loading') : translationService.t('professor.editor.saveChanges')}
-              </button>
+                <!-- Auto-Save Indicator for Hub -->
+                <div class="flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${this.isSaving ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-500'}">
+                    ${this.isSaving ? html`
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>${translationService.t('common.saving') || 'Ukládání...'}</span>
+                    ` : html`
+                        <span class="mr-1.5">☁️</span>
+                        <span>${translationService.t('all_saved') || 'Vše uloženo'}</span>
+                    `}
+                </div>
             </div>
           </div>
         </div>
@@ -1251,18 +1304,7 @@ export class LessonEditor extends BaseView {
   }
 
   _renderSpecificEditor() {
-      const handleUpdate = (e) => {
-          this.lesson = { ...this.lesson, ...e.detail };
-          this.requestUpdate(); 
-      };
-
-      const editorProps = (extraListeners = {}) => ({
-          id: "active-editor",
-          class: "w-full h-full block",
-          lesson: this.lesson,
-          isSaving: this.isSaving,
-          ...extraListeners
-      });
+      const handleUpdate = this._handleLessonUpdatedEvent.bind(this);
 
       switch (this._activeTool) {
           case 'text': 
@@ -1274,25 +1316,25 @@ export class LessonEditor extends BaseView {
           case 'presentation': 
               return html`<editor-view-presentation @back=${this._handleBackToHub} @save=${this._handleSave}
                   .lesson=${this.lesson} .isSaving=${this.isSaving}
-                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, presentation: e.detail }; }} 
+                  @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-presentation>`;
           
           case 'quiz': 
               return html`<editor-view-quiz @back=${this._handleBackToHub} @save=${this._handleSave}
                   .lesson=${this.lesson} .isSaving=${this.isSaving}
-                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, quiz: e.detail }; }} 
+                  @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-quiz>`;
           
           case 'test': 
               return html`<editor-view-test @back=${this._handleBackToHub} @save=${this._handleSave}
                   .lesson=${this.lesson} .isSaving=${this.isSaving}
-                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, ...e.detail }; }} 
+                  @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-test>`;
           
           case 'post': 
               return html`<editor-view-post @back=${this._handleBackToHub} @save=${this._handleSave}
                   .lesson=${this.lesson} .isSaving=${this.isSaving}
-                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, social_post: e.detail.social_post }; }}
+                  @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-post>`;
           
           case 'video': 
@@ -1304,25 +1346,25 @@ export class LessonEditor extends BaseView {
           case 'comic': 
               return html`<editor-view-comic @back=${this._handleBackToHub} @save=${this._handleSave}
                   .lesson=${this.lesson} .isSaving=${this.isSaving}
-                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, comic: e.detail.comic }; }} 
+                  @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-comic>`;
           
           case 'flashcards': 
               return html`<editor-view-flashcards @back=${this._handleBackToHub} @save=${this._handleSave}
                   .lesson=${this.lesson} .isSaving=${this.isSaving}
-                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, flashcards: e.detail }; }} 
+                  @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-flashcards>`;
           
           case 'mindmap': 
               return html`<editor-view-mindmap @back=${this._handleBackToHub} @save=${this._handleSave}
                   .lesson=${this.lesson} .isSaving=${this.isSaving}
-                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, mindmap: e.detail.mindmap }; }} 
+                  @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-mindmap>`;
 
           case 'audio':
               return html`<editor-view-audio @back=${this._handleBackToHub} @save=${this._handleSave}
                   .lesson=${this.lesson} .isSaving=${this.isSaving}
-                  @lesson-updated=${(e) => { this.lesson = { ...this.lesson, content: e.detail.content }; }} 
+                  @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-audio>`;
                   
           default: return html`<div class="p-4 text-center text-red-500">${translationService.t('common.unknown_type')}</div>`;
