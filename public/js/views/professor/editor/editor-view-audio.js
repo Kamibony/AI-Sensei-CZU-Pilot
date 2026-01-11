@@ -16,7 +16,7 @@ export class EditorViewAudio extends Localized(LitElement) {
 
     _updateScript(newScript) {
         this.dispatchEvent(new CustomEvent('lesson-updated', {
-            detail: { podcast_script: newScript },
+            detail: { partial: { podcast_script: newScript } },
             bubbles: true,
             composed: true
         }));
@@ -62,16 +62,24 @@ export class EditorViewAudio extends Localized(LitElement) {
         this.isGeneratingAudio = true;
         try {
             const generateAudio = httpsCallable(functions, 'generatePodcastAudio');
+
+            // Map frontend language to backend code
+            // Simple mapping based on current UI language as a proxy for content
+            const currentLang = document.documentElement.lang || 'cs';
+            let targetLang = 'cs-CZ';
+            if (currentLang.includes('en')) targetLang = 'en-US';
+            if (currentLang.includes('pt')) targetLang = 'pt-br';
+
             const result = await generateAudio({
                 lessonId: this.lesson.id,
                 text: fullText,
-                language: 'cs-CZ' // Default language
+                language: targetLang
             });
 
             if (result.data && result.data.audioUrl) {
                 // Update lesson with new audio URL
                 this.dispatchEvent(new CustomEvent('lesson-updated', {
-                    detail: { podcast_audio_url: result.data.audioUrl },
+                    detail: { partial: { podcast_audio_url: result.data.audioUrl } },
                     bubbles: true,
                     composed: true
                 }));
