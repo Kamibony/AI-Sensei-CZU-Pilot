@@ -62,10 +62,18 @@ export class EditorViewAudio extends Localized(LitElement) {
         this.isGeneratingAudio = true;
         try {
             const generateAudio = httpsCallable(functions, 'generatePodcastAudio');
+
+            // Map frontend language to backend code
+            // Simple mapping based on current UI language as a proxy for content
+            const currentLang = document.documentElement.lang || 'cs';
+            let targetLang = 'cs-CZ';
+            if (currentLang.includes('en')) targetLang = 'en-US';
+            if (currentLang.includes('pt')) targetLang = 'pt-br';
+
             const result = await generateAudio({
                 lessonId: this.lesson.id,
                 text: fullText,
-                language: 'cs-CZ' // Default language
+                language: targetLang
             });
 
             if (result.data && result.data.audioUrl) {

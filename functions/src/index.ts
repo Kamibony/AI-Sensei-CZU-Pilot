@@ -229,7 +229,6 @@ exports.startMagicGeneration = onCall({
 
         const title = (await lessonRef.get()).data()?.title || "Lesson";
         const topic = lessonTopic || "";
-        // const lang = "Czech"; // REMOVED: Dynamic detection now used
 
         const contextPrompt = `
         ROLE: You are an expert educational content creator.
@@ -570,8 +569,16 @@ exports.generatePodcastAudio = onCall({
         // Definícia hlasov
         // Alex = Male (Wavenet-B / Neural2-B)
         // Sarah = Female (Wavenet-A / Neural2-A)
-        const maleVoiceName = (langCode === "pt-br") ? "pt-BR-Neural2-B" : "cs-CZ-Wavenet-B";
-        const femaleVoiceName = (langCode === "pt-br") ? "pt-BR-Neural2-A" : "cs-CZ-Wavenet-A";
+        let maleVoiceName = "cs-CZ-Wavenet-B";
+        let femaleVoiceName = "cs-CZ-Wavenet-A";
+
+        if (langCode === "pt-br") {
+            maleVoiceName = "pt-BR-Neural2-B";
+            femaleVoiceName = "pt-BR-Neural2-A";
+        } else if (langCode === "en-US" || langCode === "en") {
+            maleVoiceName = "en-US-Neural2-D";
+            femaleVoiceName = "en-US-Neural2-F";
+        }
 
         // 2. Parsovanie vstupu na segmenty
         // Rozdelí text podľa [Speaker]:, ponechá oddelovače, a odstráni prázdne stringy
