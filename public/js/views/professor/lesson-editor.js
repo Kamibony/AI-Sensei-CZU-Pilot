@@ -835,7 +835,20 @@ export class LessonEditor extends BaseView {
                   flashcards: newData.flashcards || { cards: [] }
               };
 
-              this.lesson = { ...this.lesson, ...safeOptimistic, magicStatus: 'ready' };
+              // ARCHITECTURAL FIX: Explicitly queue magic data for persistence
+              // This prevents manual edits from overwriting/losing magic content
+              // if backend writes haven't propagated or are partial.
+              const updates = { ...safeOptimistic, magicStatus: 'ready' };
+
+              // 1. Update Local State
+              this.lesson = { ...this.lesson, ...updates };
+
+              // 2. Queue for Persistence
+              this._pendingUpdates = { ...this._pendingUpdates, ...updates };
+
+              // 3. Trigger Save
+              this._debouncedSave();
+
               this._isLoading = false;
               this._magicStatus = "";
               this._wizardMode = false;
