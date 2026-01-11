@@ -1197,19 +1197,56 @@ exports.getAiAssistantResponse = onCall({
     if (!lessonId || !userQuestion) {
         throw new HttpsError("invalid-argument", "Missing lessonId or userQuestion");
     }
+
+    // 1. Context Awareness: Get User Info
+    const userRole = request.auth?.token.role || "student";
+    const userLanguage = request.data.language || "cs"; // Default to Czech
+
     try {
         let prompt;
-        // Special case for Guide Bot (no lesson lookup needed)
+        let systemContext = `You are a helpful AI Assistant for the 'AI Sensei' education platform.
+        Current User Role: ${userRole}.
+        Language: ${userLanguage === 'cs' ? 'Czech' : 'English'}.
+        `;
+
+        // Special case for Guide Bot
         if (lessonId === 'guide-bot') {
-            prompt = userQuestion;
+            prompt = `${systemContext}\n\nUser Question: ${userQuestion}`;
         } else {
+            // 2. Context Awareness: Fetch Latest Lesson Data
             const lessonRef = db.collection("lessons").doc(lessonId);
             const lessonDoc = await lessonRef.get();
+
             if (!lessonDoc.exists) {
                 throw new HttpsError("not-found", "Lesson not found");
             }
+
             const lessonData = lessonDoc.data();
-            prompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${userQuestion}"`;
+            const lessonTitle = lessonData?.title || "Untitled Lesson";
+
+            // Serialize content efficiently (avoid huge raw dumps if possible, but for now we include core fields)
+            // We include generated content if available
+            const contextData = {
+                title: lessonTitle,
+                topic: lessonData?.topic,
+                text_content: lessonData?.text_content,
+                podcast_script: lessonData?.podcast_script,
+                quiz: lessonData?.quiz,
+                test: lessonData?.test
+            };
+
+            const contextString = JSON.stringify(contextData).substring(0, 20000); // Limit context size
+
+            prompt = `${systemContext}
+
+            CONTEXT (Current Lesson):
+            ${contextString}
+
+            INSTRUCTIONS:
+            Answer the user's question based strictly on the provided lesson context.
+            If the answer is not in the lesson, say you don't know but suggest asking the professor.
+
+            User Question: "${userQuestion}"`;
         }
 
         const GeminiAPI = require("./gemini-api.js");
