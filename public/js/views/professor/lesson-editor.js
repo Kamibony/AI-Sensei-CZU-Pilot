@@ -196,18 +196,23 @@ export class LessonEditor extends BaseView {
 
   _handleLessonUpdatedEvent(e) {
       if (e.detail) {
+          let updates = e.detail;
+          if (e.detail.partial) {
+              updates = e.detail.partial;
+          }
+
           if (!this.lesson) {
-              this.lesson = e.detail;
+              this.lesson = updates;
               this.requestUpdate();
               return;
           }
 
           // 1. Update Local State (Optimistic)
-          this.lesson = { ...this.lesson, ...e.detail };
+          this.lesson = { ...this.lesson, ...updates };
           this.requestUpdate();
 
           // 2. Accumulate Patch
-          this._pendingUpdates = { ...this._pendingUpdates, ...e.detail };
+          this._pendingUpdates = { ...this._pendingUpdates, ...updates };
 
           // 3. Trigger Auto-Save
           this._debouncedSave();

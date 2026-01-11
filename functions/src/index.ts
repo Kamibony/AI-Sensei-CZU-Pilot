@@ -229,12 +229,12 @@ exports.startMagicGeneration = onCall({
 
         const title = (await lessonRef.get()).data()?.title || "Lesson";
         const topic = lessonTopic || "";
-        const lang = "Czech";
+        // const lang = "Czech"; // REMOVED: Dynamic detection now used
 
         const contextPrompt = `
         ROLE: You are an expert educational content creator.
         TASK: Create a comprehensive study lesson about "${title}" ${topic ? `(${topic})` : ""}.
-        LANGUAGE: ${lang}.
+        LANGUAGE: Analyze the provided source material and topic. Output in the SAME language.
 
         --- SOURCE MATERIAL BEGIN ---
         ${fullTextContext.substring(0, 30000)}
@@ -376,6 +376,7 @@ CRITICAL OUTPUT INSTRUCTIONS:
                  const podcastPrompt = `
 ROLE: You are an expert podcast producer.
 TASK: Create a conversational script between two hosts (Alex and Sarah) about the provided text.
+LANGUAGE: Analyze the input text. Write the script in the SAME language.
 
 --- SOURCE MATERIAL BEGIN ---
 ${markdownText.substring(0, 10000)}
@@ -399,6 +400,7 @@ CRITICAL OUTPUT INSTRUCTIONS:
                  const comicPrompt = `
 ROLE: You are a comic book writer.
 TASK: Create a 4-panel comic script based on the text.
+LANGUAGE: Analyze the input text. Write the script in the SAME language.
 
 --- SOURCE MATERIAL BEGIN ---
 ${markdownText.substring(0, 10000)}
@@ -694,7 +696,11 @@ exports.generateComicPanelImage = onCall({
 
     try {
         const GeminiAPI = require("./gemini-api.js");
-        const imageBase64 = await GeminiAPI.generateImageFromPrompt(panelPrompt);
+
+        // VISUALS ENHANCEMENT: Add style modifiers
+        const enhancedPrompt = `Educational comic book style, detailed, vibrant colors, semi-realistic style. Visual context: ${panelPrompt}`;
+
+        const imageBase64 = await GeminiAPI.generateImageFromPrompt(enhancedPrompt);
 
         const bucket = getStorage().bucket(STORAGE_BUCKET);
         const fileName = `comic_${lessonId}_${panelIndex}_${Date.now()}.png`;
@@ -754,7 +760,9 @@ exports.generateContent = onCall({
         const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap", "podcast", "audio"].includes(contentType);
 
         // Add language instruction
-        const langInstruction = language === "pt-br" ? "Responda em Português do Brasil." : "Odpovídej v češtině.";
+    // DYNAMIC LANGUAGE DETECTION UPDATE:
+    // Instead of hardcoding, we instruct the model to match the input language.
+    const langInstruction = "Analyze the language of the provided 'topic' and 'content'. Generate the output (script/dialogue/text) strictly in the SAME LANGUAGE as the input content. If the input is mixed, prioritize the language of the 'content'.";
         finalPrompt += `\n\n${langInstruction}`;
 
         // STRICT SYSTEM INSTRUCTION to silence conversational filler
