@@ -1,4 +1,6 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { functions } from '../../../firebase-init.js';
 import { Localized } from '../../../utils/localization-mixin.js';
 import './professor-header-editor.js';
 import './ai-generator-panel.js';
@@ -6,7 +8,8 @@ import './ai-generator-panel.js';
 export class EditorViewAudio extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
-        isSaving: { type: Boolean }
+        isSaving: { type: Boolean },
+        isGeneratingAudio: { type: Boolean, state: true }
     };
 
     createRenderRoot() { return this; }
@@ -40,10 +43,58 @@ export class EditorViewAudio extends Localized(LitElement) {
         this._updateScript(script);
     }
 
+    async _generateAudio() {
+        if (this.isGeneratingAudio) return;
+
+        const rawScript = this.lesson?.podcast_script;
+        if (!Array.isArray(rawScript) || rawScript.length === 0) {
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: 'Scénář je prázdný.', type: 'error' }
+            }));
+            return;
+        }
+
+        // Construct text in format: "[Speaker]: Text..."
+        const fullText = rawScript
+            .map(line => `[${line.speaker}]: ${line.text}`)
+            .join('\n');
+
+        this.isGeneratingAudio = true;
+        try {
+            const generateAudio = httpsCallable(functions, 'generatePodcastAudio');
+            const result = await generateAudio({
+                lessonId: this.lesson.id,
+                text: fullText,
+                language: 'cs-CZ' // Default language
+            });
+
+            if (result.data && result.data.audioUrl) {
+                // Update lesson with new audio URL
+                this.dispatchEvent(new CustomEvent('lesson-updated', {
+                    detail: { podcast_audio_url: result.data.audioUrl },
+                    bubbles: true,
+                    composed: true
+                }));
+
+                window.dispatchEvent(new CustomEvent('show-toast', {
+                    detail: { message: 'Audio úspěšně vygenerováno.', type: 'success' }
+                }));
+            }
+        } catch (error) {
+            console.error('Audio generation failed:', error);
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: `Generování selhalo: ${error.message}`, type: 'error' }
+            }));
+        } finally {
+            this.isGeneratingAudio = false;
+        }
+    }
+
     render() {
         const rawScript = this.lesson?.podcast_script;
         const script = Array.isArray(rawScript) ? rawScript : [];
         const hasContent = script.length > 0;
+        const audioUrl = this.lesson?.podcast_audio_url;
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
@@ -55,12 +106,37 @@ export class EditorViewAudio extends Localized(LitElement) {
 
                             ${hasContent ? html`
                                 <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8">
-                                    <div class="flex justify-between items-center mb-6">
+                                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                                         <div>
                                             <h2 class="text-2xl font-bold text-slate-800">${this.t('editor.audio.title')}</h2>
                                             <p class="text-slate-500">${this.t('editor.audio.subtitle')}</p>
                                         </div>
+                                        <button
+                                            @click="${this._generateAudio}"
+                                            ?disabled="${this.isGeneratingAudio}"
+                                            class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl font-semibold shadow-sm transition-all flex items-center gap-2"
+                                        >
+                                            ${this.isGeneratingAudio ? html`
+                                                <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                Generuji audio...
+                                            ` : html`
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                                                Generovat Audio
+                                            `}
+                                        </button>
                                     </div>
+
+                                    ${audioUrl ? html`
+                                        <div class="mb-8 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+                                            <div class="flex items-center gap-3 mb-2">
+                                                <span class="text-xs font-bold text-indigo-500 uppercase tracking-wider">Přehrávač</span>
+                                            </div>
+                                            <audio controls class="w-full" src="${audioUrl}"></audio>
+                                        </div>
+                                    ` : nothing}
 
                                     <div class="space-y-4">
                                         ${script.map((line, index) => html`

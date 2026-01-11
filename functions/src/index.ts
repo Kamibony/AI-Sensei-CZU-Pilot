@@ -633,11 +633,78 @@ exports.generatePodcastAudio = onCall({
             podcast_generated_at: FieldValue.serverTimestamp()
         });
 
-        return { success: true, storagePath: filePath };
+        // Generate Signed URL / Public URL
+        let publicUrl;
+        if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.FIREBASE_STORAGE_EMULATOR_HOST) {
+            const storageHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST || "127.0.0.1:9199";
+            publicUrl = `http://${storageHost}/v0/b/${bucket.name}/o/${encodeURIComponent(filePath)}?alt=media`;
+        } else {
+            const [signedUrl] = await file.getSignedUrl({
+                action: 'read',
+                expires: '01-01-2050' // Long expiration
+            });
+            publicUrl = signedUrl;
+        }
+
+        return { success: true, storagePath: filePath, audioUrl: publicUrl };
 
     } catch (error: any) {
         logger.error("Error generating podcast audio:", error);
         throw new HttpsError("internal", `Audio generation failed: ${error.message}`);
+    }
+});
+
+exports.generateComicPanelImage = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can generate images.");
+    }
+
+    const { lessonId, panelIndex, panelPrompt } = request.data;
+    if (!lessonId || typeof panelIndex === 'undefined' || !panelPrompt) {
+        throw new HttpsError("invalid-argument", "Missing lessonId, panelIndex, or panelPrompt.");
+    }
+
+    try {
+        const GeminiAPI = require("./gemini-api.js");
+        const imageBase64 = await GeminiAPI.generateImageFromPrompt(panelPrompt);
+
+        const bucket = getStorage().bucket(STORAGE_BUCKET);
+        const fileName = `comic_${lessonId}_${panelIndex}_${Date.now()}.png`;
+        const storagePath = `courses/${request.auth.uid}/media/generated/${fileName}`;
+        const file = bucket.file(storagePath);
+
+        await file.save(Buffer.from(imageBase64, 'base64'), {
+            metadata: {
+                contentType: 'image/png',
+                metadata: {
+                    lessonId: lessonId,
+                    panelIndex: String(panelIndex),
+                    generatedBy: request.auth.uid
+                }
+            }
+        });
+
+        let imageUrl;
+        if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.FIREBASE_STORAGE_EMULATOR_HOST) {
+            const storageHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST || "127.0.0.1:9199";
+            imageUrl = `http://${storageHost}/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media`;
+        } else {
+            const [signedUrl] = await file.getSignedUrl({
+                action: 'read',
+                expires: '01-01-2050'
+            });
+            imageUrl = signedUrl;
+        }
+
+        return { success: true, imageUrl: imageUrl };
+
+    } catch (error: any) {
+        logger.error("Error generating comic panel:", error);
+        throw new HttpsError("internal", `Image generation failed: ${error.message}`);
     }
 });
 
