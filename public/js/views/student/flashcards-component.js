@@ -30,8 +30,13 @@ export class FlashcardsComponent extends LitElement {
     }
 
     _nextCard() {
-        const rawData = this.cards || [];
+        let rawData = this.cards || [];
+        // Safety: If backend sends JSON string, parse it
+        if (typeof rawData === 'string') {
+            try { rawData = JSON.parse(rawData); } catch(e) { console.error("Failed to parse flashcards JSON", e); rawData = []; }
+        }
         const safeCards = Array.isArray(rawData) ? rawData : (rawData.cards || []);
+
         if (this._currentIndex < safeCards.length - 1) {
             this._isFlipped = false;
             setTimeout(() => {
@@ -54,7 +59,11 @@ export class FlashcardsComponent extends LitElement {
     }
 
     render() {
-        const rawData = this.cards || [];
+        let rawData = this.cards || [];
+        // Safety: If backend sends JSON string, parse it
+        if (typeof rawData === 'string') {
+            try { rawData = JSON.parse(rawData); } catch(e) { console.error("Failed to parse flashcards JSON", e); rawData = []; }
+        }
         const safeCards = Array.isArray(rawData) ? rawData : (rawData.cards || []);
 
         if (!safeCards || safeCards.length === 0) return html``;

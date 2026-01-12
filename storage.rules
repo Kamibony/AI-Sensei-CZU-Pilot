@@ -15,12 +15,16 @@ service firebase.storage {
       allow read, write, delete: if isProfessor() && (request.auth.uid == courseId || request.auth.token.email == 'profesor@profesor.cz');
     }
 
+    // Podcasts (Audio Lessons)
+    // Allow read access to all authenticated users (students and professors)
+    // This fixes the "Silent Podcast" issue for students
     match /podcasts/{allPaths=**} {
        allow read: if request.auth != null;
     }
 
+    // Allow professors to manage podcasts
     match /podcasts/{fileName} {
-       allow read, write, delete: if isProfessor();
+       allow write, delete: if isProfessor();
     }
 
     // Default deny all other paths
