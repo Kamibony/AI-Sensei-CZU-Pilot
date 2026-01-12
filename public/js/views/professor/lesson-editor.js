@@ -206,28 +206,53 @@ export class LessonEditor extends BaseView {
           const incomingKeys = updates ? Object.keys(updates) : "null";
           console.log("[State Merge] Previous Keys:", previousKeys, "Incoming Keys:", incomingKeys);
 
-          // SAFE MERGE PATTERN:
-          // Never allow a partial update to become the *entire* state if this.lesson is missing/null.
-          // This prevents "Data Wipe" where a child component (e.g., Audio Editor) sends a partial
-          // update (e.g. { podcast_script: ... }) and it accidentally replaces the whole lesson object.
+          // ARCHITECTURAL FIX: Deep Clone & Safe Merge
+          // We must detach from the LitElement Proxy to prevent shallow merge issues where
+          // nested objects (like content, sections) are lost or become unstable.
 
-          const currentState = this.lesson || {
-              title: '',
-              content: { blocks: [] },
-              files: [],
-              assignedToGroups: [],
-              // Minimal defaults to preserve structure if initialization raced
-          };
+          // 1. Create Detached Copy (POJO)
+          let currentStateClone;
+          try {
+              if (this.lesson) {
+                  // Use JSON.parse(JSON.stringify) as a robust way to strip Proxies and get a clean POJO.
+                  // This is performant enough for the lesson object size and ensures total detachment.
+                  currentStateClone = JSON.parse(JSON.stringify(this.lesson));
+              } else {
+                  currentStateClone = {
+                      title: '',
+                      content: { blocks: [] },
+                      files: [],
+                      assignedToGroups: [],
+                      // Minimal defaults
+                  };
+              }
+          } catch (err) {
+              console.error("[State Merge] Clone failed, falling back to shallow copy", err);
+              currentStateClone = this.lesson ? { ...this.lesson } : {};
+          }
 
-          // 1. Update Local State (Optimistic) - IMMEDIATE
-          // Using spread on currentState ensures we preserve existing sections (Text, Quiz, etc.)
-          this.lesson = { ...currentState, ...updates };
+          // 2. Perform Merge on POJO
+          // We merge the incoming updates onto the clean, detached object.
+          const nextState = { ...currentStateClone, ...updates };
+
+          // 3. Integrity Guard Clauses
+          // explicit check to ensure we didn't accidentally drop critical root keys
+          // due to a malformed update or clone failure.
+          const criticalKeys = ['id', 'content', 'files', 'assignedToGroups', 'ownerId', 'createdAt'];
+          criticalKeys.forEach(key => {
+              if (currentStateClone[key] !== undefined && nextState[key] === undefined) {
+                  console.warn(`[State Merge] Guard: Restoring missing key '${key}' from previous state.`);
+                  nextState[key] = currentStateClone[key];
+              }
+          });
+
+          // 4. Update Component State
+          // Re-assigning a fresh POJO triggers LitElement to re-create necessary proxies cleanly.
+          this.lesson = nextState;
           this.requestUpdate();
 
-          // 2. Accumulate Patch
+          // 5. Accumulate Patch & Save
           this._pendingUpdates = { ...this._pendingUpdates, ...updates };
-
-          // 3. Trigger Auto-Save
           this._debouncedSave();
       }
   }
