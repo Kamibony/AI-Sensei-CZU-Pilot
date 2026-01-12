@@ -35,7 +35,8 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         _filesCount: { state: true, type: Number },
         _audioLoadingState: { state: true },
         _audioUrls: { state: true },
-        onSave: { type: Function }
+        onSave: { type: Function },
+        autoSave: { type: Boolean }
     };
 
     constructor() {
@@ -50,6 +51,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         this._isLoading = false; 
         this._isSaving = false;
         this._isUploading = false; 
+        this.autoSave = false;
         this._uploadProgress = 0; 
         this._uploadStatusMsg = ''; 
         this._uploadStatusType = '';
@@ -199,6 +201,11 @@ export class AiGeneratorPanel extends Localized(LitElement) {
             if (result.data) {
                 this._generationOutput = result.data;
                 showToast(this.t('editor.ai.generation_success'), "success");
+
+                // Auto-save if enabled (removes the need for manual save button)
+                if (this.autoSave) {
+                    await this._handleSave();
+                }
             } else {
                 throw new Error("No data returned from AI.");
             }
@@ -223,6 +230,8 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                 dataToSave = dataToSave.panels;
             } else if (this.contentType === 'podcast' && !Array.isArray(dataToSave) && (dataToSave.script || dataToSave.podcast_script)) {
                 dataToSave = dataToSave.script || dataToSave.podcast_script;
+            } else if (this.contentType === 'text' && typeof dataToSave === 'object') {
+                dataToSave = dataToSave.content || dataToSave.text || dataToSave.text_content || '';
             }
 
             // If parent provided onSave callback, use it (preferred for modularity)
@@ -426,14 +435,16 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                                 ${this._renderStaticContent(this.contentType, this._generationOutput)}
                             </div>
 
-                            <div class="flex gap-3 pt-4 border-t border-slate-200">
-                                <button @click="${this._handleSave}" ?disabled="${this._isSaving}" class="${btnPrimary} flex-1">
-                                    ${this._isSaving ? this.t('common.saving') : this.t('common.save_changes')}
-                                </button>
-                                <button @click="${this._handleDiscard}" ?disabled="${this._isSaving}" class="${btnDestructive}">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                </button>
-                            </div>
+                            ${!this.autoSave ? html`
+                                <div class="flex gap-3 pt-4 border-t border-slate-200">
+                                    <button @click="${this._handleSave}" ?disabled="${this._isSaving}" class="${btnPrimary} flex-1">
+                                        ${this._isSaving ? this.t('common.saving') : this.t('common.save_changes')}
+                                    </button>
+                                    <button @click="${this._handleDiscard}" ?disabled="${this._isSaving}" class="${btnDestructive}">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </div>
+                            ` : nothing}
                         </div>
                     ` : nothing}
                 </div>

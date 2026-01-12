@@ -23,8 +23,30 @@ export class EditorViewText extends Localized(LitElement) {
         }));
     }
 
+    _handleAiSave(data) {
+        // Normalize Data on Input (Sanitization)
+        const cleanText = typeof data === 'object' ? (data.content || data.text_content || data.text || JSON.stringify(data)) : data;
+
+        // Update local state
+        this.lesson.text_content = cleanText;
+        this.requestUpdate();
+
+        // Notify parent to save
+        this.dispatchEvent(new CustomEvent('lesson-updated', {
+            detail: { text_content: cleanText },
+            bubbles: true,
+            composed: true
+        }));
+    }
+
     render() {
-        const hasContent = !!(this.lesson && this.lesson.text_content && this.lesson.text_content.trim().length > 0);
+        // Normalize Data on Render (Crash Prevention)
+        const rawContent = this.lesson?.text_content;
+        const textContent = typeof rawContent === 'object'
+            ? (rawContent.content || rawContent.text_content || rawContent.text || '')
+            : (rawContent || '');
+
+        const hasContent = !!(textContent && textContent.trim().length > 0);
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
@@ -45,7 +67,7 @@ export class EditorViewText extends Localized(LitElement) {
                                     contenteditable="true"
                                     style="white-space: pre-wrap;"
                                     @input="${this._handleInput}"
-                                    .innerHTML="${this.lesson.text_content}"
+                                    .innerHTML="${textContent}"
                                 ></div>
                             </div>
                         ` : html`
@@ -57,6 +79,8 @@ export class EditorViewText extends Localized(LitElement) {
                                     contentType="text"
                                     fieldToUpdate="text_content"
                                     description="${this.t('editor.text.description')}"
+                                    .onSave="${this._handleAiSave.bind(this)}"
+                                    .autoSave="${true}"
                                     .inputsConfig=${[{
                                         id: 'prompt-input',
                                         type: 'textarea',
