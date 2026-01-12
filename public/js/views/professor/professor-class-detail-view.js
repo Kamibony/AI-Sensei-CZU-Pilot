@@ -50,46 +50,74 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
     }
 
     _fetchData() {
+        // Safety valve: Ensure we don't hang if params are missing
+        if (!this.groupId) {
+            console.error("No groupId provided to ProfessorClassDetailView");
+            this._isLoading = false;
+            return;
+        }
+
         const user = firebaseInit.auth.currentUser;
-        if (!user || !this.groupId) return;
+        if (!user) {
+            console.error("User not authenticated in ProfessorClassDetailView");
+            this._isLoading = false;
+            // Optionally redirect or show message, but definitely stop loading
+            return;
+        }
 
         this._isLoading = true;
 
-        // 1. Fetch Group Details
-        const groupDocRef = doc(firebaseInit.db, 'groups', this.groupId);
-        const groupUnsubscribe = onSnapshot(groupDocRef, (doc) => {
-            if (doc.exists()) {
-                this._group = { id: doc.id, ...doc.data() };
-                this._fetchStudents(doc.data().studentIds || []);
-            } else {
-                console.error("Group not found");
+        try {
+            // 1. Fetch Group Details
+            const groupDocRef = doc(firebaseInit.db, 'groups', this.groupId);
+            const groupUnsubscribe = onSnapshot(groupDocRef, (doc) => {
+                if (doc.exists()) {
+                    this._group = { id: doc.id, ...doc.data() };
+                    this._fetchStudents(doc.data().studentIds || []);
+                } else {
+                    console.error("Group not found");
+                    this._group = null;
+                    this._isLoading = false;
+                }
+            }, (error) => {
+                console.error("Error fetching group:", error);
                 this._isLoading = false;
-            }
-        });
-        this.unsubscribes.push(groupUnsubscribe);
+                showToast(this.t('common.error_loading'), true);
+            });
+            this.unsubscribes.push(groupUnsubscribe);
 
-        // 2. Fetch Assigned Lessons
-        const assignedLessonsQuery = query(
-            collection(firebaseInit.db, 'lessons'),
-            where("assignedToGroups", "array-contains", this.groupId),
-            where("ownerId", "==", user.uid)
-        );
+            // 2. Fetch Assigned Lessons
+            const assignedLessonsQuery = query(
+                collection(firebaseInit.db, 'lessons'),
+                where("assignedToGroups", "array-contains", this.groupId),
+                where("ownerId", "==", user.uid)
+            );
 
-        const lessonsUnsubscribe = onSnapshot(assignedLessonsQuery, (snapshot) => {
-            this._assignedLessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            this._fetchGrades(); // Fetch grades when lessons load
-        });
-        this.unsubscribes.push(lessonsUnsubscribe);
+            const lessonsUnsubscribe = onSnapshot(assignedLessonsQuery, (snapshot) => {
+                this._assignedLessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                this._fetchGrades(); // Fetch grades when lessons load
+            }, (error) => {
+                console.error("Error fetching assigned lessons:", error);
+                // Non-critical, but good to log
+            });
+            this.unsubscribes.push(lessonsUnsubscribe);
 
-        // 3. Fetch All Professor's Lessons (for assignment selector)
-        const allLessonsQuery = query(
-            collection(firebaseInit.db, 'lessons'),
-            where("ownerId", "==", user.uid)
-        );
-        const allLessonsUnsubscribe = onSnapshot(allLessonsQuery, (snapshot) => {
-            this._allLessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        });
-        this.unsubscribes.push(allLessonsUnsubscribe);
+            // 3. Fetch All Professor's Lessons (for assignment selector)
+            const allLessonsQuery = query(
+                collection(firebaseInit.db, 'lessons'),
+                where("ownerId", "==", user.uid)
+            );
+            const allLessonsUnsubscribe = onSnapshot(allLessonsQuery, (snapshot) => {
+                this._allLessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            }, (error) => {
+                console.error("Error fetching all lessons:", error);
+            });
+            this.unsubscribes.push(allLessonsUnsubscribe);
+        } catch (e) {
+            console.error("Error in _fetchData setup:", e);
+            this._isLoading = false;
+            showToast(this.t('common.error'), true);
+        }
     }
 
     _fetchStudents(studentIds) {
@@ -111,19 +139,27 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
         this._studentUnsubscribes.forEach(unsub => unsub());
         this._studentUnsubscribes = [];
 
-        chunks.forEach(chunk => {
-            const q = query(collection(firebaseInit.db, 'students'), where('__name__', 'in', chunk));
-            const unsub = onSnapshot(q, (snapshot) => {
-                snapshot.docs.forEach(doc => {
-                    allStudents.set(doc.id, { id: doc.id, ...doc.data() });
+        try {
+            chunks.forEach(chunk => {
+                const q = query(collection(firebaseInit.db, 'students'), where('__name__', 'in', chunk));
+                const unsub = onSnapshot(q, (snapshot) => {
+                    snapshot.docs.forEach(doc => {
+                        allStudents.set(doc.id, { id: doc.id, ...doc.data() });
+                    });
+                    this._students = Array.from(allStudents.values());
+                    this._fetchGrades(); // Refresh grades if students load late
+                    this._isLoading = false;
+                }, (error) => {
+                    console.error("Error fetching students chunk:", error);
+                    this._isLoading = false;
                 });
-                this._students = Array.from(allStudents.values());
-                this._fetchGrades(); // Refresh grades if students load late
-                this._isLoading = false;
+                this._studentUnsubscribes.push(unsub);
+                this.unsubscribes.push(unsub);
             });
-            this._studentUnsubscribes.push(unsub);
-            this.unsubscribes.push(unsub);
-        });
+        } catch (e) {
+            console.error("Error setting up student listeners:", e);
+            this._isLoading = false;
+        }
     }
 
     _fetchGrades() {
@@ -178,6 +214,8 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
                         }
                     });
                     updateGrades();
+                }, (error) => {
+                    console.error(`Error fetching grades from ${collectionName}:`, error);
                 });
                 this._gradeUnsubscribes.push(unsub);
                 this.unsubscribes.push(unsub);
