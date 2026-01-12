@@ -30,7 +30,9 @@ export class FlashcardsComponent extends LitElement {
     }
 
     _nextCard() {
-        if (this._currentIndex < this.cards.length - 1) {
+        const rawData = this.cards || [];
+        const safeCards = Array.isArray(rawData) ? rawData : (rawData.cards || []);
+        if (this._currentIndex < safeCards.length - 1) {
             this._isFlipped = false;
             setTimeout(() => {
                 this._currentIndex++;
@@ -52,9 +54,12 @@ export class FlashcardsComponent extends LitElement {
     }
 
     render() {
-        if (!this.cards || this.cards.length === 0) return html``;
+        const rawData = this.cards || [];
+        const safeCards = Array.isArray(rawData) ? rawData : (rawData.cards || []);
 
-        const currentCard = this.cards[this._currentIndex];
+        if (!safeCards || safeCards.length === 0) return html``;
+
+        const currentCard = safeCards[this._currentIndex];
         const t = (key) => translationService.t(key);
 
         return html`
@@ -62,9 +67,9 @@ export class FlashcardsComponent extends LitElement {
 
                 <!-- Progress -->
                 <div class="flex justify-between items-center mb-6 text-sm font-bold text-slate-400">
-                    <span>${t('content_types.flashcards')} ${this._currentIndex + 1} / ${this.cards.length}</span>
+                    <span>${t('content_types.flashcards')} ${this._currentIndex + 1} / ${safeCards.length}</span>
                     <div class="flex gap-1">
-                        ${this.cards.map((_, i) => html`
+                        ${safeCards.map((_, i) => html`
                             <div class="w-2 h-2 rounded-full ${i === this._currentIndex ? 'bg-indigo-600' : 'bg-slate-200'}"></div>
                         `)}
                     </div>
@@ -105,8 +110,8 @@ export class FlashcardsComponent extends LitElement {
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                     </button>
 
-                    <button @click=${this._nextCard} ?disabled=${this._currentIndex === this.cards.length - 1}
-                        class="px-6 py-3 rounded-xl font-bold transition-all flex items-center ${this._currentIndex === this.cards.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-white hover:shadow-md'}">
+                    <button @click=${this._nextCard} ?disabled=${this._currentIndex === safeCards.length - 1}
+                        class="px-6 py-3 rounded-xl font-bold transition-all flex items-center ${this._currentIndex === safeCards.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-white hover:shadow-md'}">
                         ${t('student_dashboard.next')}
                         <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                     </button>
