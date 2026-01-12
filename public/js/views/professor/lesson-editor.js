@@ -347,12 +347,30 @@ export class LessonEditor extends BaseView {
 
   _handlePublishChanged(e) {
       const isPublished = e.detail.isPublished;
+      const status = isPublished ? 'published' : 'draft';
+
+      console.log(`[LessonEditor] Toggle Publish: ${isPublished} -> Status: ${status}. Triggering save.`);
+
+      const updates = {
+          isPublished: isPublished,
+          status: status
+      };
+
+      // 1. Update Local State
       this.lesson = {
           ...this.lesson,
-          isPublished: isPublished,
-          status: isPublished ? 'published' : 'draft'
+          ...updates
       };
       this.requestUpdate();
+
+      // 2. Queue for Persistence
+      this._pendingUpdates = {
+          ...this._pendingUpdates,
+          ...updates
+      };
+
+      // 3. Force Persistence
+      this._debouncedSave();
   }
 
   _initNewLesson() {
