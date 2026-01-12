@@ -201,17 +201,27 @@ export class LessonEditor extends BaseView {
               updates = e.detail.partial;
           }
 
-          if (!this.lesson) {
-              this.lesson = updates;
-              this.requestUpdate();
-              return;
-          }
+          // VERIFICATION LOGGING for State Integrity
+          const previousKeys = this.lesson ? Object.keys(this.lesson) : "null";
+          const incomingKeys = updates ? Object.keys(updates) : "null";
+          console.log("[State Merge] Previous Keys:", previousKeys, "Incoming Keys:", incomingKeys);
 
-          // FIX: Ensure immediate optimistic update before scheduling save
-          // This guarantees the UI reflects changes instantly, even if the save is delayed or fails.
+          // SAFE MERGE PATTERN:
+          // Never allow a partial update to become the *entire* state if this.lesson is missing/null.
+          // This prevents "Data Wipe" where a child component (e.g., Audio Editor) sends a partial
+          // update (e.g. { podcast_script: ... }) and it accidentally replaces the whole lesson object.
+
+          const currentState = this.lesson || {
+              title: '',
+              content: { blocks: [] },
+              files: [],
+              assignedToGroups: [],
+              // Minimal defaults to preserve structure if initialization raced
+          };
 
           // 1. Update Local State (Optimistic) - IMMEDIATE
-          this.lesson = { ...this.lesson, ...updates };
+          // Using spread on currentState ensures we preserve existing sections (Text, Quiz, etc.)
+          this.lesson = { ...currentState, ...updates };
           this.requestUpdate();
 
           // 2. Accumulate Patch
