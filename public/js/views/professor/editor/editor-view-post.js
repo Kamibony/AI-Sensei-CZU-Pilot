@@ -19,26 +19,33 @@ export class EditorViewPost extends Localized(LitElement) {
         }));
     }
 
+    _handleAiGeneration(e) {
+        const result = e.detail.result;
+        // The AI result for post is expected to be an object { platform, content, hashtags }
+        // or a string that we might need to parse, but ai-generator-panel tries to parse JSON.
+
+        let postData = result;
+
+        // Sanitize hashtags to array if they come as string from AI
+        if (postData.hashtags && typeof postData.hashtags === 'string') {
+            postData.hashtags = postData.hashtags.split(/[\s,]+/).filter(tag => tag.length > 0);
+        }
+
+        // Apply to local state and notify
+        // We construct a new post object
+        const newPost = {
+            platform: postData.platform || 'Twitter',
+            content: postData.content || '',
+            hashtags: postData.hashtags || []
+        };
+
+        this._updatePost(newPost);
+    }
+
     _handleFieldChange(field, value) {
         const post = { ...this.lesson.social_post };
 
         if (field === 'hashtags') {
-            // Handle hashtags as string input but store as either string or array depending on backend expectation.
-            // The prompt says "Input for Hashtags", but the object structure example just says "hashtags".
-            // Previous code joined them. Let's keep it simple and store as is, or maybe split.
-            // Requirement says "Input for Hashtags".
-            // Let's store as string for editing, but maybe backend returns array?
-            // The prompt says "Object { platform, content, hashtags }".
-            // I will store as string to be safe for the input, or maybe split by space if needed.
-            // Let's assume string is fine for now, or split if the backend strictly requires array.
-            // The previous implementation used an array.
-            // Let's try to split by space/comma for storage if it looks like tags.
-            // Actually, for simplicity and robustness, keeping it as the user typed value is often better
-            // unless we have specific validation.
-            // However, the display logic `post.hashtags.join(' ')` implies it might be an array.
-            // Let's check if we can detect.
-            // If I save it as a string, `join` will fail.
-            // Let's save as array.
             const tags = value.split(/[\s,]+/).filter(tag => tag.length > 0);
             post.hashtags = tags;
         } else {
@@ -210,6 +217,7 @@ export class EditorViewPost extends Localized(LitElement) {
                                     options: ['Twitter', 'LinkedIn', 'Instagram'],
                                     default: 'Twitter'
                                 }]}
+                                @ai-generation-completed="${this._handleAiGeneration}"
                             ></ai-generator-panel>
                         `}
                     </div>

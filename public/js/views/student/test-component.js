@@ -50,7 +50,12 @@ export class StudentTest extends LitElement {
 
     // Hlavná renderovacia metóda
     render() {
-        const rawData = this.testData;
+        let rawData = this.testData;
+        // Safety: If backend sends JSON string, parse it
+        if (typeof rawData === 'string') {
+            try { rawData = JSON.parse(rawData); } catch(e) { console.error("Failed to parse test JSON", e); rawData = []; }
+        }
+
         const questions = Array.isArray(rawData) ? rawData : (rawData?.questions || []);
 
         if (!questions || questions.length === 0) {
@@ -66,8 +71,16 @@ export class StudentTest extends LitElement {
 
     // Súkromná metóda na zobrazenie otázok (pôvodný `renderTest` - časť 1)
     _renderQuestions(questions) {
+        // Safety for title access
+        let title = 'Test';
+        if (this.testData && typeof this.testData === 'object') {
+            title = this.testData.title || 'Test';
+        } else if (typeof this.testData === 'string') {
+             try { const p = JSON.parse(this.testData); title = p.title || 'Test'; } catch(e) {}
+        }
+
         return html`
-            <h3 class="text-xl md:text-2xl font-bold mb-4">${this.testData.title || 'Test'}</h3>
+            <h3 class="text-xl md:text-2xl font-bold mb-4">${title}</h3>
             <p class="text-slate-600 mb-6">Odpovězte na všechny otázky. Výsledky testu se započítají do vašeho hodnocení.</p>
             
             ${questions.map((q, index) => html`
@@ -162,7 +175,10 @@ export class StudentTest extends LitElement {
 
     // Handler pre odovzdanie (pôvodná logika z `renderTest` listenera)
     async _handleSubmit() {
-        const rawData = this.testData;
+        let rawData = this.testData;
+        if (typeof rawData === 'string') {
+            try { rawData = JSON.parse(rawData); } catch(e) { rawData = {}; }
+        }
         const questions = Array.isArray(rawData) ? rawData : (rawData?.questions || []);
         const totalQuestions = questions.length;
         const answeredQuestions = Object.keys(this.userAnswers).length;

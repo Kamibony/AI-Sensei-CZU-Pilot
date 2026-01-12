@@ -4,6 +4,7 @@ import { Localized } from '../../../utils/localization-mixin.js';
 import { showToast } from '../../../utils/utils.js';
 import { parseAiResponse } from './utils-parsing.mjs';
 import './professor-header-editor.js';
+import './ai-generator-panel.js';
 
 export class EditorViewFlashcards extends Localized(LitElement) {
     static properties = {
@@ -25,16 +26,7 @@ export class EditorViewFlashcards extends Localized(LitElement) {
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson') && this.lesson) {
             const parsedCards = parseAiResponse(this.lesson.flashcards, 'cards');
-            // Update only if we have valid cards and local state is empty or different
-            // (Avoiding overwriting local state if we are in the middle of editing could be complex,
-            // but for now we follow the pattern of loading from lesson on update if available)
-            // Ideally we check if it actually changed to avoid loop, but lit handles diffs.
             if (parsedCards.length > 0) {
-                 // Optimization: Only update if length differs or first item differs to avoid constant re-render issues
-                 // But for simplicity and correctness of "syncing", we set it.
-                 // We check against _cards to avoid loop if possible, but _cards is internal state.
-                 // The issue is if user edits _cards, then lesson updates from parent...
-                 // Assuming parent update is authoritative source of truth.
                  this._cards = parsedCards;
             }
         }
@@ -48,6 +40,13 @@ export class EditorViewFlashcards extends Localized(LitElement) {
         }
     }
 
+    // Handles the event from ai-generator-panel
+    _handleAiGeneration(e) {
+        const result = e.detail.result;
+        this.setContentFromAi(result);
+    }
+
+    // Manual re-generation triggered from the toolbar button
     async _generateCards() {
         if (this._isGenerating) return;
 
@@ -141,14 +140,14 @@ export class EditorViewFlashcards extends Localized(LitElement) {
                             </div>
 
                             ${this._cards.length === 0 ? html`
-                                <div class="text-center py-16 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-                                    <div class="text-4xl mb-4">🗂️</div>
-                                    <h3 class="text-lg font-medium text-slate-700">${this.t('editor.flashcards.empty_title')}</h3>
-                                    <p class="text-slate-500 mb-6">${this.t('editor.flashcards.empty_desc')}</p>
-                                    <button @click=${this._generateCards} class="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">
-                                        ✨ ${this.t('editor.flashcards.empty_action')}
-                                    </button>
-                                </div>
+                                <ai-generator-panel
+                                    .lesson="${this.lesson}"
+                                    viewTitle="${this.t('editor.flashcards.title')}"
+                                    contentType="flashcards"
+                                    fieldToUpdate="flashcards"
+                                    description="${this.t('editor.flashcards.empty_desc')}"
+                                    @ai-generation-completed="${this._handleAiGeneration}"
+                                ></ai-generator-panel>
                             ` : html`
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     ${this._cards.map((card, index) => html`
