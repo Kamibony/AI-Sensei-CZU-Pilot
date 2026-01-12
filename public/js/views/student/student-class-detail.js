@@ -64,7 +64,7 @@ export class StudentClassDetail extends LitElement {
         const q = query(
             collection(firebaseInit.db, "lessons"),
             where("assignedToGroups", "array-contains", this.groupId),
-            where("status", "==", "published"),
+            where("isPublished", "==", true),
             orderBy("createdAt", "desc")
         );
 

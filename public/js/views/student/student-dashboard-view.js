@@ -129,7 +129,7 @@ class StudentDashboard extends Localized(LitElement) {
             const q = query(
                 collection(db, 'lessons'),
                 where('assignedToGroups', 'array-contains-any', groups),
-                where('status', '==', 'published'),
+                where('isPublished', '==', true),
                 orderBy('createdAt', 'desc'),
                 limit(1)
             );

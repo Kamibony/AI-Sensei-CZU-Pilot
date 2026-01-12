@@ -347,7 +347,11 @@ export class LessonEditor extends BaseView {
 
   _handlePublishChanged(e) {
       const isPublished = e.detail.isPublished;
-      this.lesson = { ...this.lesson, isPublished: isPublished };
+      this.lesson = {
+          ...this.lesson,
+          isPublished: isPublished,
+          status: isPublished ? 'published' : 'draft'
+      };
       this.requestUpdate();
   }
 
