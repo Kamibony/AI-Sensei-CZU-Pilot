@@ -347,7 +347,14 @@ export class LessonEditor extends BaseView {
 
   _handlePublishChanged(e) {
       const isPublished = e.detail.isPublished;
-      this.lesson = { ...this.lesson, isPublished: isPublished };
+      // ARCHITECTURAL FIX: Sync status string with isPublished boolean
+      // This ensures data consistency for "Phantom Lesson" prevention
+      const newStatus = isPublished ? 'published' : 'draft';
+      this.lesson = {
+          ...this.lesson,
+          isPublished: isPublished,
+          status: newStatus
+      };
       this.requestUpdate();
   }
 
