@@ -28,8 +28,12 @@ function getGenerativeModel(systemInstruction?: string) {
 
     const { HarmCategory, HarmBlockThreshold } = require("@google-cloud/vertexai");
 
-    // Default system instruction if none provided
-    const defaultInstruction = "You are a strict educational assistant. Generate content ONLY based on the provided source text. Do not invent facts outside the context. If information is missing, state it.";
+    // --- ZMENA: KREATÍVNY UČITEĽ (Fix pre odmietanie obsahu) ---
+    // Pôvodná inštrukcia "You are a strict educational assistant..." bola nahradená.
+    const defaultInstruction = `You are an expert educational content creator.
+Your goal is to extract ALL useful knowledge from the provided source text and transform it into a structured lesson, regardless of the explicit lesson title.
+If the source text is a manual or guide, teach the user HOW to use it.
+Do NOT refuse to generate content. Always find the most relevant educational value in the file.`;
 
     return vertex_ai.getGenerativeModel({
         model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
