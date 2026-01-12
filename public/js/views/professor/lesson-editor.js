@@ -106,6 +106,52 @@ export class LessonEditor extends BaseView {
     this._saveTimeout = null;
   }
 
+  // --- NOVÁ OCHRANA (Fix pre miznutie obsahu) ---
+  willUpdate(changedProperties) {
+      if (changedProperties.has('lesson')) {
+          const oldLesson = changedProperties.get('lesson');
+          const incomingLesson = this.lesson;
+
+          if (oldLesson && incomingLesson) {
+              // 1. Skontrolujeme, či my máme obsah
+              const localHasContent = (
+                  (oldLesson.podcast_script && oldLesson.podcast_script.length > 0) ||
+                  (oldLesson.comic_script && oldLesson.comic_script.length > 0) ||
+                  (oldLesson.test && oldLesson.test.length > 0)
+              );
+
+              // 2. Skontrolujeme, či rodič (aplikácia) posiela prázdne dáta
+              const incomingIsEmpty = (
+                  (!incomingLesson.podcast_script || incomingLesson.podcast_script.length === 0) &&
+                  (!incomingLesson.comic_script || incomingLesson.comic_script.length === 0) &&
+                  (!incomingLesson.test || incomingLesson.test.length === 0)
+              );
+
+              // 3. Ak áno, zablokujeme prepísanie a vrátime náš obsah
+              if (localHasContent && incomingIsEmpty) {
+                  console.warn("[LessonEditor] 🛡️ PARENT GUARD: Ignorujem prázdny update od rodiča.");
+                  
+                  this.lesson = {
+                      ...incomingLesson, // Nové metadata (napr. ID)
+                      ...oldLesson,      // Ale starý obsah
+                      // Explicitne vrátime kľúčové polia
+                      podcast_script: oldLesson.podcast_script,
+                      comic_script: oldLesson.comic_script,
+                      test: oldLesson.test,
+                      quiz: oldLesson.quiz,
+                      flashcards: oldLesson.flashcards,
+                      presentation: oldLesson.presentation,
+                      mindmap: oldLesson.mindmap,
+                      social_post: oldLesson.social_post,
+                      text_content: oldLesson.text_content,
+                      content: oldLesson.content
+                  };
+              }
+          }
+      }
+      super.willUpdate(changedProperties);
+  }
+
   updated(changedProperties) {
     if (this.lesson && this._loadingTimeout) {
         clearTimeout(this._loadingTimeout);
@@ -207,10 +253,6 @@ export class LessonEditor extends BaseView {
           console.log("[State Merge] Previous Keys:", previousKeys, "Incoming Keys:", incomingKeys);
 
           // ARCHITECTURAL FIX: Deep Clone & Safe Merge
-          // We must detach from the LitElement Proxy to prevent shallow merge issues where
-          // nested objects (like content, sections) are lost or become unstable.
-
-          // 1. Create Detached Copy (POJO)
           let safeCurrentState = {};
           try {
               if (this.lesson) {
@@ -222,7 +264,6 @@ export class LessonEditor extends BaseView {
                       content: { blocks: [] },
                       files: [],
                       assignedToGroups: [],
-                      // Minimal defaults
                   };
               }
           } catch (err) {
@@ -231,22 +272,16 @@ export class LessonEditor extends BaseView {
           }
 
           // 2. Perform Merge on POJO
-          // We merge the incoming updates onto the clean, detached object.
           const nextState = { ...safeCurrentState, ...updates };
 
-          // 3. Integrity Guard Clauses
-          // Explicit check to ensure we didn't accidentally drop critical root keys
-          // due to a malformed update or clone failure.
-          // FIX: Added all content section keys to this list to prevent "Data Wipe".
+          // 3. Integrity Guard Clauses (Ochrana kľúčov)
           const criticalKeys = [
               'id', 'content', 'files', 'assignedToGroups', 'ownerId', 'createdAt',
               'podcast_script', 'comic_script', 'test', 'quiz', 'flashcards', 'mindmap', 
-              'social_post', 'slides', 'presentation'
+              'social_post', 'slides', 'presentation', 'text_content'
           ];
           
           criticalKeys.forEach(key => {
-              // If the key existed in the previous state (and wasn't null/undefined)
-              // AND it is missing in the new state...
               if (safeCurrentState[key] !== undefined && nextState[key] === undefined) {
                   console.warn(`[State Merge] Guard: Restoring missing key '${key}' from previous state.`);
                   nextState[key] = safeCurrentState[key];
@@ -254,7 +289,6 @@ export class LessonEditor extends BaseView {
           });
 
           // 4. Update Component State
-          // Re-assigning a fresh POJO triggers LitElement to re-create necessary proxies cleanly.
           this.lesson = nextState;
           this.requestUpdate();
 
@@ -282,8 +316,6 @@ export class LessonEditor extends BaseView {
 
           try {
               if (!this.lesson.id) {
-                  // If lesson is new and not saved yet, we cannot patch.
-                  // Fallback to full save if ID is missing (should be handled by initial save)
                    console.warn("Attempting patch on unsaved lesson. Skipping.");
                    return;
               }
@@ -1504,7 +1536,7 @@ export class LessonEditor extends BaseView {
           return this._renderWizardMode();
       }
       if (this._activeTool) {
-          return this._renderSpecificToolEditor();
+          return this._renderSpecificEditor();
       }
       return this._renderLessonHub();
   }
