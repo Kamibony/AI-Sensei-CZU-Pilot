@@ -235,10 +235,18 @@ export class LessonEditor extends BaseView {
           const nextState = { ...safeCurrentState, ...updates };
 
           // 3. Integrity Guard Clauses
-          // explicit check to ensure we didn't accidentally drop critical root keys
+          // Explicit check to ensure we didn't accidentally drop critical root keys
           // due to a malformed update or clone failure.
-          const criticalKeys = ['id', 'content', 'files', 'assignedToGroups', 'ownerId', 'createdAt'];
+          // FIX: Added all content section keys to this list to prevent "Data Wipe".
+          const criticalKeys = [
+              'id', 'content', 'files', 'assignedToGroups', 'ownerId', 'createdAt',
+              'podcast_script', 'comic_script', 'test', 'quiz', 'flashcards', 'mindmap', 
+              'social_post', 'slides', 'presentation'
+          ];
+          
           criticalKeys.forEach(key => {
+              // If the key existed in the previous state (and wasn't null/undefined)
+              // AND it is missing in the new state...
               if (safeCurrentState[key] !== undefined && nextState[key] === undefined) {
                   console.warn(`[State Merge] Guard: Restoring missing key '${key}' from previous state.`);
                   nextState[key] = safeCurrentState[key];
@@ -911,7 +919,6 @@ export class LessonEditor extends BaseView {
               const data = docSnap.data();
 
               // Explicitly map new fields with safe defaults to ensure frontend stability
-              // Handles both Flattened (New) and Nested (Legacy) structures
               const safeData = {
                   ...data,
                   test: Array.isArray(data.test) ? data.test : (data.test?.questions || []),
@@ -922,10 +929,18 @@ export class LessonEditor extends BaseView {
                   flashcards: data.flashcards || { cards: [] }
               };
 
+              // --- CRITICAL: Detach Local State for Comparison ---
+              // Use a detached copy of the current lesson to avoid Proxy issues during comparison
+              let localState = {};
+              try {
+                  localState = JSON.parse(JSON.stringify(this.lesson || {}));
+              } catch (e) {
+                  localState = { ...this.lesson };
+              }
+
               // --- ANTI-WIPE GUARD ---
               // Detects if the server snapshot is "stale" (empty) while local state is populated.
-              // This prevents a boomerang effect where a slow server response wipes out optimistic Magic content.
-              const criticalFields = ['podcast_script', 'comic_script', 'test', 'mindmap', 'flashcards', 'social_post', 'content', 'slides', 'questions'];
+              const criticalFields = ['podcast_script', 'comic_script', 'test', 'mindmap', 'flashcards', 'social_post', 'content', 'slides'];
 
               const checkContent = (v) => {
                   if (!v) return false;
@@ -933,7 +948,7 @@ export class LessonEditor extends BaseView {
                   if (typeof v === 'string') return v.length > 0;
                   // Handle object wrappers
                   if (v.cards && Array.isArray(v.cards)) return v.cards.length > 0;
-                  if (v.content && typeof v.content === 'string') return v.content.length > 0; // social_post
+                  if (v.content && typeof v.content === 'string') return v.content.length > 0; 
                   if (v.questions && Array.isArray(v.questions)) return v.questions.length > 0;
                   if (v.slides && Array.isArray(v.slides)) return v.slides.length > 0;
                   if (v.blocks && Array.isArray(v.blocks)) return v.blocks.length > 0;
@@ -944,7 +959,7 @@ export class LessonEditor extends BaseView {
               };
 
               for (const field of criticalFields) {
-                  const localVal = this.lesson[field];
+                  const localVal = localState[field];
                   const serverVal = safeData[field];
 
                   if (checkContent(localVal) && !checkContent(serverVal)) {
@@ -953,29 +968,28 @@ export class LessonEditor extends BaseView {
                   }
               }
 
-              // CRITICAL FIX: Local State Priority
-              // Prevent stale server snapshot from wiping out optimistic Magic data or recent user edits.
+              // CRITICAL FIX: Merge Priority
+              // If we have pending updates, or just finished saving, we prioritize LOCAL state + PENDING patches
+              // over the (potentially stale) server snapshot.
               const hasPendingUpdates = Object.keys(this._pendingUpdates).length > 0;
 
               if (this.isSaving || hasPendingUpdates) {
-                  // Server data is base, but Local state and Pending updates take precedence
                   this.lesson = {
-                      ...safeData,
-                      ...this.lesson,
-                      ...this._pendingUpdates
+                      ...safeData, // Server is base
+                      ...localState, // Local keeps optimistics
+                      ...this._pendingUpdates // Pending overwrites everything
                   };
               } else {
-                  // Standard behavior (Server wins)
-                  this.lesson = { ...this.lesson, ...safeData };
+                  // Standard sync: Server is truth, but merge gently
+                  this.lesson = { ...localState, ...safeData };
               }
 
               if (data.debug_logs && Array.isArray(data.debug_logs)) {
-                  console.group("Magic Debug Logs");
+                  console.groupCollapsed("Magic Debug Logs");
                   data.debug_logs.forEach(log => console.log(log));
                   console.groupEnd();
               }
 
-              // Use merged state for logic control to prevent UI flicker
               const currentStatus = this.lesson.magicStatus;
 
               if (currentStatus === 'generating') {
@@ -987,7 +1001,6 @@ export class LessonEditor extends BaseView {
                    this._wizardMode = false;
                    showToast(translationService.t('lesson.magic_done') || "Magic generation complete!");
 
-                   // Clean up listener
                    if (this._magicUnsubscribe) {
                        this._magicUnsubscribe();
                        this._magicUnsubscribe = null;
@@ -1007,7 +1020,7 @@ export class LessonEditor extends BaseView {
       });
   }
 
-  // ... rest of the file (methods after _handleAutoMagic)
+  // ... rest of the file ...
   
   async _handleManualCreate() {
       if (!this.lesson.title) {
@@ -1378,7 +1391,6 @@ export class LessonEditor extends BaseView {
             </div>
 
             <div class="flex items-center gap-3 flex-shrink-0">
-               <!-- Publish Toggle -->
                <button @click="${() => this._handlePublishChanged({ detail: { isPublished: !this.lesson.isPublished } })}"
                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white transition-all ${this.lesson?.isPublished ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-500 hover:bg-slate-600'}"
                        title="${this.lesson?.isPublished ? (translationService.t('lesson.status_published') || 'Publikované') : (translationService.t('lesson.status_draft') || 'Koncept')}">
@@ -1386,7 +1398,6 @@ export class LessonEditor extends BaseView {
                    ${this.lesson?.isPublished ? (translationService.t('lesson.status_published') || 'Publikované') : (translationService.t('lesson.status_draft') || 'Koncept')}
                </button>
 
-                <!-- Auto-Save Indicator for Hub -->
                 <div class="flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${this.isSaving ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-500'}">
                     ${this.isSaving ? html`
                         <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
