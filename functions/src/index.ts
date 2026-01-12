@@ -1,18 +1,14 @@
-import type { CallableRequest, Request } from "firebase-functions/v2/https";
-import type { FirestoreEvent, QueryDocumentSnapshot } from "firebase-functions/v2/firestore";
+import type { CallableContext } from "firebase-functions/v1/https";
 
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const { getStorage } = require("firebase-admin/storage");
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onRequest } = require("firebase-functions/v2/https");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
-const functions = require("firebase-functions/v1"); // Import v1 for triggers
+const functions = require("firebase-functions");
 const logger = require("firebase-functions/logger");
 const cors = require("cors");
 const fetch = require("node-fetch");
-const textToSpeech = require("@google-cloud/text-to-speech"); // Import pre TTS
+const textToSpeech = require("@google-cloud/text-to-speech");
 
 // Import local API using TypeScript syntax
 import * as GeminiAPI from './gemini-api';
@@ -79,6 +75,7 @@ if (!STORAGE_BUCKET) {
 initializeApp();
 const db = getFirestore();
 const corsHandler = cors({ origin: true });
+const HttpsError = functions.https.HttpsError;
 
 async function sendTelegramMessage(chatId: number, text: string) {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -98,16 +95,15 @@ async function sendTelegramMessage(chatId: number, text: string) {
     }
 }
 
-exports.startMagicGeneration = onCall({
-    region: DEPLOY_REGION,
+exports.startMagicGeneration = functions.region(DEPLOY_REGION).runWith({
     timeoutSeconds: 540,
     memory: "1GiB"
-}, async (request: CallableRequest) => {
-    if (!request.auth || request.auth.token.role !== "professor") {
+}).https.onCall(async (data: any, context: CallableContext) => {
+    if (!context.auth || context.auth.token.role !== "professor") {
         throw new HttpsError("unauthenticated", "Only professors can start magic generation.");
     }
 
-    const { lessonId, filePaths, lessonTopic } = request.data;
+    const { lessonId, filePaths, lessonTopic } = data;
     if (!lessonId) {
         throw new HttpsError("invalid-argument", "Missing lessonId.");
     }
@@ -153,7 +149,7 @@ exports.startMagicGeneration = onCall({
                 try {
                      // --- ENFORCE STRICT DATA OWNERSHIP ---
                      const fileName = rawPath.split('/').pop();
-                     const ownerId = request.auth.uid;
+                     const ownerId = context.auth!.uid;
 
                      // 1. Construct Strict Path (courses/{userId}/media/{fileName})
                      // This ignores the client-provided path prefix (e.g. 'main-course') and enforces the user's ID
@@ -162,7 +158,7 @@ exports.startMagicGeneration = onCall({
                      // 2. Legacy Fallback Check
                      // If the file was historically in 'main-course', we check if we should allow it.
                      const isLegacy = rawPath.includes("courses/main-course/");
-                     const isAdmin = request.auth.token.email === "profesor@profesor.cz";
+                     const isAdmin = context.auth!.token.email === "profesor@profesor.cz";
 
                      let buffer, finalPath;
 
@@ -494,7 +490,7 @@ CRITICAL OUTPUT INSTRUCTIONS:
                          try {
                              const imageBase64 = await GeminiAPI.generateImageFromPrompt(slide.visual_idea);
                              const fileName = `magic_slide_${lessonId}_${index}.png`;
-                             const storagePath = `courses/${request.auth!.uid}/media/generated/${fileName}`;
+                             const storagePath = `courses/${context.auth!.uid}/media/generated/${fileName}`;
                              const file = bucket.file(storagePath);
                              await file.save(Buffer.from(imageBase64, 'base64'), { metadata: { contentType: 'image/png' } });
                              const [url] = await file.getSignedUrl({ action: 'read', expires: '01-01-2030' });
@@ -545,17 +541,16 @@ CRITICAL OUTPUT INSTRUCTIONS:
 
 
 // NOVÁ FUNKCIA: Generovanie profesionálneho audia (MP3) pomocou Google Cloud TTS - MULTI-VOICE
-exports.generatePodcastAudio = onCall({
-    region: DEPLOY_REGION,
+exports.generatePodcastAudio = functions.region(DEPLOY_REGION).runWith({
     timeoutSeconds: 300,
     memory: "1GiB"
-}, async (request: CallableRequest) => {
+}).https.onCall(async (data: any, context: CallableContext) => {
     // 1. Validácia a Autorizácia
-    if (!request.auth || request.auth.token.role !== "professor") {
+    if (!context.auth || context.auth.token.role !== "professor") {
         throw new HttpsError("unauthenticated", "Len profesor môže generovať audio.");
     }
 
-    const { lessonId, text, language, episodeIndex } = request.data;
+    const { lessonId, text, language, episodeIndex } = data;
     if (!lessonId || !text) {
         throw new HttpsError("invalid-argument", "Chýba ID lekcie alebo text.");
     }
@@ -648,7 +643,7 @@ exports.generatePodcastAudio = onCall({
                 metadata: {
                     lessonId: lessonId,
                     episodeIndex: episodeIndex !== undefined ? String(episodeIndex) : "single",
-                    generatedBy: request.auth.uid
+                    generatedBy: context.auth.uid
                 }
             }
         });
@@ -687,16 +682,15 @@ exports.generatePodcastAudio = onCall({
     }
 });
 
-exports.generateComicPanelImage = onCall({
-    region: DEPLOY_REGION,
+exports.generateComicPanelImage = functions.region(DEPLOY_REGION).runWith({
     timeoutSeconds: 300,
     memory: "1GiB"
-}, async (request: CallableRequest) => {
-    if (!request.auth || request.auth.token.role !== "professor") {
+}).https.onCall(async (data: any, context: CallableContext) => {
+    if (!context.auth || context.auth.token.role !== "professor") {
         throw new HttpsError("unauthenticated", "Only professors can generate images.");
     }
 
-    const { lessonId, panelIndex, panelPrompt } = request.data;
+    const { lessonId, panelIndex, panelPrompt } = data;
     if (!lessonId || typeof panelIndex === 'undefined' || !panelPrompt) {
         throw new HttpsError("invalid-argument", "Missing lessonId, panelIndex, or panelPrompt.");
     }
@@ -711,7 +705,7 @@ exports.generateComicPanelImage = onCall({
 
         const bucket = getStorage().bucket(STORAGE_BUCKET);
         const fileName = `comic_${lessonId}_${panelIndex}_${Date.now()}.png`;
-        const storagePath = `courses/${request.auth.uid}/media/generated/${fileName}`;
+        const storagePath = `courses/${context.auth.uid}/media/generated/${fileName}`;
         const file = bucket.file(storagePath);
 
         await file.save(Buffer.from(imageBase64, 'base64'), {
@@ -720,7 +714,7 @@ exports.generateComicPanelImage = onCall({
                 metadata: {
                     lessonId: lessonId,
                     panelIndex: String(panelIndex),
-                    generatedBy: request.auth.uid
+                    generatedBy: context.auth.uid
                 }
             }
         });
@@ -746,13 +740,11 @@ exports.generateComicPanelImage = onCall({
 });
 
 // ZJEDNOTENÁ FUNKCIA PRE VŠETKY AI OPERÁCIE
-exports.generateContent = onCall({
-    region: DEPLOY_REGION,
+exports.generateContent = functions.region(DEPLOY_REGION).runWith({
     timeoutSeconds: 300, // (5 minút)
-    memory: "1GiB",
-    cors: true
-}, async (request: CallableRequest) => {
-    const { contentType, promptData, filePaths } = request.data;
+    memory: "1GiB"
+}).https.onCall(async (data: any, context: CallableContext) => {
+    const { contentType, promptData, filePaths } = data;
     if (!contentType || !promptData) {
         throw new HttpsError("invalid-argument", "Missing contentType or promptData.");
     }
@@ -974,7 +966,7 @@ Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
                 const fileId = rawFileId.includes('.') ? rawFileId.split('.').shift() : rawFileId;
 
                 const chunksSnapshot = await db.collection(`fileMetadata/${fileId}/chunks`).get();
-                chunksSnapshot.forEach((doc: QueryDocumentSnapshot) => {
+                chunksSnapshot.forEach((doc: any) => {
                     allChunks.push(doc.data());
                 });
             }
@@ -1028,18 +1020,16 @@ Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
     }
 });
 
-exports.generateImage = onCall({
-    region: DEPLOY_REGION,
+exports.generateImage = functions.region(DEPLOY_REGION).runWith({
     timeoutSeconds: 300,
-    memory: "1GiB",
-    cors: true
-}, async (request: CallableRequest) => {
-    const { prompt } = request.data;
+    memory: "1GiB"
+}).https.onCall(async (data: any, context: CallableContext) => {
+    const { prompt } = data;
     if (!prompt) {
         throw new HttpsError("invalid-argument", "Missing prompt.");
     }
 
-    if (!request.auth || request.auth.token.role !== "professor") {
+    if (!context.auth || context.auth.token.role !== "professor") {
         throw new HttpsError("unauthenticated", "This action requires professor privileges.");
     }
 
@@ -1060,15 +1050,15 @@ exports.generateImage = onCall({
     }
 });
 
-exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540, memory: "1GiB" }, async (request: CallableRequest) => {
-    if (!request.auth || request.auth.token.role !== "professor") {
+exports.processFileForRAG = functions.region(DEPLOY_REGION).runWith({ timeoutSeconds: 540, memory: "1GiB" }).https.onCall(async (data: any, context: CallableContext) => {
+    if (!context.auth || context.auth.token.role !== "professor") {
         throw new HttpsError("unauthenticated", "This action requires professor privileges.");
     }
 
     // Debug Log for Environment Variables
     logger.log(`[RAG] Environment Check - GCLOUD_PROJECT: ${process.env.GCLOUD_PROJECT}, GCP_PROJECT: ${process.env.GCP_PROJECT}, STORAGE_BUCKET: ${STORAGE_BUCKET}`);
 
-    const { fileId } = request.data;
+    const { fileId } = data;
     if (!fileId) {
         throw new HttpsError("invalid-argument", "Missing fileId.");
     }
@@ -1085,7 +1075,7 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
         const { storagePath, ownerId } = fileMetadataDoc.data();
 
         // Security check
-        if (ownerId !== request.auth.uid) {
+        if (ownerId !== context.auth.uid) {
              throw new HttpsError("permission-denied", "You do not have permission to process this file.");
         }
 
@@ -1203,19 +1193,18 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
     }
 });
 
-exports.getAiAssistantResponse = onCall({
-    region: DEPLOY_REGION,
+exports.getAiAssistantResponse = functions.region(DEPLOY_REGION).runWith({
     timeoutSeconds: 300, // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
     memory: "1GiB"
-}, async (request: CallableRequest) => {
-    const { lessonId, userQuestion } = request.data;
+}).https.onCall(async (data: any, context: CallableContext) => {
+    const { lessonId, userQuestion } = data;
     if (!lessonId || !userQuestion) {
         throw new HttpsError("invalid-argument", "Missing lessonId or userQuestion");
     }
 
     // 1. Context Awareness: Get User Info
-    const userRole = request.auth?.token.role || "student";
-    const userLanguage = request.data.language || "cs"; // Default to Czech
+    const userRole = context.auth?.token.role || "student";
+    const userLanguage = data.language || "cs"; // Default to Czech
 
     try {
         let prompt;
@@ -1278,12 +1267,12 @@ exports.getAiAssistantResponse = onCall({
     }
 });
 
-exports.sendMessageFromStudent = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
-    if (!request.auth) {
+exports.sendMessageFromStudent = functions.region(DEPLOY_REGION).https.onCall(async (data: any, context: CallableContext) => {
+    if (!context.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
     }
-    const { text } = request.data;
-    const studentId = request.auth.uid;
+    const { text } = data;
+    const studentId = context.auth.uid;
 
     if (!text) {
         throw new HttpsError("invalid-argument", "Zpráva nemůže být prázdná.");
@@ -1316,8 +1305,8 @@ exports.sendMessageFromStudent = onCall({ region: DEPLOY_REGION }, async (reques
     }
 });
 
-exports.sendMessageToStudent = onCall({ region: DEPLOY_REGION, secrets: ["TELEGRAM_BOT_TOKEN"] }, async (request: CallableRequest) => {
-    const { studentId, text } = request.data;
+exports.sendMessageToStudent = functions.region(DEPLOY_REGION).runWith({ secrets: ["TELEGRAM_BOT_TOKEN"] }).https.onCall(async (data: any, context: CallableContext) => {
+    const { studentId, text } = data;
     if (!studentId || !text) {
         throw new HttpsError("invalid-argument", "Chybí ID studenta nebo text zprávy.");
     }
@@ -1352,7 +1341,7 @@ exports.sendMessageToStudent = onCall({ region: DEPLOY_REGION, secrets: ["TELEGR
 });
 
 // ... (Rest of file unchanged) ...
-exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+exports.getGlobalAnalytics = functions.region(DEPLOY_REGION).https.onCall(async (data: any, context: CallableContext) => {
     try {
         // ... (kód zostáva nezmenený) ...
         // 1. Získať počet študentov
@@ -1363,7 +1352,7 @@ exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: C
         const quizSnapshot = await db.collection("quiz_submissions").get();
         const quizSubmissionCount = quizSnapshot.size;
         let totalQuizScore = 0;
-        quizSnapshot.forEach((doc: QueryDocumentSnapshot) => {
+        quizSnapshot.forEach((doc: any) => {
             const data = doc.data();
             const score = (typeof data.score === "number") ? data.score : 0;
             totalQuizScore += score; // score je 0 až 1
@@ -1374,7 +1363,7 @@ exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: C
         const testSnapshot = await db.collection("test_submissions").get();
         const testSubmissionCount = testSnapshot.size;
         let totalTestScore = 0;
-        testSnapshot.forEach((doc: QueryDocumentSnapshot) => {
+        testSnapshot.forEach((doc: any) => {
             const data = doc.data();
             const score = (typeof data.score === "number") ? data.score : 0;
             totalTestScore += score;
@@ -1383,17 +1372,17 @@ exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: C
 
         // 4. (Voliteľné) Nájsť najaktívnejších študentov
         const activityMap = new Map();
-        quizSnapshot.forEach((doc: QueryDocumentSnapshot) => {
+        quizSnapshot.forEach((doc: any) => {
             const studentId = doc.data().studentId;
             activityMap.set(studentId, (activityMap.get(studentId) || 0) + 1);
         });
-        testSnapshot.forEach((doc: QueryDocumentSnapshot) => {
+        testSnapshot.forEach((doc: any) => {
             const studentId = doc.data().studentId;
             activityMap.set(studentId, (activityMap.get(studentId) || 0) + 1);
         });
 
         // Previesť mapu na pole a zoradiť
-        const sortedActivity = Array.from(activityMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        const sortedActivity = Array.from(activityMap.entries()).sort((a: any, b: any) => b[1] - a[1]).slice(0, 5);
         
         // Získať mená študentov
         const topStudents: any[] = [];
@@ -1423,11 +1412,10 @@ exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: C
 });
 
 // UPRAVENÁ FUNKCIA: AI Analýza študenta
-exports.getAiStudentSummary = onCall({
-    region: DEPLOY_REGION,
+exports.getAiStudentSummary = functions.region(DEPLOY_REGION).runWith({
     timeoutSeconds: 300 // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
-}, async (request: CallableRequest) => {
-    const { studentId } = request.data;
+}).https.onCall(async (data: any, context: CallableContext) => {
+    const { studentId } = data;
     if (!studentId) {
         logger.error("getAiStudentSummary called without studentId.");
         throw new HttpsError("invalid-argument", "Chybí ID studenta.");
@@ -1448,7 +1436,7 @@ exports.getAiStudentSummary = onCall({
             .limit(10)
             .get();
         
-        const quizResults = quizSnapshot.docs.map((doc: QueryDocumentSnapshot) => {
+        const quizResults = quizSnapshot.docs.map((doc: any) => {
             const data = doc.data();
             return `Kvíz '${data.quizTitle || "bez názvu"}': ${(data.score * 100).toFixed(0)}%`;
         });
@@ -1460,7 +1448,7 @@ exports.getAiStudentSummary = onCall({
             .limit(10)
             .get();
             
-        const testResults = testSnapshot.docs.map((doc: QueryDocumentSnapshot) => {
+        const testResults = testSnapshot.docs.map((doc: any) => {
             const data = doc.data();
             return `Test '${data.testTitle || "bez názvu"}': ${(data.score * 100).toFixed(0)}%`;
         });
@@ -1471,7 +1459,7 @@ exports.getAiStudentSummary = onCall({
             .limit(15) // Odstránené orderBy, aby sme nepotrebovali index
             .get();
 
-        const studentQuestions = messagesSnapshot.docs.map((doc: QueryDocumentSnapshot) => doc.data().text);
+        const studentQuestions = messagesSnapshot.docs.map((doc: any) => doc.data().text);
 
         // 5. Vytvoriť kontext pre AI
         const promptContext = `
@@ -1534,7 +1522,7 @@ ${promptContext}
 // ==================================================================
 
 
-exports.telegramBotWebhook = onRequest({ region: DEPLOY_REGION, secrets: ["TELEGRAM_BOT_TOKEN"] }, (req: Request, res: any) => {
+exports.telegramBotWebhook = functions.region(DEPLOY_REGION).runWith({ secrets: ["TELEGRAM_BOT_TOKEN"] }).https.onRequest((req: any, res: any) => {
     corsHandler(req, res, async () => {
         // ... (kód zostáva nezmenený, ale s opravami) ...
         if (req.method !== "POST") {
@@ -1667,14 +1655,14 @@ exports.telegramBotWebhook = onRequest({ region: DEPLOY_REGION, secrets: ["TELEG
 });
 
 // --- FUNKCIA PRE UKLADANIE VÝSLEDKOV KVÍZU ---
-exports.submitQuizResults = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+exports.submitQuizResults = functions.region(DEPLOY_REGION).https.onCall(async (data: any, context: CallableContext) => {
     // ... (kód zostáva nezmenený) ...
-    if (!request.auth) {
+    if (!context.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
     }
 
-    const studentId = request.auth.uid;
-    const { lessonId, quizTitle, score, totalQuestions, answers } = request.data;
+    const studentId = context.auth.uid;
+    const { lessonId, quizTitle, score, totalQuestions, answers } = data;
 
     if (typeof score === "undefined" || !lessonId || !answers) {
         // ===== TOTO JE OPRAVENÝ RIADOK =====
@@ -1703,14 +1691,14 @@ exports.submitQuizResults = onCall({ region: DEPLOY_REGION }, async (request: Ca
 });
 
 // --- ODDELENÁ FUNKCIA PRE UKLADANIE VÝSLEDKOV TESTU ---
-exports.submitTestResults = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+exports.submitTestResults = functions.region(DEPLOY_REGION).https.onCall(async (data: any, context: CallableContext) => {
     // ... (kód zostáva nezmenený) ...
-    if (!request.auth) {
+    if (!context.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
     }
 
-    const studentId = request.auth.uid;
-    const { lessonId, testTitle, score, totalQuestions, answers } = request.data;
+    const studentId = context.auth.uid;
+    const { lessonId, testTitle, score, totalQuestions, answers } = data;
 
     if (typeof score === "undefined" || !lessonId || !answers) {
         throw new HttpsError("invalid-argument", "Chybí potřebná data pro uložení výsledků testu.");
@@ -1738,13 +1726,13 @@ exports.submitTestResults = onCall({ region: DEPLOY_REGION }, async (request: Ca
     }
 });
 
-exports.joinClass = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
-    if (!request.auth) {
+exports.joinClass = functions.region(DEPLOY_REGION).https.onCall(async (data: any, context: CallableContext) => {
+    if (!context.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen, abyste se mohl(a) zapsat do třídy.");
     }
-    const studentId = request.auth.uid;
+    const studentId = context.auth.uid;
 
-    const joinCode = request.data.joinCode;
+    const joinCode = data.joinCode;
     if (typeof joinCode !== "string" || joinCode.trim() === "") {
         throw new HttpsError("invalid-argument", "Je nutné zadat kód třídy.");
     }
@@ -1793,9 +1781,9 @@ exports.joinClass = onCall({ region: DEPLOY_REGION }, async (request: CallableRe
     }
 });
 
-exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, async (request: CallableRequest) => {
-    logger.log("registerUserWithRole called", { data: request.data });
-    const { email, password, role, displayName } = request.data;
+exports.registerUserWithRole = functions.region(DEPLOY_REGION).https.onCall(async (data: any, context: CallableContext) => {
+    logger.log("registerUserWithRole called", { data: data });
+    const { email, password, role, displayName } = data;
 
     // Validate role
     if (role !== "professor" && role !== "student") {
@@ -1853,14 +1841,14 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, asy
     }
 });
 
-exports.admin_setUserRole = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+exports.admin_setUserRole = functions.region(DEPLOY_REGION).https.onCall(async (data: any, context: CallableContext) => {
     // 1. Verify caller is the admin
-    if (request.auth?.token.email !== "profesor@profesor.cz") {
-        logger.warn(`Unauthorized role change attempt by ${request.auth?.token.email}`);
+    if (context.auth?.token.email !== "profesor@profesor.cz") {
+        logger.warn(`Unauthorized role change attempt by ${context.auth?.token.email}`);
         throw new HttpsError("unauthenticated", "Tato akce vyžaduje oprávnění administrátora.");
     }
 
-    const { userId, newRole } = request.data;
+    const { userId, newRole } = data;
 
     // 2. Validate arguments
     if (!userId || !newRole) {
@@ -1878,12 +1866,12 @@ exports.admin_setUserRole = onCall({ region: DEPLOY_REGION }, async (request: Ca
         const userRef = db.collection("users").doc(userId);
         await userRef.update({ role: newRole });
 
-        logger.log(`Admin ${request.auth.token.email} successfully changed role of user ${userId} to ${newRole}`);
+        logger.log(`Admin ${context.auth.token.email} successfully changed role of user ${userId} to ${newRole}`);
 
         // 4. Return success
         return { success: true, message: "Role uživatele byla úspěšně změněna." };
     } catch (error) {
-        logger.error(`Error setting user role for ${userId} by admin ${request.auth?.token.email}:`, error);
+        logger.error(`Error setting user role for ${userId} by admin ${context.auth?.token.email}:`, error);
         throw new HttpsError("internal", "Nepodařilo se změnit roli uživatele v databázi.");
     }
 });
@@ -1914,20 +1902,20 @@ exports.onUserCreate = functions.firestore.document("users/{userId}").onCreate(a
 });
 
 // 1. NOVÁ FUNKCIA: Pripraví nahrávanie a vráti Signed URL
-exports.getSecureUploadUrl = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+exports.getSecureUploadUrl = functions.region(DEPLOY_REGION).https.onCall(async (data: any, context: CallableContext) => {
     try {
         // 1. AUTORIZÁCIA: Povolíme iba profesorom
-        if (!request.auth || request.auth.token.role !== "professor") {
+        if (!context.auth || context.auth.token.role !== "professor") {
             throw new HttpsError("unauthenticated", "Na túto akciu musíte mať rolu profesora.");
         }
 
-        const { fileName, contentType, courseId, size } = request.data;
+        const { fileName, contentType, courseId, size } = data;
         if (!fileName || !contentType || !courseId) {
             throw new HttpsError("invalid-argument", "Chýbajú povinné údaje (fileName, contentType, courseId).");
         }
 
         // Define userId from auth context
-        const userId = request.auth.uid;
+        const userId = context.auth.uid;
 
         // Použijeme ID z Firestore ako unikátny názov súboru
         const docId = db.collection("fileMetadata").doc().id;
@@ -2008,19 +1996,19 @@ exports.getSecureUploadUrl = onCall({ region: DEPLOY_REGION }, async (request: C
 });
 
 // 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí (S DETAILNÝM LOGOVANÍM)
-exports.finalizeUpload = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
-    if (!request.auth) {
+exports.finalizeUpload = functions.region(DEPLOY_REGION).https.onCall(async (data: any, context: CallableContext) => {
+    if (!context.auth) {
         throw new HttpsError("unauthenticated", "Musíte být prihlásený.");
     }
 
-    const { docId, filePath } = request.data;
+    const { docId, filePath } = data;
     if (!docId || !filePath) {
         throw new HttpsError("invalid-argument", "Chýba docId alebo filePath.");
     }
 
     logger.log(`Starting finalizeUpload for docId: ${docId}, filePath: ${filePath}`);
 
-    const currentUserId = request.auth.uid;
+    const currentUserId = context.auth.uid;
     const docRef = db.collection("fileMetadata").doc(docId);
 
     try {
@@ -2079,9 +2067,9 @@ exports.finalizeUpload = onCall({ region: DEPLOY_REGION }, async (request: Calla
 // ==================================================================
 // =================== DATA MIGRATION FUNCTION ======================
 // ==================================================================
-exports.admin_migrateFileMetadata = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+exports.admin_migrateFileMetadata = functions.region(DEPLOY_REGION).https.onCall(async (data: any, context: CallableContext) => {
     // 1. Authorize: Only the admin can run this
-    if (request.auth?.token.email !== "profesor@profesor.cz") {
+    if (context.auth?.token.email !== "profesor@profesor.cz") {
         throw new HttpsError("unauthenticated", "This action requires administrator privileges.");
     }
 
@@ -2150,14 +2138,14 @@ exports.admin_migrateFileMetadata = onCall({ region: DEPLOY_REGION }, async (req
 // ==================================================================
 // =================== EMERGENCY ROLE RESTORE =======================
 // ==================================================================
-exports.emergency_restoreProfessors = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+exports.emergency_restoreProfessors = functions.region(DEPLOY_REGION).https.onCall(async (data: any, context: CallableContext) => {
     // 1. Authorize: Bypass role check, use email for the admin
-    if (request.auth?.token.email !== "profesor@profesor.cz") {
-        logger.warn(`Unauthorized emergency role restore attempt by ${request.auth?.token.email}`);
+    if (context.auth?.token.email !== "profesor@profesor.cz") {
+        logger.warn(`Unauthorized emergency role restore attempt by ${context.auth?.token.email}`);
         throw new HttpsError("unauthenticated", "This action requires special administrator privileges.");
     }
 
-    logger.log(`Emergency role restore initiated by ${request.auth.token.email}...`);
+    logger.log(`Emergency role restore initiated by ${context.auth.token.email}...`);
     const usersCollection = db.collection("users");
     const auth = getAuth();
     let updatedCount = 0;
@@ -2170,7 +2158,7 @@ exports.emergency_restoreProfessors = onCall({ region: DEPLOY_REGION }, async (r
             return { success: true, message: "No professors found to restore." };
         }
 
-        const promises = snapshot.docs.map(async (doc: QueryDocumentSnapshot) => {
+        const promises = snapshot.docs.map(async (doc: any) => {
             const userId = doc.id;
             const userData = doc.data();
             const email = userData.email || "N/A";
@@ -2214,9 +2202,9 @@ exports.emergency_restoreProfessors = onCall({ region: DEPLOY_REGION }, async (r
 // ==================================================================
 // =================== ADMIN NUKE FUNCTION ==========================
 // ==================================================================
-exports.admin_nuke_all_files = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540, memory: "1GiB" }, async (request: CallableRequest) => {
+exports.admin_nuke_all_files = functions.region(DEPLOY_REGION).runWith({ timeoutSeconds: 540, memory: "1GiB" }).https.onCall(async (data: any, context: CallableContext) => {
     // 1. Authorize: Only the admin can run this
-    if (request.auth?.token.email !== "profesor@profesor.cz") {
+    if (context.auth?.token.email !== "profesor@profesor.cz") {
         throw new HttpsError("unauthenticated", "This action requires administrator privileges.");
     }
 
@@ -2288,10 +2276,10 @@ exports.admin_nuke_all_files = onCall({ region: DEPLOY_REGION, timeoutSeconds: 5
     }
 });
 
-exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+exports.admin_migrateStudentRoles = functions.region(DEPLOY_REGION).https.onCall(async (data: any, context: CallableContext) => {
     // 1. Authorize: Only the admin can run this
-    if (request.auth?.token.email !== "profesor@profesor.cz") {
-        logger.warn(`Unauthorized role migration attempt by ${request.auth?.token.email}`);
+    if (context.auth?.token.email !== "profesor@profesor.cz") {
+        logger.warn(`Unauthorized role migration attempt by ${context.auth?.token.email}`);
         throw new HttpsError("unauthenticated", "This action requires administrator privileges.");
     }
 
