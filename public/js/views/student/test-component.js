@@ -50,21 +50,22 @@ export class StudentTest extends LitElement {
 
     // Hlavná renderovacia metóda
     render() {
-        if (!this.testData || !this.testData.questions) {
+        const rawData = this.testData;
+        const questions = Array.isArray(rawData) ? rawData : (rawData?.questions || []);
+
+        if (!questions || questions.length === 0) {
             return html`<p>Obsah testu není k dispozici nebo není ve správném formátu.</p>`;
         }
 
         if (this.isSubmitted) {
-            return this._renderResults();
+            return this._renderResults(questions);
         } else {
-            return this._renderQuestions();
+            return this._renderQuestions(questions);
         }
     }
 
     // Súkromná metóda na zobrazenie otázok (pôvodný `renderTest` - časť 1)
-    _renderQuestions() {
-        const questions = this.testData.questions || [];
-        
+    _renderQuestions(questions) {
         return html`
             <h3 class="text-xl md:text-2xl font-bold mb-4">${this.testData.title || 'Test'}</h3>
             <p class="text-slate-600 mb-6">Odpovězte na všechny otázky. Výsledky testu se započítají do vašeho hodnocení.</p>
@@ -98,9 +99,7 @@ export class StudentTest extends LitElement {
     }
 
     // Súkromná metóda na zobrazenie výsledkov (pôvodný `displayTestResults`)
-    _renderResults() {
-        const questions = this.testData.questions || [];
-
+    _renderResults(questions) {
         return html`
             <div class="text-center p-6 mb-6 rounded-xl bg-green-700 text-white shadow-lg">
                 <h3 class="text-xl md:text-2xl font-bold">Váš konečný výsledek testu</h3>
@@ -163,7 +162,9 @@ export class StudentTest extends LitElement {
 
     // Handler pre odovzdanie (pôvodná logika z `renderTest` listenera)
     async _handleSubmit() {
-        const totalQuestions = this.testData.questions.length;
+        const rawData = this.testData;
+        const questions = Array.isArray(rawData) ? rawData : (rawData?.questions || []);
+        const totalQuestions = questions.length;
         const answeredQuestions = Object.keys(this.userAnswers).length;
 
         if (answeredQuestions < totalQuestions) {
@@ -175,7 +176,7 @@ export class StudentTest extends LitElement {
         let newScore = 0;
         const answersForBackend = [];
 
-        this.testData.questions.forEach((q, index) => {
+        questions.forEach((q, index) => {
             const correctOptionIndex = q.correct_option_index;
             const correctOption = (q.options && typeof correctOptionIndex === 'number') ? q.options[correctOptionIndex] : null;
             const userAnswer = this.userAnswers[index];

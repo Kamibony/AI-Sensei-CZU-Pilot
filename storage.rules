@@ -15,6 +15,10 @@ service firebase.storage {
       allow read, write, delete: if isProfessor() && (request.auth.uid == courseId || request.auth.token.email == 'profesor@profesor.cz');
     }
 
+    match /podcasts/{allPaths=**} {
+       allow read: if request.auth != null;
+    }
+
     match /podcasts/{fileName} {
        allow read, write, delete: if isProfessor();
     }
