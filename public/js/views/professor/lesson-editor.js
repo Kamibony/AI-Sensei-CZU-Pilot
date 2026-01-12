@@ -211,14 +211,13 @@ export class LessonEditor extends BaseView {
           // nested objects (like content, sections) are lost or become unstable.
 
           // 1. Create Detached Copy (POJO)
-          let currentStateClone;
+          let safeCurrentState = {};
           try {
               if (this.lesson) {
-                  // Use JSON.parse(JSON.stringify) as a robust way to strip Proxies and get a clean POJO.
-                  // This is performant enough for the lesson object size and ensures total detachment.
-                  currentStateClone = JSON.parse(JSON.stringify(this.lesson));
+                   // CRITICAL: Deep clone to detach from Proxy
+                  safeCurrentState = JSON.parse(JSON.stringify(this.lesson));
               } else {
-                  currentStateClone = {
+                  safeCurrentState = {
                       title: '',
                       content: { blocks: [] },
                       files: [],
@@ -228,21 +227,21 @@ export class LessonEditor extends BaseView {
               }
           } catch (err) {
               console.error("[State Merge] Clone failed, falling back to shallow copy", err);
-              currentStateClone = this.lesson ? { ...this.lesson } : {};
+              safeCurrentState = this.lesson ? { ...this.lesson } : {};
           }
 
           // 2. Perform Merge on POJO
           // We merge the incoming updates onto the clean, detached object.
-          const nextState = { ...currentStateClone, ...updates };
+          const nextState = { ...safeCurrentState, ...updates };
 
           // 3. Integrity Guard Clauses
           // explicit check to ensure we didn't accidentally drop critical root keys
           // due to a malformed update or clone failure.
           const criticalKeys = ['id', 'content', 'files', 'assignedToGroups', 'ownerId', 'createdAt'];
           criticalKeys.forEach(key => {
-              if (currentStateClone[key] !== undefined && nextState[key] === undefined) {
+              if (safeCurrentState[key] !== undefined && nextState[key] === undefined) {
                   console.warn(`[State Merge] Guard: Restoring missing key '${key}' from previous state.`);
-                  nextState[key] = currentStateClone[key];
+                  nextState[key] = safeCurrentState[key];
               }
           });
 
@@ -944,15 +943,15 @@ export class LessonEditor extends BaseView {
                   return false;
               };
 
-              criticalFields.forEach(field => {
+              for (const field of criticalFields) {
                   const localVal = this.lesson[field];
                   const serverVal = safeData[field];
 
                   if (checkContent(localVal) && !checkContent(serverVal)) {
-                       console.warn(`[Anti-Wipe] Ignoring stale server snapshot for field '${field}' to protect local content.`);
-                       safeData[field] = localVal;
+                       console.warn(`[Anti-Wipe] CRITICAL: Server snapshot missing content for '${field}' while local exists. Aborting update.`);
+                       return;
                   }
-              });
+              }
 
               // CRITICAL FIX: Local State Priority
               // Prevent stale server snapshot from wiping out optimistic Magic data or recent user edits.
