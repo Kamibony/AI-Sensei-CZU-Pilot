@@ -6,6 +6,7 @@ import { Localized } from '../../utils/localization-mixin.js';
 
 export class ProfessorClassDetailView extends Localized(LitElement) {
     static properties = {
+        classData: { type: Object }, // Received from professor-app
         groupId: { type: String },
         _group: { state: true },
         _students: { state: true, type: Array },
@@ -32,61 +33,106 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
         this._grades = [];
         this._isRenameModalOpen = false;
         this._renameInputVal = '';
+
+        // Listener management
         this.unsubscribes = [];
+        this._studentUnsubscribes = [];
+        this._gradeUnsubscribes = [];
     }
 
     createRenderRoot() { return this; }
 
     connectedCallback() {
         super.connectedCallback();
-        if (this.groupId) {
+        // Removed direct call to _fetchData() here.
+        // Logic moved to updated() to handle property changes reliably.
+    }
+
+    // Reactive update to handle groupId changes (e.g. from Router)
+    updated(changedProperties) {
+        // Bridge classData from parent to groupId
+        if (changedProperties.has('classData') && this.classData) {
+            // Check for groupId or id property
+            const newId = this.classData.groupId || this.classData.id;
+            if (newId && newId !== this.groupId) {
+                this.groupId = newId;
+            }
+        }
+
+        if (changedProperties.has('groupId')) {
             this._fetchData();
         }
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
-        this.unsubscribes.forEach(unsub => unsub());
+        this._clearListeners();
     }
 
-    _fetchData() {
-        // Safety valve: Ensure we don't hang if params are missing
+    _clearListeners() {
+        this.unsubscribes.forEach(unsub => unsub());
+        this.unsubscribes = [];
+
+        this._studentUnsubscribes.forEach(unsub => unsub());
+        this._studentUnsubscribes = [];
+
+        this._gradeUnsubscribes.forEach(unsub => unsub());
+        this._gradeUnsubscribes = [];
+    }
+
+    async _fetchData() {
+        // Guaranteed Exit Pattern: Reset state and validate before starting
+        this._clearListeners();
+
+        // 1. Validation: Exit if parameters are missing
         if (!this.groupId) {
-            console.error("No groupId provided to ProfessorClassDetailView");
-            this._isLoading = false;
+            console.warn("No groupId provided to ProfessorClassDetailView");
+            this._group = null;
+            this._isLoading = false; // Guaranteed exit
             return;
         }
 
         const user = firebaseInit.auth.currentUser;
         if (!user) {
             console.error("User not authenticated in ProfessorClassDetailView");
-            this._isLoading = false;
-            // Optionally redirect or show message, but definitely stop loading
+            this._group = null;
+            this._isLoading = false; // Guaranteed exit
             return;
         }
 
         this._isLoading = true;
 
         try {
-            // 1. Fetch Group Details
+            // 2. Fetch Group Details (Primary Data Source)
+            // This is the critical path for clearing the loading spinner
             const groupDocRef = doc(firebaseInit.db, 'groups', this.groupId);
-            const groupUnsubscribe = onSnapshot(groupDocRef, (doc) => {
-                if (doc.exists()) {
-                    this._group = { id: doc.id, ...doc.data() };
-                    this._fetchStudents(doc.data().studentIds || []);
-                } else {
-                    console.error("Group not found");
-                    this._group = null;
+
+            const groupUnsubscribe = onSnapshot(groupDocRef,
+                (docSnapshot) => {
+                    // Success Path
+                    if (docSnapshot.exists()) {
+                        this._group = { id: docSnapshot.id, ...docSnapshot.data() };
+                        // Trigger secondary fetches (non-blocking for main spinner)
+                        this._fetchStudents(docSnapshot.data().studentIds || []);
+                    } else {
+                        // Not Found Path
+                        console.error("Group not found");
+                        this._group = null;
+                    }
+                    // GUARANTEED EXIT: Stop spinner regardless of outcome
                     this._isLoading = false;
+                },
+                (error) => {
+                    // Error Path
+                    console.error("Error fetching group:", error);
+                    this._group = null;
+                    this._isLoading = false; // GUARANTEED EXIT
+                    showToast(this.t('common.error_loading'), true);
                 }
-            }, (error) => {
-                console.error("Error fetching group:", error);
-                this._isLoading = false;
-                showToast(this.t('common.error_loading'), true);
-            });
+            );
             this.unsubscribes.push(groupUnsubscribe);
 
-            // 2. Fetch Assigned Lessons
+            // 3. Fetch Assigned Lessons (Secondary)
             const assignedLessonsQuery = query(
                 collection(firebaseInit.db, 'lessons'),
                 where("assignedToGroups", "array-contains", this.groupId),
@@ -98,11 +144,10 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
                 this._fetchGrades(); // Fetch grades when lessons load
             }, (error) => {
                 console.error("Error fetching assigned lessons:", error);
-                // Non-critical, but good to log
             });
             this.unsubscribes.push(lessonsUnsubscribe);
 
-            // 3. Fetch All Professor's Lessons (for assignment selector)
+            // 4. Fetch All Professor's Lessons (Secondary - for selector)
             const allLessonsQuery = query(
                 collection(firebaseInit.db, 'lessons'),
                 where("ownerId", "==", user.uid)
@@ -113,17 +158,22 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
                 console.error("Error fetching all lessons:", error);
             });
             this.unsubscribes.push(allLessonsUnsubscribe);
+
         } catch (e) {
+            // Synchronous Setup Error Path
             console.error("Error in _fetchData setup:", e);
-            this._isLoading = false;
+            this._isLoading = false; // GUARANTEED EXIT
             showToast(this.t('common.error'), true);
         }
     }
 
     _fetchStudents(studentIds) {
+        // Clear previous student listeners
+        this._studentUnsubscribes.forEach(unsub => unsub());
+        this._studentUnsubscribes = [];
+
         if (!studentIds || studentIds.length === 0) {
             this._students = [];
-            this._isLoading = false;
             return;
         }
 
@@ -135,10 +185,6 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
 
         let allStudents = new Map();
 
-        this._studentUnsubscribes = this._studentUnsubscribes || [];
-        this._studentUnsubscribes.forEach(unsub => unsub());
-        this._studentUnsubscribes = [];
-
         try {
             chunks.forEach(chunk => {
                 const q = query(collection(firebaseInit.db, 'students'), where('__name__', 'in', chunk));
@@ -148,31 +194,26 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
                     });
                     this._students = Array.from(allStudents.values());
                     this._fetchGrades(); // Refresh grades if students load late
-                    this._isLoading = false;
                 }, (error) => {
                     console.error("Error fetching students chunk:", error);
-                    this._isLoading = false;
                 });
                 this._studentUnsubscribes.push(unsub);
-                this.unsubscribes.push(unsub);
+                // Also track in main unsubscribes for total cleanup
+                // Note: We don't push to main unsubscribes here to avoid double-unsubscribe issues
+                // if _fetchStudents is called multiple times.
+                // Instead, _clearListeners handles both arrays.
             });
         } catch (e) {
             console.error("Error setting up student listeners:", e);
-            this._isLoading = false;
         }
     }
 
     _fetchGrades() {
-        // Only fetch if we have students and lessons
+        // Clear previous grade listeners
+        this._gradeUnsubscribes.forEach(unsub => unsub());
+        this._gradeUnsubscribes = [];
+
         if (this._students.length === 0) return;
-
-        // Fetch submissions for all students in this group
-        // We can't filter by group easily in submissions unless we store groupId there (which we might not).
-        // So we query submissions where studentId IN [students list].
-        // Again, chunking apply.
-
-        // Also we want quizzes and tests.
-        // Let's do a simple one-time fetch or snapshot. Snapshot is better.
 
         const studentIds = this._students.map(s => s.id);
         const chunks = [];
@@ -181,14 +222,12 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
             chunks.push(studentIds.slice(i, i + chunkSize));
         }
 
-        // We need to clear previous listeners?
-        this._gradeUnsubscribes = this._gradeUnsubscribes || [];
-        this._gradeUnsubscribes.forEach(unsub => unsub());
-        this._gradeUnsubscribes = [];
-
+        // Initialize with empty array or keep existing?
+        // Better to reset if we are fetching fresh
         let allSubmissions = [];
 
-        const updateGrades = () => {
+        // Helper to merge and update state
+        const updateGradesState = () => {
              this._grades = [...allSubmissions];
         };
 
@@ -196,16 +235,8 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
              chunks.forEach(chunk => {
                 const q = query(collection(firebaseInit.db, collectionName), where('studentId', 'in', chunk));
                 const unsub = onSnapshot(q, (snapshot) => {
-                    // Filter out old ones from this chunk/collection
-                    // This logic is tricky with multiple listeners pushing to one array.
-                    // Better approach: use a Map key = collection + id
-                    // For simplicity, let's just REPLACE the specific ones in a map-based storage
-                    // Actually, let's use a simpler approach: Just one array, and filter dupes?
-                    // Or a Map of Map: studentId -> lessonId -> score.
-
                     snapshot.docs.forEach(doc => {
                         const data = doc.data();
-                        // Find if exists
                         const existingIndex = allSubmissions.findIndex(s => s.id === doc.id);
                         if (existingIndex >= 0) {
                             allSubmissions[existingIndex] = { id: doc.id, ...data, type: collectionName };
@@ -213,12 +244,11 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
                             allSubmissions.push({ id: doc.id, ...data, type: collectionName });
                         }
                     });
-                    updateGrades();
+                    updateGradesState();
                 }, (error) => {
                     console.error(`Error fetching grades from ${collectionName}:`, error);
                 });
                 this._gradeUnsubscribes.push(unsub);
-                this.unsubscribes.push(unsub);
              });
         });
     }
