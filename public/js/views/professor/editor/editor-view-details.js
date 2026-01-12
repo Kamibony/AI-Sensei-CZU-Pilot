@@ -93,8 +93,7 @@ export class EditorViewDetails extends Localized(LitElement) {
     }
 
     // The save logic is primarily handled by the parent LessonEditor in the new Wizard flow.
-    // However, we keep this method and button (hidden) if legacy code or direct submission is triggered.
-    // We expose the internal validation/save logic if needed via 'saveLesson' public method.
+    // We expose the internal validation logic if needed via 'getDetails' public method.
 
     getDetails() {
         const form = this.querySelector('#lesson-details-form');
@@ -109,20 +108,13 @@ export class EditorViewDetails extends Localized(LitElement) {
         return { title, subtitle, number, icon, assignedToGroups };
     }
 
-    async _handleSaveLessonDetails(e) {
-        if(e) e.preventDefault();
-        // This logic is now largely duplicated in LessonEditor._handleSaveLesson
-        // Keeping it for backward compatibility if this component is used standalone.
-        // ...
-    }
-
     render() {
         return html`
             <div class="flex justify-between items-start mb-6">
                 <h2 class="text-3xl font-extrabold text-slate-800">${this.t('editor.hub_edit_details')}</h2>
             </div>
             <div class="bg-white p-6 rounded-2xl shadow-lg">
-                <form id="lesson-details-form" class="space-y-4" @submit=${this._handleSaveLessonDetails}>
+                <form id="lesson-details-form" class="space-y-4">
                     <div>
                         <label class="block font-medium text-slate-600">${this.t('lesson.title')}</label>
                         <input type="text" id="lesson-title-input" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500" .value="${this.lesson?.title || ''}" placeholder="${this.t('editor.details.title_placeholder')}">
@@ -160,17 +152,6 @@ export class EditorViewDetails extends Localized(LitElement) {
                                 <p class="text-xs text-slate-500">${this.t('editor.details.no_classes')}</p>
                             `}
                         </div>
-                    </div>
-
-                    <!--
-                        Updated: The main save button is now in the parent Wizard (Step 3).
-                        We hide this one but keep it in DOM to satisfy constraints/references if any.
-                        Use display:none style.
-                    -->
-                    <div class="text-right pt-4 hidden">
-                        <button type="submit" id="save-lesson-btn" ?disabled=${this._isLoading} class="${btnPrimary} px-6">
-                            ${this._isLoading ? html`<div class="spinner"></div><span class="ml-2">${this.t('common.loading')}</span>` : this.t('common.save')}
-                        </button>
                     </div>
                 </form>
             </div>

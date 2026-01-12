@@ -326,13 +326,13 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                 `);
 
             case 'post':
-                return html`
-                    <div class="bg-white border border-slate-200 rounded-lg p-4 max-w-md mx-auto">
-                        <div class="font-bold text-lg mb-2">${data.headline || 'No Headline'}</div>
-                        <div class="text-sm text-slate-600 mb-4">${data.body || data.content}</div>
-                        <div class="text-xs text-blue-500 font-mono">${(data.hashtags || []).join(' ')}</div>
-                    </div>
-                `;
+                return html`<editor-view-post .lesson="${{social_post: data}}" .isSaving="${false}"></editor-view-post>`;
+
+            case 'mindmap':
+                return html`<editor-view-mindmap .lesson="${{mindmap: data}}" .isSaving="${false}"></editor-view-mindmap>`;
+
+            case 'flashcards':
+                return html`<editor-view-flashcards .lesson="${{flashcards: data}}" .isSaving="${false}"></editor-view-flashcards>`;
 
             default:
                 return html`<div class="p-4 bg-red-50 text-red-600 border border-red-200 rounded">${this.t('editor.ai.unknown_preview').replace('{type}', viewId)}</div>`;
