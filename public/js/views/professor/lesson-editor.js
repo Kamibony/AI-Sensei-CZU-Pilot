@@ -1136,25 +1136,24 @@ export class LessonEditor extends BaseView {
                   if (l.content.content && typeof l.content.content === 'string' && l.content.content.trim().length > 0) return true;
                   if (Array.isArray(l.content.blocks) && l.content.blocks.length > 0) return true;
               }
-              return false;
+              break;
 
           case 'presentation':
                if (Array.isArray(l.slides) && l.slides.length > 0) return true;
                if (l.presentation && Array.isArray(l.presentation.slides) && l.presentation.slides.length > 0) return true;
-               return false;
+               break;
 
           case 'quiz':
-              if (Array.isArray(l.questions) && l.questions.length > 0) return true;
-              if (l.quiz) {
-                   if (Array.isArray(l.quiz)) return l.quiz.length > 0;
-                   if (Array.isArray(l.quiz.questions) && l.quiz.questions.length > 0) return true;
-              }
-              return false;
-
           case 'test':
-              if (Array.isArray(l.test) && l.test.length > 0) return true;
-              if (l.test && Array.isArray(l.test.questions) && l.test.questions.length > 0) return true;
-              return false;
+              if (l[type]) {
+                  if (Array.isArray(l[type]) && l[type].length > 0) return true;
+                  if (l[type].questions && Array.isArray(l[type].questions) && l[type].questions.length > 0) return true;
+              }
+              // Legacy/Fallback for Quiz
+              if (type === 'quiz' && Array.isArray(l.questions) && l.questions.length > 0) return true;
+              // Check content.questions
+              if (l.content && l.content.questions && Array.isArray(l.content.questions) && l.content.questions.length > 0) return true;
+              break;
 
           case 'post':
               if (l.postContent && typeof l.postContent === 'string' && l.postContent.length > 0) return true;
@@ -1162,10 +1161,16 @@ export class LessonEditor extends BaseView {
                   if (typeof l.social_post.content === 'string' && l.social_post.content.length > 0) return true;
                   if (l.social_post.platform && l.social_post.content) return true;
               }
-              return false;
+              // Treat same as Text
+              if (l.content) {
+                  if (typeof l.content === 'string' && l.content.trim().length > 0) return true;
+                  if (l.content.text_content && typeof l.content.text_content === 'string' && l.content.text_content.trim().length > 0) return true;
+              }
+              break;
 
           case 'video':
-              return !!l.videoUrl;
+              if (l.videoUrl) return true;
+              break;
 
           case 'audio':
               if (l.audioContent) return true;
@@ -1173,30 +1178,52 @@ export class LessonEditor extends BaseView {
                   if (Array.isArray(l.podcast_script) && l.podcast_script.length > 0) return true;
                   if (Array.isArray(l.podcast_script.script) && l.podcast_script.script.length > 0) return true;
               }
-              return false;
+              // EXPAND: Check ALL possible URL keys
+              if (l.audioUrl || l.url || l.fileUrl) return true;
+              if (l.content) {
+                  if (typeof l.content === 'string' && l.content.startsWith('http')) return true;
+                  if (l.content.audioUrl || l.content.url) return true;
+              }
+              break;
 
           case 'comic':
                if (l.comic_script && Array.isArray(l.comic_script) && l.comic_script.length > 0) return true;
                if (l.comic && Array.isArray(l.comic.panels) && l.comic.panels.length > 0) return true;
-               return false;
+               // EXPAND: Check if block.content IS the array of panels
+               if (Array.isArray(l.content) && l.content.length > 0) return true;
+               if (l.content && Array.isArray(l.content.panels) && l.content.panels.length > 0) return true;
+               break;
 
           case 'flashcards':
                if (l.flashcards) {
                    if (Array.isArray(l.flashcards) && l.flashcards.length > 0) return true;
                    if (Array.isArray(l.flashcards.cards) && l.flashcards.cards.length > 0) return true;
                }
-               return false;
+               break;
 
           case 'mindmap':
                if (l.mindmap) {
                    if (typeof l.mindmap === 'string' && l.mindmap.length > 0) return true;
                    if (l.mindmap.mermaid && typeof l.mindmap.mermaid === 'string' && l.mindmap.mermaid.length > 0) return true;
                }
-               return false;
+               // EXPAND: Check if block.content contains Mermaid syntax or if block.content.mindmap exists
+               if (l.content) {
+                   if (typeof l.content === 'string' && l.content.length > 10) return true;
+                   if (l.content.mindmap) return true;
+               }
+               break;
 
           default:
-              return false;
+              break;
       }
+
+      // GENERIC FALLBACK (Safety Net)
+      if (l.content) {
+          if (typeof l.content === 'object' && Object.keys(l.content).length > 0) return true;
+          if (typeof l.content === 'string' && l.content.length > 5) return true;
+      }
+
+      return false;
   }
 
   _renderWizardMode() {
