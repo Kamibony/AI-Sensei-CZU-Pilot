@@ -23,6 +23,7 @@ import './editor/editor-view-audio.js';
 import './editor/ai-generator-panel.js';
 import './editor/professor-header-editor.js';
 
+import { sanitizeMermaidCode } from './editor/utils-parsing.mjs';
 import { processFileForRAG, uploadMultipleFiles, uploadSingleFile, renderMediaLibraryFiles, getSelectedFiles, clearSelectedFiles } from '../../utils/upload-handler.js';
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -1125,24 +1126,25 @@ export class LessonEditor extends BaseView {
       }
   }
 
-  // --- SMART CHECK: Robust Status Validation ---
-  _isSectionComplete(type) {
+  // --- STRICT CONTENT VALIDATION ---
+  _hasMeaningfulContent(type) {
       if (!this.lesson) return false;
       const l = this.lesson;
 
       switch (type) {
           case 'text':
-              // Content exists, but status is "Not Done"
-              if (l.text_content && typeof l.text_content === 'string' && l.text_content.trim().length > 0) return true;
+              // Text: Must have > 10 meaningful chars
+              if (l.text_content && typeof l.text_content === 'string' && l.text_content.replace(/\s/g, '').length > 10) return true;
               if (l.content) {
-                  if (typeof l.content === 'string' && l.content.trim().length > 0) return true;
-                  if (l.content.text_content && typeof l.content.text_content === 'string' && l.content.text_content.trim().length > 0) return true;
-                  if (l.content.content && typeof l.content.content === 'string' && l.content.content.trim().length > 0) return true;
+                  if (typeof l.content === 'string' && l.content.replace(/\s/g, '').length > 10) return true;
+                  if (l.content.text_content && typeof l.content.text_content === 'string' && l.content.text_content.replace(/\s/g, '').length > 10) return true;
+                  // l.content.blocks is robust
                   if (Array.isArray(l.content.blocks) && l.content.blocks.length > 0) return true;
               }
               break;
 
           case 'presentation':
+               // Arrays must have items
                if (Array.isArray(l.slides) && l.slides.length > 0) return true;
                if (l.presentation && Array.isArray(l.presentation.slides) && l.presentation.slides.length > 0) return true;
                break;
@@ -1160,33 +1162,34 @@ export class LessonEditor extends BaseView {
               break;
 
           case 'post':
-              if (l.postContent && typeof l.postContent === 'string' && l.postContent.length > 0) return true;
+              // Post: Text > 10
+              if (l.postContent && typeof l.postContent === 'string' && l.postContent.replace(/\s/g, '').length > 10) return true;
               if (l.social_post) {
-                  if (typeof l.social_post.content === 'string' && l.social_post.content.length > 0) return true;
-                  if (l.social_post.platform && l.social_post.content) return true;
+                  if (typeof l.social_post.content === 'string' && l.social_post.content.replace(/\s/g, '').length > 10) return true;
               }
               // Treat same as Text
               if (l.content) {
-                  if (typeof l.content === 'string' && l.content.trim().length > 0) return true;
-                  if (l.content.text_content && typeof l.content.text_content === 'string' && l.content.text_content.trim().length > 0) return true;
+                  if (typeof l.content === 'string' && l.content.replace(/\s/g, '').length > 10) return true;
+                  if (l.content.text_content && typeof l.content.text_content === 'string' && l.content.text_content.replace(/\s/g, '').length > 10) return true;
               }
               break;
 
           case 'video':
-              if (l.videoUrl) return true;
+              // Video: URL exists and sane length
+              if (l.videoUrl && typeof l.videoUrl === 'string' && l.videoUrl.length > 5) return true;
               break;
 
           case 'audio':
-              if (l.audioContent) return true;
+              if (l.audioContent && typeof l.audioContent === 'string' && l.audioContent.length > 5) return true;
               if (l.podcast_script) {
                   if (Array.isArray(l.podcast_script) && l.podcast_script.length > 0) return true;
                   if (Array.isArray(l.podcast_script.script) && l.podcast_script.script.length > 0) return true;
               }
               // EXPAND: Check ALL possible URL keys
-              if (l.audioUrl || l.url || l.fileUrl) return true;
+              if ((l.audioUrl || l.url || l.fileUrl) && String(l.audioUrl || l.url || l.fileUrl).length > 5) return true;
               if (l.content) {
                   if (typeof l.content === 'string' && l.content.startsWith('http')) return true;
-                  if (l.content.audioUrl || l.content.url) return true;
+                  if ((l.content.audioUrl || l.content.url) && String(l.content.audioUrl || l.content.url).length > 5) return true;
               }
               break;
 
@@ -1206,25 +1209,14 @@ export class LessonEditor extends BaseView {
                break;
 
           case 'mindmap':
-               if (l.mindmap) {
-                   if (typeof l.mindmap === 'string' && l.mindmap.length > 0) return true;
-                   if (l.mindmap.mermaid && typeof l.mindmap.mermaid === 'string' && l.mindmap.mermaid.length > 0) return true;
-               }
-               // EXPAND: Check if block.content contains Mermaid syntax or if block.content.mindmap exists
-               if (l.content) {
-                   if (typeof l.content === 'string' && l.content.length > 10) return true;
-                   if (l.content.mindmap) return true;
-               }
+               // Strict check using sanitizer
+               const code = sanitizeMermaidCode(l.mindmap);
+               // Must be longer than empty config and NOT an error
+               if (code && code.length > 10 && !code.includes("Error[")) return true;
                break;
 
           default:
               break;
-      }
-
-      // GENERIC FALLBACK (Safety Net)
-      if (l.content) {
-          if (typeof l.content === 'object' && Object.keys(l.content).length > 0) return true;
-          if (typeof l.content === 'string' && l.content.length > 5) return true;
       }
 
       return false;
@@ -1476,16 +1468,16 @@ export class LessonEditor extends BaseView {
                   </div>
 
                   <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      ${this._renderContentCard('text', '📝', translationService.t('content_types.text'), this._isSectionComplete('text'))}
-                      ${this._renderContentCard('presentation', '📊', translationService.t('content_types.presentation'), this._isSectionComplete('presentation'))}
-                      ${this._renderContentCard('quiz', '❓', translationService.t('content_types.quiz'), this._isSectionComplete('quiz'))}
-                      ${this._renderContentCard('test', '📝', translationService.t('content_types.test'), this._isSectionComplete('test'))}
-                      ${this._renderContentCard('post', '📰', translationService.t('content_types.post'), this._isSectionComplete('post'))}
-                      ${this._renderContentCard('video', '🎥', translationService.t('content_types.video'), this._isSectionComplete('video'))}
-                      ${this._renderContentCard('audio', '🎙️', translationService.t('content_types.audio'), this._isSectionComplete('audio'))}
-                      ${this._renderContentCard('comic', '💬', translationService.t('content_types.comic'), this._isSectionComplete('comic'))}
-                      ${this._renderContentCard('flashcards', '🃏', translationService.t('content_types.flashcards'), this._isSectionComplete('flashcards'))}
-                      ${this._renderContentCard('mindmap', '🧠', translationService.t('content_types.mindmap'), this._isSectionComplete('mindmap'))}
+                      ${this._renderContentCard('text', '📝', translationService.t('content_types.text'), this._hasMeaningfulContent('text'))}
+                      ${this._renderContentCard('presentation', '📊', translationService.t('content_types.presentation'), this._hasMeaningfulContent('presentation'))}
+                      ${this._renderContentCard('quiz', '❓', translationService.t('content_types.quiz'), this._hasMeaningfulContent('quiz'))}
+                      ${this._renderContentCard('test', '📝', translationService.t('content_types.test'), this._hasMeaningfulContent('test'))}
+                      ${this._renderContentCard('post', '📰', translationService.t('content_types.post'), this._hasMeaningfulContent('post'))}
+                      ${this._renderContentCard('video', '🎥', translationService.t('content_types.video'), this._hasMeaningfulContent('video'))}
+                      ${this._renderContentCard('audio', '🎙️', translationService.t('content_types.audio'), this._hasMeaningfulContent('audio'))}
+                      ${this._renderContentCard('comic', '💬', translationService.t('content_types.comic'), this._hasMeaningfulContent('comic'))}
+                      ${this._renderContentCard('flashcards', '🃏', translationService.t('content_types.flashcards'), this._hasMeaningfulContent('flashcards'))}
+                      ${this._renderContentCard('mindmap', '🧠', translationService.t('content_types.mindmap'), this._hasMeaningfulContent('mindmap'))}
                   </div>
               </div>
 
