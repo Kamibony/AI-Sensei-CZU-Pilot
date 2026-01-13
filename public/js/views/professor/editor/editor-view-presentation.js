@@ -88,7 +88,23 @@ export class EditorViewPresentation extends Localized(LitElement) {
     }
 
     _getSlides() {
-        const slides = this.lesson?.presentation?.slides || [];
+        let slides = [];
+        const raw = this.lesson?.presentation;
+
+        // Defensive Normalization
+        if (raw) {
+            if (typeof raw === 'string') {
+                try {
+                    const parsed = JSON.parse(raw);
+                    slides = parsed.slides || (Array.isArray(parsed) ? parsed : []);
+                } catch (e) { console.warn("Failed to parse presentation", e); }
+            } else if (Array.isArray(raw.slides)) {
+                slides = raw.slides;
+            } else if (Array.isArray(raw)) {
+                slides = raw;
+            }
+        }
+
         return JSON.parse(JSON.stringify(slides));
     }
 
@@ -133,9 +149,18 @@ export class EditorViewPresentation extends Localized(LitElement) {
     }
 
     render() {
+        // Robust data access using helper
+        const slides = this._getSlides();
         const styleId = this.lesson?.presentation?.styleId || 'default';
-        const slides = this.lesson?.presentation?.slides || [];
         const hasContent = slides.length > 0;
+
+        // Explicit Context Injection
+        const aiContext = {
+            subject: this.lesson?.subject || '',
+            topic: this.lesson?.topic || '',
+            title: this.lesson?.title || '',
+            targetAudience: this.lesson?.targetAudience || ''
+        };
         
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
@@ -156,6 +181,7 @@ export class EditorViewPresentation extends Localized(LitElement) {
 
                                 <ai-generator-panel
                                     .lesson=${this.lesson}
+                                    .context=${aiContext}
                                     viewTitle="${this.t('editor.presentation.ai_title')}"
                                     contentType="presentation"
                                     fieldToUpdate="presentation"

@@ -13,7 +13,24 @@ export class EditorViewQuiz extends Localized(LitElement) {
     createRenderRoot() { return this; }
 
     _getQuestions() {
-        const questions = this.lesson?.quiz?.questions || [];
+        let questions = [];
+        const raw = this.lesson?.quiz;
+
+        // Defensive Normalization
+        if (raw) {
+            if (typeof raw === 'string') {
+                try {
+                    const parsed = JSON.parse(raw);
+                    questions = parsed.questions || (Array.isArray(parsed) ? parsed : []);
+                } catch (e) { console.warn("Failed to parse quiz", e); }
+            } else if (Array.isArray(raw.questions)) {
+                questions = raw.questions;
+            } else if (Array.isArray(raw)) {
+                // If the entire object is just the array of questions
+                questions = raw;
+            }
+        }
+
         return JSON.parse(JSON.stringify(questions));
     }
 
@@ -83,8 +100,17 @@ export class EditorViewQuiz extends Localized(LitElement) {
             }
         ];
 
-        const questions = this.lesson?.quiz?.questions || [];
+        // Robust Data Access
+        const questions = this._getQuestions();
         const hasContent = questions.length > 0;
+
+        // Explicit Context Injection
+        const aiContext = {
+            subject: this.lesson?.subject || '',
+            topic: this.lesson?.topic || '',
+            title: this.lesson?.title || '',
+            targetAudience: this.lesson?.targetAudience || ''
+        };
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
@@ -97,6 +123,7 @@ export class EditorViewQuiz extends Localized(LitElement) {
                             <div class="relative">
                                 <ai-generator-panel
                                     .lesson=${this.lesson}
+                                    .context=${aiContext}
                                     viewTitle="${this.t('editor.quiz.title')}"
                                     contentType="quiz"
                                     fieldToUpdate="quiz"
