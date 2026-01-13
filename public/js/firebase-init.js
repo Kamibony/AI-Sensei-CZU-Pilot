@@ -32,7 +32,9 @@ export async function initializeFirebase() {
         console.warn("Could not load auto-config. Using hardcoded local config for ai-sensei-czu-pilot.", e);
         
         // 2. Fallback (hardcoded) local configuration
-        const isProd = window.location.hostname.includes('ai-sensei-prod');
+        // ZMENA: Pridaná podpora pre ante.academy
+        const isProd = window.location.hostname.includes('ai-sensei-prod') || window.location.hostname.includes('ante.academy');
+        
         const localConfig = {
             projectId: "ai-sensei-czu-pilot",
             appId: "1:812602866730:web:efde142d2becc4b66b9753", // Can be dummy
