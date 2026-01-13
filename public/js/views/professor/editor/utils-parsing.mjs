@@ -110,14 +110,16 @@ export function parseAiResponse(data, expectedKey) {
  * 4. Fallback: Return safe graph on failure
  */
 export function sanitizeMermaidCode(input) {
+    // 0. Handle null/undefined/empty/whitespace
+    if (input === null || input === undefined) return "";
+    if (typeof input === 'string' && input.trim() === '') return "";
+
     let text = input;
 
-    // 0. Handle null/undefined/empty
-    if (!input) {
-         return "graph TD; Error[Chyba dat]-->Fix[Skus znova]";
-    }
+    // 1. Handle null/undefined (legacy safety, though covered above)
+    if (!input) return "";
 
-    // 1. Unwrap from Object (Polymorphic Input)
+    // 2. Unwrap from Object (Polymorphic Input)
     if (typeof input === 'object') {
         // Check for error object first
         if (input.error) {
