@@ -73,6 +73,48 @@ function sanitizeStoragePath(path: string, bucketName: string): string {
     return clean;
 }
 
+// --- SANITIZE JSON OUTPUT ---
+function sanitizeJsonOutput(text: string): string {
+    let clean = text.trim();
+    // Remove markdown code fences
+    clean = clean.replace(/```json/gi, "").replace(/```/g, "");
+
+    // Remove conversational preamble if any (simple heuristic: find first { or [)
+    const firstBrace = clean.indexOf('{');
+    const firstBracket = clean.indexOf('[');
+
+    let startIndex = -1;
+    if (firstBrace !== -1 && firstBracket !== -1) {
+        startIndex = Math.min(firstBrace, firstBracket);
+    } else if (firstBrace !== -1) {
+        startIndex = firstBrace;
+    } else if (firstBracket !== -1) {
+        startIndex = firstBracket;
+    }
+
+    if (startIndex !== -1) {
+        clean = clean.substring(startIndex);
+    }
+
+    // Also try to cut off after the last } or ]
+    const lastBrace = clean.lastIndexOf('}');
+    const lastBracket = clean.lastIndexOf(']');
+    let endIndex = -1;
+     if (lastBrace !== -1 && lastBracket !== -1) {
+        endIndex = Math.max(lastBrace, lastBracket);
+    } else if (lastBrace !== -1) {
+        endIndex = lastBrace;
+    } else if (lastBracket !== -1) {
+        endIndex = lastBracket;
+    }
+
+    if (endIndex !== -1) {
+        clean = clean.substring(0, endIndex + 1);
+    }
+
+    return clean;
+}
+
 // --- SYSTEMIC DOWNLOAD FIX ---
 async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<{ buffer: Buffer, finalPath: string }> {
     // Generate candidates
@@ -268,13 +310,20 @@ async function generateJsonFromPrompt(prompt: string, systemInstruction?: string
         },
     };
     const rawJsonText = await streamGeminiResponse(request, systemInstruction);
+    const sanitizedJsonText = sanitizeJsonOutput(rawJsonText);
+
     try {
-        const parsedJson = JSON.parse(rawJsonText);
+        const parsedJson = JSON.parse(sanitizedJsonText);
         return parsedJson;
     }
     catch (e) {
-        logger.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText, e);
-        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText });
+        logger.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", sanitizedJsonText, e);
+        // Fallback: Return error structure instead of crashing
+        return {
+            error: true,
+            message: "Model returned a malformed JSON string.",
+            raw: rawJsonText
+        };
     }
 }
 // exports.generateJsonFromPrompt = generateJsonFromPrompt;
@@ -360,13 +409,19 @@ async function generateJsonFromDocuments(filePaths: string[], prompt: string, sy
         },
     };
     const rawJsonText = await streamGeminiResponse(request, systemInstruction);
+    const sanitizedJsonText = sanitizeJsonOutput(rawJsonText);
+
     try {
-        const parsedJson = JSON.parse(rawJsonText);
+        const parsedJson = JSON.parse(sanitizedJsonText);
         return parsedJson;
     }
     catch (e) {
-        logger.error("[gemini-api:generateJsonFromDocuments] Failed to parse JSON from Gemini response:", rawJsonText, e);
-        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText });
+        logger.error("[gemini-api:generateJsonFromDocuments] Failed to parse JSON from Gemini response:", sanitizedJsonText, e);
+        return {
+            error: true,
+            message: "Model returned a malformed JSON string.",
+            raw: rawJsonText
+        };
     }
 }
 // exports.generateJsonFromDocuments = generateJsonFromDocuments;
