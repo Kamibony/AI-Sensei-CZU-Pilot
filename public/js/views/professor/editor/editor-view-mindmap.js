@@ -2,6 +2,7 @@ import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@
 import { Localized } from '../../../utils/localization-mixin.js';
 import './professor-header-editor.js';
 import './ai-generator-panel.js'; // Import the AI panel
+import { sanitizeMermaidCode } from './utils-parsing.mjs'; // Import sanitizeMermaidCode
 
 export class EditorViewMindmap extends Localized(LitElement) {
     static properties = {
@@ -26,24 +27,8 @@ export class EditorViewMindmap extends Localized(LitElement) {
             let data = this.lesson?.mindmap;
             let code = '';
 
-            // Defensive Data Normalization
-            if (typeof data === 'string') {
-                // Check if it's a JSON string disguised as mermaid
-                if (data.trim().startsWith('{')) {
-                    try {
-                        const parsed = JSON.parse(data);
-                        code = parsed.mermaid || parsed.content || '';
-                    } catch (e) {
-                        // If parse fails, assume it's raw mermaid string
-                        code = data;
-                    }
-                } else {
-                    code = data;
-                }
-            } else if (data && typeof data === 'object') {
-                code = data.mermaid || '';
-            }
-            // If null/undefined, code remains ''
+            // Use the aggressive sanitization layer
+            code = sanitizeMermaidCode(data);
 
             if (code !== this._mermaidCode) {
                 this._mermaidCode = code;
@@ -112,13 +97,15 @@ export class EditorViewMindmap extends Localized(LitElement) {
     render() {
         const isEmpty = !this._mermaidCode;
 
-        // Explicit Context Injection
-        const aiContext = {
-            subject: this.lesson?.subject || '',
-            topic: this.lesson?.topic || '',
-            title: this.lesson?.title || '',
-            targetAudience: this.lesson?.targetAudience || ''
-        };
+        // Explicit Context Injection for AI Panel
+        // Ensure subject, topic, title, and targetAudience are passed as distinct properties.
+        const aiContext = {};
+        if (this.lesson) {
+            aiContext.subject = this.lesson.subject || '';
+            aiContext.topic = this.lesson.topic || '';
+            aiContext.title = this.lesson.title || '';
+            aiContext.targetAudience = this.lesson.targetAudience || '';
+        }
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
