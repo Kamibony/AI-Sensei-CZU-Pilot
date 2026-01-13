@@ -24,6 +24,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         fieldToUpdate: { type: String },
         promptPlaceholder: { type: String },
         description: { type: String },
+        context: { type: Object },
         inputsConfig: { type: Array },
         _generationOutput: { state: true },
         _isLoading: { state: true, type: Boolean },
