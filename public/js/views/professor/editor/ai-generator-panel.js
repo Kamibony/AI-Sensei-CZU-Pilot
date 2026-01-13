@@ -203,8 +203,8 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                 showToast(this.t('editor.ai.generation_success'), "success");
 
                 // Auto-save if enabled (removes the need for manual save button)
-                if (this.autoSave) {
-                    await this._handleSave();
+                if (this.autoSave && this.onSave) {
+                    await this.onSave(this._generationOutput);
                 }
             } else {
                 throw new Error("No data returned from AI.");
@@ -215,54 +215,6 @@ export class AiGeneratorPanel extends Localized(LitElement) {
             showToast(this.t('editor.ai.generation_failed') + ": " + error.message, "error");
         } finally {
             this._isLoading = false;
-        }
-    }
-
-    async _handleSave() {
-        if (!this._generationOutput || this._isSaving) return;
-        this._isSaving = true;
-
-        try {
-            // Normalize data before saving if needed (e.g. unwrap arrays)
-            let dataToSave = this._generationOutput;
-
-            if (this.contentType === 'comic' && dataToSave.panels) {
-                dataToSave = dataToSave.panels;
-            } else if (this.contentType === 'podcast' && !Array.isArray(dataToSave) && (dataToSave.script || dataToSave.podcast_script)) {
-                dataToSave = dataToSave.script || dataToSave.podcast_script;
-            } else if (this.contentType === 'text' && typeof dataToSave === 'object') {
-                dataToSave = dataToSave.content || dataToSave.text || dataToSave.text_content || '';
-            }
-
-            // If parent provided onSave callback, use it (preferred for modularity)
-            if (this.onSave) {
-                await this.onSave(dataToSave);
-            } 
-            // Fallback for legacy components (direct Firestore update)
-            else if (this.lesson?.id && this.fieldToUpdate) {
-                const lessonRef = doc(db, 'lessons', this.lesson.id);
-                await updateDoc(lessonRef, {
-                    [this.fieldToUpdate]: dataToSave,
-                    updatedAt: serverTimestamp()
-                });
-                // Dispatch event to notify parent to refresh
-                this.dispatchEvent(new CustomEvent('lesson-updated', {
-                    detail: { [this.fieldToUpdate]: dataToSave },
-                    bubbles: true,
-                    composed: true
-                }));
-            }
-            
-            showToast(this.t('common.saved_success'), "success");
-            
-            // Clear output after save to reset state
-            this._generationOutput = null;
-            
-        } catch (error) {
-            console.error("Save Error:", error);
-            showToast(this.t('common.save_failed') + ": " + error.message, "error");
-        } finally {
-            this._isSaving = false;
         }
     }
 
@@ -435,16 +387,12 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                                 ${this._renderStaticContent(this.contentType, this._generationOutput)}
                             </div>
 
-                            ${!this.autoSave ? html`
-                                <div class="flex gap-3 pt-4 border-t border-slate-200">
-                                    <button @click="${this._handleSave}" ?disabled="${this._isSaving}" class="${btnPrimary} flex-1">
-                                        ${this._isSaving ? this.t('common.saving') : this.t('common.save_changes')}
-                                    </button>
-                                    <button @click="${this._handleDiscard}" ?disabled="${this._isSaving}" class="${btnDestructive}">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                    </button>
-                                </div>
-                            ` : nothing}
+                            <div class="flex gap-3 pt-4 border-t border-slate-200 justify-end">
+                                <button @click="${this._handleDiscard}" class="${btnDestructive}">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    ${this.t('common.discard') || 'Discard'}
+                                </button>
+                            </div>
                         </div>
                     ` : nothing}
                 </div>
