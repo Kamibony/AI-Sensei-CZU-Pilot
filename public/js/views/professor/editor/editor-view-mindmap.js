@@ -115,19 +115,34 @@ export class EditorViewMindmap extends Localized(LitElement) {
     }
 
     _repairMermaidCode(code) {
-        if (!code) return code;
+        if (!code) return "";
 
-        let repaired = code;
+        // Helper: Encapsulate content in quotes and escape inner quotes
+        const safeQuote = (content) => {
+            if (!content || content.trim() === "") return '""';
+            return '"' + content.trim().replace(/"/g, "'") + '"';
+        };
 
-        // Fix 1: Missing closing quote in array-like or node definition ending
-        // Pattern: Starts with [" but ends with ]; without a quote before ]
-        repaired = repaired.replace(/\["([^"]+)];/g, '["$1"];');
+        // Fix 1: Round Brackets (id(Text)) -> id("Text")
+        // Matches id followed by ( ... ) where content does NOT start with "
+        code = code.replace(/(\w+)\s*\(([^")\n][^)\n]*)\)/g, (match, id, content) => {
+            return `${id}(${safeQuote(content)})`;
+        });
 
-        // Fix 2: Force-Quote Unsafe Labels (labels with parentheses inside brackets but not quoted)
-        // Regex: Look for content inside [] that contains ( but does not start with ".
-        repaired = repaired.replace(/\[(?!\")([^\n\]]*\([^\n\]]*?)\]/g, '["$1"]');
+        // Fix 2: Rhombus Brackets (id{Text}) -> id{"Text"}
+        code = code.replace(/(\w+)\s*\{([^"}\n][^}\n]*)\}/g, (match, id, content) => {
+            return `${id}{${safeQuote(content)}}`;
+        });
 
-        return repaired;
+        // Fix 3: Square Brackets (id[Text]) -> id["Text"]
+        code = code.replace(/\[([^"\]\n][^\]\n]*)\]/g, (match, content) => {
+             return `[${safeQuote(content)}]`;
+        });
+
+        // Fix 4: Cleanup legacy broken quotes (e.g. ["Text]; -> ["Text"];)
+        code = code.replace(/(\["[^"\n]+)(\];)/g, '$1"$2');
+
+        return code;
     }
 
     _handleAiCompletion(e) {
