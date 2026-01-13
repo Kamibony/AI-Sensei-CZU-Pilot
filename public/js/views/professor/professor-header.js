@@ -1,69 +1,55 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { handleLogout } from '../../auth.js';
 import { auth } from '../../firebase-init.js';
-// Importujeme službu AJ konfiguračnú konštantu
-import { translationService, SUPPORTED_LANGUAGES } from '../../utils/translation-service.js';
-// Importujeme náš nový Mixin
 import { Localized } from '../../utils/localization-mixin.js';
 
-// Použijeme Mixin: extends Localized(LitElement)
 export class ProfessorHeader extends Localized(LitElement) {
-    
-    createRenderRoot() { return this; }
+    static properties = {
+        userEmail: { state: true }
+    };
 
-    // Poznámka: connectedCallback/disconnectedCallback pre preklady
-    // už rieši Mixin 'Localized', takže ich tu nemusíme písať!
-
-    _renderAvatar() {
-        const user = auth.currentUser;
-        if (user && user.photoURL) {
-            return html`<img src="${user.photoURL}" alt="${this.t('professor.profile_image_alt')}" class="h-8 w-8 rounded-full">`;
-        }
-        const name = user ? user.displayName || user.email : '';
-        const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-        return html`
-            <div class="h-8 w-8 rounded-full bg-green-700 flex items-center justify-center text-xs font-bold text-white">
-                ${initials || 'P'}
-            </div>
-        `;
+    constructor() {
+        super();
+        this.userEmail = '';
     }
 
-    async _handleLanguageChange(e) {
-        const selectedLang = e.target.value;
-        // Zavoláme zmenu jazyka. Vďaka Mixinu sa všetko prekreslí samo.
-        await translationService.changeLanguage(selectedLang);
+    createRenderRoot() { return this; }
+
+    connectedCallback() {
+        super.connectedCallback();
+        this.userEmail = auth.currentUser?.email || '';
     }
 
     render() {
-        const user = auth.currentUser;
-        const displayName = user ? user.displayName || user.email || 'Profesor' : this.t('common.loading');
-        const currentLang = translationService.currentLanguage;
-
         return html`
-            <header class="flex-shrink-0 bg-white shadow-md z-50 relative">
-                <div class="w-full px-4 sm:px-6 lg:px-8">
-                    <div class="flex items-center justify-between h-16">
-                        <div class="flex items-center gap-4">
-                            <h1 class="text-xl font-bold text-slate-800">${this.t('professor.header_title')}</h1>
+            <header class="bg-white border-b border-slate-200 sticky top-0 z-30 h-16 flex-shrink-0">
+                <div class="h-full px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <button @click="${() => document.dispatchEvent(new CustomEvent('toggle-sidebar'))}"
+                                class="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                            </svg>
+                        </button>
+
+                        <div class="hidden md:flex items-center gap-2 text-slate-400">
+                             <span class="text-sm font-medium text-slate-900">${this.t('header.brand')}</span>
                         </div>
-                        
-                        <div class="flex items-center space-x-4">
-                            <div class="relative">
-                                <select 
-                                    @change="${this._handleLanguageChange}"
-                                    class="appearance-none bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2 pr-8 cursor-pointer font-medium"
-                                >
-                                    ${SUPPORTED_LANGUAGES.map(lang => html`
-                                        <option value="${lang.code}" ?selected="${currentLang === lang.code}">
-                                            ${lang.flag} ${lang.name}
-                                        </option>
-                                    `)}
-                                </select>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
+                            <div class="text-right hidden sm:block">
+                                <div class="text-sm font-medium text-slate-900">${this.userEmail}</div>
+                                <div class="text-xs text-slate-500">${this.t('header.roleProfessor')}</div>
                             </div>
-
-                            <div class="h-6 w-px bg-slate-200"></div>
-
-                            ${this._renderAvatar()}
-                            <span class="text-sm font-medium text-slate-700 hidden md:block">${displayName}</span>
+                            <button @click="${handleLogout}"
+                                    class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="${this.t('header.logout')}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                </svg>
+                            </button>
                         </div>
                     </div>
                 </div>

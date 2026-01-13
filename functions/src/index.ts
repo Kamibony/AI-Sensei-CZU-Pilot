@@ -8,19 +8,73 @@ const { getStorage } = require("firebase-admin/storage");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onRequest } = require("firebase-functions/v2/https");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const functions = require("firebase-functions/v1"); // Import v1 for triggers
 const logger = require("firebase-functions/logger");
 const cors = require("cors");
 const fetch = require("node-fetch");
+const textToSpeech = require("@google-cloud/text-to-speech"); // Import pre TTS
+
+// Import local API using TypeScript syntax
+import * as GeminiAPI from './gemini-api';
 
 // Lazy load heavy dependencies
-// const GeminiAPI = require("./gemini-api.js");
 // const pdf = require("pdf-parse");
+
+/**
+ * Dependency Adapter for pdf-parse.
+ * Normalizes imports to ensure a callable function in mixed CJS/ESM environments.
+ */
+function loadPdfParser(): (buffer: Buffer, options?: any) => Promise<any> {
+    const packageName = "pdf-parse";
+    let parser;
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        parser = require(packageName);
+    } catch (e: any) {
+        throw new Error(`Failed to require('${packageName}'): ${e.message}`);
+    }
+    // 1. Direct function export (Standard CJS)
+    if (typeof parser === 'function') return parser;
+    // 2. Default export (ESM interop)
+    if (parser && typeof parser.default === 'function') return parser.default;
+    // 3. Nested default (Double interop edge case)
+    if (parser && parser.default && typeof parser.default.default === 'function') return parser.default.default;
+
+    // 4. Class-based export (Version 2.x+)
+    // If the export is an object containing a 'PDFParse' class, we wrap it to match the v1.x API.
+    if (typeof parser === 'object' && parser !== null && typeof parser.PDFParse === 'function') {
+        const PDFParseClass = parser.PDFParse;
+        // Return a wrapper function that mimics standard v1 behavior: (buffer) => Promise<{ text: string }>
+        return async (buffer: Buffer) => {
+             // v2 requires Uint8Array, not Buffer
+             const uint8 = new Uint8Array(buffer);
+             const instance = new PDFParseClass(uint8);
+             const result = await instance.getText();
+             // result is likely an object { text: "...", ... } or just a string?
+             // Based on testing: { text: "...", pages: [...] }
+             // We ensure we return an object with a .text property.
+             return typeof result === 'string' ? { text: result } : result;
+        };
+    }
+
+    const type = typeof parser;
+    const keys = (typeof parser === 'object' && parser !== null) ? Object.keys(parser).join(", ") : "null";
+    throw new Error(
+        `Dependency Adapter Error: '${packageName}' did not export a function. ` +
+        `Received type: '${type}'. Keys: [${keys}].`
+    );
+}
 
 const DEPLOY_REGION = "europe-west1";
 // Dynamically determine storage bucket based on environment
 const FIREBASE_CONFIG = process.env.FIREBASE_CONFIG ? JSON.parse(process.env.FIREBASE_CONFIG) : {};
 const PROJECT_ID = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+// Hardcode fallback to ensure it's never undefined in emulator/dev
 const STORAGE_BUCKET = FIREBASE_CONFIG.storageBucket || (PROJECT_ID === "ai-sensei-prod" ? "ai-sensei-prod.firebasestorage.app" : "ai-sensei-czu-pilot.firebasestorage.app");
+
+if (!STORAGE_BUCKET) {
+    logger.error("CRITICAL: STORAGE_BUCKET could not be determined.");
+}
 
 initializeApp();
 const db = getFirestore();
@@ -44,10 +98,657 @@ async function sendTelegramMessage(chatId: number, text: string) {
     }
 }
 
+exports.startMagicGeneration = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 540,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can start magic generation.");
+    }
+
+    const { lessonId, filePaths, lessonTopic } = request.data;
+    if (!lessonId) {
+        throw new HttpsError("invalid-argument", "Missing lessonId.");
+    }
+
+    const lessonRef = db.collection("lessons").doc(lessonId);
+
+    // --- DEBUG LOGGING SETUP ---
+    const debugLogs: string[] = [];
+    const log = (message: string) => {
+        logger.log(message);
+        debugLogs.push(`[${new Date().toISOString()}] ${message}`);
+    };
+    // ---------------------------
+
+    await lessonRef.update({
+        magicStatus: "generating",
+        magicProgress: "Starting analysis...",
+        debug_logs: debugLogs
+    });
+
+    try {
+        // --- 0. DYNAMIC CONFIGURATION FETCH ---
+        log("[Magic] Fetching AI system configuration...");
+        const configSnap = await db.collection("system_settings").doc("ai_config").get();
+        const config = configSnap.exists ? configSnap.data() : {};
+
+        const systemPrompt = config.system_prompt || undefined;
+        const magicSlidesCount = parseInt(config.magic_presentation_slides) || 8;
+        const magicQuizCount = parseInt(config.magic_quiz_questions) || 5;
+        const magicFlashcardCount = parseInt(config.magic_flashcard_count) || 10;
+        const magicTextRules = config.magic_text_rules ? `\n\nSYSTEM RULES:\n${config.magic_text_rules}` : "";
+
+        log(`[Magic] Config loaded: Slides=${magicSlidesCount}, Quiz=${magicQuizCount}, Flashcards=${magicFlashcardCount}`);
+
+        const pdf = loadPdfParser();
+        const bucket = getStorage().bucket(STORAGE_BUCKET);
+
+        // 1. PDF Extraction
+        let fullTextContext = "";
+        if (filePaths && filePaths.length > 0) {
+            await lessonRef.update({ magicProgress: "Reading files...", debug_logs: debugLogs });
+            for (const rawPath of filePaths) {
+                try {
+                     // --- ENFORCE STRICT DATA OWNERSHIP ---
+                     const fileName = rawPath.split('/').pop();
+                     const ownerId = request.auth.uid;
+
+                     // 1. Construct Strict Path (courses/{userId}/media/{fileName})
+                     // This ignores the client-provided path prefix (e.g. 'main-course') and enforces the user's ID
+                     const targetPath = `courses/${ownerId}/media/${fileName}`;
+
+                     // 2. Legacy Fallback Check
+                     // If the file was historically in 'main-course', we check if we should allow it.
+                     const isLegacy = rawPath.includes("courses/main-course/");
+                     const isAdmin = request.auth.token.email === "profesor@profesor.cz";
+
+                     let buffer, finalPath;
+
+                     try {
+                         // Try Strict Path First
+                         const cleanPath = GeminiAPI.sanitizeStoragePath(targetPath, bucket.name);
+                         const result = await GeminiAPI.downloadFileWithRetries(bucket, cleanPath);
+                         buffer = result.buffer;
+                         finalPath = result.finalPath;
+                     } catch (strictError) {
+                         // Strict path failed (file not found in user's folder).
+                         // Check if we can fallback to legacy.
+                         if (isLegacy && isAdmin) {
+                             log(`[Magic] Strict path failed for ${fileName}. Admin fallback to legacy path: ${rawPath}`);
+                             const cleanLegacy = GeminiAPI.sanitizeStoragePath(rawPath, bucket.name);
+                             const result = await GeminiAPI.downloadFileWithRetries(bucket, cleanLegacy);
+                             buffer = result.buffer;
+                             finalPath = result.finalPath;
+                         } else {
+                             // Not admin or not legacy -> Enforce isolation (Fail)
+                             log(`[Magic] Strict path failed for ${fileName} and fallback denied. Owner: ${ownerId}, Legacy: ${isLegacy}, Admin: ${isAdmin}`);
+                             throw strictError;
+                         }
+                     }
+
+                     log(`[Magic] Successfully read file. Target: '${targetPath}', Final: '${finalPath}'`);
+
+                     let text = "";
+                     if (finalPath.toLowerCase().endsWith(".pdf")) {
+                         const pdfData = await pdf(buffer);
+                         text = pdfData.text;
+                         log(`[Magic] PDF ${finalPath}: ${text.length} chars. Snippet: "${text.substring(0, 100)}..."`);
+
+                         // --- FALLBACK: Gemini Vision for Scans ---
+                         if (text.trim().length < 100) {
+                             log(`[Magic] Low text detected in ${finalPath}. Attempting Vision OCR...`);
+                             // Convert PDF buffer to Base64
+                             const pdfBase64 = buffer.toString('base64');
+                             // Call Gemini Flash (cheaper/faster) to extract text
+                             const visionPrompt = "Extract all readable text from this document verbatim.";
+                             const visionText = await GeminiAPI.generateTextFromMultimodal(visionPrompt, pdfBase64, "application/pdf");
+                             text = visionText || "";
+                             log(`[Magic] Vision OCR result: ${text.length} chars.`);
+                         }
+                     } else {
+                         text = buffer.toString("utf-8");
+                         log(`[Magic] Text File ${finalPath}: ${text.length} chars.`);
+                     }
+
+                     if (!text || text.trim().length < 50) {
+                         log(`[Magic] File ${finalPath} has very little text.`);
+                     }
+
+                     fullTextContext += `\n\n--- File: ${finalPath} ---\n${text}`;
+                } catch (e: any) {
+                    logger.error(`Failed to read file ${rawPath}`, e);
+                    log(`Failed to read file ${rawPath}: ${e.message}`);
+                }
+            }
+        }
+
+        // 2. Generate Content (Task A)
+        await lessonRef.update({ magicProgress: "Generating study material...", debug_logs: debugLogs });
+
+        const title = (await lessonRef.get()).data()?.title || "Lesson";
+        const topic = lessonTopic || "";
+
+        const contextPrompt = `
+        ROLE: You are an expert educational content creator.
+        TASK: Create a comprehensive study lesson about "${title}" ${topic ? `(${topic})` : ""}.
+        LANGUAGE: Analyze the provided source material and topic. Output in the SAME language.
+
+        --- SOURCE MATERIAL BEGIN ---
+        ${fullTextContext.substring(0, 30000)}
+        --- SOURCE MATERIAL END ---
+
+        CRITICAL OUTPUT INSTRUCTIONS:
+        1. You MUST return a valid JSON object.
+        2. Structure: { "title": "...", "sections": [ { "heading": "...", "content": "..." } ] }
+        ${magicTextRules}
+        `;
+
+        // Pass systemPrompt to Gemini
+        const textJson = await GeminiAPI.generateJsonFromPrompt(contextPrompt, systemPrompt);
+        log(`Generated Text Content Keys: ${Object.keys(textJson).join(", ")}`);
+
+        let markdownText = `# ${textJson.title}\n\n`;
+        if (textJson.sections && Array.isArray(textJson.sections)) {
+            markdownText += textJson.sections.map((s: any) => `## ${s.heading}\n${s.content}`).join("\n\n");
+        } else {
+            markdownText = JSON.stringify(textJson);
+        }
+
+        await lessonRef.update({
+            text_content: markdownText,
+            magicProgress: "Creating visual aids and quiz...",
+            debug_logs: debugLogs
+        });
+
+        // --- PHASE 1: Content Generation (Critical) ---
+        // Generate Quiz, Flashcards, and Slide Text. Store in memory first.
+        await lessonRef.update({ magicProgress: "Drafting slides, quizzes, and extra content...", debug_logs: debugLogs });
+
+        let slidesData: any = null;
+        let quizData: any = null;
+        let flashcardsData: any = null;
+        let testData: any = null;
+        let podcastData: any = null;
+        let comicData: any = null;
+        let mindmapData: any = null;
+        let socialPostData: any = null;
+
+        const contentTasks = [];
+
+        // Task B: Presentation (Text Only)
+        contentTasks.push((async () => {
+             try {
+                 const slidesPrompt = `
+ROLE: You are an expert presentation designer.
+TASK: Create exactly ${magicSlidesCount} presentation slides based on the provided text.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. You MUST generate exactly ${magicSlidesCount} slides.
+2. Output valid JSON only.
+3. Structure: { "slides": [ { "title": "...", "points": ["...", "..."], "visual_idea": "..." }, ... ] }
+`;
+                 slidesData = await GeminiAPI.generateJsonFromPrompt(slidesPrompt, systemPrompt);
+                 log(`Generated Slides Keys: ${slidesData ? Object.keys(slidesData).join(", ") : "null"}`);
+             } catch (e: any) {
+                 log(`Phase 1 (Slides Text) failed: ${e.message}`);
+             }
+        })());
+
+        // Task C: Quiz
+        contentTasks.push((async () => {
+             try {
+                 const quizPrompt = `
+ROLE: You are an expert quiz creator.
+TASK: Create exactly ${magicQuizCount} quiz questions based on the provided text.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. You MUST generate exactly ${magicQuizCount} questions.
+2. Output valid JSON only.
+3. Structure: { "questions": [ { "question_text": "...", "options": ["...", "...", "...", "..."], "correct_option_index": 0 }, ... ] }
+`;
+                 quizData = await GeminiAPI.generateJsonFromPrompt(quizPrompt, systemPrompt);
+                 log(`Generated Quiz Keys: ${quizData ? Object.keys(quizData).join(", ") : "null"}`);
+             } catch (e: any) {
+                 log(`Phase 1 (Quiz) failed: ${e.message}`);
+             }
+        })());
+
+        // Task D: Flashcards
+        contentTasks.push((async () => {
+             try {
+                 const fcPrompt = `
+ROLE: You are an expert study aid creator.
+TASK: Create exactly ${magicFlashcardCount} flashcards based on the provided text.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. You MUST generate exactly ${magicFlashcardCount} cards.
+2. Output valid JSON only.
+3. Structure: { "cards": [ { "front": "...", "back": "..." }, ... ] }
+`;
+                 flashcardsData = await GeminiAPI.generateJsonFromPrompt(fcPrompt, systemPrompt);
+                 log(`Generated Flashcards Keys: ${flashcardsData ? Object.keys(flashcardsData).join(", ") : "null"}`);
+             } catch (e: any) {
+                 log(`Phase 1 (Flashcards) failed: ${e.message}`);
+             }
+        })());
+
+        // Task E: Test (Assessment)
+        contentTasks.push((async () => {
+             try {
+                 const testPrompt = `
+ROLE: You are an expert exam creator.
+TASK: Create a test with 5 distinct questions based on the provided text.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. You MUST generate exactly 5 questions.
+2. Output valid JSON only.
+3. Structure: { "questions": [ { "question_text": "...", "type": "multiple_choice", "options": ["...", "..."], "correct_option_index": 0 }, ... ] }
+`;
+                 testData = await GeminiAPI.generateJsonFromPrompt(testPrompt, systemPrompt);
+                 log(`Generated Test Keys: ${testData ? Object.keys(testData).join(", ") : "null"}`);
+             } catch (e: any) {
+                 log(`Phase 1 (Test) failed: ${e.message}`);
+             }
+        })());
+
+        // Task F: Podcast Script
+        contentTasks.push((async () => {
+             try {
+                 const podcastPrompt = `
+ROLE: You are an expert podcast producer.
+TASK: Create a conversational script between two hosts (Alex and Sarah) about the provided text.
+LANGUAGE: Analyze the input text. Write the script in the SAME language.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. Create a dialogue script for one episode.
+2. Output valid JSON only.
+3. Structure: { "script": [ { "speaker": "Alex", "text": "..." }, { "speaker": "Sarah", "text": "..." } ] }
+`;
+                 podcastData = await GeminiAPI.generateJsonFromPrompt(podcastPrompt, systemPrompt);
+                 log(`Generated Podcast Keys: ${podcastData ? Object.keys(podcastData).join(", ") : "null"}`);
+             } catch (e: any) {
+                 log(`Phase 1 (Podcast) failed: ${e.message}`);
+             }
+        })());
+
+        // Task G: Comic Script
+        contentTasks.push((async () => {
+             try {
+                 const comicPrompt = `
+ROLE: You are a comic book writer.
+TASK: Create a 4-panel comic script based on the text.
+LANGUAGE: Analyze the input text. Write the script in the SAME language.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. You MUST generate exactly 4 panels.
+2. Output valid JSON only.
+3. Structure: { "panels": [ { "panel_number": 1, "description": "...", "dialogue": "..." }, ... ] }
+`;
+                 comicData = await GeminiAPI.generateJsonFromPrompt(comicPrompt, systemPrompt);
+                 log(`Generated Comic Keys: ${comicData ? Object.keys(comicData).join(", ") : "null"}`);
+             } catch (e: any) {
+                 log(`Phase 1 (Comic) failed: ${e.message}`);
+             }
+        })());
+
+        // Task H: Mindmap
+        contentTasks.push((async () => {
+             try {
+                 const mindmapPrompt = `
+ROLE: You are an expert in knowledge visualization.
+TASK: Create a hierarchical mindmap of the key concepts.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. Output valid JSON only.
+2. Structure: { "mermaid": "graph TD\\nA-->B..." } (Mermaid.js syntax string)
+`;
+                 mindmapData = await GeminiAPI.generateJsonFromPrompt(mindmapPrompt, systemPrompt);
+                 log(`Generated Mindmap Keys: ${mindmapData ? Object.keys(mindmapData).join(", ") : "null"}`);
+             } catch (e: any) {
+                 log(`Phase 1 (Mindmap) failed: ${e.message}`);
+             }
+        })());
+
+        // Task I: Social Post
+        contentTasks.push((async () => {
+             try {
+                 const postPrompt = `
+ROLE: You are a social media expert.
+TASK: Create a professional social media post to promote this lesson.
+
+--- SOURCE MATERIAL BEGIN ---
+${markdownText.substring(0, 10000)}
+--- SOURCE MATERIAL END ---
+
+CRITICAL OUTPUT INSTRUCTIONS:
+1. Output valid JSON only.
+2. Structure: { "platform": "LinkedIn", "content": "...", "hashtags": "#..." }
+`;
+                 socialPostData = await GeminiAPI.generateJsonFromPrompt(postPrompt, systemPrompt);
+                 log(`Generated Social Post Keys: ${socialPostData ? Object.keys(socialPostData).join(", ") : "null"}`);
+             } catch (e: any) {
+                 log(`Phase 1 (Social Post) failed: ${e.message}`);
+             }
+        })());
+
+        // Wait for all content generation
+        await Promise.all(contentTasks);
+
+        // Update Firestore with available text content
+        const updateData: any = { debug_logs: debugLogs };
+        if (slidesData) updateData.presentation = slidesData;
+        if (quizData) updateData.quiz = quizData;
+        if (flashcardsData) updateData.flashcards = flashcardsData;
+
+        // NEW CONTENT TYPES (Flattened for consumption)
+        if (testData && testData.questions) updateData.test = testData.questions;
+        if (podcastData && podcastData.script) updateData.podcast_script = podcastData.script;
+        if (comicData && comicData.panels) updateData.comic_script = comicData.panels;
+        if (mindmapData && mindmapData.mermaid) updateData.mindmap = mindmapData.mermaid;
+        if (socialPostData) updateData.social_post = socialPostData;
+
+        await lessonRef.update(updateData);
+
+
+        // --- PHASE 2: Media Generation (Parallel & Optional) ---
+        if (slidesData && slidesData.slides && Array.isArray(slidesData.slides)) {
+            await lessonRef.update({ magicProgress: "Generating visuals...", debug_logs: debugLogs });
+
+            const slides = slidesData.slides;
+
+            // Create array of promises (DO NOT await inside loop)
+            const imagePromises = slides.map((slide: any, index: number) => {
+                if (slide.visual_idea && slide.visual_idea.trim() !== "") {
+                     // Return the promise directly
+                     return (async () => {
+                         try {
+                             const imageBase64 = await GeminiAPI.generateImageFromPrompt(slide.visual_idea);
+                             const fileName = `magic_slide_${lessonId}_${index}.png`;
+                             const storagePath = `courses/${request.auth!.uid}/media/generated/${fileName}`;
+                             const file = bucket.file(storagePath);
+                             await file.save(Buffer.from(imageBase64, 'base64'), { metadata: { contentType: 'image/png' } });
+                             const [url] = await file.getSignedUrl({ action: 'read', expires: '01-01-2030' });
+                             return url;
+                         } catch (err: any) {
+                             throw new Error(`Image gen failed for slide ${index}: ${err.message}`);
+                         }
+                     })();
+                } else {
+                    return Promise.resolve(null);
+                }
+            });
+
+            // Execute concurrently
+            const results = await Promise.allSettled(imagePromises);
+
+            // --- PHASE 3: Merge & Save ---
+            results.forEach((result, index) => {
+                const slide = slides[index];
+                if (result.status === 'fulfilled') {
+                    slide.imageUrl = result.value; // URL or null
+                } else {
+                    log(`Phase 2 (Image ${index}) failed: ${result.reason}`);
+                    slide.imageError = "Generation failed";
+                    slide.imageUrl = "https://placehold.co/600x400?text=Image+Generation+Failed"; // Placeholder
+                }
+
+                // Legacy/Schema check: Ensure imageUrl is at least null if not set
+                if (slide.imageUrl === undefined) slide.imageUrl = null;
+            });
+
+            // Update presentation with images
+            await lessonRef.update({
+                presentation: { slides: slides },
+                debug_logs: debugLogs
+            });
+        }
+
+        await lessonRef.update({ magicStatus: "ready", magicProgress: "Done!", debug_logs: debugLogs });
+        return { success: true, data: updateData };
+
+    } catch (error: any) {
+        log(`Magic Generation Error: ${error.message}`);
+        await lessonRef.update({ magicStatus: "error", magicProgress: `Error: ${error.message}`, debug_logs: debugLogs });
+        throw new HttpsError("internal", error.message);
+    }
+});
+
+
+// NOVÁ FUNKCIA: Generovanie profesionálneho audia (MP3) pomocou Google Cloud TTS - MULTI-VOICE
+exports.generatePodcastAudio = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validácia a Autorizácia
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Len profesor môže generovať audio.");
+    }
+
+    const { lessonId, text, language, episodeIndex } = request.data;
+    if (!lessonId || !text) {
+        throw new HttpsError("invalid-argument", "Chýba ID lekcie alebo text.");
+    }
+
+    try {
+        logger.log(`Starting multi-voice audio generation for lesson ${lessonId}, episode ${episodeIndex || "single"}...`);
+
+        const client = new textToSpeech.TextToSpeechClient();
+        const langCode = language || "cs-CZ";
+
+        // Definícia hlasov
+        // Alex = Male (Wavenet-B / Neural2-B)
+        // Sarah = Female (Wavenet-A / Neural2-A)
+        let maleVoiceName = "cs-CZ-Wavenet-B";
+        let femaleVoiceName = "cs-CZ-Wavenet-A";
+
+        if (langCode === "pt-br") {
+            maleVoiceName = "pt-BR-Neural2-B";
+            femaleVoiceName = "pt-BR-Neural2-A";
+        } else if (langCode === "en-US" || langCode === "en") {
+            maleVoiceName = "en-US-Neural2-D";
+            femaleVoiceName = "en-US-Neural2-F";
+        }
+
+        // 2. Parsovanie vstupu na segmenty
+        // Rozdelí text podľa [Speaker]:, ponechá oddelovače, a odstráni prázdne stringy
+        const parts = text.split(/(\[(?:Alex|Sarah)\]:)/).filter((p: string) => p && p.trim().length > 0);
+
+        const audioBuffers: Buffer[] = [];
+        let currentSpeaker = "default"; // Default to female/sarah if no tag found initially? Or use male? Let's use Male as fallback or default.
+        // Actually, let's treat untagged text as the default voice (e.g., Alex/Male).
+
+        for (let i = 0; i < parts.length; i++) {
+            const part = parts[i].trim();
+            if (part === "[Alex]:") {
+                currentSpeaker = "Alex";
+                continue;
+            }
+            if (part === "[Sarah]:") {
+                currentSpeaker = "Sarah";
+                continue;
+            }
+
+            // Je to text segmentu
+            const voiceName = (currentSpeaker === "Sarah") ? femaleVoiceName : maleVoiceName;
+
+            logger.log(`Synthesizing segment for ${currentSpeaker} (${voiceName}): "${part.substring(0, 20)}..."`);
+
+            const requestPayload = {
+                input: { text: part },
+                voice: {
+                    languageCode: langCode,
+                    name: voiceName
+                },
+                audioConfig: {
+                    audioEncoding: "MP3",
+                    speakingRate: 1.0,
+                    pitch: 0.0
+                },
+            };
+
+            const [response] = await client.synthesizeSpeech(requestPayload);
+            if (response.audioContent) {
+                audioBuffers.push(Buffer.from(response.audioContent));
+            }
+        }
+
+        if (audioBuffers.length === 0) {
+             throw new HttpsError("internal", "No audio generated from segments.");
+        }
+
+        // 3. Spojenie audio bufferov
+        const finalAudioBuffer = Buffer.concat(audioBuffers);
+        logger.log(`Audio segments concatenated. Total size: ${finalAudioBuffer.length} bytes.`);
+
+        // 4. Uloženie do Firebase Storage
+        const bucket = getStorage().bucket(STORAGE_BUCKET);
+
+        // Ak máme episodeIndex, vytvoríme unikátny názov súboru
+        let filePath = `podcasts/${lessonId}.mp3`;
+        if (typeof episodeIndex !== "undefined") {
+            filePath = `podcasts/${lessonId}_${episodeIndex}.mp3`;
+        }
+
+        const file = bucket.file(filePath);
+
+        await file.save(finalAudioBuffer, {
+            metadata: {
+                contentType: "audio/mpeg",
+                metadata: {
+                    lessonId: lessonId,
+                    episodeIndex: episodeIndex !== undefined ? String(episodeIndex) : "single",
+                    generatedBy: request.auth.uid
+                }
+            }
+        });
+
+        logger.log(`Audio uploaded to ${filePath}. Updating Firestore...`);
+
+        // 5. Aktualizácia dokumentu lekcie
+        // Ak generujeme konkrétnu epizódu, aktualizujeme len timestamp, alebo môžeme pridať mapu ciest ak by sme chceli.
+        // Pre zachovanie kompatibility "as before", aktualizujeme podcast_audio_path len ak je to single file,
+        // alebo ak je to posledný generovaný (to je asi OK).
+        // Ale UI bude používať vrátený `storagePath`, takže toto pole vo Firestore je skôr fallback.
+
+        await db.collection("lessons").doc(lessonId).update({
+            podcast_audio_path: filePath,
+            podcast_generated_at: FieldValue.serverTimestamp()
+        });
+
+        // Generate Signed URL / Public URL
+        let publicUrl;
+        if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.FIREBASE_STORAGE_EMULATOR_HOST) {
+            const storageHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST || "127.0.0.1:9199";
+            publicUrl = `http://${storageHost}/v0/b/${bucket.name}/o/${encodeURIComponent(filePath)}?alt=media`;
+        } else {
+            const [signedUrl] = await file.getSignedUrl({
+                action: 'read',
+                expires: '01-01-2050' // Long expiration
+            });
+            publicUrl = signedUrl;
+        }
+
+        return { success: true, storagePath: filePath, audioUrl: publicUrl };
+
+    } catch (error: any) {
+        logger.error("Error generating podcast audio:", error);
+        throw new HttpsError("internal", `Audio generation failed: ${error.message}`);
+    }
+});
+
+exports.generateComicPanelImage = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can generate images.");
+    }
+
+    const { lessonId, panelIndex, panelPrompt } = request.data;
+    if (!lessonId || typeof panelIndex === 'undefined' || !panelPrompt) {
+        throw new HttpsError("invalid-argument", "Missing lessonId, panelIndex, or panelPrompt.");
+    }
+
+    try {
+        const GeminiAPI = require("./gemini-api.js");
+
+        // VISUALS ENHANCEMENT: Add style modifiers
+        const enhancedPrompt = `Educational comic book style, detailed, vibrant colors, semi-realistic style. Visual context: ${panelPrompt}`;
+
+        const imageBase64 = await GeminiAPI.generateImageFromPrompt(enhancedPrompt);
+
+        const bucket = getStorage().bucket(STORAGE_BUCKET);
+        const fileName = `comic_${lessonId}_${panelIndex}_${Date.now()}.png`;
+        const storagePath = `courses/${request.auth.uid}/media/generated/${fileName}`;
+        const file = bucket.file(storagePath);
+
+        await file.save(Buffer.from(imageBase64, 'base64'), {
+            metadata: {
+                contentType: 'image/png',
+                metadata: {
+                    lessonId: lessonId,
+                    panelIndex: String(panelIndex),
+                    generatedBy: request.auth.uid
+                }
+            }
+        });
+
+        let imageUrl;
+        if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.FIREBASE_STORAGE_EMULATOR_HOST) {
+            const storageHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST || "127.0.0.1:9199";
+            imageUrl = `http://${storageHost}/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media`;
+        } else {
+            const [signedUrl] = await file.getSignedUrl({
+                action: 'read',
+                expires: '01-01-2050'
+            });
+            imageUrl = signedUrl;
+        }
+
+        return { success: true, imageUrl: imageUrl };
+
+    } catch (error: any) {
+        logger.error("Error generating comic panel:", error);
+        throw new HttpsError("internal", `Image generation failed: ${error.message}`);
+    }
+});
+
 // ZJEDNOTENÁ FUNKCIA PRE VŠETKY AI OPERÁCIE
 exports.generateContent = onCall({
     region: DEPLOY_REGION,
-    timeoutSeconds: 300, // <-- ZMENENÉ (5 minút)
+    timeoutSeconds: 300, // (5 minút)
     memory: "1GiB",
     cors: true
 }, async (request: CallableRequest) => {
@@ -57,54 +758,74 @@ exports.generateContent = onCall({
     }
     try {
         // Načítanie konfigurácie pre magický režim
-        const configSnap = await db.collection('system_settings').doc('ai_config').get();
+        const configSnap = await db.collection("system_settings").doc("ai_config").get();
         const config = configSnap.exists ? configSnap.data() : {};
+        const systemPrompt = config.system_prompt || undefined;
 
         let finalPrompt = promptData.userPrompt;
         const language = promptData.language || "cs";
-        const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards"].includes(contentType);
+        const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap", "podcast", "audio"].includes(contentType);
 
         // Add language instruction
-        const langInstruction = language === "pt-br" ? "Responda em Português do Brasil." : "Odpovídej v češtině.";
+    // DYNAMIC LANGUAGE DETECTION UPDATE:
+    // Instead of hardcoding, we instruct the model to match the input language.
+    const langInstruction = "Analyze the language of the provided 'topic' and 'content'. Generate the output (script/dialogue/text) strictly in the SAME LANGUAGE as the input content. If the input is mixed, prioritize the language of the 'content'.";
         finalPrompt += `\n\n${langInstruction}`;
 
+        // STRICT SYSTEM INSTRUCTION to silence conversational filler
+        finalPrompt += "\n\nSTRICT RULE: Return ONLY the raw content/JSON. Do NOT start with 'Here is', 'Sure', or 'Certainly'. No conversational filler.";
+
         if (isJson) {
+            // Load Magic Defaults
+            const magicSlidesCount = parseInt(config.magic_presentation_slides) || 8;
+            const magicQuizCount = parseInt(config.magic_quiz_questions) || 5;
+            const magicTestCount = parseInt(config.magic_test_questions) || 5;
+            const magicFlashcardCount = parseInt(config.magic_flashcard_count) || 10;
+
             switch(contentType) {
                 case "presentation":
-                    // ===== APLIKOVANÁ ZMENA: Prísna kontrola namiesto predvolenej hodnoty =====
-                    
-                    logger.log("Generating presentation, received slide_count:", promptData.slide_count);
-                    
-                    // 1. Prevedieme hodnotu na číslo. Ak je to "" alebo "abc", výsledok bude NaN (Not a Number)
-                    const requestedCount = parseInt(promptData.slide_count, 10);
-
-                    // 2. Ak je výsledok neplatné číslo alebo je 0 či menší, vyhodíme chybu
-                    if (!requestedCount || requestedCount <= 0) {
-                        logger.error("Invalid slide_count received:", promptData.slide_count);
-                        // Vyhodíme chybu, ktorá sa zobrazí používateľovi na frontende
-                        throw new HttpsError(
-                            "invalid-argument", 
-                            `Neplatný počet slidů. Zadejte prosím kladné číslo (dostali jsme '${promptData.slide_count || ""}').`
-                        );
+                    let targetSlides = parseInt(promptData.slide_count, 10);
+                    if (promptData.isMagic) {
+                        targetSlides = magicSlidesCount;
                     }
+
+                    if (!targetSlides || targetSlides <= 0) targetSlides = 8;
+
+                    logger.log("Generating presentation. Target slides:", targetSlides, "Magic Mode:", promptData.isMagic);
 
                     // Capture presentation style
                     const style = promptData.presentation_style_selector ? `Visual Style: ${promptData.presentation_style_selector}.` : "";
                     
-                    // 3. Ak je všetko v poriadku, použijeme finálne číslo v prompte
-                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${requestedCount} slidy. ${style} Odpověď musí být JSON objekt s klíčem 'slides', ktorý obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'points' (pole stringů). ${langInstruction}`;
-                    logger.log(`Final prompt will use ${requestedCount} slides.`);
-                    
+                    finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${targetSlides} slidy. ${style}
+${langInstruction}
+
+FORMAT: JSON
+{
+  "slides": [ ... ] (MANDATORY: Generate exactly ${targetSlides} slides. Empty array is a failure.)
+}
+Each slide object must have: 'title' (string), 'points' (array of strings), 'visual_idea' (string - detailní popis obrázku).`;
                     break;
-                    // ===== KONIEC ZMENY =====
 
                 case "quiz":
-                    finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'options' (pole stringů) a 'correct_option_index' (number). ${langInstruction}`;
+                    const targetQuizQs = promptData.isMagic ? magicQuizCount : 5;
+
+                    finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}".
+${langInstruction}
+
+FORMAT: JSON
+{
+  "questions": [ ... ] (MANDATORY: Generate exactly ${targetQuizQs} questions. Empty array is a failure.)
+}
+Each question object must have: 'question_text' (string), 'options' (array of 4 strings), 'correct_option_index' (number 0-3).`;
                     break;
+
                 case "test":
                     // OPRAVA: Mapovanie premenných z frontendu (snake_case) a fallbacky
                     // Frontend posiela 'question_count', backend čakal 'questionCount'
-                    const testCount = parseInt(promptData.question_count || promptData.questionCount || "5", 10);
+                    let testCount = parseInt(promptData.question_count || promptData.questionCount || "5", 10);
+                    if (promptData.isMagic) {
+                        testCount = magicTestCount;
+                    }
                     
                     // Frontend posiela 'difficulty_select', backend čakal 'difficulty'
                     const testDifficulty = promptData.difficulty_select || promptData.difficulty || "Střední";
@@ -112,38 +833,117 @@ exports.generateContent = onCall({
                     // Frontend posiela 'type_select', backend čakal 'questionTypes'
                     const testTypes = promptData.type_select || promptData.questionTypes || "Mix";
 
-                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${testCount} otázkami. Obtížnost: ${testDifficulty}. Typy otázek: ${testTypes}. Odpověď musí být JSON objekt s klíčem 'questions', který obsahuje pole objektů, kde každý objekt má klíče 'question_text' (string), 'type' (string), 'options' (pole stringů) a 'correct_option_index' (number). ${langInstruction}`;
+                    finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${testCount} otázkami. Obtížnost: ${testDifficulty}. Typy otázek: ${testTypes}.
+${langInstruction}
+
+FORMAT: JSON
+{
+  "questions": [ ... ] (MANDATORY: Generate exactly ${testCount} questions. Empty array is a failure.)
+}
+Each question object must have: 'question_text' (string), 'type' (string), 'options' (array of strings), 'correct_option_index' (number).`;
                     break;
                 case "post":
                      const epCount = promptData.episode_count || promptData.episodeCount || 3;
-                     finalPrompt = `Vytvoř sérii ${epCount} podcast epizod na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt s klíčem 'episodes', který obsahuje pole objektů, kde každý objekt má klíče 'title' (string) a 'script' (string). ${langInstruction} Ensure the response is valid minified JSON. Do not output markdown code blocks.`;
+                     const reqLang = language || promptData.language || "cs";
+                     let targetLang = "Czech";
+                     if (reqLang === "pt-br") targetLang = "Brazilian Portuguese";
+                     else if (reqLang === "sk") targetLang = "Slovak";
+                     else if (reqLang === "en") targetLang = "English";
+                     else if (reqLang === "de") targetLang = "German";
+                     else if (reqLang === "fr") targetLang = "French";
+                     else if (reqLang === "es") targetLang = "Spanish";
+
+                     finalPrompt = `You are Jules, an expert AI educational content creator and senior podcast producer used in the 'AI Sensei' platform. Your goal is to generate comprehensive educational content that includes both a structured text lesson and a scripted podcast series based on a single topic provided by the user: "${promptData.userPrompt}".
+
+### OUTPUT FORMAT & NON-DESTRUCTION CLAUSE
+1. **Strict JSON Only:** You must output ONLY valid JSON. Do not include markdown formatting (like \`\`\`json), introduction text, or concluding remarks.
+2. **Structure Integrity:** Ensure all JSON keys are present even if the content is brief. Never output broken or malformed JSON.
+3. **Safety & content policy:** If the topic is controversial, treat it with academic neutrality. If the topic violates safety policies, return a JSON with an "error" field explaining why, instead of generating harmful content.
+4. **Language:** The content (values) must be in ${targetLang}. Keys must remain in English.
+
+### CONTENT GENERATION RULES
+
+#### A. The Lesson
+Create a structured lesson with:
+- A catchy Title.
+- A brief Introduction.
+- 3 distinct Learning Modules (bullet points or short paragraphs).
+- A "Key Takeaway" summary.
+
+#### B. The Podcast Series (The "Audio Extension")
+Create a series of ${epCount} short podcast episodes related to the lesson.
+- **Format:** A conversation between two hosts: "Alex" (The curious Host) and "Sarah" (The Expert).
+- **Tone:** Engaging, conversational, slightly informal but educational (like a radio show).
+- **Scripting:** Write the FULL dialogue script. Use tags \`[Alex]:\` and \`[Sarah]:\` to indicate speakers.
+- **Series Structure:**
+  - *Episode 1 (The Hook):* Introduction to the topic, why it matters, interesting facts. (Duration goal: ~1 min reading time).
+  - *Episode 2 (The Deep Dive):* Discussing the core concepts from the lesson modules. (Duration goal: ~2-3 mins reading time).
+  - *Episode 3 (The Application):* Real-world examples, summary, and a call to action for students. (Duration goal: ~1 min reading time).
+
+### JSON SCHEMA
+Use exactly this structure:
+{
+  "lesson": {
+    "title": "String",
+    "description": "String",
+    "modules": [
+      { "title": "String", "content": "String" }
+    ],
+    "summary": "String"
+  },
+  "podcast_series": {
+    "title": "String",
+    "host_voice_id": "male_1",
+    "expert_voice_id": "female_1",
+    "episodes": [
+      {
+        "episode_number": 1,
+        "title": "String",
+        "script": "[Alex]: Text... \\n[Sarah]: Text..."
+      }
+    ]
+  }
+}`;
                      break;
-                 case "comic":
-                    // Just rely on global append
-                    break;
+
                 case "flashcards":
-                    // Just rely on global append
+                    const fcCount = promptData.isMagic ? magicFlashcardCount : 10;
+                    finalPrompt = `Vytvoř sadu ${fcCount} studijních kartiček na téma "${promptData.userPrompt}".
+${langInstruction}
+
+FORMAT: JSON
+{
+  "cards": [ ... ] (MANDATORY: Generate exactly ${fcCount} cards. Empty array is a failure.)
+}
+Each card object must have: 'front' (pojem/otázka), 'back' (definice/odpověď).`;
+                    break;
+
+                case "mindmap":
+                    finalPrompt = `Vytvoř mentální mapu na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt obsahující POUZE klíč 'mermaid', jehož hodnotou je validní string pro Mermaid.js diagram (typ 'graph TD'). Nepoužívej markdown bloky. Příklad: { "mermaid": "graph TD\\nA-->B" }. ${langInstruction}`;
+                    break;
+
+                case "comic":
+                    finalPrompt = `Vytvoř scénář pro komiks (4 panely). Odpověď musí být JSON objekt s klíčem 'panels' (pole objektů: panel_number, description, dialogue). ${langInstruction}`;
+                    break;
+
+                case "podcast":
+                case "audio":
+                    finalPrompt = `Vytvoř scénář pro audio podcast na téma "${promptData.userPrompt}".
+${langInstruction}
+
+FORMAT: JSON
+{
+  "script": [ ... ] (MANDATORY: Generate a dialogue script. Empty array is a failure.)
+}
+Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
                     break;
             }
         }
 
-        // Aplikujeme pravidlá LEN pre magické generovanie
+        // Aplikujeme pravidlá LEN pre magické generovanie (Text only here, others handled in switch)
         if (promptData.isMagic) {
             if (contentType === "text" && config.magic_text_rules) {
                 finalPrompt += `\n\n[SYSTEM INSTRUCTION]: ${config.magic_text_rules}`;
-            }
-            else if (contentType === "presentation" && config.magic_presentation_slides) {
-                // Prepíšeme requestedCount na hodnotu z configu
-                const magicSlides = parseInt(config.magic_presentation_slides) || 8;
-                const regex = /s přesně \d+ slidy/;
-                if (regex.test(finalPrompt)) {
-                    finalPrompt = finalPrompt.replace(regex, `s přesně ${magicSlides} slidy`);
-                } else {
-                    finalPrompt += `\n\n[SYSTEM INSTRUCTION]: Vytvoř prezentaci s přesně ${magicSlides} slidy.`;
-                }
-            }
-            else if ((contentType === "quiz" || contentType === "test") && config.magic_test_questions) {
-                 finalPrompt += `\n\n[SYSTEM INSTRUCTION]: Vytvoř přesně ${config.magic_test_questions} otázek.`;
             }
         }
 
@@ -163,9 +963,15 @@ exports.generateContent = onCall({
                 // Ensure filePath is a valid string
                 if (!filePath || typeof filePath !== "string") continue;
 
+                // --- CRITICAL FIX FOR RAG ---
                 // Extract fileId from storage path `courses/{courseId}/media/{fileId}`
-                const fileId = filePath.split("/").pop();
-                if (!fileId) continue;
+                // Previously, we assumed fileId matches docId exactly.
+                // Now, storage path might be `.../docId.pdf`. We need to strip extension to find Firestore doc.
+                let rawFileId = filePath.split("/").pop();
+                if (!rawFileId) continue;
+
+                // Odstránime príponu (napr. .pdf, .txt), aby sme získali čisté ID dokumentu
+                const fileId = rawFileId.includes('.') ? rawFileId.split('.').shift() : rawFileId;
 
                 const chunksSnapshot = await db.collection(`fileMetadata/${fileId}/chunks`).get();
                 chunksSnapshot.forEach((doc: QueryDocumentSnapshot) => {
@@ -177,8 +983,8 @@ exports.generateContent = onCall({
             if (allChunks.length === 0) {
                  logger.warn("[RAG] No chunks found for the provided files. Falling back to non-RAG generation.");
                  return isJson
-                    ? await GeminiAPI.generateJsonFromDocuments(filePaths, finalPrompt)
-                    : { text: await GeminiAPI.generateTextFromDocuments(filePaths, finalPrompt) };
+                    ? await GeminiAPI.generateJsonFromDocuments(filePaths, finalPrompt, systemPrompt)
+                    : { text: await GeminiAPI.generateTextFromDocuments(filePaths, finalPrompt, systemPrompt) };
             }
 
             // 3. Calculate Cosine Similarity and sort
@@ -200,15 +1006,15 @@ exports.generateContent = onCall({
             // Use the standard text/json generation with the new augmented prompt.
             // Note: We don't pass the filePaths to these functions anymore, as the context is in the prompt.
             return isJson
-                ? await GeminiAPI.generateJsonFromPrompt(augmentedPrompt)
-                : { text: await GeminiAPI.generateTextFromPrompt(augmentedPrompt) };
+                ? await GeminiAPI.generateJsonFromPrompt(augmentedPrompt, systemPrompt)
+                : { text: await GeminiAPI.generateTextFromPrompt(augmentedPrompt, systemPrompt) };
 
         } else {
             // Standard non-RAG response
             const GeminiAPI = require("./gemini-api.js");
             return isJson
-                ? await GeminiAPI.generateJsonFromPrompt(finalPrompt)
-                : { text: await GeminiAPI.generateTextFromPrompt(finalPrompt) };
+                ? await GeminiAPI.generateJsonFromPrompt(finalPrompt, systemPrompt)
+                : { text: await GeminiAPI.generateTextFromPrompt(finalPrompt, systemPrompt) };
         }
     } catch (error) {
         logger.error(`Error in generateContent for type ${contentType}:`, error);
@@ -295,12 +1101,18 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
 
         // 2. Extract text from PDF
         logger.log("[RAG] Initializing pdf-parse...");
-        const pdf = require("pdf-parse");
+        const pdf = loadPdfParser();
         logger.log("[RAG] Parsing PDF content...");
         let text = "";
         try {
             const pdfData = await pdf(fileBuffer);
             text = pdfData.text;
+
+            // --- DEBUG LOGGING FOR PDF EXTRACTION ---
+            logger.log(`[RAG] PDF Stats - Pages: ${pdfData.numpages}, Text Length: ${text.length}`);
+            logger.log(`[RAG] Extracted Text Snippet (first 100 chars): "${text.substring(0, 100)}"`);
+            // ----------------------------------------
+
         } catch (pdfError: any) {
             logger.error("[RAG] PDF parsing failed:", pdfError);
             throw new HttpsError("invalid-argument", `Failed to parse PDF file: ${pdfError.message || "Unknown PDF error"}`);
@@ -400,14 +1212,57 @@ exports.getAiAssistantResponse = onCall({
     if (!lessonId || !userQuestion) {
         throw new HttpsError("invalid-argument", "Missing lessonId or userQuestion");
     }
+
+    // 1. Context Awareness: Get User Info
+    const userRole = request.auth?.token.role || "student";
+    const userLanguage = request.data.language || "cs"; // Default to Czech
+
     try {
-        const lessonRef = db.collection("lessons").doc(lessonId);
-        const lessonDoc = await lessonRef.get();
-        if (!lessonDoc.exists) {
-            throw new HttpsError("not-found", "Lesson not found");
+        let prompt;
+        let systemContext = `You are a helpful AI Assistant for the 'AI Sensei' education platform.
+        Current User Role: ${userRole}.
+        Language: ${userLanguage === 'cs' ? 'Czech' : 'English'}.
+        `;
+
+        // Special case for Guide Bot
+        if (lessonId === 'guide-bot') {
+            prompt = `${systemContext}\n\nUser Question: ${userQuestion}`;
+        } else {
+            // 2. Context Awareness: Fetch Latest Lesson Data
+            const lessonRef = db.collection("lessons").doc(lessonId);
+            const lessonDoc = await lessonRef.get();
+
+            if (!lessonDoc.exists) {
+                throw new HttpsError("not-found", "Lesson not found");
+            }
+
+            const lessonData = lessonDoc.data();
+            const lessonTitle = lessonData?.title || "Untitled Lesson";
+
+            // Serialize content efficiently (avoid huge raw dumps if possible, but for now we include core fields)
+            // We include generated content if available
+            const contextData = {
+                title: lessonTitle,
+                topic: lessonData?.topic,
+                text_content: lessonData?.text_content,
+                podcast_script: lessonData?.podcast_script,
+                quiz: lessonData?.quiz,
+                test: lessonData?.test
+            };
+
+            const contextString = JSON.stringify(contextData).substring(0, 20000); // Limit context size
+
+            prompt = `${systemContext}
+
+            CONTEXT (Current Lesson):
+            ${contextString}
+
+            INSTRUCTIONS:
+            Answer the user's question based strictly on the provided lesson context.
+            If the answer is not in the lesson, say you don't know but suggest asking the professor.
+
+            User Question: "${userQuestion}"`;
         }
-        const lessonData = lessonDoc.data();
-        const prompt = `Based on the lesson "${lessonData?.title}", answer the student's question: "${userQuestion}"`;
 
         const GeminiAPI = require("./gemini-api.js");
         const answer = await GeminiAPI.generateTextFromPrompt(prompt);
@@ -496,10 +1351,7 @@ exports.sendMessageToStudent = onCall({ region: DEPLOY_REGION, secrets: ["TELEGR
     }
 });
 
-// ==================================================================
-// =================== ZAČIATOK ÚPRAVY PRE ANALÝZU =====================
-// ==================================================================
-
+// ... (Rest of file unchanged) ...
 exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     try {
         // ... (kód zostáva nezmenený) ...
@@ -512,7 +1364,9 @@ exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: C
         const quizSubmissionCount = quizSnapshot.size;
         let totalQuizScore = 0;
         quizSnapshot.forEach((doc: QueryDocumentSnapshot) => {
-            totalQuizScore += doc.data().score; // score je 0 až 1
+            const data = doc.data();
+            const score = (typeof data.score === "number") ? data.score : 0;
+            totalQuizScore += score; // score je 0 až 1
         });
         const avgQuizScore = quizSubmissionCount > 0 ? (totalQuizScore / quizSubmissionCount) * 100 : 0; // v percentách
 
@@ -521,7 +1375,9 @@ exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: C
         const testSubmissionCount = testSnapshot.size;
         let totalTestScore = 0;
         testSnapshot.forEach((doc: QueryDocumentSnapshot) => {
-            totalTestScore += doc.data().score;
+            const data = doc.data();
+            const score = (typeof data.score === "number") ? data.score : 0;
+            totalTestScore += score;
         });
         const avgTestScore = testSubmissionCount > 0 ? (totalTestScore / testSubmissionCount) * 100 : 0; // v percentách
 
@@ -939,7 +1795,7 @@ exports.joinClass = onCall({ region: DEPLOY_REGION }, async (request: CallableRe
 
 exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, async (request: CallableRequest) => {
     logger.log("registerUserWithRole called", { data: request.data });
-    const { email, password, role } = request.data;
+    const { email, password, role, displayName } = request.data;
 
     // Validate role
     if (role !== "professor" && role !== "student") {
@@ -955,6 +1811,7 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, asy
         const userRecord = await getAuth().createUser({
             email: email,
             password: password,
+            displayName: displayName || ""
         });
         const userId = userRecord.uid;
 
@@ -966,6 +1823,7 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, asy
         await userDocRef.set({
             email: email,
             role: role,
+            name: displayName || "", // Save name to users collection
             createdAt: FieldValue.serverTimestamp(),
         });
 
@@ -976,7 +1834,7 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, asy
                 email: email,
                 role: "student", // Redundant but kept for consistency
                 createdAt: FieldValue.serverTimestamp(),
-                name: "" // Empty name for consistency
+                name: displayName || "" // Save name to students collection
             });
         }
 
@@ -1030,15 +1888,15 @@ exports.admin_setUserRole = onCall({ region: DEPLOY_REGION }, async (request: Ca
     }
 });
 
-exports.onUserCreate = onDocumentCreated({document: "users/{userId}", region: DEPLOY_REGION }, async (event: FirestoreEvent<QueryDocumentSnapshot | undefined>) => {
-    const snapshot = event.data;
-    if (!snapshot) {
+exports.onUserCreate = functions.firestore.document("users/{userId}").onCreate(async (snapshot: any, context: any) => {
+    const data = snapshot.data();
+    if (!data) {
         logger.log("No data associated with the event");
         return;
     }
-    const data = snapshot.data();
+
     const role = data.role || "student"; // Default to 'student' if role is not set
-    const userId = event.params.userId;
+    const userId = context.params.userId;
 
     try {
         // Check if user already has a claim (e.g. set by registerUserWithRole)
@@ -1057,69 +1915,102 @@ exports.onUserCreate = onDocumentCreated({document: "users/{userId}", region: DE
 
 // 1. NOVÁ FUNKCIA: Pripraví nahrávanie a vráti Signed URL
 exports.getSecureUploadUrl = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
-// 1. AUTORIZÁCIA: Povolíme iba profesorom
-if (!request.auth || request.auth.token.role !== "professor") {
-throw new HttpsError("unauthenticated", "Na túto akciu musíte mať rolu profesora.");
-}
+    try {
+        // 1. AUTORIZÁCIA: Povolíme iba profesorom
+        if (!request.auth || request.auth.token.role !== "professor") {
+            throw new HttpsError("unauthenticated", "Na túto akciu musíte mať rolu profesora.");
+        }
 
-const { fileName, contentType, courseId, size } = request.data;
-if (!fileName || !contentType || !courseId) {
-throw new HttpsError("invalid-argument", "Chýbajú povinné údaje (fileName, contentType, courseId).");
-}
+        const { fileName, contentType, courseId, size } = request.data;
+        if (!fileName || !contentType || !courseId) {
+            throw new HttpsError("invalid-argument", "Chýbajú povinné údaje (fileName, contentType, courseId).");
+        }
 
-const userId = request.auth.uid;
-// Použijeme ID z Firestore ako unikátny názov súboru
-const docId = db.collection("fileMetadata").doc().id;
-const filePath = `courses/${courseId}/media/${docId}`;
+        // Define userId from auth context
+        const userId = request.auth.uid;
 
-// 2. Vytvoríme "placeholder" vo Firestore
-try {
-await db.collection("fileMetadata").doc(docId).set({
-ownerId: userId,
-courseId: courseId,
-fileName: fileName,
-contentType: contentType,
-size: size,
-storagePath: filePath, // Uložíme finálnu cestu
-status: "pending_upload", // Zatiaľ čaká na nahratie
-createdAt: FieldValue.serverTimestamp()
-});
-} catch (error) {
-logger.error("Chyba pri vytváraní placeholderu vo Firestore:", error);
-throw new HttpsError("internal", "Nepodarilo sa pripraviť nahrávanie.");
-}
+        // Použijeme ID z Firestore ako unikátny názov súboru
+        const docId = db.collection("fileMetadata").doc().id;
+        
+        // --- OPRAVA: Pridáme príponu k ID ---
+        const extension = fileName.includes('.') ? fileName.split('.').pop() : "";
+        const finalFileName = extension ? `${docId}.${extension}` : docId;
 
-// 3. Generovanie Signed URL
-const storage = getStorage();
-// Použijeme predvolený bucket projektu
-const bucket = storage.bucket(STORAGE_BUCKET);
-const file = bucket.file(filePath);
+        // --- SECURITY FIX: MANDATORY USER ID IN PATH ---
+        // We ignore courseId for the path and enforce request.auth.uid to ensure ownership.
+        const filePath = `courses/${userId}/media/${finalFileName}`;
+        // -----------------------------------------------
 
-const options = {
-version: "v4" as const,
-action: "write" as const,
-expires: Date.now() + 15 * 60 * 1000, // 15 minút platnosť
-contentType: contentType, // Vynútime presný typ obsahu
-metadata: {
-ownerId: userId,
-firestoreDocId: docId
-}
-};
+        // 2. Vytvoríme "placeholder" vo Firestore
+        try {
+            await db.collection("fileMetadata").doc(docId).set({
+                ownerId: userId,
+                courseId: courseId,
+                fileName: fileName,
+                contentType: contentType,
+                size: size || 0, // Default to 0 if undefined to prevent Firestore error
+                storagePath: filePath, // Uložíme finálnu cestu (s príponou)
+                status: "pending_upload", // Zatiaľ čaká na nahratie
+                createdAt: FieldValue.serverTimestamp()
+            });
+        } catch (error) {
+            logger.error("Chyba pri vytváraní placeholderu vo Firestore:", error);
+            throw new HttpsError("internal", "Nepodarilo sa pripraviť nahrávanie.");
+        }
 
-try {
-const [url] = await file.getSignedUrl(options);
-// Vrátime klientovi všetko, čo potrebuje
-return { signedUrl: url, docId: docId, filePath: filePath };
-} catch (error) {
-logger.error("Chyba pri generovaní Signed URL:", error);
-throw new HttpsError("internal", "Nepodarilo sa vygenerovať URL na nahrávanie.");
-}
+        // 3. Generovanie Signed URL
+        const storage = getStorage();
+        // Použijeme predvolený bucket projektu alebo fallback
+        const bucketName = STORAGE_BUCKET || "ai-sensei-czu-pilot.firebasestorage.app";
+        const bucket = storage.bucket(bucketName);
+        const file = bucket.file(filePath);
+
+        let url;
+        // DETECT EMULATOR
+        if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.FIREBASE_STORAGE_EMULATOR_HOST) {
+            // Construct local emulator URL
+            // Default port is 9199.
+            // URL format: http://<host>:<port>/v0/b/<bucket>/o/<encodedPath>?alt=media
+            // But for UPLOAD (PUT), we usually use the same endpoint.
+            const storageHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST || "127.0.0.1:9199";
+            // Use JSON API format for emulator (supports POST)
+            url = `http://${storageHost}/v0/b/${bucketName}/o?name=${encodeURIComponent(filePath)}`;
+            logger.log("Generating Emulator Upload URL:", url);
+        } else {
+            const options = {
+                version: "v4" as const,
+                action: "write" as const,
+                expires: Date.now() + 15 * 60 * 1000, // 15 minút platnosť
+                contentType: contentType, // Vynútime presný typ obsahu
+                metadata: {
+                    ownerId: userId,
+                    firestoreDocId: docId
+                }
+            };
+
+            const [signedUrl] = await file.getSignedUrl(options);
+            url = signedUrl;
+        }
+
+        // Vrátime klientovi všetko, čo potrebuje. Pridame 'uploadUrl' pre konzistenciu s frontendom.
+        return { uploadUrl: url, signedUrl: url, docId: docId, filePath: filePath };
+    } catch (error) {
+        logger.error("Chyba v getSecureUploadUrl:", error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        let message = "An unknown error occurred.";
+        if (error instanceof Error) {
+            message = error.message;
+        }
+        throw new HttpsError("internal", `Nepodarilo sa vygenerovať URL na nahrávanie: ${message}`);
+    }
 });
 
 // 2. NOVÁ FUNKCIA: Finalizuje upload po úspešnom nahratí (S DETAILNÝM LOGOVANÍM)
 exports.finalizeUpload = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     if (!request.auth) {
-        throw new HttpsError("unauthenticated", "Musíte byť prihlásený.");
+        throw new HttpsError("unauthenticated", "Musíte být prihlásený.");
     }
 
     const { docId, filePath } = request.data;
@@ -1320,6 +2211,83 @@ exports.emergency_restoreProfessors = onCall({ region: DEPLOY_REGION }, async (r
 // ==================================================================
 // =================== STUDENT ROLE MIGRATION =======================
 // ==================================================================
+// ==================================================================
+// =================== ADMIN NUKE FUNCTION ==========================
+// ==================================================================
+exports.admin_nuke_all_files = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540, memory: "1GiB" }, async (request: CallableRequest) => {
+    // 1. Authorize: Only the admin can run this
+    if (request.auth?.token.email !== "profesor@profesor.cz") {
+        throw new HttpsError("unauthenticated", "This action requires administrator privileges.");
+    }
+
+    logger.log("WARNING: Nuke initiated by admin. Deleting ALL fileMetadata and Storage files.");
+
+    const fileMetadataCollection = db.collection("fileMetadata");
+    const storage = getStorage();
+    const bucket = storage.bucket(STORAGE_BUCKET);
+
+    let deletedDocs = 0;
+    let deletedFiles = 0;
+    let errors = 0;
+
+    try {
+        // 1. Delete all fileMetadata documents
+        const snapshot = await fileMetadataCollection.get();
+        const batchSize = 400;
+        let batch = db.batch();
+        let operationCounter = 0;
+
+        for (const doc of snapshot.docs) {
+            batch.delete(doc.ref);
+            deletedDocs++;
+            operationCounter++;
+
+            if (operationCounter >= batchSize) {
+                await batch.commit();
+                batch = db.batch();
+                operationCounter = 0;
+            }
+        }
+        if (operationCounter > 0) {
+            await batch.commit();
+        }
+        logger.log(`Deleted ${deletedDocs} fileMetadata documents.`);
+
+        // 2. Delete all files in Storage
+        // WARNING: This deletes everything in the bucket.
+        // We might want to filter by 'courses/' prefix if the bucket is shared?
+        // The requirement says "Delete ALL files in the Storage bucket".
+
+        const [files] = await bucket.getFiles();
+        logger.log(`Found ${files.length} files in storage. Deleting...`);
+
+        // Delete in parallel chunks
+        const chunkSize = 50;
+        for (let i = 0; i < files.length; i += chunkSize) {
+            const chunk = files.slice(i, i + chunkSize);
+            await Promise.all(chunk.map(async (file: any) => {
+                try {
+                    await file.delete();
+                    deletedFiles++;
+                } catch (e) {
+                    logger.warn(`Failed to delete file ${file.name}:`, e);
+                    errors++;
+                }
+            }));
+        }
+        logger.log(`Deleted ${deletedFiles} files from Storage.`);
+
+        return {
+            success: true,
+            message: `Nuke complete. Deleted ${deletedDocs} docs and ${deletedFiles} files. Errors: ${errors}`
+        };
+
+    } catch (error) {
+        logger.error("Critical error during nuke:", error);
+        throw new HttpsError("internal", "Nuke failed.");
+    }
+});
+
 exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     // 1. Authorize: Only the admin can run this
     if (request.auth?.token.email !== "profesor@profesor.cz") {

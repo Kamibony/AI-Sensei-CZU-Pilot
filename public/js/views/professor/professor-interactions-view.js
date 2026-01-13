@@ -3,11 +3,12 @@ import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/li
 import { collection, doc, updateDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../../firebase-init.js';
-import { showToast } from '../../utils.js';
+import { showToast } from '../../utils/utils.js';
+import { Localized } from '../../utils/localization-mixin.js';
 
 let sendMessageToStudentCallable = null;
 
-export class ProfessorInteractionsView extends LitElement {
+export class ProfessorInteractionsView extends Localized(LitElement) {
     static properties = {
         _conversations: { state: true, type: Array },
         _selectedStudentId: { state: true, type: String },
@@ -63,7 +64,7 @@ export class ProfessorInteractionsView extends LitElement {
             this._isLoadingConversations = false;
         }, (error) => {
             console.error("Error fetching conversations:", error);
-            showToast("Nepodařilo se načíst konverzace.", true);
+            showToast(this.t('interactions.load_error_conversations'), true);
             this._isLoadingConversations = false;
         });
     }
@@ -90,7 +91,7 @@ export class ProfessorInteractionsView extends LitElement {
              });
         }, (error) => {
              console.error("Error fetching messages:", error);
-             showToast("Nepodařilo se načíst zprávy.", true);
+             showToast(this.t('interactions.load_error_messages'), true);
              this._isLoadingMessages = false;
         });
     }
@@ -106,7 +107,7 @@ export class ProfessorInteractionsView extends LitElement {
             chatInput.value = '';
         } catch (error) {
             console.error("Error sending message:", error);
-            showToast(`Odeslání selhalo: ${error.message}`, true);
+            showToast(`${this.t('interactions.send_error')}: ${error.message}`, true);
         } finally {
             this._isSending = false;
              setTimeout(() => chatInput?.focus(), 50);
@@ -122,7 +123,7 @@ export class ProfessorInteractionsView extends LitElement {
 
     _handleAiReply() {
         const chatInput = this.querySelector('#chat-input');
-        chatInput.value = "AI návrh: Děkuji za Váš dotaz, podívám se na to a dám Vám vědět.";
+        chatInput.value = this.t('interactions.ai_draft_text');
         chatInput.focus();
     }
 
@@ -175,11 +176,11 @@ export class ProfessorInteractionsView extends LitElement {
                     <div class="flex-grow min-w-0">
                          <p class="font-semibold text-sm text-slate-800 truncate">${conv.studentName}</p>
                          <p class="text-xs ${conv.professorHasUnread && !isSelected ? 'text-green-600 font-bold' : 'text-slate-500'} truncate" title="${conv.lastMessage || ''}">
-                            ${lastMessagePreview || html`<i>Žádné zprávy</i>`}
+                            ${lastMessagePreview || html`<i>${this.t('interactions.no_messages')}</i>`}
                          </p>
                      </div>
                      ${conv.professorHasUnread && !isSelected ? html`
-                        <div class="flex-shrink-0 w-2.5 h-2.5 bg-green-500 rounded-full" title="Nová zpráva"></div>
+                        <div class="flex-shrink-0 w-2.5 h-2.5 bg-green-500 rounded-full" title="${this.t('interactions.new_message')}"></div>
                      ` : ''}
                  </div>
             </div>
@@ -210,7 +211,7 @@ export class ProfessorInteractionsView extends LitElement {
 
     renderChatWindow() {
         if (!this._selectedStudentId) {
-            return html`<div class="flex-grow flex items-center justify-center text-slate-400 p-4 text-center">Vyberte konverzaci ze seznamu vlevo</div>`;
+            return html`<div class="flex-grow flex items-center justify-center text-slate-400 p-4 text-center">${this.t('interactions.select_conversation')}</div>`;
         }
 
         return html`
@@ -218,15 +219,15 @@ export class ProfessorInteractionsView extends LitElement {
                 <h3 class="font-bold text-slate-800">${this._selectedStudentName}</h3>
             </header>
             <div id="messages-container" class="flex-grow p-4 overflow-y-auto space-y-2">
-                ${this._isLoadingMessages ? html`<p class="text-slate-400">Načítám zprávy...</p>` : this._messages.map(msg => this.renderMessage(msg))}
+                ${this._isLoadingMessages ? html`<p class="text-slate-400">${this.t('common.loading')}</p>` : this._messages.map(msg => this.renderMessage(msg))}
             </div>
             <footer class="p-4 bg-white border-t border-slate-200 flex-shrink-0">
                 <div class="relative">
-                    <textarea id="chat-input" placeholder="Napište odpověď..."
+                    <textarea id="chat-input" placeholder="${this.t('interactions.reply_placeholder')}"
                               class="w-full bg-slate-100 border-transparent rounded-lg p-3 pr-28 focus:ring-2 focus:ring-green-500 resize-none" rows="1"
                               @keypress=${this._handleKeyPress} ?disabled=${this._isSending}></textarea>
-                    <button @click=${this._handleAiReply} ?disabled=${this._isSending} class="absolute right-14 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-amber-700 disabled:opacity-50" title="Navrhnout odpověď (AI)">✨</button>
-                    <button @click=${this._handleSend} ?disabled=${this._isSending} class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-green-700 disabled:opacity-50" title="Odeslat">
+                    <button @click=${this._handleAiReply} ?disabled=${this._isSending} class="absolute right-14 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-amber-700 disabled:opacity-50" title="${this.t('interactions.ai_suggestion_btn')}">✨</button>
+                    <button @click=${this._handleSend} ?disabled=${this._isSending} class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-green-700 disabled:opacity-50" title="${this.t('interactions.send_btn')}">
                          ${this._isSending ? html`<div class="spinner-small border-slate-500"></div>` : html`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`}
                     </button>
                 </div>
@@ -239,11 +240,11 @@ export class ProfessorInteractionsView extends LitElement {
         let conversationContent;
 
         if (this._isLoadingConversations) {
-            conversationContent = html`<p class="p-4 text-slate-400">Načítám konverzace...</p>`;
+            conversationContent = html`<p class="p-4 text-slate-400">${this.t('interactions.loading') || this.t('common.loading')}</p>`;
         } else if (this._conversations.length === 0) {
-            conversationContent = html`<p class="p-4 text-slate-400">Zatím zde nejsou žádné konverzace.</p>`;
+            conversationContent = html`<p class="p-4 text-slate-400">${this.t('interactions.no_conversations')}</p>`;
         } else if (filteredConversations.length === 0) {
-             conversationContent = html`<p class="p-4 text-slate-400">Nebyly nalezeny žádné odpovídající konverzace.</p>`;
+             conversationContent = html`<p class="p-4 text-slate-400">${this.t('interactions.no_results')}</p>`;
         } else {
              // === ZMENA: Renderujeme karty ===
             conversationContent = filteredConversations.map(conv => this.renderConversationCard(conv));
@@ -252,9 +253,9 @@ export class ProfessorInteractionsView extends LitElement {
 
         return html`
             <aside class="w-full md:w-1/3 border-r border-slate-200 flex flex-col h-full bg-white"> <header class="p-4 border-b border-slate-200 flex-shrink-0">
-                     <h2 class="font-bold text-slate-800 mb-3">Konverzace</h2>
+                     <h2 class="font-bold text-slate-800 mb-3">${this.t('interactions.title')}</h2>
                      <input type="search"
-                           placeholder="Hledat studenta..."
+                           placeholder="${this.t('interactions.search_placeholder')}"
                            .value=${this._searchTerm}
                            @input=${this._handleSearchInput}
                            class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-transparent"

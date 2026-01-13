@@ -2,15 +2,15 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { auth } from '../../firebase-init.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeCourseMediaUpload } from '../../upload-handler.js';
+import { initializeCourseMediaUpload } from '../../utils/upload-handler.js';
 import * as firebaseInit from '../../firebase-init.js';
 import { storage } from '../../firebase-init.js';
 import { ref, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { collection, query, where, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from '../../utils.js';
-import { translationService } from '../../utils/translation-service.js';
+import { showToast } from '../../utils/utils.js';
+import { Localized } from '../../utils/localization-mixin.js';
 
-export class ProfessorMediaView extends LitElement {
+export class ProfessorMediaView extends Localized(LitElement) {
     static properties = {
         _files: { state: true, type: Array },
         _isLoading: { state: true, type: Boolean },
@@ -39,20 +39,16 @@ export class ProfessorMediaView extends LitElement {
                 unsubscribe();
             } else {
                 console.error('User is not authenticated. Cannot load media files.');
-                this.errorMessage = translationService.t('media.login_required');
+                this.errorMessage = this.t('media.login_required');
                 this._isAuthReady = false;
                 this.loading = false;
                 unsubscribe();
             }
         });
-        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
-        if (this._langUnsubscribe) {
-            this._langUnsubscribe();
-        }
     }
 
     firstUpdated() {
@@ -73,8 +69,8 @@ export class ProfessorMediaView extends LitElement {
             if (user.email === 'profesor@profesor.cz') {
                 filesQuery = query(collection(firebaseInit.db, "fileMetadata"), where("courseId", "==", "main-course"));
             } else {
+                // Fetch ALL files belonging to the user, regardless of courseId
                 filesQuery = query(collection(firebaseInit.db, "fileMetadata"),
-                    where("courseId", "==", "main-course"),
                     where("ownerId", "==", user.uid)
                 );
             }
@@ -85,7 +81,7 @@ export class ProfessorMediaView extends LitElement {
             this._files = files.sort((a, b) => a.name.localeCompare(b.name));
         } catch (error) {
             console.error("Error loading media files from Firestore:", error);
-            showToast(translationService.t('media.fetch_error'), true);
+            showToast(this.t('media.fetch_error'), true);
             this._files = [];
         } finally {
             this._isLoading = false;
@@ -100,7 +96,7 @@ export class ProfessorMediaView extends LitElement {
 
     async _deleteFile(e, file) {
         e.stopPropagation(); // Prevent card click if we add one later
-        if (!confirm(translationService.t('media.delete_confirm', { name: file.name }))) return;
+        if (!confirm(this.t('media.delete_confirm', { name: file.name }))) return;
 
         try {
             const fileRef = ref(storage, file.fullPath);
@@ -115,16 +111,15 @@ export class ProfessorMediaView extends LitElement {
 
         try {
             await deleteDoc(doc(firebaseInit.db, "fileMetadata", file.id));
-            showToast(translationService.t('media.delete_success', { name: file.name }));
+            showToast(this.t('media.delete_success', { name: file.name }));
             this._files = this._files.filter(f => f.id !== file.id);
         } catch (error) {
             console.error("Critical error: Failed to delete file metadata from Firestore:", error);
-            showToast(`${translationService.t('media.delete_error')}: ${error.message}`, true);
+            showToast(`${this.t('media.delete_error')}: ${error.message}`, true);
         }
     }
 
     render() {
-        const t = (key) => translationService.t(key);
         let fileListContent;
         if (this._isLoading) {
             fileListContent = html`
@@ -134,7 +129,7 @@ export class ProfessorMediaView extends LitElement {
         } else if (this._files.length === 0) {
             fileListContent = html`
                 <div class="col-span-full text-center p-8 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
-                    <p class="text-slate-500">${t('media.no_files')}</p>
+                    <p class="text-slate-500">${this.t('media.no_files')}</p>
                 </div>`;
         } else {
             fileListContent = html`
@@ -154,7 +149,7 @@ export class ProfessorMediaView extends LitElement {
                             <!-- Hover Action: Delete -->
                             <button @click=${(e) => this._deleteFile(e, file)}
                                     class="absolute top-2 right-2 p-2 rounded-full bg-white text-slate-400 hover:text-red-600 hover:bg-red-50 shadow-sm border border-slate-100 opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100"
-                                    title="${t('media.delete_tooltip')}">
+                                    title="${this.t('media.delete_tooltip')}">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                             </button>
                         </div>
@@ -166,9 +161,9 @@ export class ProfessorMediaView extends LitElement {
         return html`
             <div class="h-full flex flex-col bg-slate-50">
                 <header class="bg-white p-6 border-b border-slate-200">
-                     <div class="w-full text-center">
-                        <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${t('media.title')}</h1>
-                        <p class="text-slate-500 mt-1 font-medium">${t('media.subtitle')}</p>
+                     <div class="w-full">
+                        <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${this.t('media.title')}</h1>
+                        <p class="text-slate-500 mt-1 font-medium">${this.t('media.subtitle')}</p>
                     </div>
                 </header>
 
@@ -189,8 +184,8 @@ export class ProfessorMediaView extends LitElement {
                                          <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-500"> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path> <polyline points="17 8 12 3 7 8"></polyline> <line x1="12" y1="3" x2="12" y2="15"></line> </svg>
                                      </div>
                                      <div>
-                                         <p class="text-xl font-bold text-slate-700 group-hover:text-indigo-600 transition-colors">${t('media.drag_drop')}</p>
-                                         <p class="text-slate-400 mt-1">${t('media.click_to_select')}</p>
+                                         <p class="text-xl font-bold text-slate-700 group-hover:text-indigo-600 transition-colors">${this.t('media.drag_drop')}</p>
+                                         <p class="text-slate-400 mt-1">${this.t('media.click_to_select')}</p>
                                      </div>
                                      <div class="pt-2">
                                         <span class="px-3 py-1 rounded-full bg-slate-100 text-xs font-medium text-slate-500 border border-slate-200">PDF</span>
@@ -207,7 +202,7 @@ export class ProfessorMediaView extends LitElement {
                         <div>
                              <h2 class="text-xl font-bold text-slate-800 mb-6 flex items-center">
                                 <svg class="w-6 h-6 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                                ${t('media.uploaded_files')} <span class="ml-2 bg-slate-100 text-slate-600 text-sm py-0.5 px-2 rounded-full font-medium">${this._files.length}</span>
+                                ${this.t('media.uploaded_files')} <span class="ml-2 bg-slate-100 text-slate-600 text-sm py-0.5 px-2 rounded-full font-medium">${this._files.length}</span>
                              </h2>
                              <div id="course-media-list-container">
                                 ${fileListContent}

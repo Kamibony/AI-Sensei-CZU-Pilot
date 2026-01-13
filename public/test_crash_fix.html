@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Crash Fix</title>
+    <!-- Tailwind CSS for styling -->
+    <link href="/styles.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-10">
+    <h1 class="text-2xl font-bold mb-4">Test Crash Fix: Object in text_content</h1>
+    <div id="container" class="h-[800px] border border-gray-400">
+        <editor-view-text id="editor"></editor-view-text>
+    </div>
+
+    <script type="module">
+        import { EditorViewText } from '/js/views/professor/editor/editor-view-text.js';
+
+        // Mock localization if needed, though the mixin should handle missing keys gracefully or we might need to mock it better if it fails.
+        // Assuming the mixin works if loaded.
+
+        const editor = document.getElementById('editor');
+
+        // SIMULATE THE BUG: text_content is an object!
+        // The fix should detect this and extract "I am an object..."
+        const badLesson = {
+            id: 'test-lesson',
+            text_content: { content: "Success! The object was sanitized." },
+            title: "Test Lesson",
+            topic: "Test Topic",
+            subject: "Test Subject"
+        };
+
+        // We need to wait for custom element to upgrade?
+        customElements.whenDefined('editor-view-text').then(() => {
+            console.log("Element defined");
+            editor.lesson = badLesson;
+            editor.isSaving = false;
+        });
+
+    </script>
+</body>
+</html>

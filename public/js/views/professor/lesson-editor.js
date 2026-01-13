@@ -1,1059 +1,1566 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { showToast } from '../../utils.js';
-import { loadSelectedFiles, renderSelectedFiles, initializeCourseMediaUpload, getSelectedFiles, renderMediaLibraryFiles } from '../../upload-handler.js';
-import { callGenerateContent } from '../../gemini-api.js';
-import { doc, updateDoc, serverTimestamp, addDoc, collection, getDocs, query, where, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as firebaseInit from '../../firebase-init.js';
-import { StudentLessonDetail } from '../../student/student-lesson-detail.js';
+import { BaseView } from './base-view.js';
+import { doc, getDoc, updateDoc, setDoc, arrayUnion, arrayRemove, collection, getDocs, where, query, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { ref, getDownloadURL, uploadString } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { db, auth, functions, storage } from '../../firebase-init.js';
+import { showToast } from '../../utils/utils.js';
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { translationService } from '../../utils/translation-service.js';
+import { callGenerateContent, callGenerateImage } from '../../gemini-api.js';
+
+// Imports of all editors
 import './editor/editor-view-text.js';
 import './editor/editor-view-presentation.js';
-import './editor/editor-view-video.js';
 import './editor/editor-view-quiz.js';
 import './editor/editor-view-test.js';
 import './editor/editor-view-post.js';
+import './editor/editor-view-ai.js';
+import './editor/editor-view-video.js';
 import './editor/editor-view-comic.js';
 import './editor/editor-view-flashcards.js';
 import './editor/editor-view-mindmap.js';
+import './editor/editor-view-audio.js';
+import './editor/ai-generator-panel.js';
+import './editor/professor-header-editor.js';
 
-export class LessonEditor extends LitElement {
-    static properties = {
-        lesson: { type: Object },
-        _currentStep: { state: true, type: Number },
-        _selectedContentType: { state: true, type: String },
-        _isLoading: { state: true, type: Boolean },
-        _magicLog: { state: true, type: Array },
-        _viewMode: { state: true, type: String },
-        _groups: { state: true, type: Array },
-        _showStudentPreview: { state: true, type: Boolean },
-        _showSuccessModal: { state: true, type: Boolean },
+import { processFileForRAG, uploadMultipleFiles, uploadSingleFile, renderMediaLibraryFiles, getSelectedFiles, clearSelectedFiles } from '../../utils/upload-handler.js';
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// --- HELPER: Deep Sanitize for Firestore ---
+function deepSanitize(obj) {
+    if (obj === undefined) return null;
+    if (obj === null || typeof obj !== 'object') return obj;
+
+    if (Array.isArray(obj)) {
+        return obj.map(deepSanitize);
+    }
+
+    const newObj = {};
+    for (const key in obj) {
+        const val = deepSanitize(obj[key]);
+        if (val !== undefined) {
+            newObj[key] = val;
+        }
+    }
+    return newObj;
+}
+
+// --- HELPER: Retry Logic for AI calls ---
+async function callWithRetry(fn, args = [], retries = 3, delayTime = 2000) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn(...args);
+        } catch (error) {
+            if (error.message && (error.message.includes('INVALID_ARGUMENT') || error.message.includes('safety'))) {
+                throw error;
+            }
+            
+            console.warn(`Attempt ${i + 1} failed:`, error);
+            if (i === retries - 1) throw error;
+            await delay(delayTime);
+        }
+    }
+}
+
+export class LessonEditor extends BaseView {
+  static properties = {
+    lesson: { type: Object },
+    isSaving: { type: Boolean },
+    _isLoading: { state: true, type: Boolean },
+    _selectedClassIds: { state: true, type: Array },
+    _availableClasses: { state: true, type: Array },
+    _availableSubjects: { state: true, type: Array },
+    _showDeleteConfirm: { state: true, type: Boolean },
+    _uploading: { state: true },
+    _processingRAG: { state: true },
+    _uploadedFiles: { state: true, type: Array },
+    _wizardMode: { state: true, type: Boolean },
+    _activeTool: { state: true, type: String },
+    _isGenerating: { state: true, type: Boolean },
+    _magicStatus: { state: true, type: String },
+    _longLoading: { state: true, type: Boolean }
+  };
+
+  constructor() {
+    super();
+    this.lesson = null;
+    this.isSaving = false;
+    this._isLoading = false;
+    this._selectedClassIds = [];
+    this._availableClasses = [];
+    this._availableSubjects = [];
+    this._showDeleteConfirm = false;
+    this._uploading = false;
+    this._processingRAG = false;
+    this._uploadedFiles = [];
+    this._unsubscribe = null;
+    this._authUnsubscribe = null;
+    this._magicUnsubscribe = null;
+    this._wizardMode = true;
+    this._activeTool = null;
+    this._isGenerating = false;
+    this._magicStatus = '';
+    this._loadingTimeout = null;
+    this._pendingUpdates = {};
+    this._saveTimeout = null;
+  }
+
+  // --- NOVÁ OCHRANA (Fix pre miznutie obsahu) ---
+  willUpdate(changedProperties) {
+      if (changedProperties.has('lesson')) {
+          const oldLesson = changedProperties.get('lesson');
+          const incomingLesson = this.lesson;
+
+          if (oldLesson && incomingLesson) {
+              // 1. Skontrolujeme, či my máme obsah
+              const localHasContent = (
+                  (oldLesson.podcast_script && oldLesson.podcast_script.length > 0) ||
+                  (oldLesson.comic_script && oldLesson.comic_script.length > 0) ||
+                  (oldLesson.test && oldLesson.test.length > 0)
+              );
+
+              // 2. Skontrolujeme, či rodič (aplikácia) posiela prázdne dáta
+              const incomingIsEmpty = (
+                  (!incomingLesson.podcast_script || incomingLesson.podcast_script.length === 0) &&
+                  (!incomingLesson.comic_script || incomingLesson.comic_script.length === 0) &&
+                  (!incomingLesson.test || incomingLesson.test.length === 0)
+              );
+
+              // 3. Ak áno, zablokujeme prepísanie a vrátime náš obsah
+              if (localHasContent && incomingIsEmpty) {
+                  console.warn("[LessonEditor] 🛡️ PARENT GUARD: Ignorujem prázdny update od rodiča.");
+                  
+                  this.lesson = {
+                      ...incomingLesson, // Nové metadata (napr. ID)
+                      ...oldLesson,      // Ale starý obsah
+                      // Explicitne vrátime kľúčové polia
+                      podcast_script: oldLesson.podcast_script,
+                      comic_script: oldLesson.comic_script,
+                      test: oldLesson.test,
+                      quiz: oldLesson.quiz,
+                      flashcards: oldLesson.flashcards,
+                      presentation: oldLesson.presentation,
+                      mindmap: oldLesson.mindmap,
+                      social_post: oldLesson.social_post,
+                      text_content: oldLesson.text_content,
+                      content: oldLesson.content
+                  };
+              }
+          }
+      }
+      super.willUpdate(changedProperties);
+  }
+
+  updated(changedProperties) {
+    if (this.lesson && this._loadingTimeout) {
+        clearTimeout(this._loadingTimeout);
+        this._loadingTimeout = null;
+    }
+
+    if (changedProperties.has('lesson')) {
+        const oldLesson = changedProperties.get('lesson');
+        const newLesson = this.lesson;
+
+        if (this.lesson) {
+            this._longLoading = false;
+            if (this._loadingTimeout) {
+                clearTimeout(this._loadingTimeout);
+                this._loadingTimeout = null;
+            }
+        }
+
+        if (newLesson && newLesson.id) {
+            this._selectedClassIds = newLesson.assignedToGroups || [];
+            this._uploadedFiles = newLesson.files || [];
+
+            const wasDraft = oldLesson && !oldLesson.id;
+            const isSameLesson = oldLesson && newLesson && oldLesson.id === newLesson.id;
+
+            if (!wasDraft && !isSameLesson) {
+                this._wizardMode = false;
+            }
+        } else {
+            const isForceReset = newLesson && newLesson._forceReset;
+            const isIntentOrEmpty = !newLesson || !newLesson.createdAt;
+
+            if (isForceReset || isIntentOrEmpty) {
+                this._selectedClassIds = [];
+                this._uploadedFiles = [];
+                this._initNewLesson();
+            }
+        }
+
+        if (this.lesson && this.lesson.magicStatus === 'generating') {
+            this._startMagicListener();
+        }
+    }
+  }
+
+  async connectedCallback() {
+      super.connectedCallback();
+      this.addEventListener('lesson-updated', this._handleLessonUpdatedEvent);
+      this.addEventListener('publish-changed', this._handlePublishChanged);
+      this._unsubscribe = translationService.subscribe(() => this.requestUpdate());
+
+      this._authUnsubscribe = auth.onAuthStateChanged(async (user) => {
+          if (user) {
+              await Promise.all([
+                  this._fetchAvailableClasses(),
+                  this._fetchAvailableSubjects()
+              ]);
+          } else {
+             this._availableClasses = [];
+             this._availableSubjects = [];
+          }
+      });
+
+      // Safety guard: if lesson is not initialized within 3s, force a new draft
+      this._loadingTimeout = setTimeout(() => {
+          if (!this.lesson) {
+              console.warn("Lesson initialization timed out, forcing draft mode.");
+              this._initNewLesson();
+          }
+      }, 3000);
+
+      if (!this.lesson) {
+          this._initNewLesson();
+      } else if (this.lesson.id) {
+          this._wizardMode = false;
+      }
+  }
+
+  disconnectedCallback() {
+      super.disconnectedCallback();
+      this.removeEventListener('lesson-updated', this._handleLessonUpdatedEvent);
+      this.removeEventListener('publish-changed', this._handlePublishChanged);
+      if (this._unsubscribe) this._unsubscribe();
+      if (this._authUnsubscribe) this._authUnsubscribe();
+      if (this._magicUnsubscribe) this._magicUnsubscribe();
+      if (this._loadingTimeout) clearTimeout(this._loadingTimeout);
+  }
+
+  _handleLessonUpdatedEvent(e) {
+      if (e.detail) {
+          let updates = e.detail;
+          if (e.detail.partial) {
+              updates = e.detail.partial;
+          }
+
+          // VERIFICATION LOGGING for State Integrity
+          const previousKeys = this.lesson ? Object.keys(this.lesson) : "null";
+          const incomingKeys = updates ? Object.keys(updates) : "null";
+          console.log("[State Merge] Previous Keys:", previousKeys, "Incoming Keys:", incomingKeys);
+
+          // ARCHITECTURAL FIX: Deep Clone & Safe Merge
+          let safeCurrentState = {};
+          try {
+              if (this.lesson) {
+                   // CRITICAL: Deep clone to detach from Proxy
+                  safeCurrentState = JSON.parse(JSON.stringify(this.lesson));
+              } else {
+                  safeCurrentState = {
+                      title: '',
+                      content: { blocks: [] },
+                      files: [],
+                      assignedToGroups: [],
+                  };
+              }
+          } catch (err) {
+              console.error("[State Merge] Clone failed, falling back to shallow copy", err);
+              safeCurrentState = this.lesson ? { ...this.lesson } : {};
+          }
+
+          // 2. Perform Merge on POJO
+          const nextState = { ...safeCurrentState, ...updates };
+
+          // 3. Integrity Guard Clauses (Ochrana kľúčov)
+          const criticalKeys = [
+              'id', 'content', 'files', 'assignedToGroups', 'ownerId', 'createdAt',
+              'podcast_script', 'comic_script', 'test', 'quiz', 'flashcards', 'mindmap', 
+              'social_post', 'slides', 'presentation', 'text_content'
+          ];
+          
+          criticalKeys.forEach(key => {
+              if (safeCurrentState[key] !== undefined && nextState[key] === undefined) {
+                  console.warn(`[State Merge] Guard: Restoring missing key '${key}' from previous state.`);
+                  nextState[key] = safeCurrentState[key];
+              }
+          });
+
+          // 4. Update Component State
+          this.lesson = nextState;
+          this.requestUpdate();
+
+          // 5. Accumulate Patch & Save
+          this._pendingUpdates = { ...this._pendingUpdates, ...updates };
+          this._debouncedSave();
+      }
+  }
+
+  _debouncedSave() {
+      if (this._saveTimeout) clearTimeout(this._saveTimeout);
+
+      this.isSaving = true; // Show "Saving..." immediately
+      this.requestUpdate();
+
+      this._saveTimeout = setTimeout(async () => {
+          if (Object.keys(this._pendingUpdates).length === 0) {
+               this.isSaving = false;
+               this.requestUpdate();
+               return;
+          }
+
+          const updatesToCommit = { ...this._pendingUpdates };
+          this._pendingUpdates = {}; // Clear pending queue
+
+          try {
+              if (!this.lesson.id) {
+                   console.warn("Attempting patch on unsaved lesson. Skipping.");
+                   return;
+              }
+
+              // Add timestamp
+              updatesToCommit.updatedAt = new Date().toISOString();
+
+              console.log("Auto-saving patch:", updatesToCommit); // VERIFICATION LOG
+
+              const lessonRef = doc(db, 'lessons', this.lesson.id);
+              await updateDoc(lessonRef, updatesToCommit);
+
+              // If no new updates arrived during save, stop spinner
+              if (Object.keys(this._pendingUpdates).length === 0) {
+                  this.isSaving = false;
+              }
+              this.requestUpdate();
+
+          } catch (error) {
+              console.error("Auto-save failed", error);
+              this.isSaving = false;
+              this.requestUpdate();
+              // Restore pending updates to retry next time
+              this._pendingUpdates = { ...updatesToCommit, ...this._pendingUpdates };
+              showToast(translationService.t('common.error'), true);
+          }
+      }, 2000); // 2 second debounce
+  }
+
+  _handlePublishChanged(e) {
+      const isPublished = e.detail.isPublished;
+      const status = isPublished ? 'published' : 'draft';
+
+      console.log(`[LessonEditor] Toggle Publish: ${isPublished} -> Status: ${status}. Triggering save.`);
+
+      const updates = {
+          isPublished: isPublished,
+          status: status
+      };
+
+      // 1. Update Local State
+      this.lesson = {
+          ...this.lesson,
+          ...updates
+      };
+      this.requestUpdate();
+
+      // 2. Queue for Persistence
+      this._pendingUpdates = {
+          ...this._pendingUpdates,
+          ...updates
+      };
+
+      // 3. Force Persistence
+      this._debouncedSave();
+  }
+
+  _initNewLesson() {
+      const intent = this.lesson?.intent || null;
+
+      // Check for global files from Dashboard upload
+      const globalFiles = getSelectedFiles();
+      let initialFiles = [];
+
+      if (globalFiles && globalFiles.length > 0) {
+          initialFiles = globalFiles.map(f => ({
+              id: f.id || 'unknown',
+              name: f.name,
+              url: '',
+              storagePath: f.fullPath,
+              uploadedAt: new Date().toISOString()
+          }));
+          // Clear global files so they don't duplicate if called again
+          clearSelectedFiles();
+      }
+
+      this.lesson = {
+          title: '',
+          subject: '',
+          topic: '',
+          contentType: 'text',
+          content: { blocks: [] },
+          assignedToGroups: [],
+          status: 'draft',
+          isPublished: false,
+          files: initialFiles,
+          createdAt: new Date().toISOString(),
+          intent: intent || null
+      };
+
+      this._uploadedFiles = initialFiles;
+      this._wizardMode = true;
+      this._activeTool = null;
+      this.requestUpdate();
+
+      if (initialFiles.length > 0) {
+          showToast(translationService.t('professor.editor.library_files_added', { count: initialFiles.length }));
+      }
+  }
+
+  async _fetchAvailableClasses() {
+      try {
+          const user = auth.currentUser;
+          if (!user) return;
+
+          const q = query(collection(db, 'groups'), where('ownerId', '==', user.uid));
+          const querySnapshot = await getDocs(q);
+          this._availableClasses = querySnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+          }));
+      } catch (error) {
+          console.error("Error fetching classes:", error);
+          showToast(translationService.t('professor.error_create_class'), true);
+      }
+  }
+
+  async _fetchAvailableSubjects() {
+      try {
+          const user = auth.currentUser;
+          if (!user) return;
+
+          const q = query(collection(db, 'lessons'), where('ownerId', '==', user.uid));
+          const querySnapshot = await getDocs(q);
+          const subjects = new Set();
+          querySnapshot.docs.forEach(doc => {
+              const data = doc.data();
+              if (data.subject) subjects.add(data.subject);
+          });
+          this._availableSubjects = Array.from(subjects).sort();
+      } catch (e) {
+          console.error("Error fetching subjects", e);
+      }
+  }
+
+  async _handleSave() {
+    if (!this.lesson.title) {
+        if (this._wizardMode) return;
+        this.lesson.title = translationService.t('lesson.new');
+    }
+
+    this.isSaving = true;
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error(translationService.t('media.login_required'));
+
+      let lessonData = {
+        ...this.lesson,
+        assignedToGroups: this._selectedClassIds,
+        files: this._uploadedFiles,
+        updatedAt: new Date().toISOString(),
+        ownerId: user.uid,
+        intent: this.lesson.intent || null
+      };
+
+      lessonData = deepSanitize(lessonData);
+
+      if (!lessonData.id) {
+          lessonData.createdAt = new Date().toISOString();
+          const newDocRef = doc(collection(db, 'lessons'));
+          lessonData.id = newDocRef.id;
+          await setDoc(newDocRef, lessonData);
+          this.lesson = lessonData;
+          showToast(translationService.t('common.saved'));
+
+          this.dispatchEvent(new CustomEvent('lesson-updated', {
+              detail: this.lesson,
+              bubbles: true,
+              composed: true
+          }));
+
+      } else {
+          const lessonRef = doc(db, 'lessons', this.lesson.id);
+          await updateDoc(lessonRef, lessonData);
+          showToast(translationService.t('common.saved'));
+          this.dispatchEvent(new CustomEvent('lesson-updated', {
+              detail: this.lesson,
+              bubbles: true,
+              composed: true
+          }));
+      }
+
+    } catch (error) {
+      console.error('Error saving lesson:', error);
+      showToast(translationService.t('common.error'), true);
+      throw error;
+    } finally {
+      this.isSaving = false;
+    }
+  }
+
+  _handleBackToHub() {
+      this._activeTool = null;
+      this.requestUpdate();
+  }
+
+  _handleBackClick() {
+      if (this._activeTool) {
+          this._handleBackToHub();
+          return;
+      }
+      if (this._wizardMode) {
+          this.dispatchEvent(new CustomEvent('navigate', {
+              detail: { view: 'dashboard' },
+              bubbles: true,
+              composed: true
+          }));
+          return;
+      }
+      this.dispatchEvent(new CustomEvent('editor-exit', {
+          detail: { view: 'library' },
+          bubbles: true,
+          composed: true
+      }));
+  }
+
+  _handleClassToggle(classId) {
+      if (this._selectedClassIds.includes(classId)) {
+          this._selectedClassIds = this._selectedClassIds.filter(id => id !== classId);
+      } else {
+          this._selectedClassIds = [...this._selectedClassIds, classId];
+      }
+      if (this.lesson) {
+          this.lesson = { ...this.lesson, assignedToGroups: this._selectedClassIds };
+      }
+      this.requestUpdate();
+      if(this.lesson.title && !this._wizardMode) this._handleSave();
+  }
+
+  async _handleFilesSelected(e) {
+      const allFiles = Array.from(e.target.files);
+      if (allFiles.length === 0) return;
+
+      const files = allFiles.filter(f => f.name.toLowerCase().endsWith('.pdf'));
+      if (files.length !== allFiles.length) {
+          showToast(translationService.t('professor.editor.pdf_only') || 'Only PDF files are allowed.', true);
+      }
+      if (files.length === 0) {
+          e.target.value = '';
+          return;
+      }
+
+      if (!this.lesson.title) {
+          showToast(translationService.t('professor.editor.title_required'), true);
+          e.target.value = '';
+          return;
+      }
+
+      if (!this.lesson.id) {
+          showToast(translationService.t('lesson.draft_creating'), false);
+          try {
+              await this._handleSave();
+          } catch (err) {
+              console.error("Auto-save failed before upload", err);
+              e.target.value = '';
+              return;
+          }
+      }
+
+      this._uploading = true;
+      try {
+          const user = auth.currentUser;
+          if (!user) throw new Error(translationService.t('media.login_required'));
+
+          const courseId = user.uid;
+
+          const uploadResult = await uploadMultipleFiles(files, courseId, (progress) => {
+              console.log('Upload progress:', progress);
+          });
+
+          const newFiles = uploadResult.successful.map(f => ({
+              id: f.fileId,
+              name: f.fileName,
+              url: f.url,
+              storagePath: f.storagePath,
+              uploadedAt: new Date().toISOString()
+          }));
+
+          this._uploadedFiles = [...this._uploadedFiles, ...newFiles];
+          this.lesson = { ...this.lesson, files: this._uploadedFiles };
+          if(this.lesson.title) await this._handleSave();
+
+          this._processingRAG = true;
+          for (const file of newFiles) {
+              if (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.txt') || file.name.toLowerCase().endsWith('.docx')) {
+                  try {
+                        await processFileForRAG(file.id);
+                        showToast(`${translationService.t('common.success')}: ${file.name}`);
+                  } catch (err) {
+                      console.error("RAG processing failed for", file.name, err);
+                      showToast(`${translationService.t('lesson.upload_ai_failed_specific', { filename: file.name })}`, true);
+                  }
+              }
+          }
+
+      } catch (error) {
+          console.error("Upload error:", error);
+          showToast(translationService.t('lesson.upload_error'), true);
+      } finally {
+          this._uploading = false;
+          this._processingRAG = false;
+          e.target.value = '';
+      }
+  }
+
+  async _handleDeleteFile(fileIndex) {
+      this._uploadedFiles = this._uploadedFiles.filter((_, i) => i !== fileIndex);
+      this.lesson = { ...this.lesson, files: this._uploadedFiles };
+      if(this.lesson.title) await this._handleSave();
+  }
+
+  _handleOpenLibrary() {
+      const modal = document.getElementById('media-library-modal');
+      if (!modal) return;
+
+      const user = auth.currentUser;
+      const courseId = user ? user.uid : null;
+      clearSelectedFiles();
+      // Pass user.uid, but the handler logic will be updated to fetch all user files
+      renderMediaLibraryFiles(courseId, "modal-media-list");
+      modal.classList.remove('hidden');
+
+      const close = () => { modal.classList.add('hidden'); cleanup(); };
+
+      const confirm = async () => {
+          const selected = getSelectedFiles();
+          if (selected.length > 0) {
+               const newFiles = selected.map(f => ({
+                   id: f.id || 'unknown',
+                   name: f.name,
+                   url: '',
+                   storagePath: f.fullPath,
+                   uploadedAt: new Date().toISOString()
+               }));
+
+               const currentPaths = this._uploadedFiles.map(f => f.storagePath);
+               const uniqueNewFiles = newFiles.filter(f => !currentPaths.includes(f.storagePath));
+
+               if (uniqueNewFiles.length > 0) {
+                   this._uploadedFiles = [...this._uploadedFiles, ...uniqueNewFiles];
+                   this.lesson = { ...this.lesson, files: this._uploadedFiles };
+                   if(this.lesson.title) await this._handleSave();
+                   showToast(translationService.t('professor.editor.library_files_added', { count: uniqueNewFiles.length }));
+               }
+          }
+          close();
+      };
+
+      const cleanup = () => {
+           document.getElementById('modal-confirm-btn')?.removeEventListener('click', confirm);
+           document.getElementById('modal-cancel-btn')?.removeEventListener('click', close);
+           document.getElementById('modal-close-btn')?.removeEventListener('click', close);
+      }
+
+      const confirmBtn = document.getElementById('modal-confirm-btn');
+      if(confirmBtn) {
+          const newBtn = confirmBtn.cloneNode(true);
+          confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+          newBtn.addEventListener('click', confirm);
+      }
+      const cancelBtn = document.getElementById('modal-cancel-btn');
+      if(cancelBtn) cancelBtn.addEventListener('click', close);
+      const closeBtn = document.getElementById('modal-close-btn');
+      if(closeBtn) closeBtn.addEventListener('click', close);
+  }
+
+  async _uploadBase64Image(base64Data, path) {
+    const storageRef = ref(storage, path);
+    const metadata = {
+        contentType: 'image/png',
+        customMetadata: {
+            'ownerId': auth.currentUser.uid,
+            'generatedBy': 'AI_Sensei'
+        }
     };
-
-    constructor() {
-        super();
-        this.lesson = null;
-        this._currentStep = 1;
-        this._selectedContentType = null;
-        this._isLoading = false;
-        this._magicLog = [];
-        this._viewMode = 'settings'; // Default to settings (creation mode) for new lessons
-        this._groups = [];
-        this._showStudentPreview = false;
-        this._showSuccessModal = false;
-    }
-
-    get steps() {
-        return [
-            { label: translationService.t('editor.step_basics'), icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-            { label: translationService.t('editor.step_content'), icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' },
-            { label: translationService.t('editor.step_done'), icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' }
-        ];
-    }
-
-    get contentTypes() {
-        return [
-            { id: 'text', label: translationService.t('content_types.text'), icon: '✍️', description: translationService.t('content_types.text_desc') },
-            { id: 'presentation', label: translationService.t('content_types.presentation'), icon: '🖼️', description: translationService.t('content_types.presentation_desc') },
-            { id: 'video', label: translationService.t('content_types.video'), icon: '▶️', description: translationService.t('content_types.video_desc') },
-            { id: 'quiz', label: translationService.t('content_types.quiz'), icon: '❓', description: translationService.t('content_types.quiz_desc') },
-            { id: 'test', label: translationService.t('content_types.test'), icon: '✅', description: translationService.t('content_types.test_desc') },
-            { id: 'post', label: translationService.t('content_types.audio'), icon: '🎙️', description: translationService.t('content_types.audio_desc') },
-            { id: 'comic', label: translationService.t('content_types.comic'), icon: '🎨', description: translationService.t('content_types.comic_desc') },
-            { id: 'flashcards', label: translationService.t('content_types.flashcards'), icon: '🗂️', description: translationService.t('content_types.flashcards_desc') },
-            { id: 'mindmap', label: translationService.t('content_types.mindmap'), icon: '🧠', description: translationService.t('content_types.mindmap_desc') }
-        ];
-    }
-
-    createRenderRoot() { return this; }
-
-    connectedCallback() {
-        super.connectedCallback();
-        // Subscribe to language changes
-        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
-
-        loadSelectedFiles(this.lesson?.ragFilePaths || []);
-        this._fetchGroups();
-
-        // Check URL params to restore state
-        const params = new URLSearchParams(window.location.search);
-        const viewMode = params.get('viewMode');
-        const contentType = params.get('contentType');
-
-        if (viewMode) {
-            this._viewMode = viewMode;
-            if (viewMode === 'editor' && contentType) {
-                this._selectedContentType = contentType;
-            } else if (viewMode === 'hub') {
-                this._selectedContentType = null;
-            }
-        }
-    }
-
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        if (this._langUnsubscribe) {
-            this._langUnsubscribe();
-        }
-    }
-
-    willUpdate(changedProperties) {
-        if (changedProperties.has('lesson')) {
-            const oldLesson = changedProperties.get('lesson');
-            const newLesson = this.lesson;
-
-            // FIX 1: Stop View Resets
-            // Only reset state if we switched to a COMPLETELY DIFFERENT lesson ID.
-            // Transitions from "Draft" (no ID) to "Saved" (ID) should PRESERVE state to avoid jumping.
-            // Updates to the same lesson ID should PRESERVE state.
-
-            const isFirstLoad = !oldLesson;
-            const isDifferentLessonId = oldLesson?.id && newLesson?.id && oldLesson.id !== newLesson.id;
-            const isNavigationToDraft = oldLesson?.id && !newLesson?.id;
-
-            if (isFirstLoad || isDifferentLessonId || isNavigationToDraft) {
-                 loadSelectedFiles(newLesson?.ragFilePaths || []);
-                 this._currentStep = 1;
-
-                 // Hub Logic: Existing ID -> Hub, No ID -> Settings
-                 if (newLesson?.id) {
-                     this._viewMode = 'hub';
-                     this._selectedContentType = null;
-                 } else {
-                     this._viewMode = 'settings';
-                     this._selectedContentType = 'text';
-                 }
-            } else {
-                // Same lesson or Draft->Saved transition. Preserve View Mode.
-                // But update files if they changed (e.g. upload complete)
-                if (JSON.stringify(oldLesson?.ragFilePaths) !== JSON.stringify(newLesson?.ragFilePaths)) {
-
-                     // Safeguard: Check global state before wiping
-                     const currentGlobalFiles = getSelectedFiles();
-                     const newFiles = newLesson?.ragFilePaths || [];
-
-                     // If we are about to wipe files (newFiles is empty) but we have files in global state,
-                     // and it's the same lesson context, assume it's a state glitch and PROTECT the files.
-                     if (newFiles.length === 0 && currentGlobalFiles.length > 0) {
-                          console.warn("LessonEditor: Safeguard triggered! Preventing file wipe in willUpdate.", {
-                              global: currentGlobalFiles,
-                              new: newFiles
-                          });
-                          // Do NOT wipe global state
-                     } else {
-                          console.log("LessonEditor: Syncing files from lesson state to global:", newFiles);
-                          loadSelectedFiles(newFiles);
-                     }
-                }
-            }
-        }
-    }
-
-
-    async _fetchGroups() {
-        const currentUser = firebaseInit.auth.currentUser;
-        if (!currentUser) return;
-
-        try {
-            const groupsQuery = query(
-                collection(firebaseInit.db, "groups"),
-                where("ownerId", "==", currentUser.uid)
-            );
-            const querySnapshot = await getDocs(groupsQuery);
-            this._groups = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        } catch (error) {
-            console.error("Error fetching groups:", error);
-            showToast(translationService.t('common.error'), true);
-        }
-    }
-
-    _updateUrlParams() {
-        const url = new URL(window.location);
-        url.searchParams.set('viewMode', this._viewMode);
-
-        if (this._selectedContentType) {
-            url.searchParams.set('contentType', this._selectedContentType);
-        } else {
-            url.searchParams.delete('contentType');
-        }
-
-        // Only push if changed
-        if (window.location.search !== url.search) {
-            window.history.pushState({}, '', url);
-        }
-    }
-
-    updated(changedProperties) {
-        // Only re-initialize upload if we specifically switched TO Step 1
-        if (changedProperties.has('_currentStep') && this._currentStep === 1) {
-            setTimeout(() => {
-                initializeCourseMediaUpload('main-course', () => {
-                     const currentFiles = getSelectedFiles();
-                     this.lesson = { ...this.lesson, ragFilePaths: currentFiles };
-                     renderSelectedFiles('course-media-list-container');
-                }, this.renderRoot);
-                renderSelectedFiles('course-media-list-container');
-            }, 0);
-        }
-    }
-
-    _handleLessonUpdate(e) {
-        this.lesson = { ...this.lesson, ...e.detail };
-        this.requestUpdate();
-        this.dispatchEvent(new CustomEvent('lesson-updated', {
-            detail: this.lesson, bubbles: true, composed: true
-        }));
-    }
-
-    _switchToHub() {
-         console.log("LessonEditor: Switching to Hub. Current viewMode:", this._viewMode);
-         // Validate Step 1 if coming from settings
-         if (this._viewMode === 'settings') {
-             const titleInput = this.renderRoot.querySelector('#lesson-title-input');
-             // Only block if trying to leave empty title on NEW lesson
-             if ((!titleInput || !titleInput.value.trim()) && !this.lesson?.title) {
-                 showToast(translationService.t('lesson.toast_title_required'), true);
-                 if(titleInput) titleInput.focus();
-                 return;
-             }
-             // Save basic info to local state
-             const details = this._getDetails();
-             console.log("LessonEditor: Captured details before switch:", details);
-             this.lesson = { ...this.lesson, ...details };
-         }
-         this._viewMode = 'hub';
-         this._selectedContentType = null;
-         this._updateUrlParams();
-    }
-
-    _switchToSettings() {
-        this._viewMode = 'settings';
-        this._updateUrlParams();
-    }
-
-    _prevStep() {
-        if (this._currentStep > 1) {
-            this._currentStep--;
-            this.requestUpdate();
-        }
-    }
-
-    _selectContentType(typeId) {
-        this._selectedContentType = typeId;
-    }
-
-    _backToTypeSelection() {
-        this._selectedContentType = null;
-    }
-
-    _getDetails() {
-        const title = this.renderRoot.querySelector('#lesson-title-input')?.value.trim() || '';
-        const subtitle = this.renderRoot.querySelector('#lesson-subtitle-input')?.value.trim() || '';
-        const assignedToGroups = Array.from(this.renderRoot.querySelectorAll('input[name="group-assignment"]:checked')).map(cb => cb.value);
-
-        // OPRAVA: Získanie aktuálnych súborov z globálneho nahrávača
-        const ragFilePaths = getSelectedFiles();
-        console.log("LessonEditor: _getDetails captured files:", ragFilePaths);
-
-        return { 
-            title, 
-            subtitle, 
-            assignedToGroups,
-            ragFilePaths // <--- TOTO zabezpečí uloženie súborov pri prechode do Hubu
-        };
-    }
-
-    async _handleSaveLesson() {
-        // Collect data from Step 1
-        const detailsData = this._getDetails();
-
-        // Merge current lesson state with any fresh details
-        const finalLessonData = { ...this.lesson, ...detailsData };
-
-        if (!finalLessonData.title) { showToast(translationService.t('lesson.title_required'), true); return; }
-
-        const { getSelectedFiles } = await import('../../upload-handler.js');
-        const currentSelection = getSelectedFiles();
-
-        const lessonPayload = {
-            title: finalLessonData.title,
-            subtitle: finalLessonData.subtitle || '',
-            number: finalLessonData.number || '',
-            icon: finalLessonData.icon || '🆕',
-            ragFilePaths: currentSelection,
-            assignedToGroups: finalLessonData.assignedToGroups || [],
-            updatedAt: serverTimestamp(),
-            // Save generated content fields
-            text_content: finalLessonData.text_content || null,
-            presentation: finalLessonData.presentation || null,
-            quiz: finalLessonData.quiz || null,
-            test: finalLessonData.test || null,
-            post: finalLessonData.post || null,
-            comic: finalLessonData.comic || null,
-            comic_script: finalLessonData.comic_script || null,
-        };
-
-        this._isLoading = true;
-        try {
-            if (this.lesson?.id) {
-                if (!this.lesson.ownerId) lessonPayload.ownerId = firebaseInit.auth.currentUser.uid;
-                await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), lessonPayload);
-                const updatedLesson = { ...this.lesson, ...lessonPayload };
-                this._handleLessonUpdate({ detail: updatedLesson });
-                showToast(translationService.t('common.saved'));
-            } else {
-                lessonPayload.createdAt = serverTimestamp();
-                lessonPayload.ownerId = firebaseInit.auth.currentUser.uid;
-                lessonPayload.status = 'draft'; // Default to draft for new system
-                const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonPayload);
-                const newLesson = { id: docRef.id, ...lessonPayload };
-                this._handleLessonUpdate({ detail: newLesson });
-                showToast(translationService.t('common.saved'));
-            }
-        } catch (error) {
-            console.error("Error saving lesson:", error);
-            showToast(translationService.t('common.error'), true);
-        } finally {
-            this._isLoading = false;
-        }
-    }
-
-    async _handleMagicGeneration() {
-        // Validation
-        const titleInput = this.renderRoot.querySelector('#lesson-title-input');
-        if (!titleInput || !titleInput.value.trim()) { showToast(translationService.t('lesson.title_required'), true); return; }
-
-        // Save Basic Info First locally
-        this.lesson = { ...this.lesson, ...this._getDetails() };
-
-        // Get Files
-        const currentFiles = getSelectedFiles();
-        if (currentFiles.length === 0) {
-            if (!confirm(translationService.t('common.confirm_no_files'))) return;
-        }
-
-        const filePaths = currentFiles.map(f => f.fullPath).filter(p => p);
-
-        // FIX 2: Initialize Magic Log
-        this._isLoading = true;
-        this._magicLog = [];
-        this.requestUpdate();
-
-        // Save initial structure to DB to ensure we have an ID
-        try {
-            if (!this.lesson.id) {
-                const lessonPayload = {
-                    title: this.lesson.title,
-                    subtitle: this.lesson.subtitle || '',
-                    number: this.lesson.number || '',
-                    icon: this.lesson.icon || '🆕',
-                    ragFilePaths: currentFiles,
-                    assignedToGroups: this.lesson.assignedToGroups || [],
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                    ownerId: firebaseInit.auth.currentUser.uid,
-                    status: 'draft'
-                };
-                const docRef = await addDoc(collection(firebaseInit.db, 'lessons'), lessonPayload);
-                this.lesson = { ...this.lesson, id: docRef.id, ...lessonPayload };
-                this.requestUpdate();
-                this._handleLessonUpdate({ detail: this.lesson }); // Sync
-            }
-        } catch (e) {
-            console.error("Failed to create initial lesson doc:", e);
-            showToast(translationService.t('lesson.error_init') + ": " + e.message, true);
-            this._isLoading = false;
-            return;
-        }
-
-        // --- FETCH ADMIN SETTINGS (Fix for Admin Panel) ---
-        let aiConfig = { presentation_slides: 5, test_questions: 5, text_instructions: "" };
-        try {
-            const configRef = doc(firebaseInit.db, 'system_settings', 'ai_config');
-            const configSnap = await getDoc(configRef);
-            if (configSnap.exists()) {
-                aiConfig = { ...aiConfig, ...configSnap.data() };
-            }
-        } catch (error) {
-            console.warn("Could not load AI config, using defaults:", error);
-        }
-        // ---------------------------------------------------
-
-        const typesToGenerate = ['text', 'presentation', 'quiz', 'test', 'post', 'comic', 'flashcards', 'mindmap'];
-        let generatedTypes = [];
-
-        // Get content language from global setting
-        const contentLang = translationService.currentLanguage || 'cs';
-
-        try {
-            for (const type of typesToGenerate) {
-                const typeLabel = this.contentTypes.find(t=>t.id===type)?.label || type;
-
-                // Update Log: Started
-                this._magicLog = [...this._magicLog, `${typeLabel}: ${translationService.t('common.loading')}`];
-                this.requestUpdate();
-
-                let specificPrompt = `Téma lekce: ${this.lesson.title}. ${this.lesson.subtitle || ''}`;
-                let episodeCount = undefined;
-
-                // Apply Admin Settings to Prompts
-                if (type === 'text' && aiConfig.text_instructions) {
-                    specificPrompt += `\n\nInstrukce pro strukturu a styl: ${aiConfig.text_instructions}`;
-                }
-
-                if (type === 'quiz' || type === 'test') {
-                    // Use configured question count
-                    const qCount = aiConfig.test_questions || 5;
-                    specificPrompt += ` Vytvoř přesně ${qCount} otázek.`;
-                }
-
-                if (type === 'post') {
-                    // Force 1 episode for Magic flow by sending explicit count to backend
-                    // Keep prompt simple (Topic) so backend wrapper works correctly
-                    specificPrompt = `${this.lesson.title}. ${this.lesson.subtitle || ''}. Formát: Rozhovor moderátora a experta. Délka cca 5 minut. Detailní scénář.`;
-                    episodeCount = 1;
-                }
-
-                if (type === 'comic') {
-                    const title = this.lesson.title;
-                    // Ask for a script, NOT images yet. Images are expensive/slow, so we generate them manually later.
-                    specificPrompt = `Vytvoř scénář pro 4-panelový vzdělávací komiks k tématu: ${title}. Výstup musí být POUZE validní JSON v tomto formátu: { "panels": [ { "panel_number": 1, "visual_description": "...", "dialogue": "..." }, ... ] }`;
-                }
-
-                if (type === 'flashcards') {
-                    specificPrompt = `Vytvoř sadu 10 studijních kartiček (flashcards) k tématu: ${this.lesson.title}. Výstup musí být JSON: [{ "front": "Pojem", "back": "Vysvětlení" }, ...].`;
-                }
-
-                if (type === 'mindmap') {
-                     specificPrompt = `Vytvoř strukturu mentální mapy k tématu: ${this.lesson.title}. Výstup musí být POUZE validní kód pro Mermaid.js (typ graph TD). Nepoužívej markdown bloky, jen čistý text diagramu.`;
-                }
-
-                // Build Prompt Data with Language and Admin Settings for Slides
-                const promptData = {
-                    userPrompt: specificPrompt,
-                    slide_count: aiConfig.presentation_slides || 5, // Use config or default
-                    episode_count: episodeCount,
-                    language: contentLang
-                };
-
-                const result = await callGenerateContent({ contentType: type, promptData, filePaths });
-
-                if (result && !result.error) {
-                    let dataKey = type === 'text' ? 'text_content' : type;
-                    let dataValue = (type === 'text' && result.text) ? result.text : result;
-
-                    if (type === 'comic') {
-                        dataKey = 'comic_script';
-                        try {
-                            if (typeof dataValue === 'string') {
-                                const jsonMatch = dataValue.match(/\{[\s\S]*\}/);
-                                if (jsonMatch) {
-                                    dataValue = JSON.parse(jsonMatch[0]);
-                                }
-                            }
-                        } catch (e) {
-                            console.error("Failed to parse comic script JSON:", e, dataValue);
-                            // Avoid saving malformed data by skipping this type
-                            continue;
-                        }
-                    }
-
-                    if (type === 'flashcards') {
-                        try {
-                            if (typeof dataValue === 'string') {
-                                const jsonMatch = dataValue.match(/\[[\s\S]*\]/);
-                                if (jsonMatch) {
-                                    dataValue = JSON.parse(jsonMatch[0]);
-                                }
-                            }
-                        } catch (e) {
-                            console.error("Failed to parse flashcards JSON:", e, dataValue);
-                            continue;
-                        }
-                    }
-
-                    if (type === 'mindmap') {
-                        if (typeof dataValue === 'object') {
-                            dataValue = dataValue.code || JSON.stringify(dataValue);
-                        }
-                        if (typeof dataValue === 'string') {
-                            // Cleanup mermaid code
-                            dataValue = dataValue.replace(/```mermaid/g, '').replace(/```/g, '').trim();
-                        }
-                    }
-
-                    // Update Local State
-                    this.lesson = { ...this.lesson, [dataKey]: dataValue };
-                    generatedTypes.push(type);
-
-                    // CRITICAL: Autosave to Firestore immediately
-                    if (!this.lesson.id) {
-                         console.error("Critical Error: Missing lesson ID before autosave. Breaking loop.");
-                         break;
-                    }
-
-                    await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
-                         [dataKey]: dataValue,
-                         updatedAt: serverTimestamp()
-                    });
-
-                    // Update Log: Done
-                    // Replace last entry or append new? User wants a list.
-                    // Let's replace "Pracuji..." with "Hotovo"
-                    this._magicLog = this._magicLog.map(item =>
-                        item.includes(`${typeLabel}: ${translationService.t('common.loading')}`) ? `${typeLabel}: ${translationService.t('editor.status_done')} ✅` : item
-                    );
-                    this.requestUpdate();
-
-                } else {
-                    console.warn(`Magic generation failed for ${type}:`, result?.error);
-                    this._magicLog = [...this._magicLog, `${typeLabel}: ${translationService.t('common.magic_error')}`];
-                    this.requestUpdate();
-                }
-            }
-
-            // --- AUTO-VISIBILITY UPDATE ---
-            // Ensure all generated sections are automatically added to visible_sections
-            let updatedVisibleSections = this.lesson.visible_sections ? [...this.lesson.visible_sections] : [];
-
-            // If visible_sections was previously undefined (legacy), it effectively means "all".
-            // But if we are running magic, we want to be explicit.
-            if (!this.lesson.visible_sections) {
-                // If it was undefined, we assume current content was visible.
-                // We'll initialize it with all known content types that have data + new ones.
-                updatedVisibleSections = this.contentTypes
-                    .filter(t => {
-                         const key = t.id === 'text' ? 'text_content' : t.id;
-                         // Check if we have data for this type (either pre-existing or just generated)
-                         return this.lesson[key] || generatedTypes.includes(t.id);
-                    })
-                    .map(t => t.id);
-            } else {
-                 // Add newly generated types if not already present
-                 generatedTypes.forEach(t => {
-                     if (!updatedVisibleSections.includes(t)) {
-                         updatedVisibleSections.push(t);
-                     }
-                 });
-            }
-
-            // Update visible_sections in DB
-            await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
-                visible_sections: updatedVisibleSections,
-                updatedAt: serverTimestamp()
-            });
-            this.lesson = { ...this.lesson, visible_sections: updatedVisibleSections };
-            // -------------------------------
-
-            // showToast(translationService.t('lesson.magic_done'));
-
-            // Show Success Modal
-            this._showSuccessModal = true;
-            this.requestUpdate();
-
-            setTimeout(() => {
-                this._showSuccessModal = false;
-                // Go to Hub view
-                this._viewMode = 'hub';
-                this._currentStep = 2; // Force UI to render the Hub/Step 2 container
-                this.requestUpdate();
-            }, 1500);
-
-        } catch (e) {
-            console.error("Magic generation fatal error:", e);
-            showToast(translationService.t('lesson.error_gen') + ": " + e.message, true);
-        } finally {
-            this._isLoading = false;
-            this._magicLog = []; // Clear log after finish
-        }
-    }
-
-    _handleBackClick() {
-        // Updated Nav: Go to Timeline (Library) instead of Dashboard
-        this.dispatchEvent(new CustomEvent('navigate', {
-            detail: { view: 'timeline' },
-            bubbles: true,
-            composed: true
-        }));
-    }
-
-    _handleSaveAndBack() {
-        // Find active editor and save it
-        if (this._viewMode === 'editor' && this._selectedContentType) {
-            const editorComponent = this.renderRoot.querySelector('editor-view-' + this._selectedContentType);
-            if (editorComponent && typeof editorComponent.save === 'function') {
-                editorComponent.save();
-                showToast(translationService.t('common.saved'));
-            }
-        }
-        this._switchToHub();
-    }
-
-    _switchToEditor(typeId) {
-        this._selectedContentType = typeId;
-        this._viewMode = 'editor';
-        this._updateUrlParams();
-    }
-
-    _openStudentPreview() {
-        this._showStudentPreview = true;
-    }
-
-    _closeStudentPreview() {
-        this._showStudentPreview = false;
-    }
-
-    async _toggleStatus(e) {
-        if (e) e.stopPropagation();
-        if (!this.lesson || !this.lesson.id) return;
-
-        const newStatus = this.lesson.status === 'published' ? 'draft' : 'published';
-
-        try {
-            await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
-                status: newStatus,
-                updatedAt: serverTimestamp()
-            });
-            this.lesson = { ...this.lesson, status: newStatus };
-            this.requestUpdate();
-            const statusLabel = newStatus === 'published' ? translationService.t('lesson.status_published') : translationService.t('lesson.status_draft');
-            showToast(`${statusLabel}`);
-        } catch (err) {
-            console.error("Error toggling status:", err);
-            showToast(translationService.t('common.error'), true);
-        }
-    }
-
-    async _toggleSectionVisibility(e, typeId) {
-        e.stopPropagation(); // Prevent card click
-        if (!this.lesson) return;
-
-        // Initialize visible_sections if undefined (legacy: undefined = all visible)
-        let visibleSections = this.lesson.visible_sections;
-        if (!visibleSections) {
-            // If undefined, start with ALL content types that have content
-             visibleSections = this.contentTypes
-                .filter(t => {
-                     const key = t.id === 'text' ? 'text_content' : t.id;
-                     return this.lesson[key];
-                })
-                .map(t => t.id);
-        }
-
-        if (visibleSections.includes(typeId)) {
-            // Hide it
-            visibleSections = visibleSections.filter(id => id !== typeId);
-            showToast(translationService.t('lesson.section_hidden'));
-        } else {
-            // Show it
-            visibleSections = [...visibleSections, typeId];
-            showToast(translationService.t('lesson.section_visible'));
-        }
-
-        // Optimistic update
-        this.lesson = { ...this.lesson, visible_sections: visibleSections };
-        this.requestUpdate();
-
-        // Save to Firestore
-        try {
-            await updateDoc(doc(firebaseInit.db, 'lessons', this.lesson.id), {
-                visible_sections: visibleSections,
-                updatedAt: serverTimestamp()
-            });
-        } catch (err) {
-            console.error("Error toggling visibility:", err);
-            showToast(translationService.t('lesson.error_visibility'), true);
-            // Revert on error could be implemented here
-        }
-    }
-
-    _getContentStats(type) {
-        if (!this.lesson) return null;
-
-        switch (type.id) {
-            case 'presentation':
-                const slides = this.lesson.presentation?.slides;
-                return slides ? `${slides.length} ${translationService.t('common.stats_slides')}` : null;
-            case 'quiz':
-                const quizQ = this.lesson.quiz?.questions;
-                return quizQ ? `${quizQ.length} ${translationService.t('common.stats_questions')}` : null;
-            case 'test':
-                const testQ = this.lesson.test?.questions;
-                return testQ ? `${testQ.length} ${translationService.t('common.stats_questions')}` : null;
-            case 'post':
-                const episodes = this.lesson.post?.episodes;
-                // If episodes array exists use length, otherwise check if object exists (fallback 1)
-                return episodes ? `${episodes.length} ${translationService.t('common.stats_episodes')}` : (this.lesson.post ? `1 ${translationService.t('common.stats_episode_singular')}` : null);
-            case 'comic':
-                // Check for comic_script as well since that's what we generate first
-                const panels = this.lesson.comic?.panels || this.lesson.comic_script?.panels;
-                return panels ? `${panels.length} ${translationService.t('common.stats_panels')}` : null;
-            case 'text':
-                return this.lesson.text_content ? translationService.t('editor.status_done') : null;
-            case 'flashcards':
-                return this.lesson.flashcards ? `${this.lesson.flashcards.length} ${translationService.t('common.stats_cards')}` : null;
-            case 'mindmap':
-                 return this.lesson.mindmap ? translationService.t('common.stats_created') : null;
-            case 'video':
-                return this.lesson.video ? translationService.t('common.stats_inserted') : null;
-            default:
-                return null;
-        }
-    }
-
-    _openRagModal(e) {
-        if (e) e.preventDefault();
-        const modal = document.getElementById('media-library-modal');
-        const modalConfirm = document.getElementById('modal-confirm-btn');
-        const modalCancel = document.getElementById('modal-cancel-btn');
-        const modalClose = document.getElementById('modal-close-btn');
-
-        if (!modal || !modalConfirm || !modalCancel || !modalClose) {
-             console.error(translationService.t('common.modal_error_elements'));
-             showToast(translationService.t('common.modal_error_load'), true);
-             return;
-        }
-
-        // Apply translations to modal (static HTML)
-        const modalTitle = modal.querySelector('h2');
-        const modalLoading = modal.querySelector('li');
-        if (modalTitle) modalTitle.textContent = translationService.t('library.modal_title');
-        if (modalLoading) modalLoading.textContent = translationService.t('library.loading');
-        if (modalConfirm) modalConfirm.textContent = translationService.t('common.confirm_selection');
-        if (modalCancel) modalCancel.textContent = translationService.t('common.cancel');
-
-        // Load current files for THIS lesson to global state
-        loadSelectedFiles(this.lesson?.ragFilePaths || []);
-
-        const handleConfirm = () => {
-             // Re-render the list in the editor (Step 1)
-             renderSelectedFiles('course-media-list-container');
-             closeModal();
-        };
-
-        const handleCancel = () => closeModal();
-
-        const closeModal = () => {
-            modal.classList.add('hidden');
-            modalConfirm.removeEventListener('click', handleConfirm);
-            modalCancel.removeEventListener('click', handleCancel);
-            modalClose.removeEventListener('click', handleCancel);
-        };
-
-        // Render library files
-        renderMediaLibraryFiles('main-course', 'modal-media-list');
-
-        modalConfirm.addEventListener('click', handleConfirm);
-        modalCancel.addEventListener('click', handleCancel);
-        modalClose.addEventListener('click', handleCancel);
-
-        modal.classList.remove('hidden');
-    }
-
-    renderEditorContent(typeId) {
-        switch(typeId) {
-            case 'text': return html`<editor-view-text .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-text>`;
-            case 'presentation': return html`<editor-view-presentation .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-presentation>`;
-            case 'video': return html`<editor-view-video .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-video>`;
-            case 'quiz': return html`<editor-view-quiz .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-quiz>`;
-            case 'test': return html`<editor-view-test .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-test>`;
-            case 'post': return html`<editor-view-post .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-post>`;
-            case 'comic': return html`<editor-view-comic .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-comic>`;
-            case 'flashcards': return html`<editor-view-flashcards .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-flashcards>`;
-            case 'mindmap': return html`<editor-view-mindmap .lesson=${this.lesson} @lesson-updated=${this._handleLessonUpdate}></editor-view-mindmap>`;
-            default: return html`<p class="text-red-500">${translationService.t('common.unknown_type')}</p>`;
-        }
-    }
-
-    render() {
-        const t = (key) => translationService.t(key);
-        return html`
-            <div class="h-full bg-white overflow-y-auto">
-                <div class="px-6 py-12 flex flex-col h-full">
-
-                    <header class="flex items-center justify-between mb-8">
-                        <button @click=${this._handleBackClick} class="group flex items-center text-sm font-medium text-slate-400 hover:text-slate-900 transition-colors">
-                            <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center mr-2 group-hover:bg-slate-100 transition-colors">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                            </div>
-                            ${t('common.close')}
-                        </button>
-                        ${this.lesson?.id ? html`<span class="text-xs font-mono text-slate-300 uppercase tracking-widest">${t('common.id')}: ${this.lesson.id.substring(0,6)}</span>` : ''}
-                    </header>
-
-                    <div class="flex-grow relative">
-
-                        <div class="${this._viewMode === 'settings' ? 'block' : 'hidden'} animate-fade-in space-y-8">
-                             <h2 class="text-3xl font-bold text-slate-900">${t('editor.settings_title')}</h2>
-
-                             <div class="space-y-6 bg-white p-1 rounded-2xl">
-                                <div class="relative">
-                                    <input type="text" id="lesson-title-input"
-                                        class="block px-2.5 pb-2.5 pt-4 w-full text-4xl font-extrabold text-slate-900 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
-                                        placeholder=" "
-                                        .value="${this.lesson?.title || ''}" />
-                                    <label for="lesson-title-input"
-                                        class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
-                                        ${t('editor.label_title')}
-                                    </label>
-                                </div>
-
-                                <div class="relative mt-4">
-                                    <input type="text" id="lesson-subtitle-input"
-                                        class="block px-2.5 pb-2.5 pt-4 w-full text-xl text-slate-600 bg-transparent border-0 border-b-2 border-slate-200 appearance-none focus:outline-none focus:ring-0 focus:border-indigo-600 peer transition-colors"
-                                        placeholder=" "
-                                        .value="${this.lesson?.subtitle || ''}" />
-                                    <label for="lesson-subtitle-input"
-                                        class="absolute text-sm text-slate-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:px-2 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1">
-                                        ${t('editor.label_subtitle')}
-                                    </label>
-                                    <p class="text-xs text-slate-400 mt-1 pl-3">💡 ${t('editor.label_subtitle_tip')}</p>
-                                </div>
-
-                                <div class="pt-4">
-                                    <label class="block font-medium text-slate-600 mb-2">${t('editor.assign_class')}:</label>
-                                    <div class="space-y-2 border rounded-lg p-3 bg-slate-50 max-h-40 overflow-y-auto">
-                                        ${this._groups.length > 0 ? this._groups.map(group => html`
-                                            <div class="flex items-center">
-                                                <input type="checkbox"
-                                                    id="group-${group.id}"
-                                                    name="group-assignment"
-                                                    value="${group.id}"
-                                                    .checked=${this.lesson?.assignedToGroups?.includes(group.id) || false}
-                                                    class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                                <label for="group-${group.id}" class="ml-3 text-sm text-gray-700">${group.name}</label>
-                                            </div>
-                                        `) : html`
-                                            <p class="text-xs text-slate-500">${translationService.t('lesson.no_classes')}</p>
-                                        `}
-                                    </div>
-                                </div>
-                             </div>
-
-                            <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center transition-all hover:border-indigo-300 hover:bg-indigo-50/30 group" id="course-media-upload-area">
-                                <div class="mb-4">
-                                    <span class="text-4xl group-hover:scale-110 transition-transform inline-block">📄</span>
-                                </div>
-                                <h3 class="text-lg font-bold text-slate-700">${t('common.files_rag_title')}</h3>
-                                <p class="text-sm text-slate-500 mb-6">${t('common.files_rag_help')}</p>
-
-                                <input type="file" id="course-media-file-input" class="hidden" multiple accept=".pdf,.txt,.docx,.pptx">
-                                <button class="pointer-events-none bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm group-hover:text-indigo-600 group-hover:border-indigo-200">
-                                    ${t('common.files_select')}
-                                </button>
-                                <button @click=${this._openRagModal} class="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm hover:text-indigo-600 hover:border-indigo-200 hover:bg-slate-50 transition-all ml-4">
-                                    📂 ${t('common.files_library')}
-                                </button>
-
-                                <div id="upload-progress-container" class="hidden mt-4 max-w-md mx-auto"></div>
-                                <ul id="course-media-list-container" class="mt-4 text-left max-w-md mx-auto space-y-2"></ul>
-                            </div>
-
-                            <div class="flex flex-col sm:flex-row gap-4 justify-center pt-8">
-                                <button @click=${this._handleMagicGeneration} ?disabled=${this._isLoading}
-                                    class="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all flex items-center justify-center text-lg">
-                                    ${this._isLoading ? html`<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></span> ${t('common.loading')}` : html`${t('lesson.magic_btn')}`}
-                                </button>
-
-                                <button @click=${this._switchToHub} ?disabled=${this._isLoading}
-                                    class="flex-1 py-4 px-6 rounded-xl bg-white border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-center text-lg">
-                                    ${t('editor.btn_continue_content')} <span class="ml-2">→</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="${this._viewMode === 'hub' ? 'block' : 'hidden'} animate-fade-in flex flex-col h-full">
-
-                            <div class="text-center mb-10 relative">
-                                <h1 class="text-3xl font-bold text-slate-900 mb-2">${this.lesson?.title || t('professor.new_lesson_card')}</h1>
-
-                                <div class="flex items-center justify-center gap-4 mb-4">
-                                    <button @click=${this._switchToSettings} class="text-sm font-bold text-slate-400 hover:text-indigo-600 flex items-center">
-                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                                        ${t('editor.hub_edit_details')}
-                                    </button>
-
-                                    <button @click=${this._toggleStatus}
-                                        class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer border ${this.lesson?.status === 'published' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}">
-                                        <span class="w-2 h-2 rounded-full mr-2 ${this.lesson?.status === 'published' ? 'bg-green-500' : 'bg-slate-400'}"></span>
-                                        ${this.lesson?.status === 'published' ? t('lesson.status_published') : t('lesson.status_draft')}
-                                    </button>
-                                </div>
-
-                                <button @click=${this._openStudentPreview} class="inline-flex items-center px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-sm font-bold hover:bg-indigo-100 transition-colors shadow-sm border border-indigo-100">
-                                    👁️ ${t('editor.hub_student_preview')}
-                                </button>
-                            </div>
-
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full px-6">
-                                ${this.contentTypes.map(type => {
-                                    // Check if content exists
-                                    const hasContent = this.lesson && ((type.id === 'text' && this.lesson.text_content) || (type.id !== 'text' && this.lesson[type.id]));
-                                    // Check visibility logic:
-                                    // If visible_sections is undefined => All visible by default (legacy)
-                                    // If defined => Only if included
-                                    const isVisible = !this.lesson?.visible_sections || this.lesson.visible_sections.includes(type.id);
-
-                                    const stats = this._getContentStats(type);
-
-                                    return html`
-                                        <div @click=${() => this._switchToEditor(type.id)}
-                                             class="group cursor-pointer bg-white rounded-3xl border border-slate-100 p-8 transition-all duration-300 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-100/50 hover:-translate-y-1 relative overflow-hidden flex flex-col items-center justify-center min-h-[220px]">
-
-                                            <div @click=${(e) => this._toggleSectionVisibility(e, type.id)}
-                                                 class="absolute top-4 right-4 p-2 rounded-full shadow-sm z-10 transition-colors ${isVisible ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'}"
-                                                 title="${isVisible ? t('common.visible_tooltip') : t('common.hidden_tooltip')}">
-                                                <span class="text-lg leading-none">${isVisible ? '👁️' : '👁️‍🗨️'}</span>
-                                            </div>
-
-                                            <div class="absolute top-0 left-0 p-5 opacity-0 group-hover:opacity-100 transition-all transform -translate-x-2 group-hover:translate-x-0">
-                                                <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
-                                            </div>
-
-                                            <div class="w-20 h-20 rounded-2xl bg-slate-50 flex items-center justify-center text-4xl shadow-sm mb-4 group-hover:scale-110 transition-transform duration-300 group-hover:bg-indigo-50">
-                                                ${type.icon}
-                                            </div>
-
-                                            <div class="text-center">
-                                                <h3 class="font-bold text-slate-900 text-xl group-hover:text-indigo-700 transition-colors mb-1">${type.label}</h3>
-                                                ${stats ? html`
-                                                    <p class="text-xs text-slate-500 font-mono mt-1">${stats}</p>
-                                                ` : html`
-                                                    <p class="text-xs text-slate-400 font-medium">${type.description}</p>
-                                                `}
-                                            </div>
-
-                                            <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2">
-                                                ${hasContent ? html`
-                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200">
-                                                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></span>
-                                                        ${t('editor.status_done')}
-                                                    </span>
-                                                ` : html`
-                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200">
-                                                        <span class="w-1.5 h-1.5 bg-slate-300 rounded-full mr-1.5"></span>
-                                                        ${t('editor.status_empty')}
-                                                    </span>
-                                                `}
-                                            </div>
-                                        </div>
-                                    `;
-                                })}
-                            </div>
-
-                            <div class="mt-16 flex justify-center pb-8">
-                                <button @click=${this._handleBackClick}
-                                    class="group relative inline-flex items-center justify-center px-10 py-5 text-lg font-bold text-slate-700 transition-all duration-200 bg-white border border-slate-200 rounded-full hover:bg-slate-50 shadow-lg shadow-slate-200/50 hover:shadow-slate-300/50 hover:-translate-y-1">
-                                    ${t('editor.btn_back_hub')}
-                                    <svg class="w-5 h-5 ml-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="${this._viewMode === 'editor' ? 'block' : 'hidden'} h-full animate-fade-in flex flex-col">
-                            <div class="mb-6 flex items-center justify-end w-full px-6">
-                                <h3 class="font-bold text-slate-800 text-lg flex items-center">
-                                    <span class="mr-2 text-2xl">${this.contentTypes.find(t => t.id === this._selectedContentType)?.icon}</span>
-                                    ${this.contentTypes.find(t => t.id === this._selectedContentType)?.label}
-                                </h3>
-                            </div>
-
-                            <div id="active-editor-content" class="flex-grow bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 p-1 overflow-hidden w-full px-6">
-                                <div class="h-full overflow-y-auto custom-scrollbar">
-                                     ${this.renderEditorContent(this._selectedContentType)}
-                                </div>
-                            </div>
-
-                            </div>
+    await uploadString(storageRef, base64Data, 'base64', metadata);
+    return await getDownloadURL(storageRef);
+  }
+
+  _normalizeToGsUrl(file) {
+      const p = file.storagePath || file.fullPath || file.path || file.url || (file.file && file.file.fullPath);
+      if (typeof p !== 'string' || !p) return null;
+
+      if (p.startsWith('gs://')) return p;
+
+      // STRICT: Use the specific bucket requested
+      const bucketName = "ai-sensei-czu-pilot.firebasestorage.app";
+      const relativePath = p.startsWith('/') ? p.slice(1) : p;
+      return `gs://${bucketName}/${relativePath}`;
+  }
+
+  async _callAiGeneration(type, promptData, filePaths) {
+      const generateContentFunc = httpsCallable(functions, 'generateContent');
+
+      // Force language
+      const language = translationService.currentLanguage || 'cs';
+
+      try {
+          const result = await generateContentFunc({
+              contentType: type,
+              promptData: promptData,
+              filePaths: filePaths,
+              language: language
+          });
+
+          let responseData = result.data;
+
+          if (typeof responseData === 'string') {
+              const cleanJson = responseData.replace(/^```json\s*|\s*```$/g, '').trim();
+              try {
+                  responseData = JSON.parse(cleanJson);
+              } catch (e) {
+                  console.warn("Failed to parse JSON even after cleaning:", e);
+                  // If it's just text (e.g. for audio/text types), return it as is
+                  if (type === 'text' || type === 'audio') {
+                      // Keep it as string
+                  } else {
+                      throw new Error("Model returned malformed JSON");
+                  }
+              }
+          }
+
+          if (responseData && (responseData.error || responseData.chyba)) {
+              const msg = responseData.message || responseData.zpráva || responseData.error || responseData.chyba;
+              throw new Error(msg);
+          }
+
+          return responseData;
+
+      } catch (error) {
+          console.error(`AI Generation failed for ${type}:`, error);
+          if (error.message && error.message.includes('No source text')) {
+             throw new Error(translationService.t('lesson.error_no_source_text'));
+          }
+          throw error;
+      }
+  }
+
+  async _generateImagesForSlides(slides) {
+      this._magicStatus = `🎨 ${translationService.t('professor.editor.generating_images')}`;
+      this.requestUpdate();
+
+      const updatedSlides = [...slides];
+
+      for (const [index, slide] of updatedSlides.entries()) {
+          // Robust check: Ensure prompt exists and is not empty
+          if (slide.visual_idea && slide.visual_idea.trim().length > 0) {
+              let base64Data = '';
+              try {
+                  const imgResult = await callWithRetry(callGenerateImage, [slide.visual_idea], 3);
+                  base64Data = imgResult.imageBase64 || imgResult;
+              } catch (err) {
+                   console.warn(`Image generation failed for slide ${index}:`, err.message);
+                   // Fallback: Safe prompt
+                   if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT") || err.message.includes("Imagen"))) {
+                      try {
+                          const safePrompt = `Educational illustration: ${this.lesson.title}, minimalist`;
+                          const imgResult = await callGenerateImage(safePrompt);
+                          base64Data = imgResult.imageBase64 || imgResult;
+                      } catch (e) { console.warn("Fallback failed"); }
+                   }
+              }
+
+              if (base64Data && base64Data.length > 100) {
+                  try {
+                      const fileName = `slide_${Date.now()}_${index}.png`;
+                      const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
+                      const url = await this._uploadBase64Image(base64Data, storagePath);
+                      updatedSlides[index] = { ...slide, imageUrl: url };
+                      if ('backgroundImage' in updatedSlides[index]) delete updatedSlides[index].backgroundImage;
+                  } catch (e) { console.warn("Upload failed", e); }
+              }
+          } else {
+              console.warn(`Slide ${index} missing visual_idea. Skipping image generation.`);
+              // Optional: Assign a placeholder or keep existing background
+          }
+      }
+      return updatedSlides;
+  }
+
+  async _generateImagesForComic(panels) {
+       this._magicStatus = `🖍️ ${translationService.t('professor.editor.generating_comic')}`;
+       this.requestUpdate();
+
+       const updatedPanels = [...panels];
+
+       for (const [index, panel] of updatedPanels.entries()) {
+           // Robust check: Ensure prompt exists
+           if (panel.description && panel.description.trim().length > 0) {
+              let base64Data = '';
+              try {
+                  const imgResult = await callWithRetry(callGenerateImage, [`Comic style, ${panel.description}`], 3);
+                  base64Data = imgResult.imageBase64 || imgResult;
+              } catch (err) {
+                  console.warn("Comic gen failed", err.message);
+                   if (err.message && (err.message.includes("safety") || err.message.includes("INVALID_ARGUMENT"))) {
+                      try {
+                           const safePrompt = `Comic panel: ${this.lesson.title}`;
+                           const imgResult = await callGenerateImage(safePrompt);
+                           base64Data = imgResult.imageBase64 || imgResult;
+                      } catch (e) {}
+                   }
+              }
+              if (base64Data && base64Data.length > 100) {
+                   try {
+                       const fileName = `comic_${Date.now()}_${index}.png`;
+                       const storagePath = `courses/${auth.currentUser.uid}/media/generated/${fileName}`;
+                       const url = await this._uploadBase64Image(base64Data, storagePath);
+                       updatedPanels[index] = { ...panel, imageUrl: url };
+                   } catch (e) {}
+              }
+           } else {
+               console.warn(`Panel ${index} missing description. Skipping image generation.`);
+           }
+       }
+       return updatedPanels;
+  }
+
+  _resolveStoragePath(file) {
+      if (!file) return null;
+
+      let candidatePath = null;
+
+      // 1. Direct storagePath check
+      if (file.storagePath &&
+          file.storagePath !== 'undefined' &&
+          file.storagePath !== 'null' &&
+          file.storagePath.includes('/') &&
+          file.storagePath.includes('.')) {
+          candidatePath = file.storagePath;
+      }
+      // 2. Metadata check
+      else if (file.metadata && file.metadata.fullPath) {
+          candidatePath = file.metadata.fullPath;
+      }
+      // 3. Canonical Construction
+      else if (file.name) {
+          const user = auth.currentUser;
+          if (user && user.uid) {
+             // FIX: Include 'media' folder in the path construction
+             candidatePath = `courses/${user.uid}/media/${file.name}`;
+          }
+      }
+
+      // 4. Final Validation
+      if (candidatePath) {
+          // Check extension
+          const validExtensions = ['.pdf', '.docx', '.txt'];
+          const hasValidExt = validExtensions.some(ext => candidatePath.toLowerCase().endsWith(ext));
+
+          if (hasValidExt) {
+              return candidatePath;
+          }
+      }
+
+      console.warn("Invalid file path resolution:", file, candidatePath);
+      return null;
+  }
+
+  async _handleAutoMagic() {
+      // 1. Strict Guard: Check files BEFORE anything else
+      if (!this._uploadedFiles || this._uploadedFiles.length === 0) {
+          showToast(translationService.t('lesson.magic_requires_files') || "Please upload source files first", true);
+          return;
+      }
+
+      if (!this.lesson.title) {
+          showToast(translationService.t('professor.editor.title_required'), true);
+          return;
+      }
+
+      // 2. Resolve paths
+      const validFiles = this._uploadedFiles
+          .map(f => ({ file: f, path: this._resolveStoragePath(f) }))
+          .filter(item => item.path !== null);
+      const filePaths = validFiles.map(item => item.path);
+
+      if (filePaths.length === 0) {
+          showToast("System Error: No valid file paths found. Please re-upload documents.", true);
+          return;
+      }
+
+      console.log("Starting Magic Generation with files:", filePaths);
+      this._isLoading = true;
+      this._magicStatus = translationService.t('common.magic_status_generating') || "Starting magic...";
+      this.requestUpdate();
+
+      try {
+          // Save lesson first
+          await this._handleSave();
+
+          // Start listener immediately (Backup / Fallback)
+          this._startMagicListener();
+
+          // Call backend AND await result for Optimistic Update
+          const startMagic = httpsCallable(functions, 'startMagicGeneration', { timeout: 540000 });
+          const result = await startMagic({
+              lessonId: this.lesson.id,
+              filePaths: filePaths,
+              lessonTopic: this.lesson.topic || ""
+          });
+
+          // OPTIMISTIC UPDATE: Inject data immediately
+          if (result.data && result.data.data) {
+              console.log("Optimistic Update with Magic Data:", result.data.data);
+              const newData = result.data.data;
+
+              // Helper to normalize optimistically
+              const safeOptimistic = {
+                  ...newData,
+                  test: Array.isArray(newData.test) ? newData.test : (newData.test?.questions || []),
+                  podcast_script: Array.isArray(newData.podcast_script) ? newData.podcast_script : (newData.podcast_script?.script || []),
+                  comic_script: Array.isArray(newData.comic_script) ? newData.comic_script : (newData.comic?.panels || []),
+                  mindmap: typeof newData.mindmap === 'string' ? newData.mindmap : (newData.mindmap?.mermaid || ''),
+                  social_post: newData.social_post || { platform: 'LinkedIn', content: '', hashtags: '' },
+                  flashcards: newData.flashcards || { cards: [] }
+              };
+
+              // ARCHITECTURAL FIX: Explicitly queue magic data for persistence
+              // This prevents manual edits from overwriting/losing magic content
+              // if backend writes haven't propagated or are partial.
+              const updates = { ...safeOptimistic, magicStatus: 'ready' };
+
+              // 1. Update Local State
+              this.lesson = { ...this.lesson, ...updates };
+
+              // 2. Queue for Persistence
+              this._pendingUpdates = { ...this._pendingUpdates, ...updates };
+
+              // 3. Trigger Save
+              this._debouncedSave();
+
+              this._isLoading = false;
+              this._magicStatus = "";
+              this._wizardMode = false;
+              showToast(translationService.t('lesson.magic_done') || "Magic generation complete!");
+              this.requestUpdate();
+          }
+
+      } catch (e) {
+          console.error("Magic generation failed:", e);
+          showToast(translationService.t('lesson.magic_failed') || "Generation failed", true);
+          this._isLoading = false;
+      }
+  }
+
+  _startMagicListener() {
+      if (this._magicUnsubscribe) return;
+
+      console.log("Starting Magic Listener for lesson:", this.lesson.id);
+      const lessonRef = doc(db, 'lessons', this.lesson.id);
+
+      this._magicUnsubscribe = onSnapshot(lessonRef, (docSnap) => {
+          if (docSnap.exists()) {
+              const data = docSnap.data();
+
+              // Explicitly map new fields with safe defaults to ensure frontend stability
+              const safeData = {
+                  ...data,
+                  test: Array.isArray(data.test) ? data.test : (data.test?.questions || []),
+                  podcast_script: Array.isArray(data.podcast_script) ? data.podcast_script : (data.podcast_script?.script || []),
+                  comic_script: Array.isArray(data.comic_script) ? data.comic_script : (data.comic?.panels || []),
+                  mindmap: typeof data.mindmap === 'string' ? data.mindmap : (data.mindmap?.mermaid || ''),
+                  social_post: data.social_post || { platform: 'LinkedIn', content: '', hashtags: '' },
+                  flashcards: data.flashcards || { cards: [] }
+              };
+
+              // --- CRITICAL: Detach Local State for Comparison ---
+              // Use a detached copy of the current lesson to avoid Proxy issues during comparison
+              let localState = {};
+              try {
+                  localState = JSON.parse(JSON.stringify(this.lesson || {}));
+              } catch (e) {
+                  localState = { ...this.lesson };
+              }
+
+              // --- ANTI-WIPE GUARD ---
+              // Detects if the server snapshot is "stale" (empty) while local state is populated.
+              const criticalFields = ['podcast_script', 'comic_script', 'test', 'mindmap', 'flashcards', 'social_post', 'content', 'slides'];
+
+              const checkContent = (v) => {
+                  if (!v) return false;
+                  if (Array.isArray(v)) return v.length > 0;
+                  if (typeof v === 'string') return v.length > 0;
+                  // Handle object wrappers
+                  if (v.cards && Array.isArray(v.cards)) return v.cards.length > 0;
+                  if (v.content && typeof v.content === 'string') return v.content.length > 0; 
+                  if (v.questions && Array.isArray(v.questions)) return v.questions.length > 0;
+                  if (v.slides && Array.isArray(v.slides)) return v.slides.length > 0;
+                  if (v.blocks && Array.isArray(v.blocks)) return v.blocks.length > 0;
+                  if (v.panels && Array.isArray(v.panels)) return v.panels.length > 0;
+                  if (v.mermaid && typeof v.mermaid === 'string') return v.mermaid.length > 0;
+                  if (v.script && Array.isArray(v.script)) return v.script.length > 0;
+                  return false;
+              };
+
+              for (const field of criticalFields) {
+                  const localVal = localState[field];
+                  const serverVal = safeData[field];
+
+                  if (checkContent(localVal) && !checkContent(serverVal)) {
+                       console.warn(`[Anti-Wipe] CRITICAL: Server snapshot missing content for '${field}' while local exists. Aborting update.`);
+                       return;
+                  }
+              }
+
+              // CRITICAL FIX: Merge Priority
+              // If we have pending updates, or just finished saving, we prioritize LOCAL state + PENDING patches
+              // over the (potentially stale) server snapshot.
+              const hasPendingUpdates = Object.keys(this._pendingUpdates).length > 0;
+
+              if (this.isSaving || hasPendingUpdates) {
+                  this.lesson = {
+                      ...safeData, // Server is base
+                      ...localState, // Local keeps optimistics
+                      ...this._pendingUpdates // Pending overwrites everything
+                  };
+              } else {
+                  // Standard sync: Server is truth, but merge gently
+                  this.lesson = { ...localState, ...safeData };
+              }
+
+              if (data.debug_logs && Array.isArray(data.debug_logs)) {
+                  console.groupCollapsed("Magic Debug Logs");
+                  data.debug_logs.forEach(log => console.log(log));
+                  console.groupEnd();
+              }
+
+              const currentStatus = this.lesson.magicStatus;
+
+              if (currentStatus === 'generating') {
+                   this._isLoading = true;
+                   this._magicStatus = data.magicProgress || "Generating...";
+              } else if (currentStatus === 'ready') {
+                   this._isLoading = false;
+                   this._magicStatus = "";
+                   this._wizardMode = false;
+                   showToast(translationService.t('lesson.magic_done') || "Magic generation complete!");
+
+                   if (this._magicUnsubscribe) {
+                       this._magicUnsubscribe();
+                       this._magicUnsubscribe = null;
+                   }
+              } else if (currentStatus === 'error') {
+                   this._isLoading = false;
+                   showToast("Generation error occurred.", true);
+                   if (this._magicUnsubscribe) {
+                       this._magicUnsubscribe();
+                       this._magicUnsubscribe = null;
+                   }
+              }
+              this.requestUpdate();
+          }
+      }, (error) => {
+          console.error("Magic listener error:", error);
+      });
+  }
+
+  // ... rest of the file ...
+  
+  async _handleManualCreate() {
+      if (!this.lesson.title) {
+          showToast(translationService.t('professor.editor.title_required'), true);
+          return;
+      }
+      
+      try {
+          await this._handleSave();
+          this._wizardMode = false;
+          this._activeTool = null;
+          this.requestUpdate();
+      } catch (e) {
+          // Toast is already shown in _handleSave
+      }
+  }
+
+  async _handleMagicGeneration(e) {
+      const { prompt } = e.detail;
+      const filePaths = this._uploadedFiles.map(f => f.storagePath).filter(Boolean);
+
+      const generationParams = {
+          prompt: prompt,
+          contentType: this._activeTool || this.lesson.contentType,
+          filePaths: filePaths
+      };
+
+      if ((this._activeTool || this.lesson.contentType) === 'audio') {
+          generationParams.episode_count = 3;
+      }
+
+      const activeEditor = this.shadowRoot.querySelector('#active-editor');
+      if (activeEditor && activeEditor.handleAiGeneration) {
+           try {
+               await activeEditor.handleAiGeneration(generationParams);
+               this.requestUpdate();
+               showToast(translationService.t('lesson.magic_done'));
+           } catch (e) {
+               console.error("AI Gen Error", e);
+               showToast(translationService.t('common.error'), true);
+           }
+      } else {
+          console.error("Active editor not found or handleAiGeneration missing", activeEditor);
+      }
+  }
+
+  _renderWizardMode() {
+      if (this._isLoading) {
+          return html`
+              <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
+                 <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                 <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('lesson.magic_creating_title')}</h2>
+                 <p class="text-slate-500 mt-2">${this._magicStatus || translationService.t('lesson.magic_creating_desc')}</p>
+              </div>
+           `;
+      }
+      return html`
+        <div class="min-h-full flex flex-col items-center justify-center p-4 bg-slate-50/50">
+            ${this._isGenerating ? html`
+                <div class="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center">
+                    <div class="text-center space-y-4">
+                         <div class="text-6xl animate-bounce">✨</div>
+                         <h2 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                             Creating magic...
+                         </h2>
+                         <p class="text-slate-500">Generating lesson content from your files</p>
+                         <div class="w-64 h-2 bg-slate-100 rounded-full overflow-hidden mx-auto mt-4">
+                             <div class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 animate-pulse w-full"></div>
+                         </div>
                     </div>
                 </div>
+            ` : ''}
 
-                ${this._showStudentPreview ? html`
-                    <div class="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
-                        <div class="relative w-full h-full max-w-sm max-h-[85vh] flex flex-col">
-                             <button @click=${this._closeStudentPreview} class="absolute -top-12 right-0 text-white hover:text-slate-200 font-bold flex items-center">
-                                ${t('common.close')} <span class="text-2xl ml-2">×</span>
+            <div class="w-full max-w-3xl bg-white rounded-3xl shadow-xl flex flex-col max-h-[90vh] animate-fade-in-up overflow-hidden">
+
+                <div class="bg-gradient-to-r from-indigo-600 to-violet-600 p-8 text-white relative flex-shrink-0">
+                    <button @click="${this._handleBackClick}" class="absolute left-4 top-4 p-2 text-white hover:bg-white/10 rounded-full transition-colors" title="${translationService.t('common.back')}">
+                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    </button>
+                    <div class="relative z-10 text-center mt-4">
+                        <h2 class="text-3xl font-extrabold mb-2">✨ ${translationService.t('lesson.new')}</h2>
+                        <p class="text-indigo-100">${translationService.t('professor.editor.magic_generator_desc')}</p>
+                    </div>
+                    <div class="absolute right-0 top-0 h-full w-1/2 bg-white/10 transform skew-x-12 translate-x-12"></div>
+                </div>
+
+                <div class="p-8 space-y-6 overflow-y-auto custom-scrollbar">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">
+                                ${translationService.t('professor.editor.title')} <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text"
+                                .value="${this.lesson.title || ''}"
+                                @input="${e => this.lesson = { ...this.lesson, title: e.target.value }}"
+                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-lg font-semibold text-slate-800"
+                                placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder')}">
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">${translationService.t('professor.editor.subject')}</label>
+                                <input type="text" list="subjects-list"
+                                    .value="${this.lesson.subject || ''}"
+                                    @input="${e => this.lesson = { ...this.lesson, subject: e.target.value }}"
+                                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-semibold text-slate-800"
+                                    placeholder="${translationService.t('professor.editor.subject_placeholder')}">
+                                <datalist id="subjects-list">
+                                    ${this._availableSubjects.map(sub => html`<option value="${sub}"></option>`)}
+                                </datalist>
+                             </div>
+                             <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">${translationService.t('professor.editor.subtitle')}</label>
+                                <input type="text"
+                                    .value="${this.lesson.topic || ''}"
+                                    @input="${e => this.lesson = { ...this.lesson, topic: e.target.value }}"
+                                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                    placeholder="${translationService.t('professor.editor.subtitlePlaceholder')}">
+                             </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-6 mt-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="font-bold text-slate-800 text-lg">📂 ${translationService.t('professor.editor.rag_context')}</h3>
+                                <p class="text-slate-500 text-sm">${translationService.t('professor.editor.rag_help')}</p>
+                            </div>
+                            <div class="flex gap-2">
+                                 <button @click="${this._handleOpenLibrary}" class="px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-100 text-sm font-semibold transition-colors">
+                                    ${translationService.t('professor.editor.library_btn')}
+                                 </button>
+                                 <label class="px-3 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg cursor-pointer hover:bg-indigo-100 text-sm font-bold transition-colors flex items-center gap-2">
+                                    <span>📤 ${translationService.t('professor.editor.upload_btn')}</span>
+                                    <input type="file" multiple accept=".pdf" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
+                                 </label>
+                            </div>
+                        </div>
+
+                        ${this._uploading ? html`
+                            <div class="flex items-center justify-center p-4 text-indigo-600">
+                                <div class="spinner w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mr-3"></div>
+                                <span class="text-sm font-medium">${translationService.t('lesson.upload_uploading')}</span>
+                            </div>
+                        ` : ''}
+
+                        ${this._uploadedFiles.length > 0 ? html`
+                            <div class="space-y-2 mt-4">
+                                ${this._uploadedFiles.map((file, index) => html`
+                                    <div class="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                                        <div class="flex items-center gap-3 overflow-hidden">
+                                            <span class="text-xl">📄</span>
+                                            <div class="flex flex-col min-w-0">
+                                                <span class="text-sm font-semibold text-slate-700 truncate">${file.name}</span>
+                                                <span class="text-xs text-slate-400">${translationService.t('professor.editor.ready_for_ai')}</span>
+                                            </div>
+                                        </div>
+                                        <button @click="${() => this._handleDeleteFile(index)}" class="p-1 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                        </button>
+                                    </div>
+                                `)}
+                            </div>
+                        ` : html`
+                            <div class="text-center py-8 border-2 border-dashed border-slate-200 rounded-lg flex flex-col items-center gap-3">
+                                <p class="text-slate-400 text-sm">${html`${translationService.t('professor.editor.no_files_magic_hint')}`}</p>
+                                <button @click="${this._handleOpenLibrary}" class="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors">
+                                    📂 ${translationService.t('professor.editor.library_btn')}
+                                </button>
+                            </div>
+                        `}
+                    </div>
+
+                    <div class="mt-8 pt-6 border-t border-slate-100 flex justify-end gap-4">
+                        <button @click=${this._handleManualCreate} class="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors">
+                           🛠️ ${translationService.t('professor.manual_create')}
+                        </button>
+
+                        <div class="relative group">
+                            <button @click=${this._handleAutoMagic}
+                                    ?disabled="${this._uploadedFiles.length === 0}"
+                                    class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:transform-none">
+                               ✨ ${translationService.t('lesson.magic_btn')}
                             </button>
-
-                            <div class="w-full h-full bg-white border-8 border-slate-900 rounded-[3rem] overflow-hidden shadow-2xl relative flex flex-col">
-                                <div class="h-7 bg-slate-900 w-full flex justify-between items-center px-6">
-                                    <span class="text-[10px] text-white font-mono">9:41</span>
-                                    <div class="flex space-x-1">
-                                        <div class="w-3 h-3 bg-slate-800 rounded-full"></div>
-                                        <div class="w-3 h-3 bg-slate-800 rounded-full"></div>
-                                    </div>
+                             ${this._uploadedFiles.length === 0 ? html`
+                                <div class="absolute bottom-full right-0 mb-2 w-64 p-2 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-center z-50">
+                                    ${translationService.t('lesson.magic_files_required_tooltip')}
                                 </div>
-
-                                <div class="flex-grow overflow-y-auto bg-slate-50 custom-scrollbar">
-                                    <student-lesson-detail
-                                        .lessonData=${this.lesson}>
-                                    </student-lesson-detail>
-                                </div>
-
-                                <div class="h-1 bg-slate-900 w-full flex justify-center items-end pb-2">
-                                     <div class="w-1/3 h-1 bg-slate-200 rounded-full opacity-20"></div>
-                                </div>
-                            </div>
+                            ` : ''}
                         </div>
                     </div>
-                ` : ''}
 
-                ${this._isLoading && this._viewMode === 'settings' ? html`
-                    <div class="fixed inset-0 z-[110] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-6 animate-fade-in">
-                        <div class="max-w-md w-full text-center">
-                            <div class="mb-8 relative">
-                                <div class="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto animate-pulse">
-                                    <span class="text-4xl">✨</span>
-                                </div>
-                                <div class="absolute -bottom-2 -right-2">
-                                    <span class="flex h-6 w-6 relative">
-                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                                        <span class="relative inline-flex rounded-full h-6 w-6 bg-indigo-500"></span>
-                                    </span>
-                                </div>
-                            </div>
+                </div>
+            </div>
+        </div>
+      `;
+  }
 
-                            <h2 class="text-3xl font-extrabold text-slate-900 mb-2">${t('common.magic_overlay_title')}</h2>
-                            <p class="text-slate-500 mb-8">${t('common.magic_overlay_desc')}</p>
+  _renderFilesSection() { return html``; }
+  
+  _renderContentTypeOption(value, icon, label) {
+      const isSelected = this.lesson.contentType === value;
+      return html`
+        <button @click="${() => this.lesson = { ...this.lesson, contentType: value }}"
+            class="flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${isSelected ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-100 hover:border-slate-200 bg-white text-slate-500'}">
+            <span class="text-2xl mb-1">${icon}</span>
+            <span class="text-xs font-bold text-center">${label}</span>
+        </button>
+      `;
+  }
 
-                            <div class="bg-slate-50 rounded-2xl p-6 shadow-inner border border-slate-100 text-left space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
-                                ${this._magicLog.length > 0 ? this._magicLog.map(log => html`
-                                    <div class="flex items-center text-sm font-medium ${log.includes('✅') ? 'text-green-600' : (log.includes('❌') ? 'text-red-500' : 'text-slate-600')}">
-                                        <span class="mr-3 text-lg">
-                                            ${log.includes('✅') ? '✅' : (log.includes('❌') ? '❌' : '⏳')}
-                                        </span>
-                                        ${log}
-                                    </div>
-                                `) : html`
-                                    <div class="text-center text-slate-400 py-4 italic">${translationService.t('lesson.magic_preparing')}</div>
-                                `}
-                            </div>
-                        </div>
+  _renderClassesPanel() {
+      return html`
+         <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 flex flex-col h-full hover:shadow-md transition-shadow">
+            <div class="flex items-center gap-3 mb-4 border-b border-slate-50 pb-2">
+                 <span class="text-xl">👥</span>
+                 <h3 class="font-bold text-slate-800">${translationService.t('professor.editor.classAssignment')}</h3>
+            </div>
+            ${this._availableClasses.length === 0 ? html`
+                <p class="text-sm text-slate-400 text-center">${translationService.t('professor.no_classes_yet')}</p>
+            ` : html`
+                <div class="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                    ${this._availableClasses.map(group => html`
+                        <label class="flex items-center justify-between p-2 rounded-xl border ${this._selectedClassIds.includes(group.id) ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-100 hover:bg-slate-50'} cursor-pointer text-sm">
+                            <span class="font-semibold text-slate-700">${group.name}</span>
+                            <input type="checkbox" .checked="${this._selectedClassIds.includes(group.id)}" @change="${() => this._handleClassToggle(group.id)}" class="rounded text-indigo-600 focus:ring-indigo-500"/>
+                        </label>
+                    `)}
+                </div>
+            `}
+         </div>
+      `;
+  }
+
+  _renderFilesPanel() {
+      return html`
+         <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 flex flex-col h-full hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between gap-3 mb-4 border-b border-slate-50 pb-2">
+                 <div class="flex items-center gap-2">
+                    <span class="text-xl">📚</span>
+                    <h3 class="font-bold text-slate-800">${translationService.t('professor.editor.filesAndRag')}</h3>
+                 </div>
+                 <div class="flex gap-1">
+                     <button @click="${this._handleOpenLibrary}" class="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg" title="${translationService.t('common.files_library')}">📂</button>
+                     <label class="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer" title="${translationService.t('media.upload_title')}">
+                        📤 <input type="file" multiple accept=".pdf" class="hidden" @change="${this._handleFilesSelected}" ?disabled="${this._uploading}">
+                     </label>
+                 </div>
+            </div>
+            <div class="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                ${this._uploadedFiles.map((file, index) => html`
+                    <div class="flex items-center justify-between bg-slate-50 p-2 rounded-lg text-sm">
+                        <span class="truncate max-w-[150px]" title="${file.name}">${file.name}</span>
+                        <button @click="${() => this._handleDeleteFile(index)}" class="text-slate-400 hover:text-red-500">×</button>
                     </div>
-                ` : ''}
+                `)}
+            </div>
+         </div>
+      `;
+  }
 
-                ${this._showSuccessModal ? html`
-                    <div class="fixed inset-0 z-[120] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-                        <div class="bg-white rounded-3xl p-8 shadow-2xl max-w-sm w-full text-center transform scale-100 transition-transform duration-300">
-                             <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <span class="text-5xl">✨</span>
-                            </div>
-                            <h2 class="text-2xl font-extrabold text-slate-900 mb-2">${t('lesson.magic_success_title')}</h2>
-                        </div>
-                    </div>
-                ` : ''}
+  _renderLessonHub() {
+      if (this._isLoading) {
+          return html`
+              <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
+                 <div class="spinner w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                 <h2 class="text-2xl font-bold text-slate-800 animate-pulse">✨ ${translationService.t('lesson.magic_creating_title')}</h2>
+                 <p class="text-slate-500 mt-2">${this._magicStatus || translationService.t('lesson.magic_creating_desc')}</p>
+              </div>
+           `;
+      }
+      return html`
+      <div class="h-full flex flex-col bg-slate-50/50 relative">
+        ${this._renderHeader()}
+
+        <div class="flex-1 overflow-hidden relative">
+          <div class="absolute inset-0 overflow-y-auto custom-scrollbar">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                 ${this._renderClassesPanel()}
+                 ${this._renderFilesPanel()}
+              </div>
+
+              <div class="space-y-4">
+                  <div class="flex items-center justify-between">
+                     <h3 class="font-bold text-slate-800 text-xl flex items-center gap-2">
+                        ✨ ${translationService.t('professor.editor.lesson_content')}
+                     </h3>
+                  </div>
+
+                  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      ${this._renderContentCard('text', '📝', translationService.t('content_types.text'), this.lesson.text_content || (this.lesson.content?.blocks?.length > 0))}
+                      ${this._renderContentCard('presentation', '📊', translationService.t('content_types.presentation'), this.lesson.slides?.length > 0 || this.lesson.presentation?.slides?.length > 0)}
+                      ${this._renderContentCard('quiz', '❓', translationService.t('content_types.quiz'), this.lesson.questions?.length > 0 || this.lesson.quiz?.questions?.length > 0)}
+                      ${this._renderContentCard('test', '📝', translationService.t('content_types.test'), this.lesson.test?.questions?.length > 0)}
+                      ${this._renderContentCard('post', '📰', translationService.t('content_types.post'), !!this.lesson.postContent)}
+                      ${this._renderContentCard('video', '🎥', translationService.t('content_types.video'), !!this.lesson.videoUrl)}
+                      ${this._renderContentCard('audio', '🎙️', translationService.t('content_types.audio'), (this.lesson.podcast_script?.script?.length > 0) || !!this.lesson.audioContent)}
+                      ${this._renderContentCard('comic', '💬', translationService.t('content_types.comic'), this.lesson.comic?.panels?.length > 0)}
+                      ${this._renderContentCard('flashcards', '🃏', translationService.t('content_types.flashcards'), this.lesson.flashcards?.cards?.length > 0)}
+                      ${this._renderContentCard('mindmap', '🧠', translationService.t('content_types.mindmap'), !!this.lesson.mindmap?.mermaid)}
+                  </div>
+              </div>
 
             </div>
-            <style>
-                /* Custom Animations for Zen Feel */
-                @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-                .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
-                .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 20px; }
+          </div>
+        </div>
+      </div>
+      `;
+  }
 
-            </style>
-        `;
-    }
+  _renderContentCard(type, icon, label, hasContent) {
+      return html`
+        <button @click="${() => { this._activeTool = type; this.lesson = { ...this.lesson, contentType: type }; }}"
+            class="relative flex flex-col items-center justify-center p-6 rounded-3xl border-2 transition-all group
+            ${hasContent
+                ? 'bg-white border-emerald-100 hover:border-emerald-300 hover:shadow-lg'
+                : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-md'}">
+
+            ${hasContent ? html`
+                <div class="absolute top-3 right-3 text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    ${translationService.t('common.done')}
+                </div>
+            ` : nothing}
+
+            <span class="text-4xl mb-3 transform group-hover:scale-110 transition-transform duration-300">${icon}</span>
+            <span class="font-bold text-slate-700 text-sm">${label}</span>
+
+            ${!hasContent ? html`
+                <span class="text-xs text-slate-400 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Klikni pro vytvoření</span>
+            ` : nothing}
+        </button>
+      `;
+  }
+
+  _renderSpecificToolEditor() {
+      return this._renderSpecificEditor();
+  }
+
+  _renderHeader() {
+    return html`
+      <div class="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex flex-col md:flex-row justify-between items-center py-4 gap-4">
+
+            <div class="flex items-center gap-4 w-full">
+              <button @click="${this._handleBackClick}"
+                      class="p-2 -ml-2 text-slate-400 hover:text-indigo-600 hover:bg-white/50 rounded-xl transition-all">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+              </button>
+
+              <div class="flex-1">
+                  <input type="text"
+                          .value="${this.lesson.title}"
+                          @input="${e => this.lesson = { ...this.lesson, title: e.target.value }}"
+                          class="w-full bg-transparent border-none p-0 text-2xl font-extrabold text-slate-800 placeholder-slate-300 focus:ring-0 focus:outline-none"
+                          placeholder="${translationService.t('professor.editor.lessonTitlePlaceholder')}">
+
+                   <div class="flex gap-2 text-xs text-slate-500 mt-1">
+                        <span>${this.lesson.subject || translationService.t('common.no_subject') || 'Bez předmětu'}</span>
+                        <span>•</span>
+                        <span>${this.lesson.topic || translationService.t('common.no_topic') || 'Bez tématu'}</span>
+                   </div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 flex-shrink-0">
+               <button @click="${() => this._handlePublishChanged({ detail: { isPublished: !this.lesson.isPublished } })}"
+                       class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white transition-all ${this.lesson?.isPublished ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-500 hover:bg-slate-600'}"
+                       title="${this.lesson?.isPublished ? (translationService.t('lesson.status_published') || 'Publikované') : (translationService.t('lesson.status_draft') || 'Koncept')}">
+                   <span class="mr-2">${this.lesson?.isPublished ? '🚀' : '📝'}</span>
+                   ${this.lesson?.isPublished ? (translationService.t('lesson.status_published') || 'Publikované') : (translationService.t('lesson.status_draft') || 'Koncept')}
+               </button>
+
+                <div class="flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${this.isSaving ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-500'}">
+                    ${this.isSaving ? html`
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>${translationService.t('common.saving') || 'Ukládání...'}</span>
+                    ` : html`
+                        <span class="mr-1.5">☁️</span>
+                        <span>${translationService.t('all_saved') || 'Vše uloženo'}</span>
+                    `}
+                </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderSpecificEditor() {
+      const handleUpdate = this._handleLessonUpdatedEvent.bind(this);
+
+      switch (this._activeTool) {
+          case 'text': 
+              return html`<editor-view-text @back=${this._handleBackToHub} @save=${this._handleSave}
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${handleUpdate} 
+                  id="active-editor" class="w-full h-full block"></editor-view-text>`;
+          
+          case 'presentation': 
+              return html`<editor-view-presentation @back=${this._handleBackToHub} @save=${this._handleSave}
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${handleUpdate}
+                  id="active-editor" class="w-full h-full block"></editor-view-presentation>`;
+          
+          case 'quiz': 
+              return html`<editor-view-quiz @back=${this._handleBackToHub} @save=${this._handleSave}
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${handleUpdate}
+                  id="active-editor" class="w-full h-full block"></editor-view-quiz>`;
+          
+          case 'test': 
+              return html`<editor-view-test @back=${this._handleBackToHub} @save=${this._handleSave}
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${handleUpdate}
+                  id="active-editor" class="w-full h-full block"></editor-view-test>`;
+          
+          case 'post': 
+              return html`<editor-view-post @back=${this._handleBackToHub} @save=${this._handleSave}
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${handleUpdate}
+                  id="active-editor" class="w-full h-full block"></editor-view-post>`;
+          
+          case 'video': 
+              return html`<editor-view-video @back=${this._handleBackToHub} @save=${this._handleSave}
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${handleUpdate} 
+                  id="active-editor" class="w-full h-full block"></editor-view-video>`;
+          
+          case 'comic': 
+              return html`<editor-view-comic @back=${this._handleBackToHub} @save=${this._handleSave}
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${handleUpdate}
+                  id="active-editor" class="w-full h-full block"></editor-view-comic>`;
+          
+          case 'flashcards': 
+              return html`<editor-view-flashcards @back=${this._handleBackToHub} @save=${this._handleSave}
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${handleUpdate}
+                  id="active-editor" class="w-full h-full block"></editor-view-flashcards>`;
+          
+          case 'mindmap': 
+              return html`<editor-view-mindmap @back=${this._handleBackToHub} @save=${this._handleSave}
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${handleUpdate}
+                  id="active-editor" class="w-full h-full block"></editor-view-mindmap>`;
+
+          case 'audio':
+              return html`<editor-view-audio @back=${this._handleBackToHub} @save=${this._handleSave}
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  @lesson-updated=${handleUpdate}
+                  id="active-editor" class="w-full h-full block"></editor-view-audio>`;
+                  
+          default: return html`<div class="p-4 text-center text-red-500">${translationService.t('common.unknown_type')}</div>`;
+      }
+  }
+
+  render() {
+      if (!this.lesson) {
+          if (this._longLoading) {
+             return html`
+                <div class="flex flex-col justify-center items-center h-full space-y-4">
+                    <p class="text-slate-500">${translationService.t('common.loading_slow') || 'Nahrávání trvá déle než obvykle...'}</p>
+                    <button @click="${() => window.location.reload()}"
+                            class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                        ${translationService.t('common.reload') || 'Načíst znovu'}
+                    </button>
+                </div>
+             `;
+          }
+          return html`<div class="flex justify-center items-center h-full"><div class="spinner"></div></div>`;
+      }
+      if (this._wizardMode) {
+          return this._renderWizardMode();
+      }
+      if (this._activeTool) {
+          return this._renderSpecificEditor();
+      }
+      return this._renderLessonHub();
+  }
 }
 customElements.define('lesson-editor', LessonEditor);

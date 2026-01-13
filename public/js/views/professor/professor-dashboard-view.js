@@ -1,7 +1,7 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
-import { showToast } from '../../utils.js';
+import { showToast } from '../../utils/utils.js';
 import { translationService, SUPPORTED_LANGUAGES } from '../../utils/translation-service.js';
 import { Localized } from '../../utils/localization-mixin.js';
 import { baseStyles } from '../../shared-styles.js';
@@ -88,7 +88,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
     async _submitCreateClass() {
         const className = this._newClassName.trim();
         if (!className) {
-            showToast(this.t('professor.enter_class_name'), true);
+            showToast(this.t('dashboard.enter_class_name'), true);
             return;
         }
         const user = firebaseInit.auth.currentUser;
@@ -123,11 +123,29 @@ export class ProfessorDashboardView extends Localized(LitElement) {
         }
 
         const user = firebaseInit.auth.currentUser;
-        const userName = user?.displayName || user?.email || 'Profesore';
+        const userName = user?.displayName || user?.email || t('professor.default_name');
         const currentLang = translationService.currentLanguage;
 
+        const emptyStateBanner = (this._classes.length === 0 && !this._isLoading) ? html`
+          <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r-lg flex justify-between items-center shadow-sm">
+              <div class="flex items-center">
+                  <div class="flex-shrink-0 text-yellow-400">
+                      <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                  </div>
+                  <div class="ml-3">
+                      <p class="text-sm text-yellow-700 font-bold">
+                          ${t('dashboard.no_classes_warning')}
+                      </p>
+                  </div>
+              </div>
+              <button @click=${() => this._showCreateClassModal = true} class="ml-4 bg-yellow-100 text-yellow-800 text-xs font-bold px-4 py-2 rounded-lg hover:bg-yellow-200 transition-colors uppercase tracking-wide">
+                  ${t('professor.new_class')}
+              </button>
+          </div>
+      ` : '';
+
         return html`
-            <div class="w-full p-6 md:p-8 space-y-8">
+            <div class="w-full p-6 md:p-8 space-y-8 h-full overflow-y-auto custom-scrollbar">
                 
                 <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
@@ -171,7 +189,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                             
                             <div class="p-6 hover:bg-purple-50/50 transition-colors cursor-pointer group rounded-l-3xl"
-                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor' }, bubbles: true, composed: true }))}>
+                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', intent: 'magic' }, bubbles: true, composed: true }))}>
                                 <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-purple-200 mb-4 group-hover:scale-110 transition-transform">
                                     ✨
                                 </div>
@@ -180,7 +198,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                             </div>
 
                             <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
-                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', viewMode: 'settings' }, bubbles: true, composed: true }))}>
+                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'editor', intent: 'manual' }, bubbles: true, composed: true }))}>
                                 <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-indigo-200 group-hover:text-indigo-600 transition-colors">
                                     📝
                                 </div>
@@ -189,7 +207,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                             </div>
 
                             <div class="p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
-                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'timeline' }, bubbles: true, composed: true }))}>
+                                    @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'library' }, bubbles: true, composed: true }))}>
                                 <div class="w-12 h-12 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:border-blue-200 group-hover:text-blue-600 transition-colors">
                                     📚
                                 </div>
@@ -223,6 +241,8 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                             + ${t('professor.new_class')}
                         </button>
                     </div>
+
+                    ${emptyStateBanner}
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group"
@@ -282,7 +302,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                     <input
                         type="text"
                         class="w-full border-2 border-slate-200 rounded-xl p-3 mb-6 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all font-bold text-slate-700"
-                        placeholder="Např. 4.A Fyzika"
+                        placeholder="${t('dashboard.class_name_placeholder')}"
                         .value=${this._newClassName}
                         @input=${e => this._newClassName = e.target.value}
                         @keypress=${e => e.key === 'Enter' && this._submitCreateClass()}

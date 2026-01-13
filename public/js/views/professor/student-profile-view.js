@@ -2,7 +2,7 @@
 import { getDoc, doc, collection, query, where, getDocs, orderBy, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import * as firebaseInit from '../../firebase-init.js'; // Použijeme importovaný firebaseInit
-import { showToast } from "../../utils.js";
+import { showToast } from "../../utils/utils.js";
 // ==========================
 
 let currentStudent = null; // Uchováme si dáta študenta pre prepínanie tabov

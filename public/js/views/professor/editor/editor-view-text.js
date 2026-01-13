@@ -1,24 +1,106 @@
 // public/js/views/professor/editor/editor-view-text.js
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import './ai-generator-panel.js'; // Importujeme náš super-komponent
+import { Localized } from '../../../utils/localization-mixin.js';
+import './ai-generator-panel.js';
+import './professor-header-editor.js';
 
-export class EditorViewText extends LitElement {
+export class EditorViewText extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
+        isSaving: { type: Boolean }
     };
 
     createRenderRoot() { return this; }
 
+    _handleInput(e) {
+        if (!this.lesson) return;
+        this.lesson.text_content = e.target.innerText;
+        // Dispatch event so parent knows something changed (for auto-save etc)
+        this.dispatchEvent(new CustomEvent('lesson-updated', {
+            detail: { text_content: this.lesson.text_content },
+            bubbles: true,
+            composed: true
+        }));
+    }
+
+    _handleAiSave(data) {
+        // Normalize Data on Input (Sanitization)
+        const cleanText = typeof data === 'object' ? (data.content || data.text_content || data.text || JSON.stringify(data)) : data;
+
+        // Update local state
+        this.lesson.text_content = cleanText;
+        this.requestUpdate();
+
+        // Notify parent to save
+        this.dispatchEvent(new CustomEvent('lesson-updated', {
+            detail: { text_content: cleanText },
+            bubbles: true,
+            composed: true
+        }));
+    }
+
     render() {
+        // FORCE STRING CONVERSION (Hard-hardened against Data Poisoning)
+        let safeContent = this.lesson?.text_content;
+
+        if (typeof safeContent === 'object' && safeContent !== null) {
+            safeContent = safeContent.content || safeContent.text_content || safeContent.text || '';
+        }
+
+        if (typeof safeContent !== 'string') {
+            safeContent = String(safeContent || '');
+        }
+
+        // NOW it is safe to use .trim()
+        const textContent = safeContent;
+        const hasContent = !!textContent.trim();
+
         return html`
-            <ai-generator-panel
-                .lesson=${this.lesson}
-                viewTitle="Text pro studenty"
-                contentType="text"
-                fieldToUpdate="text_content"
-                description="Zadejte AI prompt a vygenerujte hlavní studijní text. Můžete vybrat dokumenty (RAG)."
-                promptPlaceholder="Např. 'Vytvoř poutavý úvodní text...'">
-            </ai-generator-panel>
+            <div class="h-full flex flex-col bg-slate-50 relative">
+                <!-- Header -->
+                <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
+
+                <!-- Scrollable Workspace -->
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
+
+                    <!-- Paper Container -->
+                    <div class="max-w-5xl mx-auto bg-white border border-slate-200 rounded-2xl shadow-sm min-h-[600px] flex flex-col relative transition-all duration-300">
+
+                        ${hasContent ? html`
+                            <!-- Rich Text Editor Mode (Simple ContentEditable) -->
+                            <div class="p-8 md:p-12 w-full h-full flex-1">
+                                <div
+                                    class="prose prose-lg prose-slate max-w-none focus:outline-none w-full h-full min-h-[400px]"
+                                    contenteditable="true"
+                                    style="white-space: pre-wrap;"
+                                    @input="${this._handleInput}"
+                                    .innerHTML="${textContent}"
+                                ></div>
+                            </div>
+                        ` : html`
+                            <!-- Empty State: AI Generator -->
+                            <div class="w-full h-full flex-1 flex flex-col">
+                                <ai-generator-panel
+                                    .lesson=${this.lesson}
+                                    viewTitle="${this.t('editor.text.title')}"
+                                    contentType="text"
+                                    fieldToUpdate="text_content"
+                                    description="${this.t('editor.text.description')}"
+                                    .onSave="${this._handleAiSave.bind(this)}"
+                                    .autoSave="${true}"
+                                    .inputsConfig=${[{
+                                        id: 'prompt-input',
+                                        type: 'textarea',
+                                        label: this.t('editor.prompt_label'),
+                                        placeholder: this.t('editor.text.placeholder')
+                                    }]}>
+                                </ai-generator-panel>
+                            </div>
+                        `}
+
+                    </div>
+                </div>
+            </div>
         `;
     }
 }

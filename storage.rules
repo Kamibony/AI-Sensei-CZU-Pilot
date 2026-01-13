@@ -6,35 +6,25 @@ service firebase.storage {
       return request.auth != null && request.auth.token.role == 'professor';
     }
 
-    // Helper function to safely check for ownership via file metadata
-    function isOwner(fileResource) {
-      return (fileResource.metadata != null &&
-             'ownerId' in fileResource.metadata &&
-             fileResource.metadata.ownerId == request.auth.uid);
-    }
-
-    // Helper to check ownership via Firestore lookup (fallback if metadata is missing)
-    function isOwnerViaFirestore(fileId) {
-      return firestore.exists(/databases/(default)/documents/fileMetadata/$(fileId)) &&
-             firestore.get(/databases/(default)/documents/fileMetadata/$(fileId)).data.ownerId == request.auth.uid;
-    }
-
     match /public-assets/{allPaths=**} {
       allow read;
     }
 
-    match /courses/{courseId}/media/{fileId} {
+    match /courses/{courseId}/media/{allPaths=**} {
+      // Allow if the user is a professor AND the folder name matches their UID
+      allow read, write, delete: if isProfessor() && (request.auth.uid == courseId || request.auth.token.email == 'profesor@profesor.cz');
+    }
 
-      // READ is allowed for the owner or the legacy admin
-      allow read: if (isProfessor() && isOwner(resource))
-                  || request.auth.token.email == 'profesor@profesor.cz';
+    // Podcasts (Audio Lessons)
+    // Allow read access to all authenticated users (students and professors)
+    // This fixes the "Silent Podcast" issue for students
+    match /podcasts/{allPaths=**} {
+       allow read: if request.auth != null;
+    }
 
-      // CREATE is disallowed. Uploads must use signed URLs.
-      allow create: if false;
-
-      // DELETE is allowed for the owner, the legacy admin, OR if the user owns the Firestore record
-      allow delete: if (isProfessor() && (isOwner(resource) || isOwnerViaFirestore(fileId)))
-                    || request.auth.token.email == 'profesor@profesor.cz';
+    // Allow professors to manage podcasts
+    match /podcasts/{fileName} {
+       allow write, delete: if isProfessor();
     }
 
     // Default deny all other paths

@@ -11,7 +11,6 @@ const STORAGE_BUCKET = process.env.STORAGE_BUCKET || FIREBASE_CONFIG.storageBuck
 
 // Lazy loading global variables
 let vertex_ai: any = null;
-let model: any = null;
 
 function getGcloudProject() {
     const project = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
@@ -21,31 +20,123 @@ function getGcloudProject() {
     return project;
 }
 
-function getGenerativeModel() {
-    if (!model) {
-        const { VertexAI, HarmCategory, HarmBlockThreshold } = require("@google-cloud/vertexai");
+function getGenerativeModel(systemInstruction?: string) {
+    if (!vertex_ai) {
+        const { VertexAI } = require("@google-cloud/vertexai");
         vertex_ai = new VertexAI({ project: getGcloudProject(), location: LOCATION });
-        model = vertex_ai.getGenerativeModel({
-            model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
-            safetySettings: [
-                { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-                { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-                { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-                { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-            ],
-        });
     }
-    return model;
+
+    const { HarmCategory, HarmBlockThreshold } = require("@google-cloud/vertexai");
+
+    // --- ZMENA: KREATÍVNY UČITEĽ (Fix pre odmietanie obsahu) ---
+    // Pôvodná inštrukcia "You are a strict educational assistant..." bola nahradená.
+    const defaultInstruction = `You are an expert educational content creator.
+Your goal is to extract ALL useful knowledge from the provided source text and transform it into a structured lesson, regardless of the explicit lesson title.
+If the source text is a manual or guide, teach the user HOW to use it.
+Do NOT refuse to generate content. Always find the most relevant educational value in the file.`;
+
+    return vertex_ai.getGenerativeModel({
+        model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
+        systemInstruction: {
+            parts: [{ text: systemInstruction || defaultInstruction }]
+        },
+        generationConfig: {
+            temperature: 0.2, // Low creativity for accuracy
+            maxOutputTokens: 8192,
+        },
+        safetySettings: [
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+        ],
+    });
+}
+
+// --- POMOCNÁ FUNKCIA NA ČISTENIE CESTY ---
+function sanitizeStoragePath(path: string, bucketName: string): string {
+    if (!path) return "";
+
+    path = decodeURIComponent(path).normalize('NFC'); // SYSTEMIC FIX for special chars
+
+    // 1. Remove gs:// prefix
+    let clean = path.replace(/^gs:\/\//, "");
+    
+    // 2. Remove bucket name if present at the start
+    if (clean.startsWith(bucketName)) {
+        clean = clean.substring(bucketName.length);
+    }
+    
+    // 3. Remove leading slashes
+    clean = clean.replace(/^\/+/, "");
+    
+    return clean;
+}
+
+// --- SYSTEMIC DOWNLOAD FIX ---
+async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<{ buffer: Buffer, finalPath: string }> {
+    // Generate candidates
+    const candidates: string[] = [];
+
+    // 1. Primary Path (as provided, sanitized) - Try NFC first (canonical), then NFD (Mac upload)
+    const primaryPath = cleanPath;
+    candidates.push(primaryPath.normalize('NFC'));
+    candidates.push(primaryPath.normalize('NFD'));
+
+    // 2. Legacy/Alternative Path (toggle /media/)
+    let alternativePath: string | null = null;
+    if (primaryPath.includes("/media/")) {
+        // Standard -> Legacy
+        alternativePath = primaryPath.replace("/media/", "/");
+    } else {
+        // Legacy -> Standard (unlikely but robust)
+        alternativePath = primaryPath.replace("courses/", "courses/media/");
+    }
+
+    if (alternativePath && alternativePath !== primaryPath) {
+         candidates.push(alternativePath.normalize('NFC'));
+         candidates.push(alternativePath.normalize('NFD'));
+    }
+
+    // 3. URI Encoded Path (for files uploaded with %20 instead of spaces)
+    // Sometimes storage tools upload 'File Name.pdf' as 'File%20Name.pdf' literal object name.
+    if (primaryPath.includes(" ")) {
+        candidates.push(primaryPath.replace(/ /g, '%20'));
+    }
+    if (alternativePath && alternativePath.includes(" ")) {
+        candidates.push(alternativePath.replace(/ /g, '%20'));
+    }
+
+    // Deduplicate candidates
+    const uniqueCandidates = [...new Set(candidates)];
+    console.log(`[gemini-api] Download candidates for '${cleanPath}':`, uniqueCandidates);
+
+    // Iterate and try to download
+    for (const path of uniqueCandidates) {
+        try {
+            console.log(`[gemini-api] Trying to download: '${path}'`);
+            const file = bucket.file(path);
+            const [buffer] = await file.download();
+            if (buffer && buffer.length > 0) {
+                 if (path !== primaryPath.normalize('NFC')) {
+                     logger.info(`[gemini-api] Recovered file using alternative path/normalization: '${path}' (Original: '${cleanPath}')`);
+                 }
+                 return { buffer, finalPath: path };
+            }
+        } catch (e: any) {
+            console.warn(`[gemini-api] Failed attempt for '${path}':`, e.message);
+        }
+    }
+
+    throw new Error(`Failed to download file '${cleanPath}' after trying candidates: ${uniqueCandidates.join(', ')}`);
 }
 
 async function getEmbeddings(text: string): Promise<number[]> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
         console.log("EMULATOR_MOCK for getEmbeddings: Returning a mock vector.");
-        // Return a fixed-size vector of non-zero values for emulator testing
         return Array(768).fill(0).map((_, i) => Math.sin(i));
     }
 
-    // Lazy load aiplatform
     const aiplatform = require("@google-cloud/aiplatform");
     const { PredictionServiceClient } = aiplatform.v1;
     const { helpers } = aiplatform;
@@ -85,7 +176,8 @@ async function getEmbeddings(text: string): Promise<number[]> {
         throw new HttpsError("internal", "An unknown error occurred while generating embeddings.");
     }
 }
-exports.getEmbeddings = getEmbeddings;
+// exports.getEmbeddings = getEmbeddings;
+
 function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
     if (vecA.length !== vecB.length) {
         throw new Error("Vectors must be of the same length to calculate similarity.");
@@ -101,26 +193,45 @@ function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
     magA = Math.sqrt(magA);
     magB = Math.sqrt(magB);
     if (magA === 0 || magB === 0) {
-        return 0; // Or throw an error, depending on desired behavior for zero vectors
+        return 0;
     }
     return dotProduct / (magA * magB);
 }
-exports.calculateCosineSimilarity = calculateCosineSimilarity;
-async function streamGeminiResponse(requestBody: GenerateContentRequest): Promise<string> {
+// exports.calculateCosineSimilarity = calculateCosineSimilarity;
+
+async function streamGeminiResponse(requestBody: GenerateContentRequest, systemInstruction?: string): Promise<string> {
     const functionName = requestBody.generationConfig?.responseMimeType === "application/json"
         ? "generateJson"
         : "generateText";
     if (process.env.FUNCTIONS_EMULATOR === "true") {
         console.log(`EMULATOR_MOCK for ${functionName}: Bypassing real API call.`);
         if (functionName === "generateJson") {
-            return JSON.stringify({ mock: "This is a mock JSON response from the emulator." });
+            return JSON.stringify({
+                mock: "This is a mock JSON response from the emulator.",
+                // Mock data for Podcast
+                script: [
+                    { speaker: "Host", text: "Welcome to the AI Sensei Podcast. Today we discuss the topic." },
+                    { speaker: "Guest", text: "It is great to be here. Let's dive in." }
+                ],
+                // Mock data for Comic
+                panels: [
+                    { panel_number: 1, description: "A futuristic classroom with a robot teacher.", dialogue: "Good morning class!" },
+                    { panel_number: 2, description: "Students looking at holograms.", dialogue: "Wow, look at that!" }
+                ],
+                // Mock data for Quiz/Test
+                questions: [
+                    { question: "What is 2+2?", options: ["3", "4", "5", "6"], correctAnswer: 1 }
+                ],
+                // Mock for Mindmap
+                mermaid: "graph TD; A-->B;"
+            });
         }
         return "This is a mock response from the emulator for a text prompt.";
     }
     try {
         const modelId = process.env.GEMINI_MODEL || "gemini-2.5-pro";
         console.log(`[gemini-api:${functionName}] Sending request to Vertex AI with model '${modelId}' in '${LOCATION}'...`);
-        const modelInstance = getGenerativeModel();
+        const modelInstance = getGenerativeModel(systemInstruction);
         const streamResult = await modelInstance.generateContentStream(requestBody);
         let fullText = "";
         for await (const item of streamResult.stream) {
@@ -139,14 +250,16 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest): Promis
         throw new Error("An unknown error occurred while communicating with the Vertex AI API.");
     }
 }
-async function generateTextFromPrompt(prompt: string): Promise<string> {
+
+async function generateTextFromPrompt(prompt: string, systemInstruction?: string): Promise<string> {
     const request: GenerateContentRequest = {
         contents: [{ role: "user", parts: [{ text: prompt }] }],
     };
-    return await streamGeminiResponse(request);
+    return await streamGeminiResponse(request, systemInstruction);
 }
-exports.generateTextFromPrompt = generateTextFromPrompt;
-async function generateJsonFromPrompt(prompt: string): Promise<any> {
+// exports.generateTextFromPrompt = generateTextFromPrompt;
+
+async function generateJsonFromPrompt(prompt: string, systemInstruction?: string): Promise<any> {
     const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
     const request: GenerateContentRequest = {
         contents: [{ role: "user", parts: [{ text: jsonPrompt }] }],
@@ -154,85 +267,118 @@ async function generateJsonFromPrompt(prompt: string): Promise<any> {
             responseMimeType: "application/json",
         },
     };
-    const rawJsonText = await streamGeminiResponse(request);
+    const rawJsonText = await streamGeminiResponse(request, systemInstruction);
     try {
         const parsedJson = JSON.parse(rawJsonText);
         return parsedJson;
     }
-    catch (e) { // <--- ZMENENÉ
-        logger.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText, e); // <--- ZMENENÉ
-        // Hádzanie HttpsError namiesto new Error(), aby sa zabránilo 500 Internal Server Error
-        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText }); // <--- ZMENENÉ
+    catch (e) {
+        logger.error("[gemini-api:generateJson] Failed to parse JSON from Gemini response:", rawJsonText, e);
+        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText });
     }
 }
-exports.generateJsonFromPrompt = generateJsonFromPrompt;
-async function generateTextFromDocuments(filePaths: string[], prompt: string): Promise<string> {
+// exports.generateJsonFromPrompt = generateJsonFromPrompt;
+
+async function generateTextFromDocuments(filePaths: string[], prompt: string, systemInstruction?: string): Promise<string> {
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
-    for (const filePath of filePaths) {
-        const file = bucket.file(filePath);
-        console.log(`[gemini-api:generateTextFromDocuments] Reading file from gs://${bucket.name}/${filePath}`);
-        const [fileBuffer] = await file.download();
-        parts.push({
-            inlineData: {
-                mimeType: "application/pdf",
-                data: fileBuffer.toString("base64"),
-            }
-        });
+    let loadedFiles = 0;
+    
+    // OPRAVA: Iterácia s čistením cesty a inteligentným fallbackom
+    for (const rawPath of filePaths) {
+        const cleanPath = sanitizeStoragePath(rawPath, bucket.name);
+        const file = bucket.file(cleanPath);
+        
+        console.log(`[gemini-api:generateTextFromDocuments] Reading file from gs://${bucket.name}/${cleanPath} (Original: ${rawPath})`);
+        try {
+            const { buffer, finalPath } = await downloadFileWithRetries(bucket, cleanPath);
+
+            let mimeType = "application/pdf";
+            if (finalPath.toLowerCase().endsWith(".txt")) mimeType = "text/plain";
+            if (finalPath.toLowerCase().endsWith(".json")) mimeType = "application/json";
+
+            parts.push({
+                inlineData: {
+                    mimeType: mimeType,
+                    data: buffer.toString("base64"),
+                }
+            });
+            loadedFiles++;
+        } catch (err) {
+            logger.warn(`[gemini-api] Failed to download file after all retries: ${cleanPath}. Skipping.`, err);
+            continue;
+        }
     }
+    
+    if (loadedFiles === 0) {
+        throw new HttpsError('not-found', 'Backend could not read any source files. Please check file paths. Attempted path example: ' + (filePaths[0] || 'none'));
+    }
+
     parts.push({ text: prompt });
     const request: GenerateContentRequest = {
         contents: [{ role: "user", parts: parts }],
     };
-    return await streamGeminiResponse(request);
+    return await streamGeminiResponse(request, systemInstruction);
 }
-exports.generateTextFromDocuments = generateTextFromDocuments;
-// --- NOVÁ FUNKCIA PRE GENERAVANIE JSON Z DOKUMENTOV ---
-async function generateJsonFromDocuments(filePaths: string[], prompt: string): Promise<any> {
+// exports.generateTextFromDocuments = generateTextFromDocuments;
+
+async function generateJsonFromDocuments(filePaths: string[], prompt: string, systemInstruction?: string): Promise<any> {
     const bucket = getStorage().bucket(process.env.STORAGE_BUCKET || STORAGE_BUCKET);
     const parts: Part[] = [];
-    for (const filePath of filePaths) {
-        const file = bucket.file(filePath);
-        console.log(`[gemini-api:generateJsonFromDocuments] Reading file from gs://${bucket.name}/${filePath}`);
-        const [fileBuffer] = await file.download();
-        parts.push({
-            inlineData: {
-                mimeType: "application/pdf",
-                data: fileBuffer.toString("base64"),
-            }
-        });
+    
+    // OPRAVA: Iterácia s čistením cesty a inteligentným fallbackom
+    for (const rawPath of filePaths) {
+        const cleanPath = sanitizeStoragePath(rawPath, bucket.name);
+        const file = bucket.file(cleanPath);
+        
+        console.log(`[gemini-api:generateJsonFromDocuments] Reading file from gs://${bucket.name}/${cleanPath} (Original: ${rawPath})`);
+        try {
+            const { buffer, finalPath } = await downloadFileWithRetries(bucket, cleanPath);
+
+            let mimeType = "application/pdf";
+            if (finalPath.toLowerCase().endsWith(".txt")) mimeType = "text/plain";
+            if (finalPath.toLowerCase().endsWith(".json")) mimeType = "application/json";
+
+            parts.push({
+                inlineData: {
+                    mimeType: mimeType,
+                    data: buffer.toString("base64"),
+                }
+            });
+        } catch (err) {
+            logger.warn(`[gemini-api] Failed to download file after all retries: ${cleanPath}. Skipping.`, err);
+        }
     }
+
     const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
     parts.push({ text: jsonPrompt });
+    
     const request: GenerateContentRequest = {
         contents: [{ role: "user", parts: parts }],
         generationConfig: {
             responseMimeType: "application/json",
         },
     };
-    const rawJsonText = await streamGeminiResponse(request);
+    const rawJsonText = await streamGeminiResponse(request, systemInstruction);
     try {
         const parsedJson = JSON.parse(rawJsonText);
         return parsedJson;
     }
-    catch (e) { // <--- ZMENENÉ
-        logger.error("[gemini-api:generateJsonFromDocuments] Failed to parse JSON from Gemini response:", rawJsonText, e); // <--- ZMENENÉ
-        // Hádzanie HttpsError namiesto new Error(), aby sa zabránilo 500 Internal Server Error
-        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText }); // <--- ZMENENÉ
+    catch (e) {
+        logger.error("[gemini-api:generateJsonFromDocuments] Failed to parse JSON from Gemini response:", rawJsonText, e);
+        throw new HttpsError("internal", "Model returned a malformed JSON string.", { response: rawJsonText });
     }
 }
-exports.generateJsonFromDocuments = generateJsonFromDocuments;
+// exports.generateJsonFromDocuments = generateJsonFromDocuments;
 
 async function generateImageFromPrompt(prompt: string): Promise<string> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
         console.log("EMULATOR_MOCK for generateImageFromPrompt: Returning a mock base64 image.");
-        // Simple 1024x1024 blue square SVG as a placeholder, to be returned as base64 but NOT wrapped in data:image
         const svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1024 1024\" width=\"1024\" height=\"1024\"><rect width=\"1024\" height=\"1024\" fill=\"#60A5FA\" /><text x=\"50%\" y=\"50%\" font-size=\"60\" text-anchor=\"middle\" dy=\".3em\" fill=\"white\" font-family=\"sans-serif\">EMULATOR</text></svg>";
         const base64Svg = Buffer.from(svg).toString("base64");
         return base64Svg;
     }
 
-    // Lazy load aiplatform, PredictionServiceClient, and helpers
     const aiplatform = require("@google-cloud/aiplatform");
     const { PredictionServiceClient } = aiplatform.v1;
     const { helpers } = aiplatform;
@@ -243,7 +389,6 @@ async function generateImageFromPrompt(prompt: string): Promise<string> {
 
     const client = new PredictionServiceClient(clientOptions);
     const projectId = getGcloudProject();
-    // Note: 'imagen-3.0-generate-001' is a potential future model. Using a stable version for now.
     const endpoint = `projects/${projectId}/locations/${LOCATION}/publishers/google/models/imagegeneration@006`;
 
     const instances = [
@@ -280,12 +425,70 @@ async function generateImageFromPrompt(prompt: string): Promise<string> {
         console.log("[gemini-api:generateImageFromPrompt] Successfully received image from Imagen.");
         return imageBase64;
 
-    } catch (error) {
-        logger.error("[gemini-api:generateImageFromPrompt] Error generating image:", error);
-        if (error instanceof Error) {
-            throw new HttpsError("internal", `Imagen call failed: ${error.message}`);
+    } catch (error: any) {
+        console.warn("Imagen generation failed (likely safety). Using fallback.", error.message);
+
+        try {
+            const safeRequest = {
+                ...request,
+                instances: [
+                    helpers.toValue({
+                        prompt: "Abstract calm educational background, minimalist style, safe content",
+                    }),
+                ]
+            };
+            const [fallbackResponse] = await client.predict(safeRequest);
+
+            if (!fallbackResponse || !fallbackResponse.predictions || fallbackResponse.predictions.length === 0) {
+                throw new Error("Invalid fallback response");
+            }
+
+            const prediction = fallbackResponse.predictions[0];
+            const imageBase64 = prediction.structValue?.fields?.bytesBase64Encoded?.stringValue;
+
+            if (!imageBase64) {
+                throw new Error("No image in fallback response");
+            }
+            return imageBase64;
+        } catch (fatalError) {
+             console.error("Fallback also failed.");
+             throw new HttpsError("internal", "Image generation completely failed.");
         }
-        throw new HttpsError("internal", "An unknown error occurred while generating the image.");
     }
 }
-exports.generateImageFromPrompt = generateImageFromPrompt;
+// exports.generateImageFromPrompt = generateImageFromPrompt;
+
+async function generateTextFromMultimodal(prompt: string, base64Data: string, mimeType: string): Promise<string> {
+    const model = await getGenerativeModel();
+    const result = await model.generateContent({
+        contents: [{
+            role: 'user',
+            parts: [
+                { text: prompt },
+                {
+                    inlineData: {
+                        mimeType: mimeType,
+                        data: base64Data
+                    }
+                }
+            ]
+        }]
+    });
+
+    const response = await result.response;
+    const text = response.candidates?.[0].content.parts[0].text;
+    return text || "";
+}
+
+export {
+    getEmbeddings,
+    calculateCosineSimilarity,
+    generateTextFromPrompt,
+    generateJsonFromPrompt,
+    generateTextFromDocuments,
+    generateJsonFromDocuments,
+    generateImageFromPrompt,
+    generateTextFromMultimodal,
+    downloadFileWithRetries,
+    sanitizeStoragePath
+};
