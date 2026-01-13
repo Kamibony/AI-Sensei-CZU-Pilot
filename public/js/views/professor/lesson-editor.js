@@ -1121,6 +1121,84 @@ export class LessonEditor extends BaseView {
       }
   }
 
+  // --- SMART CHECK: Robust Status Validation ---
+  _isSectionComplete(type) {
+      if (!this.lesson) return false;
+      const l = this.lesson;
+
+      switch (type) {
+          case 'text':
+              // Content exists, but status is "Not Done"
+              if (l.text_content && typeof l.text_content === 'string' && l.text_content.trim().length > 0) return true;
+              if (l.content) {
+                  if (typeof l.content === 'string' && l.content.trim().length > 0) return true;
+                  if (l.content.text_content && typeof l.content.text_content === 'string' && l.content.text_content.trim().length > 0) return true;
+                  if (l.content.content && typeof l.content.content === 'string' && l.content.content.trim().length > 0) return true;
+                  if (Array.isArray(l.content.blocks) && l.content.blocks.length > 0) return true;
+              }
+              return false;
+
+          case 'presentation':
+               if (Array.isArray(l.slides) && l.slides.length > 0) return true;
+               if (l.presentation && Array.isArray(l.presentation.slides) && l.presentation.slides.length > 0) return true;
+               return false;
+
+          case 'quiz':
+              if (Array.isArray(l.questions) && l.questions.length > 0) return true;
+              if (l.quiz) {
+                   if (Array.isArray(l.quiz)) return l.quiz.length > 0;
+                   if (Array.isArray(l.quiz.questions) && l.quiz.questions.length > 0) return true;
+              }
+              return false;
+
+          case 'test':
+              if (Array.isArray(l.test) && l.test.length > 0) return true;
+              if (l.test && Array.isArray(l.test.questions) && l.test.questions.length > 0) return true;
+              return false;
+
+          case 'post':
+              if (l.postContent && typeof l.postContent === 'string' && l.postContent.length > 0) return true;
+              if (l.social_post) {
+                  if (typeof l.social_post.content === 'string' && l.social_post.content.length > 0) return true;
+                  if (l.social_post.platform && l.social_post.content) return true;
+              }
+              return false;
+
+          case 'video':
+              return !!l.videoUrl;
+
+          case 'audio':
+              if (l.audioContent) return true;
+              if (l.podcast_script) {
+                  if (Array.isArray(l.podcast_script) && l.podcast_script.length > 0) return true;
+                  if (Array.isArray(l.podcast_script.script) && l.podcast_script.script.length > 0) return true;
+              }
+              return false;
+
+          case 'comic':
+               if (l.comic_script && Array.isArray(l.comic_script) && l.comic_script.length > 0) return true;
+               if (l.comic && Array.isArray(l.comic.panels) && l.comic.panels.length > 0) return true;
+               return false;
+
+          case 'flashcards':
+               if (l.flashcards) {
+                   if (Array.isArray(l.flashcards) && l.flashcards.length > 0) return true;
+                   if (Array.isArray(l.flashcards.cards) && l.flashcards.cards.length > 0) return true;
+               }
+               return false;
+
+          case 'mindmap':
+               if (l.mindmap) {
+                   if (typeof l.mindmap === 'string' && l.mindmap.length > 0) return true;
+                   if (l.mindmap.mermaid && typeof l.mindmap.mermaid === 'string' && l.mindmap.mermaid.length > 0) return true;
+               }
+               return false;
+
+          default:
+              return false;
+      }
+  }
+
   _renderWizardMode() {
       if (this._isLoading) {
           return html`
@@ -1367,16 +1445,16 @@ export class LessonEditor extends BaseView {
                   </div>
 
                   <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      ${this._renderContentCard('text', '📝', translationService.t('content_types.text'), this.lesson.text_content || (this.lesson.content?.blocks?.length > 0))}
-                      ${this._renderContentCard('presentation', '📊', translationService.t('content_types.presentation'), this.lesson.slides?.length > 0 || this.lesson.presentation?.slides?.length > 0)}
-                      ${this._renderContentCard('quiz', '❓', translationService.t('content_types.quiz'), this.lesson.questions?.length > 0 || this.lesson.quiz?.questions?.length > 0)}
-                      ${this._renderContentCard('test', '📝', translationService.t('content_types.test'), this.lesson.test?.questions?.length > 0)}
-                      ${this._renderContentCard('post', '📰', translationService.t('content_types.post'), !!this.lesson.postContent)}
-                      ${this._renderContentCard('video', '🎥', translationService.t('content_types.video'), !!this.lesson.videoUrl)}
-                      ${this._renderContentCard('audio', '🎙️', translationService.t('content_types.audio'), (this.lesson.podcast_script?.script?.length > 0) || !!this.lesson.audioContent)}
-                      ${this._renderContentCard('comic', '💬', translationService.t('content_types.comic'), this.lesson.comic?.panels?.length > 0)}
-                      ${this._renderContentCard('flashcards', '🃏', translationService.t('content_types.flashcards'), this.lesson.flashcards?.cards?.length > 0)}
-                      ${this._renderContentCard('mindmap', '🧠', translationService.t('content_types.mindmap'), !!this.lesson.mindmap?.mermaid)}
+                      ${this._renderContentCard('text', '📝', translationService.t('content_types.text'), this._isSectionComplete('text'))}
+                      ${this._renderContentCard('presentation', '📊', translationService.t('content_types.presentation'), this._isSectionComplete('presentation'))}
+                      ${this._renderContentCard('quiz', '❓', translationService.t('content_types.quiz'), this._isSectionComplete('quiz'))}
+                      ${this._renderContentCard('test', '📝', translationService.t('content_types.test'), this._isSectionComplete('test'))}
+                      ${this._renderContentCard('post', '📰', translationService.t('content_types.post'), this._isSectionComplete('post'))}
+                      ${this._renderContentCard('video', '🎥', translationService.t('content_types.video'), this._isSectionComplete('video'))}
+                      ${this._renderContentCard('audio', '🎙️', translationService.t('content_types.audio'), this._isSectionComplete('audio'))}
+                      ${this._renderContentCard('comic', '💬', translationService.t('content_types.comic'), this._isSectionComplete('comic'))}
+                      ${this._renderContentCard('flashcards', '🃏', translationService.t('content_types.flashcards'), this._isSectionComplete('flashcards'))}
+                      ${this._renderContentCard('mindmap', '🧠', translationService.t('content_types.mindmap'), this._isSectionComplete('mindmap'))}
                   </div>
               </div>
 
