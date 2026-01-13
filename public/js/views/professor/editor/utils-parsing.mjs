@@ -114,41 +114,44 @@ export function sanitizeMermaidCode(input) {
 
     // 0. Handle null/undefined/empty
     if (!input) {
-         // Return fallback immediately if empty, but we might want to return empty string if that's what caller expects?
-         // The prompt says: "Fallback: If the result is empty or invalid, return a safe, minimal valid graph"
          return "graph TD; Error[Chyba dat]-->Fix[Skus znova]";
     }
 
-    // 1. Unwrap from Object
+    // 1. Unwrap from Object (Polymorphic Input)
     if (typeof input === 'object') {
+        // Check for error object first
+        if (input.error) {
+             const errMsg = input.message ? input.message.replace(/[^a-zA-Z0-9 ]/g, '') : "Neznámá chyba";
+             return `graph TD; Error[Chyba]-->Detail[${errMsg}]`;
+        }
+
+        // Extract content from known keys
         if (input.mermaid) text = input.mermaid;
+        else if (input.mindmap) text = input.mindmap;
         else if (input.content) text = input.content;
         else if (input.code) text = input.code;
         else {
-            // Try to stringify if it looks like a JSON response but keys are missing
-            // But usually this means garbage.
-            // Return fallback.
-             return "graph TD; Error[Chyba dat]-->Fix[Skus znova]";
+             // Fallback: If no known key, try to stringify or fail
+             return "graph TD; Error[Neznámý formát dat]-->Check[Zkontroluj konzoli]";
         }
     }
 
     // Ensure string
     if (typeof text !== 'string') {
-        text = String(text);
+        text = String(text || "");
     }
 
     // 2. Clean Markdown Code Fences
-    // Remove ```mermaid ... ``` or just ``` ... ```
-    // Case insensitive for mermaid
     text = text.replace(/```mermaid/gi, '');
+    text = text.replace(/```json/gi, '');
     text = text.replace(/```/g, '');
 
-    // 3. Strip HTML
-    // Ruthlessly remove <...> tags, but preserve Mermaid arrows like <|-- or --|>
+    // 3. Strip HTML (Aggressive)
+    // Ruthlessly remove <...> tags, but preserve Mermaid arrows like <|-- or --|> or comparisons like x < 5
     // Regex: Match < followed by a letter, /, !, or ? (start of tag), then anything until >
     text = text.replace(/<[a-zA-Z\/!?][^>]*>/g, '');
 
-    // 4. Decode HTML entities (sometimes AI escapes them)
+    // 4. Decode HTML entities
     text = text.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
 
     // Clean up whitespace
