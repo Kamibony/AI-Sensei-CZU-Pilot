@@ -533,10 +533,13 @@ export class LessonEditor extends BaseView {
   }
 
   _handleClassToggle(classId) {
-      if (this._selectedClassIds.includes(classId)) {
-          this._selectedClassIds = this._selectedClassIds.filter(id => id !== classId);
+      const idStr = String(classId);
+      const currentIds = (this._selectedClassIds || []).map(String);
+
+      if (currentIds.includes(idStr)) {
+          this._selectedClassIds = currentIds.filter(id => id !== idStr);
       } else {
-          this._selectedClassIds = [...this._selectedClassIds, classId];
+          this._selectedClassIds = [...currentIds, idStr];
       }
       if (this.lesson) {
           this.lesson = { ...this.lesson, assignedToGroups: this._selectedClassIds };
@@ -1403,9 +1406,9 @@ export class LessonEditor extends BaseView {
             ` : html`
                 <div class="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
                     ${this._availableClasses.map(group => html`
-                        <label class="flex items-center justify-between p-2 rounded-xl border ${this._selectedClassIds.includes(group.id) ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-100 hover:bg-slate-50'} cursor-pointer text-sm">
+                        <label class="flex items-center justify-between p-2 rounded-xl border ${(this._selectedClassIds || []).map(String).includes(String(group.id)) ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-100 hover:bg-slate-50'} cursor-pointer text-sm">
                             <span class="font-semibold text-slate-700">${group.name}</span>
-                            <input type="checkbox" .checked="${this._selectedClassIds.includes(group.id)}" @change="${() => this._handleClassToggle(group.id)}" class="rounded text-indigo-600 focus:ring-indigo-500"/>
+                            <input type="checkbox" .checked="${(this._selectedClassIds || []).map(String).includes(String(group.id))}" @change="${() => this._handleClassToggle(String(group.id))}" class="rounded text-indigo-600 focus:ring-indigo-500"/>
                         </label>
                     `)}
                 </div>
