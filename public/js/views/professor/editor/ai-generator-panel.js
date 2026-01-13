@@ -216,6 +216,16 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                 this._generationOutput = result.data;
                 showToast(this.t('editor.ai.generation_success'), "success");
 
+                // PROOF OF LIFE: Log the event dispatch
+                console.log("AI Panel: Dispatching ai-completion event", result.data);
+
+                // Dispatch event so parent components can react (fixing the silent failure)
+                this.dispatchEvent(new CustomEvent('ai-completion', {
+                    detail: { data: result.data },
+                    bubbles: true,
+                    composed: true
+                }));
+
                 // Auto-save if enabled (removes the need for manual save button)
                 if (this.autoSave && this.onSave) {
                     await this.onSave(this._generationOutput);

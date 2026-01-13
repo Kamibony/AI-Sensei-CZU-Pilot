@@ -94,6 +94,23 @@ export class EditorViewMindmap extends Localized(LitElement) {
         this._renderDiagram();
     }
 
+    _handleAiCompletion(e) {
+        // PROOF OF LIFE: Log that we received the event
+        console.log("Mindmap Editor: Event Received", e.detail);
+
+        const data = e.detail.data;
+        if (!data) return;
+
+        // Use the same sanitization logic as willUpdate
+        const code = sanitizeMermaidCode(data);
+
+        this._mermaidCode = code;
+        this.save();
+
+        // Force immediate render attempt
+        setTimeout(() => this._renderDiagram(), 0);
+    }
+
     render() {
         const isEmpty = !this._mermaidCode;
 
@@ -132,6 +149,7 @@ export class EditorViewMindmap extends Localized(LitElement) {
                                     fieldToUpdate="mindmap"
                                     description="${this.t('editor.mindmap.ai_description')}"
                                     promptPlaceholder="${this.t('editor.mindmap.ai_placeholder')}"
+                                    @ai-completion="${this._handleAiCompletion}"
                                 ></ai-generator-panel>
 
                                 <div class="text-center pt-8 border-t border-slate-200">
