@@ -131,32 +131,24 @@ export class EditorViewMindmap extends Localized(LitElement) {
     _repairMermaidCode(code) {
         if (!code) return "";
 
-        // Helper: Encapsulate content in quotes and escape inner quotes
-        const safeQuote = (content) => {
-            if (!content || content.trim() === "") return '""';
-            return '"' + content.trim().replace(/"/g, "'") + '"';
-        };
+        return code.split('\n').map(line => {
+            // Regex to capture: id + separator + bracket + content + bracket
+            // We use a non-greedy match for content to stop at the last valid bracket on the line
+            return line.replace(/(\w+)(\s*)([\[\(\{])(.*)([\]\)\}])(\s*)/g, (match, id, space1, open, content, close, space2) => {
+                // 1. Trim whitespace/quotes from the content to get the raw text
+                let rawText = content.trim();
+                if (rawText.startsWith('"') && rawText.endsWith('"')) {
+                    rawText = rawText.substring(1, rawText.length - 1);
+                }
 
-        // Fix 1: Round Brackets (id(Text)) -> id("Text")
-        // Matches id followed by ( ... ) where content does NOT start with "
-        code = code.replace(/(\w+)\s*\(([^")][^)]*)\)/g, (match, id, content) => {
-            return `${id}(${safeQuote(content)})`;
-        });
+                // 2. SAFETY: Destroy all remaining double quotes in the text
+                // formatting them as single quotes to prevent syntax breakage
+                let safeText = rawText.replace(/"/g, "'");
 
-        // Fix 2: Rhombus Brackets (id{Text}) -> id{"Text"}
-        code = code.replace(/(\w+)\s*\{([^"}][^}]*)\}/g, (match, id, content) => {
-            return `${id}{${safeQuote(content)}}`;
-        });
-
-        // Fix 3: Square Brackets (id[Text]) -> id["Text"]
-        code = code.replace(/\[([^"\]][^\]]*)\]/g, (match, content) => {
-             return `[${safeQuote(content)}]`;
-        });
-
-        // Fix 4: Cleanup legacy broken quotes (e.g. ["Text]; -> ["Text"];)
-        code = code.replace(/(\["[^"\n]+)(\];)/g, '$1"$2');
-
-        return code;
+                // 3. Reconstruct the node with forced outer double quotes
+                return `${id}${space1}${open}"${safeText}"${close}${space2}`;
+            });
+        }).join('\n');
     }
 
     _handleAiCompletion(e) {
