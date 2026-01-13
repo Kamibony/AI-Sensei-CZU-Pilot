@@ -468,7 +468,8 @@ export class LessonEditor extends BaseView {
         files: this._uploadedFiles,
         updatedAt: new Date().toISOString(),
         ownerId: user.uid,
-        intent: this.lesson.intent || null
+        intent: this.lesson.intent || null,
+        language: translationService.currentLanguage || 'cs',
       };
 
       lessonData = deepSanitize(lessonData);
