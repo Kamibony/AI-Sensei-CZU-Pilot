@@ -14,6 +14,25 @@ export class EditorViewAudio extends Localized(LitElement) {
 
     createRenderRoot() { return this; }
 
+    _getScript() {
+        let script = [];
+        const raw = this.lesson?.podcast_script;
+
+        if (raw) {
+            if (Array.isArray(raw)) {
+                script = raw;
+            } else if (typeof raw === 'object' && Array.isArray(raw.podcast_script)) {
+                 script = raw.podcast_script;
+            } else if (typeof raw === 'string') {
+                 try {
+                     const parsed = JSON.parse(raw);
+                     script = parsed.podcast_script || (Array.isArray(parsed) ? parsed : []);
+                 } catch(e) { console.warn("Failed to parse podcast script", e); }
+            }
+        }
+        return script;
+    }
+
     _updateScript(newScript) {
         this.dispatchEvent(new CustomEvent('lesson-updated', {
             detail: { partial: { podcast_script: newScript } },
@@ -23,13 +42,15 @@ export class EditorViewAudio extends Localized(LitElement) {
     }
 
     _handleLineChange(index, field, value) {
-        const script = [...(this.lesson.podcast_script || [])];
-        script[index] = { ...script[index], [field]: value };
-        this._updateScript(script);
+        const script = [...this._getScript()];
+        if (script[index]) {
+            script[index] = { ...script[index], [field]: value };
+            this._updateScript(script);
+        }
     }
 
     _addLine() {
-        const script = [...(this.lesson.podcast_script || [])];
+        const script = [...this._getScript()];
         // Alternate speaker if possible
         const lastSpeaker = script.length > 0 ? script[script.length - 1].speaker : 'Guest';
         const newSpeaker = lastSpeaker === 'Host' ? 'Guest' : 'Host';
@@ -38,7 +59,7 @@ export class EditorViewAudio extends Localized(LitElement) {
     }
 
     _deleteLine(index) {
-        const script = [...(this.lesson.podcast_script || [])];
+        const script = [...this._getScript()];
         script.splice(index, 1);
         this._updateScript(script);
     }
@@ -46,8 +67,8 @@ export class EditorViewAudio extends Localized(LitElement) {
     async _generateAudio() {
         if (this.isGeneratingAudio) return;
 
-        const rawScript = this.lesson?.podcast_script;
-        if (!Array.isArray(rawScript) || rawScript.length === 0) {
+        const script = this._getScript();
+        if (script.length === 0) {
             window.dispatchEvent(new CustomEvent('show-toast', {
                 detail: { message: 'Scénář je prázdný.', type: 'error' }
             }));
@@ -55,7 +76,7 @@ export class EditorViewAudio extends Localized(LitElement) {
         }
 
         // Construct text in format: "[Speaker]: Text..."
-        const fullText = rawScript
+        const fullText = script
             .map(line => `[${line.speaker}]: ${line.text}`)
             .join('\n');
 
@@ -99,10 +120,17 @@ export class EditorViewAudio extends Localized(LitElement) {
     }
 
     render() {
-        const rawScript = this.lesson?.podcast_script;
-        const script = Array.isArray(rawScript) ? rawScript : [];
+        const script = this._getScript();
         const hasContent = script.length > 0;
         const audioUrl = this.lesson?.podcast_audio_url;
+
+        // Explicit Context Injection
+        const aiContext = {
+            subject: this.lesson?.subject || '',
+            topic: this.lesson?.topic || '',
+            title: this.lesson?.title || '',
+            targetAudience: this.lesson?.targetAudience || ''
+        };
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
@@ -193,6 +221,7 @@ export class EditorViewAudio extends Localized(LitElement) {
                             ` : html`
                                 <ai-generator-panel
                                     .lesson="${this.lesson}"
+                                    .context="${aiContext}"
                                     viewTitle="${this.t('editor.audio.title')}"
                                     contentType="podcast"
                                     fieldToUpdate="podcast_script"

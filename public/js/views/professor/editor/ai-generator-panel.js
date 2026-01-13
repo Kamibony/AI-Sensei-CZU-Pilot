@@ -23,6 +23,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         fieldToUpdate: { type: String },
         promptPlaceholder: { type: String },
         description: { type: String },
+        context: { type: Object },
         inputsConfig: { type: Array },
         _generationOutput: { state: true },
         _isLoading: { state: true, type: Boolean },
@@ -179,6 +180,11 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                 const el = this.querySelector(`#${input.id}`);
                 if (el) promptData[input.id] = el.value;
             });
+        }
+
+        // Context Injection: Merge explicit metadata if provided
+        if (this.context) {
+            Object.assign(promptData, this.context);
         }
 
         let filePaths = [];

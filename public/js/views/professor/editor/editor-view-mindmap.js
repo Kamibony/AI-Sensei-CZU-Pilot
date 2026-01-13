@@ -23,9 +23,27 @@ export class EditorViewMindmap extends Localized(LitElement) {
 
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {
-            const data = this.lesson?.mindmap;
-            // Handle both object (from AI) and string formats
-            const code = data?.mermaid || (typeof data === 'string' ? data : '');
+            let data = this.lesson?.mindmap;
+            let code = '';
+
+            // Defensive Data Normalization
+            if (typeof data === 'string') {
+                // Check if it's a JSON string disguised as mermaid
+                if (data.trim().startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(data);
+                        code = parsed.mermaid || parsed.content || '';
+                    } catch (e) {
+                        // If parse fails, assume it's raw mermaid string
+                        code = data;
+                    }
+                } else {
+                    code = data;
+                }
+            } else if (data && typeof data === 'object') {
+                code = data.mermaid || '';
+            }
+            // If null/undefined, code remains ''
 
             if (code !== this._mermaidCode) {
                 this._mermaidCode = code;
@@ -94,6 +112,14 @@ export class EditorViewMindmap extends Localized(LitElement) {
     render() {
         const isEmpty = !this._mermaidCode;
 
+        // Explicit Context Injection
+        const aiContext = {
+            subject: this.lesson?.subject || '',
+            topic: this.lesson?.topic || '',
+            title: this.lesson?.title || '',
+            targetAudience: this.lesson?.targetAudience || ''
+        };
+
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
@@ -113,6 +139,7 @@ export class EditorViewMindmap extends Localized(LitElement) {
                                 <ai-generator-panel
                                     .lesson="${this.lesson}"
                                     .files="${this.lesson?.ragFilePaths || []}"
+                                    .context="${aiContext}"
                                     viewTitle="${this.t('editor.mindmap.ai_title')}"
                                     contentType="mindmap"
                                     fieldToUpdate="mindmap"

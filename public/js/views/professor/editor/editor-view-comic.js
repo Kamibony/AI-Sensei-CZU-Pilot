@@ -19,6 +19,25 @@ export class EditorViewComic extends Localized(LitElement) {
 
     createRenderRoot() { return this; }
 
+    _getScript() {
+        let script = [];
+        const raw = this.lesson?.comic_script;
+
+        if (raw) {
+            if (Array.isArray(raw)) {
+                script = raw;
+            } else if (typeof raw === 'object' && Array.isArray(raw.comic_script)) {
+                 script = raw.comic_script;
+            } else if (typeof raw === 'string') {
+                 try {
+                     const parsed = JSON.parse(raw);
+                     script = parsed.comic_script || (Array.isArray(parsed) ? parsed : []);
+                 } catch(e) { console.warn("Failed to parse comic script", e); }
+            }
+        }
+        return script;
+    }
+
     _updateScript(newScript) {
         this.dispatchEvent(new CustomEvent('lesson-updated', {
             detail: { partial: { comic_script: newScript } },
@@ -28,13 +47,15 @@ export class EditorViewComic extends Localized(LitElement) {
     }
 
     _handlePanelChange(index, field, value) {
-        const script = [...(this.lesson.comic_script || [])];
-        script[index] = { ...script[index], [field]: value };
-        this._updateScript(script);
+        const script = [...this._getScript()];
+        if (script[index]) {
+            script[index] = { ...script[index], [field]: value };
+            this._updateScript(script);
+        }
     }
 
     _addPanel() {
-        const script = [...(this.lesson.comic_script || [])];
+        const script = [...this._getScript()];
         script.push({
             panel_number: script.length + 1,
             description: '',
@@ -44,7 +65,7 @@ export class EditorViewComic extends Localized(LitElement) {
     }
 
     _deletePanel(index) {
-        const script = [...(this.lesson.comic_script || [])];
+        const script = [...this._getScript()];
         script.splice(index, 1);
         // Re-number panels
         const renumbered = script.map((panel, i) => ({ ...panel, panel_number: i + 1 }));
@@ -54,8 +75,9 @@ export class EditorViewComic extends Localized(LitElement) {
     async _generatePanelImage(index) {
         if (this._generatingPanels[index]) return;
 
-        const panel = this.lesson.comic_script[index];
-        if (!panel.description || panel.description.trim() === '') {
+        const script = this._getScript();
+        const panel = script[index];
+        if (!panel || !panel.description || panel.description.trim() === '') {
             window.dispatchEvent(new CustomEvent('show-toast', {
                 detail: { message: 'Popis panelu je prázdný.', type: 'error' }
             }));
@@ -93,9 +115,16 @@ export class EditorViewComic extends Localized(LitElement) {
     }
 
     render() {
-        const rawScript = this.lesson?.comic_script;
-        const script = Array.isArray(rawScript) ? rawScript : [];
+        const script = this._getScript();
         const hasContent = script.length > 0;
+
+        // Explicit Context Injection
+        const aiContext = {
+            subject: this.lesson?.subject || '',
+            topic: this.lesson?.topic || '',
+            title: this.lesson?.title || '',
+            targetAudience: this.lesson?.targetAudience || ''
+        };
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
@@ -197,6 +226,7 @@ export class EditorViewComic extends Localized(LitElement) {
                         ` : html`
                             <ai-generator-panel
                                 .lesson="${this.lesson}"
+                                .context="${aiContext}"
                                 viewTitle="${this.t('editor.comic.title')}"
                                 contentType="comic"
                                 fieldToUpdate="comic_script"

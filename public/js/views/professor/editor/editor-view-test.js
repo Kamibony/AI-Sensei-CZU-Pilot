@@ -59,14 +59,35 @@ export class EditorViewTest extends Localized(LitElement) {
     }
 
     _getQuestions() {
-        // Priority: this.lesson.test (Array) -> this.lesson.test.questions (Legacy) -> this.lesson.content.questions (Legacy)
-        const fromTest = Array.isArray(this.lesson?.test) ? this.lesson.test : this.lesson?.test?.questions;
-        const fromContent = this.lesson?.content?.questions;
+        let questions = [];
 
-        // Return a DEEP COPY to ensure we don't mutate state directly before dispatch
-        if (fromTest) return JSON.parse(JSON.stringify(fromTest));
-        if (fromContent) return JSON.parse(JSON.stringify(fromContent));
-        return [];
+        // 1. Check 'test' property (Defensive Normalization)
+        let rawTest = this.lesson?.test;
+
+        if (rawTest) {
+             if (typeof rawTest === 'string') {
+                 try {
+                     const parsed = JSON.parse(rawTest);
+                     // Polymorphic handling: Array or Object with questions
+                     if (Array.isArray(parsed)) rawTest = parsed;
+                     else if (parsed.questions && Array.isArray(parsed.questions)) rawTest = parsed.questions;
+                     else if (parsed.test && Array.isArray(parsed.test)) rawTest = parsed.test;
+                 } catch(e) { console.warn("Failed to parse test data", e); }
+             }
+
+             if (Array.isArray(rawTest)) {
+                 questions = rawTest;
+             } else if (rawTest && rawTest.questions && Array.isArray(rawTest.questions)) {
+                 questions = rawTest.questions;
+             }
+        }
+
+        // 2. Fallback to 'content.questions' (Legacy)
+        if (questions.length === 0 && this.lesson?.content?.questions && Array.isArray(this.lesson.content.questions)) {
+            questions = this.lesson.content.questions;
+        }
+
+        return JSON.parse(JSON.stringify(questions));
     }
 
     _dispatchUpdate(questions) {
@@ -83,6 +104,14 @@ export class EditorViewTest extends Localized(LitElement) {
     render() {
         const questions = this._getQuestions();
         const hasContent = questions.length > 0;
+
+        // Explicit Context Injection
+        const aiContext = {
+            subject: this.lesson?.subject || '',
+            topic: this.lesson?.topic || '',
+            title: this.lesson?.title || '',
+            targetAudience: this.lesson?.targetAudience || ''
+        };
 
         return html`
             <div class="h-full flex flex-col bg-slate-100 relative">
@@ -116,6 +145,7 @@ export class EditorViewTest extends Localized(LitElement) {
                                     <div class="border border-slate-200 bg-slate-50 p-6">
                                         <ai-generator-panel
                                             .lesson=${this.lesson}
+                                            .context=${aiContext}
                                             viewTitle="${this.t('editor.test.ai_title')}"
                                             contentType="test"
                                             fieldToUpdate="test"
