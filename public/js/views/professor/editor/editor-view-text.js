@@ -40,13 +40,20 @@ export class EditorViewText extends Localized(LitElement) {
     }
 
     render() {
-        // Normalize Data on Render (Crash Prevention)
-        const rawContent = this.lesson?.text_content;
-        const textContent = typeof rawContent === 'object'
-            ? (rawContent.content || rawContent.text_content || rawContent.text || '')
-            : (rawContent || '');
+        // FORCE STRING CONVERSION (Hard-hardened against Data Poisoning)
+        let safeContent = this.lesson?.text_content;
 
-        const hasContent = !!(textContent && textContent.trim().length > 0);
+        if (typeof safeContent === 'object' && safeContent !== null) {
+            safeContent = safeContent.content || safeContent.text_content || safeContent.text || '';
+        }
+
+        if (typeof safeContent !== 'string') {
+            safeContent = String(safeContent || '');
+        }
+
+        // NOW it is safe to use .trim()
+        const textContent = safeContent;
+        const hasContent = !!textContent.trim();
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
