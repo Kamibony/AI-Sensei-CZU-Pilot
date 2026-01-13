@@ -2,7 +2,6 @@ import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@
 import { Localized } from '../../../utils/localization-mixin.js';
 import './professor-header-editor.js';
 import './ai-generator-panel.js'; // Import the AI panel
-import { sanitizeMermaidCode } from './utils-parsing.mjs'; // Import sanitizeMermaidCode
 
 export class EditorViewMindmap extends Localized(LitElement) {
     static properties = {
@@ -25,10 +24,7 @@ export class EditorViewMindmap extends Localized(LitElement) {
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {
             let data = this.lesson?.mindmap;
-            let code = '';
-
-            // Use the aggressive sanitization layer
-            code = sanitizeMermaidCode(data);
+            let code = this._cleanInput(data);
 
             if (code !== this._mermaidCode) {
                 this._mermaidCode = code;
@@ -60,6 +56,9 @@ export class EditorViewMindmap extends Localized(LitElement) {
         const container = this.renderRoot.querySelector('#mermaid-preview');
         if (!container) return;
 
+        // Observability: Log the exact string being rendered
+        console.log("Mermaid Rendering Code:", this._mermaidCode);
+
         if (!this._mermaidCode) {
             container.innerHTML = '';
             return;
@@ -75,8 +74,8 @@ export class EditorViewMindmap extends Localized(LitElement) {
                 });
             }
         } catch (e) {
-            console.error("Mermaid render error:", e);
-            this._renderError = this.t('editor.mindmap.error_syntax');
+            console.error("Mermaid Render Error Detail:", e);
+            this._renderError = `${this.t('editor.mindmap.error_syntax')}: ${e.message}`;
         }
     }
 
@@ -94,15 +93,35 @@ export class EditorViewMindmap extends Localized(LitElement) {
         this._renderDiagram();
     }
 
+    _cleanInput(data) {
+        if (!data) return '';
+
+        let code = '';
+
+        // 1. Normalize object to string
+        if (typeof data === 'object') {
+             code = data.mermaid || data.mindmap || data.content || data.code || '';
+        } else {
+             code = String(data);
+        }
+
+        // 2. Strip Markdown code fences and language identifiers
+        code = code.replace(/```[a-zA-Z0-9]*\n?/g, '').replace(/```/g, '');
+
+        // 3. Trim whitespace
+        code = code.trim();
+
+        return code;
+    }
+
     _handleAiCompletion(e) {
         // PROOF OF LIFE: Log that we received the event
         console.log("Mindmap Editor: Event Received", e.detail);
 
         const data = e.detail.data;
-        if (!data) return;
 
-        // Use the same sanitization logic as willUpdate
-        const code = sanitizeMermaidCode(data);
+        // Aggressive Sanitization (Input Gate)
+        const code = this._cleanInput(data);
 
         this._mermaidCode = code;
         this.save();
@@ -190,7 +209,7 @@ export class EditorViewMindmap extends Localized(LitElement) {
                                         ${this._renderError ? html`
                                             <span class="text-xs text-red-600 bg-red-50 px-2 py-1 rounded border border-red-100 flex items-center">
                                                 <svg class="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                ${this.t('editor.mindmap.error_syntax')}
+                                                ${this._renderError}
                                             </span>
                                         ` : html`
                                             <span class="text-xs text-green-600 bg-green-50 px-2 py-1 rounded border border-green-100 flex items-center">
