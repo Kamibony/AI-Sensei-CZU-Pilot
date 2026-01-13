@@ -144,7 +144,7 @@ export class EditorViewDetails extends Localized(LitElement) {
                                            id="group-${group.id}"
                                            name="group-assignment"
                                            value="${group.id}"
-                                           .checked=${this.lesson?.assignedToGroups?.includes(group.id) || false}
+                                           .checked=${(this.lesson?.assignedToGroups || []).some(id => String(id) === String(group.id))}
                                            class="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500">
                                     <label for="group-${group.id}" class="ml-3 text-sm text-gray-700">${group.name}</label>
                                 </div>
