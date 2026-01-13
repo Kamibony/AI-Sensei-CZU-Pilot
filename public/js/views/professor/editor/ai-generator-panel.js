@@ -4,6 +4,7 @@ import { ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { db } from '../../../firebase-init.js';
 import { Localized } from '../../../utils/localization-mixin.js';
+import { translationService } from '../../../utils/translation-service.js';
 import { showToast } from '../../../utils/utils.js';
 import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from '../../../utils/upload-handler.js';
 import { callGenerateContent } from '../../../gemini-api.js';
@@ -179,6 +180,18 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                 const el = this.querySelector(`#${input.id}`);
                 if (el) promptData[input.id] = el.value;
             });
+        }
+
+        // ARCHITECTURAL CHANGE: Force Language Instruction
+        const language = (this.context && this.context.language) || (this.lesson && this.lesson.language) || translationService.currentLanguage || 'cs';
+        const systemInstruction = `SYSTEM INSTRUCTION: Generate the response strictly in the '${language}' language. CRITICAL NUANCE: Do NOT translate standard technical terms, industry jargon, or proper nouns (e.g., 'Backend', 'Pipeline', 'Stakeholder') if they are commonly used in English within this professional context. Keep them in their original English form.`;
+
+        // Append to the first input found (acting as the main prompt)
+        if (this.inputsConfig && this.inputsConfig.length > 0) {
+            const firstKey = this.inputsConfig[0].id;
+            if (promptData[firstKey]) {
+                 promptData[firstKey] += `\n\n${systemInstruction}`;
+            }
         }
 
         let filePaths = [];
