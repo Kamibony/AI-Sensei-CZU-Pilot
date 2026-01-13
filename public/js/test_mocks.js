@@ -9,11 +9,33 @@ export const getDownloadURL = async () => "http://mock-url.com";
 export const doc = () => ({});
 export const setDoc = async () => ({});
 export const updateDoc = async () => ({});
+export const deleteField = () => ({});
+export const serverTimestamp = () => ({});
+export const addDoc = async () => ({});
 export const getDoc = async () => ({ exists: () => true, data: () => ({}) });
+export const getDocs = async () => ({ empty: true, docs: [] });
 export const collection = () => ({});
 export const query = () => ({});
 export const where = () => ({});
+export const orderBy = () => ({});
+export const limit = () => ({});
 export const onSnapshot = () => () => {};
+
+// Emulator connections (mocks)
+export const connectFirestoreEmulator = () => {};
+export const connectAuthEmulator = () => {};
+export const connectStorageEmulator = () => {};
+export const connectFunctionsEmulator = () => {};
+
+// App
+export const initializeApp = () => ({});
+export const getApps = () => [];
+export const getApp = () => ({});
+export const getAuth = () => ({ currentUser: { uid: 'mock-user' } });
+export const getAnalytics = () => ({});
+
+// Storage
+export const uploadBytesResumable = () => ({ on: (evt, progress, err, complete) => complete() });
 
 // Mock BaseView
 export class BaseView extends HTMLElement {
@@ -41,3 +63,9 @@ export const APP_KNOWLEDGE_BASE = "Mock Knowledge Base";
 export const auth = { currentUser: { uid: 'mock-user' } };
 export const db = {};
 export const functions = {};
+export const app = {};
+export const storage = {};
+export const analytics = {};
+
+// init function
+export const initializeFirebase = async () => {};

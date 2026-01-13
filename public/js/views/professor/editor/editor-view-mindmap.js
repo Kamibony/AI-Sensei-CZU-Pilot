@@ -114,6 +114,22 @@ export class EditorViewMindmap extends Localized(LitElement) {
         return code;
     }
 
+    _repairMermaidCode(code) {
+        if (!code) return code;
+
+        let repaired = code;
+
+        // Fix 1: Missing closing quote in array-like or node definition ending
+        // Pattern: Starts with [" but ends with ]; without a quote before ]
+        repaired = repaired.replace(/\["([^"]+)];/g, '["$1"];');
+
+        // Fix 2: Force-Quote Unsafe Labels (labels with parentheses inside brackets but not quoted)
+        // Regex: Look for content inside [] that contains ( but does not start with ".
+        repaired = repaired.replace(/\[(?!\")([^\n\]]*\([^\n\]]*?)\]/g, '["$1"]');
+
+        return repaired;
+    }
+
     _handleAiCompletion(e) {
         // PROOF OF LIFE: Log that we received the event
         console.log("Mindmap Editor: Event Received", e.detail);
@@ -123,7 +139,10 @@ export class EditorViewMindmap extends Localized(LitElement) {
         // Aggressive Sanitization (Input Gate)
         const code = this._cleanInput(data);
 
-        this._mermaidCode = code;
+        // Heuristic Repair
+        const repairedCode = this._repairMermaidCode(code);
+
+        this._mermaidCode = repairedCode;
         this.save();
 
         // Force immediate render attempt

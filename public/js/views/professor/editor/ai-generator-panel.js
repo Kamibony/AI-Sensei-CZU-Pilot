@@ -185,7 +185,9 @@ export class AiGeneratorPanel extends Localized(LitElement) {
 
         // ARCHITECTURAL CHANGE: Force Language Instruction
         const language = (this.context && this.context.language) || (this.lesson && this.lesson.language) || translationService.currentLanguage || 'cs';
-        const systemInstruction = `SYSTEM INSTRUCTION: Generate the response strictly in the '${language}' language. CRITICAL NUANCE: Do NOT translate standard technical terms, industry jargon, or proper nouns (e.g., 'Backend', 'Pipeline', 'Stakeholder') if they are commonly used in English within this professional context. Keep them in their original English form.`;
+        const systemInstruction = `SYSTEM INSTRUCTION: Generate the response strictly in the '${language}' language. CRITICAL NUANCE: Do NOT translate standard technical terms, industry jargon, or proper nouns (e.g., 'Backend', 'Pipeline', 'Stakeholder') if they are commonly used in English within this professional context. Keep them in their original English form.
+
+CRITICAL RULE: All node labels MUST be enclosed in double quotes. Example: id["Label Text"]. Do not use unquoted brackets inside labels.`;
 
         // Append to the first input found (acting as the main prompt)
         if (this.inputsConfig && this.inputsConfig.length > 0) {
