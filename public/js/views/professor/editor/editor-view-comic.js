@@ -72,6 +72,35 @@ export class EditorViewComic extends Localized(LitElement) {
         this._updateScript(renumbered);
     }
 
+    // --- Phase 2: Editor Standardization ---
+    _handleAiCompletion(e) {
+        const data = e.detail.data;
+        if (!data) return;
+
+        // 1. Normalize
+        let script = [];
+        if (typeof data === 'object') {
+             if (Array.isArray(data.panels)) script = data.panels;
+             else if (Array.isArray(data)) script = data;
+        } else if (typeof data === 'string') {
+             try {
+                 const parsed = JSON.parse(data);
+                 if (parsed.panels) script = parsed.panels;
+                 else if (Array.isArray(parsed)) script = parsed;
+             } catch (e) { console.warn("AI Comic Parse Error", e); }
+        }
+
+        // 3. Assign & 4. Save
+        if (script.length > 0) {
+             // Ensure panel numbers
+             script = script.map((p, i) => ({ ...p, panel_number: i + 1 }));
+
+             this.lesson.comic_script = script;
+             this._updateScript(script);
+             this.requestUpdate();
+        }
+    }
+
     async _generatePanelImage(index) {
         if (this._generatingPanels[index]) return;
 
@@ -225,6 +254,7 @@ export class EditorViewComic extends Localized(LitElement) {
                             </div>
                         ` : html`
                             <ai-generator-panel
+                                @ai-completion="${this._handleAiCompletion}"
                                 .lesson="${this.lesson}"
                                 .context="${aiContext}"
                                 viewTitle="${this.t('editor.comic.title')}"

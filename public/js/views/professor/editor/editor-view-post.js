@@ -19,27 +19,42 @@ export class EditorViewPost extends Localized(LitElement) {
         }));
     }
 
-    _handleAiGeneration(e) {
-        const result = e.detail.result;
-        // The AI result for post is expected to be an object { platform, content, hashtags }
-        // or a string that we might need to parse, but ai-generator-panel tries to parse JSON.
+    // --- Phase 2: Editor Standardization ---
+    _handleAiCompletion(e) {
+        const data = e.detail.data;
+        if (!data) return;
 
-        let postData = result;
+        let postData = data;
+        // 1. Normalize
+        if (typeof data === 'string') {
+            try {
+                postData = JSON.parse(data);
+            } catch(e) {
+                // Fallback: If text, assume content
+                postData = { content: data, platform: 'Twitter', hashtags: [] };
+            }
+        }
+
+        // Handle array wrapper if any
+        if (Array.isArray(postData)) postData = postData[0];
 
         // Sanitize hashtags to array if they come as string from AI
         if (postData.hashtags && typeof postData.hashtags === 'string') {
             postData.hashtags = postData.hashtags.split(/[\s,]+/).filter(tag => tag.length > 0);
         }
 
-        // Apply to local state and notify
-        // We construct a new post object
+        // 3. Assign
         const newPost = {
             platform: postData.platform || 'Twitter',
             content: postData.content || '',
             hashtags: postData.hashtags || []
         };
 
+        this.lesson.social_post = newPost;
+
+        // 4. Save
         this._updatePost(newPost);
+        this.requestUpdate();
     }
 
     _handleFieldChange(field, value) {
@@ -205,6 +220,7 @@ export class EditorViewPost extends Localized(LitElement) {
                             </div>
                         ` : html`
                             <ai-generator-panel
+                                @ai-completion="${this._handleAiCompletion}"
                                 .lesson="${this.lesson}"
                                 viewTitle="${this.t('editor.post.title')}"
                                 contentType="post"
@@ -217,7 +233,6 @@ export class EditorViewPost extends Localized(LitElement) {
                                     options: ['Twitter', 'LinkedIn', 'Instagram'],
                                     default: 'Twitter'
                                 }]}
-                                @ai-generation-completed="${this._handleAiGeneration}"
                             ></ai-generator-panel>
                         `}
                     </div>
