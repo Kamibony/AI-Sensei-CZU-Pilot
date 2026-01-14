@@ -64,6 +64,42 @@ export class EditorViewAudio extends Localized(LitElement) {
         this._updateScript(script);
     }
 
+    // --- Phase 2: Editor Standardization ---
+    async _handleAiCompletion(e) {
+        const data = e.detail.data;
+        if (!data) return;
+
+        // 1. Normalize
+        let script = [];
+        if (typeof data === 'object') {
+             if (Array.isArray(data.script)) script = data.script;
+             else if (Array.isArray(data)) script = data;
+        } else if (typeof data === 'string') {
+             try {
+                 const parsed = JSON.parse(data);
+                 if (parsed.script) script = parsed.script;
+                 else if (Array.isArray(parsed)) script = parsed;
+             } catch (e) {
+                 // Fallback if just text
+                 script = [{ speaker: "Host", text: data }];
+             }
+        }
+
+        // 3. Assign & 4. Save
+        if (script.length > 0) {
+            this.lesson = { ...this.lesson, podcast_script: script };
+            this._updateScript(script);
+            await this.requestUpdate();
+
+            // Phase 4: Chain Audio Generation
+            // Trigger audio generation immediately after script is ready
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: 'Scénář připraven. Generuji audio...', type: 'info' }
+            }));
+            await this._generateAudio();
+        }
+    }
+
     async _generateAudio() {
         if (this.isGeneratingAudio) return;
 
@@ -220,20 +256,30 @@ export class EditorViewAudio extends Localized(LitElement) {
                                 </div>
                             ` : html`
                                 <ai-generator-panel
+                                    @ai-completion="${this._handleAiCompletion}"
                                     .lesson="${this.lesson}"
                                     .context="${aiContext}"
                                     viewTitle="${this.t('editor.audio.title')}"
                                     contentType="podcast"
                                     fieldToUpdate="podcast_script"
                                     description="${this.t('editor.audio.description')}"
-                                    .inputsConfig=${[{
-                                        id: 'episode_count',
-                                        type: 'number',
-                                        label: 'Počet epizod (aktuálně fixně 1)',
-                                        default: 1,
-                                        min: 1,
-                                        max: 1
-                                    }]}
+                                    .inputsConfig=${[
+                                        {
+                                            id: 'topic',
+                                            type: 'textarea',
+                                            label: 'Téma podcastu',
+                                            placeholder: 'O čem mají diskutovat?',
+                                            default: this.lesson?.topic || ''
+                                        },
+                                        {
+                                            id: 'episode_count',
+                                            type: 'number',
+                                            label: 'Počet epizod (aktuálně fixně 1)',
+                                            default: 1,
+                                            min: 1,
+                                            max: 1
+                                        }
+                                    ]}
                                 ></ai-generator-panel>
                             `}
 

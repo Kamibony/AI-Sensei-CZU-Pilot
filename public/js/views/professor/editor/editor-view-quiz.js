@@ -77,6 +77,37 @@ export class EditorViewQuiz extends Localized(LitElement) {
         this._dispatchUpdate(questions);
     }
 
+    // --- Phase 2: Editor Standardization ---
+    _handleAiCompletion(e) {
+        const data = e.detail.data;
+        if (!data) return;
+
+        // 1. Normalize
+        let questions = [];
+        if (typeof data === 'object') {
+             if (Array.isArray(data.questions)) questions = data.questions;
+             else if (Array.isArray(data)) questions = data;
+        } else if (typeof data === 'string') {
+             try {
+                 const parsed = JSON.parse(data);
+                 if (parsed.questions) questions = parsed.questions;
+                 else if (Array.isArray(parsed)) questions = parsed;
+             } catch (e) { console.warn("AI Quiz Parse Error", e); }
+        }
+
+        // 3. Assign & 4. Save
+        if (questions.length > 0) {
+            if (!this.lesson.quiz) this.lesson.quiz = {};
+            this.lesson.quiz.questions = questions;
+
+            // Critical: Save immediately
+            this._dispatchUpdate(questions);
+
+            // 5. Refresh
+            this.requestUpdate();
+        }
+    }
+
     render() {
         const quizConfig = [
             { 
@@ -122,6 +153,7 @@ export class EditorViewQuiz extends Localized(LitElement) {
                             <!-- AI Generator Panel (Isolated) -->
                             <div class="relative">
                                 <ai-generator-panel
+                                    @ai-completion="${this._handleAiCompletion}"
                                     .lesson=${this.lesson}
                                     .context=${aiContext}
                                     viewTitle="${this.t('editor.quiz.title')}"

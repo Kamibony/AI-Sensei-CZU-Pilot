@@ -1,5 +1,6 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { Localized } from '../../../utils/localization-mixin.js';
+import { sanitizeMermaidCode } from './utils-parsing.mjs';
 import './professor-header-editor.js';
 import './ai-generator-panel.js'; // Import the AI panel
 
@@ -165,23 +166,24 @@ export class EditorViewMindmap extends Localized(LitElement) {
         return output;
     }
 
+    // --- Phase 2: Editor Standardization ---
     _handleAiCompletion(e) {
-        // PROOF OF LIFE: Log that we received the event
-        console.log("Mindmap Editor: Event Received", e.detail);
-
         const data = e.detail.data;
+        if (!data) return;
 
-        // Aggressive Sanitization (Input Gate)
-        const code = this._cleanInput(data);
+        // 1. Normalize & Phase 3: Definitive Parser
+        // We use the new robust parser from utils-parsing.mjs
+        const code = sanitizeMermaidCode(data);
 
-        // Heuristic Repair
-        const repairedCode = this._repairMermaidCode(code);
+        // 3. Assign & 4. Save
+        if (code) {
+            this._mermaidCode = code;
+            this.save();
+            this.requestUpdate();
 
-        this._mermaidCode = repairedCode;
-        this.save();
-
-        // Force immediate render attempt
-        setTimeout(() => this._renderDiagram(), 0);
+            // Force immediate render attempt
+            setTimeout(() => this._renderDiagram(), 0);
+        }
     }
 
     render() {
