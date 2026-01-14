@@ -305,10 +305,10 @@ export class EditorViewMindmap extends Localized(LitElement) {
 
                             <div class="text-right">
                                 <button
-                                    @click="${() => { if(confirm(this.t('editor.mindmap.confirm_reset'))) { this._mermaidCode = ''; this.save(); } }}"
+                                    @click="${() => { if(confirm(this.t('common.confirm_discard') !== 'common.confirm_discard' ? this.t('common.confirm_discard') : 'Opravdu chcete zahodit veškerý obsah a začít znovu?')) { this._mermaidCode = ''; this.save(); } }}"
                                     class="text-xs text-red-500 hover:text-red-700 hover:underline px-4"
                                 >
-                                    ${this.t('editor.mindmap.reset_btn')}
+                                    ${this.t('common.discard_restart') !== 'common.discard_restart' ? this.t('common.discard_restart') : 'Zahodit a začít znovu'}
                                 </button>
                             </div>
                         `}
