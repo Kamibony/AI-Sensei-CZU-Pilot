@@ -1574,65 +1574,66 @@ export class LessonEditor extends BaseView {
 
   _renderSpecificEditor() {
       const handleUpdate = this._handleLessonUpdatedEvent.bind(this);
+      const files = this.lesson?.files || [];
 
       switch (this._activeTool) {
           case 'text': 
               return html`<editor-view-text @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate} 
                   id="active-editor" class="w-full h-full block"></editor-view-text>`;
           
           case 'presentation': 
               return html`<editor-view-presentation @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-presentation>`;
           
           case 'quiz': 
               return html`<editor-view-quiz @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-quiz>`;
           
           case 'test': 
               return html`<editor-view-test @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-test>`;
           
           case 'post': 
               return html`<editor-view-post @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-post>`;
           
           case 'video': 
               return html`<editor-view-video @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate} 
                   id="active-editor" class="w-full h-full block"></editor-view-video>`;
           
           case 'comic': 
               return html`<editor-view-comic @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-comic>`;
           
           case 'flashcards': 
               return html`<editor-view-flashcards @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-flashcards>`;
           
           case 'mindmap': 
               return html`<editor-view-mindmap @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-mindmap>`;
 
           case 'audio':
               return html`<editor-view-audio @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-audio>`;
                   

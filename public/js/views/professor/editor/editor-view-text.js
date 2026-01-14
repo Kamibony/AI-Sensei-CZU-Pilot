@@ -7,7 +7,8 @@ import './professor-header-editor.js';
 export class EditorViewText extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
-        isSaving: { type: Boolean }
+        isSaving: { type: Boolean },
+        files: { type: Array }
     };
 
     createRenderRoot() { return this; }
@@ -108,6 +109,7 @@ export class EditorViewText extends Localized(LitElement) {
                                 <ai-generator-panel
                                     @ai-completion="${this._handleAiCompletion}"
                                     .lesson=${this.lesson}
+                                    .files=${this.files}
                                     .context=${{ existingText: safeContent }}
                                     viewTitle="${this.t('editor.text.title')}"
                                     contentType="text"

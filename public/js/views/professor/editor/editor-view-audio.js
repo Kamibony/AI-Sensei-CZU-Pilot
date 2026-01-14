@@ -9,6 +9,7 @@ export class EditorViewAudio extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean },
+        files: { type: Array },
         isGeneratingAudio: { type: Boolean, state: true }
     };
 
@@ -296,6 +297,7 @@ export class EditorViewAudio extends Localized(LitElement) {
                                 <ai-generator-panel
                                     @ai-completion="${this._handleAiCompletion}"
                                     .lesson="${this.lesson}"
+                                    .files="${this.files}"
                                     .context="${aiContext}"
                                     viewTitle="${this.t('editor.audio.title')}"
                                     contentType="podcast"

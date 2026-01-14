@@ -8,6 +8,7 @@ export class EditorViewMindmap extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean },
+        files: { type: Array },
         _mermaidCode: { state: true, type: String },
         _renderError: { state: true, type: String },
         _zoomLevel: { state: true, type: Number }
@@ -219,7 +220,7 @@ export class EditorViewMindmap extends Localized(LitElement) {
                             <div class="space-y-6">
                                 <ai-generator-panel
                                     .lesson="${this.lesson}"
-                                    .files="${this.lesson?.ragFilePaths || []}"
+                                    .files="${this.files}"
                                     .context="${aiContext}"
                                     viewTitle="${this.t('editor.mindmap.ai_title')}"
                                     contentType="mindmap"

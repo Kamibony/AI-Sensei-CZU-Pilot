@@ -9,6 +9,7 @@ export class EditorViewComic extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean },
+        files: { type: Array },
         _generatingPanels: { state: true, type: Object }
     };
 
@@ -278,6 +279,7 @@ export class EditorViewComic extends Localized(LitElement) {
                             <ai-generator-panel
                                 @ai-completion="${this._handleAiCompletion}"
                                 .lesson="${this.lesson}"
+                                .files="${this.files}"
                                 .context="${aiContext}"
                                 viewTitle="${this.t('editor.comic.title')}"
                                 contentType="comic"
