@@ -187,9 +187,12 @@ export class AiGeneratorPanel extends Localized(LitElement) {
     async _handleGeneration() {
         if (this._isLoading) return;
         this._isLoading = true;
-        this._generationOutput = null; // Clear previous output, but NOT files
+        this._generationOutput = null;
 
+        // --- 1. Unified Data Gathering (Shadow DOM + Light DOM) ---
         const promptData = {};
+
+        // A) Internal Config (Shadow DOM) - Standard behavior
         if (this.inputsConfig) {
             this.inputsConfig.forEach(input => {
                 const el = this.querySelector(`#${input.id}`);
@@ -197,70 +200,101 @@ export class AiGeneratorPanel extends Localized(LitElement) {
             });
         }
 
-        // --- Phase 1: Universal Data Handler & Prompt Engineering ---
-        const language = (this.context && this.context.language) || (this.lesson && this.lesson.language) || translationService.currentLanguage || 'cs';
+        // B) External/Slot Inputs (Light DOM) - CRITICAL FIX for Test/Quiz Editors
+        // These elements are injected via slots, so we must query them in the Light DOM.
+        const externalInputs = ['question-count-input', 'difficulty-select', 'type-select', 'slide-count'];
+        externalInputs.forEach(id => {
+            const el = this.querySelector(`#${id}`);
+            if (el) {
+                // Normalize keys: 'question-count-input' -> 'question_count'
+                const key = id.replace('-input', '').replace('-select', '').replace(/-/g, '_');
+                promptData[key] = el.value;
+            }
+        });
 
-        // 1. Context Injection
-        let contextInstruction = "";
-        if (this.context) {
-            // Text Editor Context
-            if (this.context.existingText) {
-                contextInstruction += `\n\nCONTEXT - CURRENT CONTENT: "${this.context.existingText.substring(0, 1000)}..." (Focus on continuing or modifying this context).`;
-            }
-            if (this.context.cursorPosition) {
-                contextInstruction += `\nCONTEXT - CURSOR POSITION: Insert content at index ${this.context.cursorPosition}.`;
-            }
-            // Quiz/Test Context
-            if (this.context.targetAudience) {
-                contextInstruction += `\nCONTEXT - TARGET AUDIENCE: ${this.context.targetAudience}`;
-            }
+        // --- 2. Constraint Logic ---
+        let countConstraint = "";
+        // specific fallback for legacy extraParams if input finding fails
+        let targetCount = parseInt(promptData.question_count || promptData.slide_count || promptData.card_count || 0);
+
+        if (!targetCount && this.extraParams && this.extraParams.question_count) {
+            targetCount = this.extraParams.question_count;
         }
 
-        // 2. Structured Output Parsing Instructions (Schema Enforcement)
+        if (targetCount > 0) {
+            // Hard constraint for Gemini 2.5 Pro
+            countConstraint = `\n\nCONSTRAINT: The user explicitly requested exactly ${targetCount} items. You MUST generate exactly ${targetCount} items in the JSON array. Failing to match this number is a critical error.`;
+        }
+
+        // --- 3. Context & Schema Injection ---
+        const language = (this.context && this.context.language) || (this.lesson && this.lesson.language) || translationService.currentLanguage || 'cs';
+        let contextInstruction = "";
+
+        if (this.context) {
+            if (this.context.existingText) contextInstruction += `\n\nCONTEXT - CURRENT CONTENT: "${this.context.existingText.substring(0, 1000)}..."`;
+            if (this.context.targetAudience) contextInstruction += `\nCONTEXT - TARGET AUDIENCE: ${this.context.targetAudience}`;
+            if (this.context.topic && !promptData.topic) promptData.topic = this.context.topic;
+            if (this.context.subject && !promptData.subject) promptData.subject = this.context.subject;
+        }
+
         let structureInstruction = "";
         switch (this.contentType) {
             case 'quiz':
             case 'test':
-                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"questions": [{"question": "string", "options": ["string", "string", "string", "string"], "correctIndex": number}]}. Ensure 'correctIndex' is 0-3.`;
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"questions": [{"question": "string", "options": ["string", "string", "string", "string"], "correctAnswer": number}]}. Ensure 'correctAnswer' is an index 0-3.${countConstraint}`;
                 break;
             case 'presentation':
-                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"slides": [{"title": "string", "bullets": ["string"], "content": "string (optional summary)"}]}. If the user provides raw text, split it into logical slides.`;
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object: {"slides": [{"title": "string", "bullets": ["string"], "content": "string"}]}.${countConstraint}`;
                 break;
             case 'podcast':
-                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"script": [{"speaker": "Host" | "Guest", "text": "string"}]}. Keep the conversation engaging and educational. CRITICAL: The total word count of the script must be strictly under 400 words to ensure audio generation stability.`;
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object: {"script": [{"speaker": "Host" | "Guest", "text": "string"}]}.${countConstraint ? '' : ' Keep under 400 words.'}`;
                 break;
             case 'post':
                 structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"platform": "Twitter" | "LinkedIn" | "Instagram", "content": "string", "hashtags": ["string"]}.`;
                 break;
             case 'flashcards':
-                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"flashcards": [{"front": "string", "back": "string"}]}.`;
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object: {"flashcards": [{"front": "string", "back": "string"}]}.${countConstraint}`;
+                break;
+            case 'comic':
+            case 'comic-strip':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object: {"panels": [{"description": "visual description", "caption": "speech bubble text"}]}.${countConstraint}`;
                 break;
             case 'mindmap':
-                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"mermaid": "graph TD; ..."}. CRITICAL: All node labels MUST be enclosed in double quotes (e.g., id["Label Text"]).`;
-                break;
-             case 'comic':
-             case 'comic-strip':
-                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this structure: {"panels": [{"description": "visual description for AI image generator", "caption": "speech bubble text"}]}.`;
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object: {"mermaid": "graph TD; ..."}. All node labels MUST be enclosed in double quotes.`;
                 break;
         }
 
-        const systemInstruction = `SYSTEM INSTRUCTION: Generate the response strictly in the '${language}' language. CRITICAL NUANCE: Do NOT translate standard technical terms, industry jargon, or proper nouns (e.g., 'Backend', 'Pipeline', 'Stakeholder') if they are commonly used in English within this professional context. Keep them in their original English form.${contextInstruction}${structureInstruction}`;
+        const systemInstruction = `SYSTEM INSTRUCTION: Generate the response strictly in the '${language}' language. Do NOT translate standard technical terms if they are commonly used in English within this professional context.${contextInstruction}${structureInstruction}`;
 
-        // Append to the first input found (acting as the main prompt)
+        // --- 4. Prompt Assembly ---
+        let hasContentParams = false;
+
+        // Try to attach instruction to a specific field if possible
         if (this.inputsConfig && this.inputsConfig.length > 0) {
             const firstKey = this.inputsConfig[0].id;
             if (promptData[firstKey]) {
                  promptData[firstKey] += `\n\n${systemInstruction}`;
+                 hasContentParams = true;
             }
         }
 
+        // Fallback: If no internal inputs (e.g. TestEditor using slots), send explicit userPrompt
+        if (!hasContentParams) {
+             promptData.userPrompt = `Generate content for ${this.contentType}. Data: ${JSON.stringify(promptData)} \n\n${systemInstruction}`;
+        }
+
+        // --- 5. File Handling (Preserve existing logic) ---
         let filePaths = [];
-        // FIX: Extract file paths correctly whether passing objects or strings
         if (this.files) {
             filePaths = this.files.map(f => typeof f === 'string' ? f : (f.storagePath || f.fullPath)).filter(Boolean);
         } else {
-            filePaths = getSelectedFiles().map(f => f.storagePath || f.fullPath).filter(Boolean);
+            // Legacy global fallback
+            if (typeof getSelectedFiles === 'function') {
+                filePaths = getSelectedFiles().map(f => f.storagePath || f.fullPath).filter(Boolean);
+            }
         }
+
+        console.log(`[AiGenerator] Sending request. ContentType: ${this.contentType}, Items Requested: ${targetCount || 'Auto'}`);
 
         try {
             const result = await callGenerateContent({ 
