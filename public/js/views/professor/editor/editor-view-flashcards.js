@@ -10,6 +10,7 @@ export class EditorViewFlashcards extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean },
+        files: { type: Array },
         _cards: { state: true, type: Array },
         _isGenerating: { state: true, type: Boolean }
     };
@@ -153,6 +154,7 @@ export class EditorViewFlashcards extends Localized(LitElement) {
                                 <ai-generator-panel
                                     @ai-completion="${this._handleAiCompletion}"
                                     .lesson="${this.lesson}"
+                                    .files="${this.files}"
                                     viewTitle="${this.t('editor.flashcards.title')}"
                                     contentType="flashcards"
                                     fieldToUpdate="flashcards"

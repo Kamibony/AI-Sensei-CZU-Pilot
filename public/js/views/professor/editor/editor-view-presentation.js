@@ -8,6 +8,7 @@ export class EditorViewPresentation extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean },
+        files: { type: Array },
         _slideCount: { state: true }
     };
 
@@ -234,6 +235,7 @@ export class EditorViewPresentation extends Localized(LitElement) {
                                 <ai-generator-panel
                                     @ai-completion="${this._handleAiCompletion}"
                                     .lesson=${this.lesson}
+                                    .files=${this.files}
                                     .context=${aiContext}
                                     viewTitle="${this.t('editor.presentation.ai_title')}"
                                     contentType="presentation"

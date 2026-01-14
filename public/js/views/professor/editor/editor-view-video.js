@@ -8,6 +8,7 @@ export class EditorViewVideo extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean },
+        files: { type: Array },
         _videoId: { state: true, type: String }
     };
 
@@ -92,6 +93,7 @@ export class EditorViewVideo extends Localized(LitElement) {
                             <div class="pt-8 border-t border-slate-100">
                                 <ai-generator-panel
                                     .lesson=${this.lesson}
+                                    .files=${this.files}
                                     viewTitle="${this.t('editor.video.ai_title')}"
                                     contentType="text"
                                     fieldToUpdate="text_content"

@@ -6,7 +6,8 @@ import './ai-generator-panel.js';
 export class EditorViewPost extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
-        isSaving: { type: Boolean }
+        isSaving: { type: Boolean },
+        files: { type: Array }
     };
 
     createRenderRoot() { return this; }
@@ -240,6 +241,7 @@ export class EditorViewPost extends Localized(LitElement) {
                             <ai-generator-panel
                                 @ai-completion="${this._handleAiCompletion}"
                                 .lesson="${this.lesson}"
+                                .files="${this.files}"
                                 viewTitle="${this.t('editor.post.title')}"
                                 contentType="post"
                                 fieldToUpdate="social_post"

@@ -112,7 +112,21 @@ export class AiGeneratorPanel extends Localized(LitElement) {
 
     _createDocumentSelectorUI() {
         // If files are passed via props, we don't show this selector as it's handled by parent
-        if (this.files) return nothing;
+        if (this.files) {
+            // STRICT CHECK: Warning should ONLY appear if files array exists but is empty
+            if (this.files.length > 0) return nothing;
+
+            return html`
+                <div class="mb-6 p-4 rounded-xl border bg-orange-50 border-orange-200">
+                     <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-semibold text-orange-800">${this.t('editor.ai.rag_no_files')}</h3>
+                    </div>
+                    <p class="text-xs text-orange-700 mt-2 font-bold">
+                        ⚠️ ${this.t('editor.ai.rag_warning_hallucination')}
+                    </p>
+                </div>
+            `;
+        }
 
         const listId = `selected-files-list-rag-${this.contentType}`;
         const hasFiles = this._filesCount > 0;
