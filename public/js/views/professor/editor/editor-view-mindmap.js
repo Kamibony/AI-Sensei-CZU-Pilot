@@ -55,6 +55,9 @@ export class EditorViewMindmap extends Localized(LitElement) {
     }
 
     async _renderDiagram() {
+        await this.updateComplete; // Wait for Lit update
+        await new Promise(r => requestAnimationFrame(r)); // Wait for paint
+
         const container = this.renderRoot.querySelector('#mermaid-preview');
         if (!container) return;
 
@@ -130,25 +133,36 @@ export class EditorViewMindmap extends Localized(LitElement) {
 
     _repairMermaidCode(code) {
         if (!code) return "";
-
-        return code.split('\n').map(line => {
-            // Regex to capture: id + separator + bracket + content + bracket
-            // We use a non-greedy match for content to stop at the last valid bracket on the line
-            return line.replace(/(\w+)(\s*)([\[\(\{])(.*)([\]\)\}])(\s*)/g, (match, id, space1, open, content, close, space2) => {
-                // 1. Trim whitespace/quotes from the content to get the raw text
-                let rawText = content.trim();
-                if (rawText.startsWith('"') && rawText.endsWith('"')) {
-                    rawText = rawText.substring(1, rawText.length - 1);
+        let output = "";
+        let i = 0;
+        while (i < code.length) {
+            const char = code[i];
+            if (['[', '(', '{'].includes(char)) {
+                const opener = char;
+                const closer = opener === '[' ? ']' : opener === '(' ? ')' : '}';
+                let content = "";
+                let depth = 1;
+                let j = i + 1;
+                while (j < code.length && depth > 0) {
+                    const c = code[j];
+                    if (c === opener) depth++;
+                    else if (c === closer) depth--;
+                    if (depth > 0) content += c;
+                    j++;
                 }
-
-                // 2. SAFETY: Destroy all remaining double quotes in the text
-                // formatting them as single quotes to prevent syntax breakage
-                let safeText = rawText.replace(/"/g, "'");
-
-                // 3. Reconstruct the node with forced outer double quotes
-                return `${id}${space1}${open}"${safeText}"${close}${space2}`;
-            });
-        }).join('\n');
+                if (depth === 0) {
+                    let clean = content.trim();
+                    if (clean.startsWith('"') && clean.endsWith('"')) clean = clean.slice(1, -1);
+                    clean = clean.replace(/"/g, "'");
+                    output += `${opener}"${clean}"${closer}`;
+                    i = j;
+                    continue;
+                }
+            }
+            output += char;
+            i++;
+        }
+        return output;
     }
 
     _handleAiCompletion(e) {
@@ -281,7 +295,7 @@ export class EditorViewMindmap extends Localized(LitElement) {
                                         <div style="width: ${this._zoomLevel * 100}%; height: ${this._zoomLevel * 100}%; min-width: 100%; min-height: 100%; overflow: visible;">
                                             <div id="mermaid-preview"
                                                  class="flex items-center justify-center origin-top-left transition-transform"
-                                                 style="width: ${inverseZoom}%; height: ${inverseZoom}%; transform: scale(${this._zoomLevel});"></div>
+                                                 style="width: ${inverseZoom}%; height: ${inverseZoom}%; transform: scale(${this._zoomLevel}); min-height: 50px;"></div>
                                         </div>
                                     </div>
                                 </div>
