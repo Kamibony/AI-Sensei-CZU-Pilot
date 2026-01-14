@@ -22,6 +22,58 @@ export class EditorViewPresentation extends Localized(LitElement) {
         this._slideCount = e.target.value;
     }
 
+    // --- Phase 2: Editor Standardization ---
+    _handleAiCompletion(e) {
+        const data = e.detail.data;
+        if (!data) return;
+
+        // 1. Normalize
+        let slides = [];
+        // Robust handling of polymorphic AI return types
+        if (typeof data === 'object') {
+             if (Array.isArray(data.slides)) {
+                 slides = data.slides;
+             } else if (Array.isArray(data)) {
+                 slides = data;
+             } else if (data.content || data.text) {
+                 // Phase 4: Auto-convert text to single slide
+                 slides = [{
+                     title: this.t('editor.presentation.generated_slide') || "AI Slide",
+                     points: [(data.content || data.text).substring(0, 200) + "..."],
+                     content: data.content || data.text,
+                     visual_idea: "Text summary"
+                 }];
+             }
+        } else if (typeof data === 'string') {
+             try {
+                 const parsed = JSON.parse(data);
+                 if (parsed.slides && Array.isArray(parsed.slides)) slides = parsed.slides;
+                 else if (Array.isArray(parsed)) slides = parsed;
+             } catch (err) {
+                 // Fallback: Raw text to slide
+                 slides = [{
+                     title: "AI Result",
+                     points: [data.substring(0, 100) + "..."],
+                     content: data,
+                     visual_idea: "Text summary"
+                 }];
+             }
+        }
+
+        // 3. Assign & 4. Save
+        if (slides.length > 0) {
+            // Update local state first
+            if (!this.lesson.presentation) this.lesson.presentation = {};
+            this.lesson.presentation.slides = slides;
+
+            // CRITICAL: Dispatch update immediately
+            this._dispatchUpdate(slides);
+
+            // 5. Refresh
+            this.requestUpdate();
+        }
+    }
+
     async _exportToPptx() {
         if (!this.lesson?.presentation?.slides) {
             alert(this.t('editor.presentation.export_error') || this.t('generate_presentation_first'));
@@ -180,6 +232,7 @@ export class EditorViewPresentation extends Localized(LitElement) {
                                 ` : ''}
 
                                 <ai-generator-panel
+                                    @ai-completion="${this._handleAiCompletion}"
                                     .lesson=${this.lesson}
                                     .context=${aiContext}
                                     viewTitle="${this.t('editor.presentation.ai_title')}"

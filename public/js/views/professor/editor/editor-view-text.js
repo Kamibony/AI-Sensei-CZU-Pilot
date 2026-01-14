@@ -23,15 +23,19 @@ export class EditorViewText extends Localized(LitElement) {
         }));
     }
 
-    _handleAiSave(data) {
-        // Normalize Data on Input (Sanitization)
+    // --- Phase 2: Editor Standardization ---
+    _handleAiCompletion(e) {
+        const data = e.detail.data;
+        if (!data) return;
+
+        // 1. Normalize
         const cleanText = typeof data === 'object' ? (data.content || data.text_content || data.text || JSON.stringify(data)) : data;
 
-        // Update local state
+        // 3. Assign
         this.lesson.text_content = cleanText;
         this.requestUpdate();
 
-        // Notify parent to save
+        // 4. Save
         this.dispatchEvent(new CustomEvent('lesson-updated', {
             detail: { text_content: cleanText },
             bubbles: true,
@@ -81,13 +85,13 @@ export class EditorViewText extends Localized(LitElement) {
                             <!-- Empty State: AI Generator -->
                             <div class="w-full h-full flex-1 flex flex-col">
                                 <ai-generator-panel
+                                    @ai-completion="${this._handleAiCompletion}"
                                     .lesson=${this.lesson}
+                                    .context=${{ existingText: safeContent }}
                                     viewTitle="${this.t('editor.text.title')}"
                                     contentType="text"
                                     fieldToUpdate="text_content"
                                     description="${this.t('editor.text.description')}"
-                                    .onSave="${this._handleAiSave.bind(this)}"
-                                    .autoSave="${true}"
                                     .inputsConfig=${[{
                                         id: 'prompt-input',
                                         type: 'textarea',

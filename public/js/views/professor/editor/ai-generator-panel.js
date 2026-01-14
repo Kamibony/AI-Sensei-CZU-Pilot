@@ -183,11 +183,51 @@ export class AiGeneratorPanel extends Localized(LitElement) {
             });
         }
 
-        // ARCHITECTURAL CHANGE: Force Language Instruction
+        // --- Phase 1: Universal Data Handler & Prompt Engineering ---
         const language = (this.context && this.context.language) || (this.lesson && this.lesson.language) || translationService.currentLanguage || 'cs';
-        const systemInstruction = `SYSTEM INSTRUCTION: Generate the response strictly in the '${language}' language. CRITICAL NUANCE: Do NOT translate standard technical terms, industry jargon, or proper nouns (e.g., 'Backend', 'Pipeline', 'Stakeholder') if they are commonly used in English within this professional context. Keep them in their original English form.
 
-CRITICAL RULE: All node labels MUST be enclosed in double quotes. Example: id["Label Text"]. Do not use unquoted brackets inside labels.`;
+        // 1. Context Injection
+        let contextInstruction = "";
+        if (this.context) {
+            // Text Editor Context
+            if (this.context.existingText) {
+                contextInstruction += `\n\nCONTEXT - CURRENT CONTENT: "${this.context.existingText.substring(0, 1000)}..." (Focus on continuing or modifying this context).`;
+            }
+            if (this.context.cursorPosition) {
+                contextInstruction += `\nCONTEXT - CURSOR POSITION: Insert content at index ${this.context.cursorPosition}.`;
+            }
+            // Quiz/Test Context
+            if (this.context.targetAudience) {
+                contextInstruction += `\nCONTEXT - TARGET AUDIENCE: ${this.context.targetAudience}`;
+            }
+        }
+
+        // 2. Structured Output Parsing Instructions (Schema Enforcement)
+        let structureInstruction = "";
+        switch (this.contentType) {
+            case 'quiz':
+            case 'test':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"questions": [{"question": "string", "options": ["string", "string", "string", "string"], "correctIndex": number}]}. Ensure 'correctIndex' is 0-3.`;
+                break;
+            case 'presentation':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"slides": [{"title": "string", "bullets": ["string"], "content": "string (optional summary)"}]}. If the user provides raw text, split it into logical slides.`;
+                break;
+            case 'podcast':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"script": [{"speaker": "Host" | "Guest", "text": "string"}]}. Keep the conversation engaging and educational.`;
+                break;
+            case 'flashcards':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"flashcards": [{"front": "string", "back": "string"}]}.`;
+                break;
+            case 'mindmap':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"mermaid": "graph TD; ..."}. CRITICAL: All node labels MUST be enclosed in double quotes (e.g., id["Label Text"]).`;
+                break;
+             case 'comic':
+             case 'comic-strip':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this structure: {"panels": [{"description": "visual description for AI image generator", "dialogue": "speech bubble text"}]}.`;
+                break;
+        }
+
+        const systemInstruction = `SYSTEM INSTRUCTION: Generate the response strictly in the '${language}' language. CRITICAL NUANCE: Do NOT translate standard technical terms, industry jargon, or proper nouns (e.g., 'Backend', 'Pipeline', 'Stakeholder') if they are commonly used in English within this professional context. Keep them in their original English form.${contextInstruction}${structureInstruction}`;
 
         // Append to the first input found (acting as the main prompt)
         if (this.inputsConfig && this.inputsConfig.length > 0) {

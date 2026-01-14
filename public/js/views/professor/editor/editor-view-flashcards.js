@@ -32,18 +32,20 @@ export class EditorViewFlashcards extends Localized(LitElement) {
         }
     }
 
-    setContentFromAi(data) {
+    // --- Phase 2: Editor Standardization ---
+    _handleAiCompletion(e) {
+        const data = e.detail.data;
+        if (!data) return;
+
+        // 1. Normalize
         const cards = parseAiResponse(data, 'cards');
+
+        // 3. Assign & 4. Save
         if (cards.length > 0) {
             this._cards = cards;
             this.save();
+            this.requestUpdate();
         }
-    }
-
-    // Handles the event from ai-generator-panel
-    _handleAiGeneration(e) {
-        const result = e.detail.result;
-        this.setContentFromAi(result);
     }
 
     // Manual re-generation triggered from the toolbar button
@@ -141,12 +143,12 @@ export class EditorViewFlashcards extends Localized(LitElement) {
 
                             ${this._cards.length === 0 ? html`
                                 <ai-generator-panel
+                                    @ai-completion="${this._handleAiCompletion}"
                                     .lesson="${this.lesson}"
                                     viewTitle="${this.t('editor.flashcards.title')}"
                                     contentType="flashcards"
                                     fieldToUpdate="flashcards"
                                     description="${this.t('editor.flashcards.empty_desc')}"
-                                    @ai-generation-completed="${this._handleAiGeneration}"
                                 ></ai-generator-panel>
                             ` : html`
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

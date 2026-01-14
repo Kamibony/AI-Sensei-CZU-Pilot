@@ -1,5 +1,5 @@
 import type { CallableRequest, Request } from "firebase-functions/v2/https";
-import type { FirestoreEvent, QueryDocumentSnapshot } from "firebase-functions/v2/firestore";
+import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -7,7 +7,7 @@ const { getAuth } = require("firebase-admin/auth");
 const { getStorage } = require("firebase-admin/storage");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onRequest } = require("firebase-functions/v2/https");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+// const { onDocumentCreated } = require("firebase-functions/v2/firestore"); // Removed unused v2 trigger import
 const functions = require("firebase-functions/v1"); // Import v1 for triggers
 const logger = require("firebase-functions/logger");
 const cors = require("cors");
