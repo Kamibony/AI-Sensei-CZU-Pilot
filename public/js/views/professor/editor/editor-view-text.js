@@ -43,6 +43,18 @@ export class EditorViewText extends Localized(LitElement) {
         }));
     }
 
+    _handleDiscard() {
+        if (confirm(this.t('common.confirm_discard') || "Opravdu chcete zahodit veškerý obsah a začít znovu?")) {
+            this.lesson.text_content = '';
+            this.dispatchEvent(new CustomEvent('lesson-updated', {
+                detail: { text_content: '' },
+                bubbles: true,
+                composed: true
+            }));
+            this.requestUpdate();
+        }
+    }
+
     render() {
         // FORCE STRING CONVERSION (Hard-hardened against Data Poisoning)
         let safeContent = this.lesson?.text_content;
@@ -72,14 +84,23 @@ export class EditorViewText extends Localized(LitElement) {
 
                         ${hasContent ? html`
                             <!-- Rich Text Editor Mode (Simple ContentEditable) -->
-                            <div class="p-8 md:p-12 w-full h-full flex-1">
+                            <div class="p-8 md:p-12 w-full h-full flex-1 flex flex-col">
                                 <div
-                                    class="prose prose-lg prose-slate max-w-none focus:outline-none w-full h-full min-h-[400px]"
+                                    class="prose prose-lg prose-slate max-w-none focus:outline-none w-full flex-1 min-h-[400px]"
                                     contenteditable="true"
                                     style="white-space: pre-wrap;"
                                     @input="${this._handleInput}"
                                     .innerHTML="${textContent}"
                                 ></div>
+                                <div class="mt-8 pt-6 border-t border-slate-100 flex justify-center">
+                                    <button
+                                        @click="${this._handleDiscard}"
+                                        class="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium flex items-center gap-2"
+                                    >
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                        ${this.t('common.discard_restart') !== 'common.discard_restart' ? this.t('common.discard_restart') : 'Zahodit a začít znovu'}
+                                    </button>
+                                </div>
                             </div>
                         ` : html`
                             <!-- Empty State: AI Generator -->

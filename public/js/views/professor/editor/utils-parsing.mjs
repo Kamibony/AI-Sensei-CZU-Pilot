@@ -134,25 +134,65 @@ export function sanitizeMermaidCode(input) {
     // 2. Clean Markdown Code Fences
     text = text.replace(/```mermaid/gi, '').replace(/```json/gi, '').replace(/```/g, '');
 
-    // 3. PHASE 3: Force Stringify inside brackets
-    // We treat everything inside (), [], {} as a string literal to prevent Mermaid syntax errors.
-    // Logic: Identify content inside brackets, escape internal double quotes, and wrap in double quotes.
+    // 3. PHASE 3: Force Stringify inside brackets (State Machine)
+    let result = "";
+    let i = 0;
+    while (i < text.length) {
+        const char = text[i];
 
-    // Handle () - Round brackets
-    text = text.replace(/\((.*?)\)/g, (match, content) => {
-        return `("${content.replace(/"/g, "'")}")`;
-    });
+        if (char === '(' || char === '[' || char === '{') {
+            const opener = char;
+            let closer = '';
+            if (opener === '(') closer = ')';
+            else if (opener === '[') closer = ']';
+            else if (opener === '{') closer = '}';
 
-    // Handle [] - Square brackets
-    text = text.replace(/\[(.*?)\]/g, (match, content) => {
-        return `["${content.replace(/"/g, "'")}"]`;
-    });
+            let depth = 1;
+            let captured = "";
+            let j = i + 1;
+            let inQuote = false;
 
-    // Handle {} - Curly brackets (Note: Mermaid uses {} for rhombus, {{}} for hexagon, etc.)
-    // We target simple {} usage.
-    text = text.replace(/\{(.*?)\}/g, (match, content) => {
-        return `{"${content.replace(/"/g, "'")}"}`;
-    });
+            while (j < text.length && depth > 0) {
+                const c = text[j];
+
+                if (c === '"') {
+                    inQuote = !inQuote;
+                }
+
+                if (!inQuote) {
+                    if (c === opener) {
+                        depth++;
+                    } else if (c === closer) {
+                        depth--;
+                    }
+                }
+
+                if (depth > 0) {
+                    captured += c;
+                    j++;
+                }
+            }
+
+            if (depth === 0) {
+                // Found match. j is at the closer.
+                // captured is the content inside.
+                // Sanitize: Replace " with '
+                const sanitized = captured.replace(/"/g, "'");
+                // Re-wrap: opener + " + sanitized + " + closer
+                result += opener + '"' + sanitized + '"' + closer;
+                i = j + 1;
+            } else {
+                // Unbalanced. Just append the char and continue.
+                result += char;
+                i++;
+            }
+        } else {
+            result += char;
+            i++;
+        }
+    }
+
+    text = result;
 
     // 4. Strip HTML (Aggressive)
     text = text.replace(/<[a-zA-Z\/!?][^>]*>/g, '');

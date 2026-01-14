@@ -213,7 +213,10 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                 structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"slides": [{"title": "string", "bullets": ["string"], "content": "string (optional summary)"}]}. If the user provides raw text, split it into logical slides.`;
                 break;
             case 'podcast':
-                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"script": [{"speaker": "Host" | "Guest", "text": "string"}]}. Keep the conversation engaging and educational.`;
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"script": [{"speaker": "Host" | "Guest", "text": "string"}]}. Keep the conversation engaging and educational. CRITICAL: The total word count of the script must be strictly under 400 words to ensure audio generation stability.`;
+                break;
+            case 'post':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"platform": "Twitter" | "LinkedIn" | "Instagram", "content": "string", "hashtags": ["string"]}.`;
                 break;
             case 'flashcards':
                 structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"flashcards": [{"front": "string", "back": "string"}]}.`;
@@ -223,7 +226,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                 break;
              case 'comic':
              case 'comic-strip':
-                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this structure: {"panels": [{"description": "visual description for AI image generator", "dialogue": "speech bubble text"}]}.`;
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this structure: {"panels": [{"description": "visual description for AI image generator", "caption": "speech bubble text"}]}.`;
                 break;
         }
 

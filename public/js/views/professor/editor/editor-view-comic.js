@@ -92,12 +92,24 @@ export class EditorViewComic extends Localized(LitElement) {
 
         // 3. Assign & 4. Save
         if (script.length > 0) {
-             // Ensure panel numbers
-             script = script.map((p, i) => ({ ...p, panel_number: i + 1 }));
+             // Ensure panel numbers and map caption to dialogue
+             script = script.map((p, i) => ({
+                 ...p,
+                 panel_number: i + 1,
+                 dialogue: p.caption || p.dialogue || ''
+             }));
 
              this.lesson.comic_script = script;
              this._updateScript(script);
              this.requestUpdate();
+        }
+    }
+
+    _handleDiscard() {
+        if (confirm(this.t('common.confirm_discard') || "Opravdu chcete zahodit veškerý obsah a začít znovu?")) {
+            this.lesson.comic_script = [];
+            this._updateScript([]);
+            this.requestUpdate();
         }
     }
 
@@ -251,6 +263,16 @@ export class EditorViewComic extends Localized(LitElement) {
                                         </div>
                                     </div>
                                 `)}
+                            </div>
+
+                            <div class="mt-8 pt-6 border-t border-slate-200 flex justify-center">
+                                <button
+                                    @click="${this._handleDiscard}"
+                                    class="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium flex items-center gap-2"
+                                >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    ${this.t('common.discard_restart') !== 'common.discard_restart' ? this.t('common.discard_restart') : 'Zahodit a začít znovu'}
+                                </button>
                             </div>
                         ` : html`
                             <ai-generator-panel
