@@ -1,6 +1,6 @@
 import { collection, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db, auth } from '../firebase-init.js';
-import { showToast } from '../utils/utils.js';
+import { showToast, getCollectionPath } from '../utils/utils.js';
 
 export class ProfessorDataService {
     constructor() {
@@ -15,8 +15,9 @@ export class ProfessorDataService {
             const user = this.auth.currentUser;
             if (!user) return null;
 
+            const lessonsPath = getCollectionPath('lessons');
             const q = query(
-                collection(this.db, 'lessons'),
+                collection(this.db, lessonsPath),
                 where('id', '==', id),
                 where('ownerId', '==', user.uid)
             );
@@ -48,8 +49,9 @@ export class ProfessorDataService {
 
             // 2. FIX: Pridaný filter 'where', aby sme splnili Security Rules
             // DÔLEŽITÉ: Používame 'ownerId', lebo tak je to v firestore.rules
+            const lessonsPath = getCollectionPath('lessons');
             const q = query(
-                collection(this.db, "lessons"),
+                collection(this.db, lessonsPath),
                 where("ownerId", "==", this.auth.currentUser.uid),
                 orderBy("createdAt", "desc")
             );

@@ -1,3 +1,5 @@
+import { auth } from '../firebase-init.js';
+
 /**
  * Zobrazí notifikáciu (Toast)
  * @param {string} message - Text správy
@@ -133,4 +135,18 @@ export const safeJsonParse = (str) => {
     } catch (e) {
         return null;
     }
+};
+
+/**
+ * Returns the collection path based on user role (anonymous demo user vs regular user).
+ * @param {string} collectionName - The name of the collection (e.g., 'lessons', 'classes').
+ * @returns {string} The resolved path.
+ */
+export const getCollectionPath = (collectionName) => {
+    const user = auth.currentUser;
+    // Check if user is anonymous (Demo Mode)
+    if (user && user.isAnonymous) {
+        return `artifacts/ai-sensei/users/${user.uid}/${collectionName}`;
+    }
+    return collectionName;
 };
