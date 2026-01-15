@@ -2,6 +2,7 @@ import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@
 import { doc, onSnapshot, collection, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { translationService } from '../../utils/translation-service.js';
+import { getCollectionPath } from '../../utils/utils.js';
 
 export class StudentLessonList extends LitElement {
 
@@ -48,7 +49,8 @@ export class StudentLessonList extends LitElement {
             return;
         }
 
-        const studentDocRef = doc(firebaseInit.db, "students", currentUser.uid);
+        const studentsPath = getCollectionPath("students");
+        const studentDocRef = doc(firebaseInit.db, studentsPath, currentUser.uid);
 
         this.studentUnsubscribe = onSnapshot(studentDocRef, (studentSnap) => {
             if (this.lessonsUnsubscribe) this.lessonsUnsubscribe();
@@ -65,8 +67,9 @@ export class StudentLessonList extends LitElement {
             if (myGroups.length > 10) myGroups = myGroups.slice(0, 10);
 
             try {
+                const lessonsPath = getCollectionPath("lessons");
                 const lessonsQuery = query(
-                    collection(firebaseInit.db, "lessons"),
+                    collection(firebaseInit.db, lessonsPath),
                     where("assignedToGroups", "array-contains-any", myGroups),
                     where("status", "==", "published"), // Students must NOT see drafts
                     orderBy("createdAt", "desc")

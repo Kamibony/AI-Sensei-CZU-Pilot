@@ -2,6 +2,7 @@ import { LitElement, html, nothing } from 'https://cdn.skypack.dev/lit';
 import { doc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { translationService } from '../../utils/translation-service.js';
+import { getCollectionPath } from '../../utils/utils.js';
 
 export class StudentClassesView extends LitElement {
     static properties = {
@@ -34,7 +35,8 @@ export class StudentClassesView extends LitElement {
         const user = firebaseInit.auth.currentUser;
         if (!user) return;
 
-        const userDocRef = doc(firebaseInit.db, "students", user.uid);
+        const studentsPath = getCollectionPath("students");
+        const userDocRef = doc(firebaseInit.db, studentsPath, user.uid);
         this._studentUnsubscribe = onSnapshot(userDocRef, async (docSnapshot) => {
             if (docSnapshot.exists()) {
                 const data = docSnapshot.data();
@@ -57,7 +59,8 @@ export class StudentClassesView extends LitElement {
         if (safeGroupIds.length === 0) return;
 
         try {
-            const q = query(collection(firebaseInit.db, "groups"), where("__name__", "in", safeGroupIds));
+            const groupsPath = getCollectionPath("groups");
+            const q = query(collection(firebaseInit.db, groupsPath), where("__name__", "in", safeGroupIds));
             const querySnapshot = await getDocs(q);
             this._groups = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (error) {
