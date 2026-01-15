@@ -807,7 +807,12 @@ Each slide object must have: 'title' (string), 'points' (array of strings), 'vis
                     break;
 
                 case "quiz":
-                    const targetQuizQs = promptData.isMagic ? magicQuizCount : 5;
+                    let targetQuizQs = 5;
+                    if (promptData.isMagic) {
+                         targetQuizQs = magicQuizCount;
+                    } else if (promptData.question_count) {
+                         targetQuizQs = parseInt(promptData.question_count, 10) || 5;
+                    }
 
                     finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}".
 ${langInstruction}

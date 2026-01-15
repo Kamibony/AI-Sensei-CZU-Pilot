@@ -189,10 +189,10 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         this._isLoading = true;
         this._generationOutput = null;
 
-        // --- 1. Unified Data Gathering (Shadow DOM + Light DOM) ---
+        // --- 1. Unified Data Gathering (Hybrid Strategy) ---
         const promptData = {};
 
-        // A) Internal Config (Shadow DOM) - Standard behavior
+        // A) Internal Config (Shadow DOM / Local)
         if (this.inputsConfig) {
             this.inputsConfig.forEach(input => {
                 const el = this.querySelector(`#${input.id}`);
@@ -200,7 +200,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
             });
         }
 
-        // B) External/Slot Inputs (Light DOM) - CRITICAL FIX for Test/Quiz Editors
+        // B) External/Slot Inputs (Light DOM)
         // These elements are injected via slots, so we must query them in the Light DOM.
         const externalInputs = ['question-count-input', 'difficulty-select', 'type-select', 'slide-count'];
         externalInputs.forEach(id => {
@@ -266,22 +266,10 @@ export class AiGeneratorPanel extends Localized(LitElement) {
 
         const systemInstruction = `SYSTEM INSTRUCTION: Generate the response strictly in the '${language}' language. Do NOT translate standard technical terms if they are commonly used in English within this professional context.${contextInstruction}${structureInstruction}`;
 
-        // --- 4. Prompt Assembly ---
-        let hasContentParams = false;
-
-        // Try to attach instruction to a specific field if possible
-        if (this.inputsConfig && this.inputsConfig.length > 0) {
-            const firstKey = this.inputsConfig[0].id;
-            if (promptData[firstKey]) {
-                 promptData[firstKey] += `\n\n${systemInstruction}`;
-                 hasContentParams = true;
-            }
-        }
-
-        // Fallback: If no internal inputs (e.g. TestEditor using slots), send explicit userPrompt
-        if (!hasContentParams) {
-             promptData.userPrompt = `Generate content for ${this.contentType}. Data: ${JSON.stringify(promptData)} \n\n${systemInstruction}`;
-        }
+        // --- 4. Consolidated Prompt Construction ---
+        // DEPRECATED: appending to promptData[key]
+        // ENFORCED: Always construct userPrompt containing parameters, instructions, and schema.
+        promptData.userPrompt = `Generate content for ${this.contentType}. Data: ${JSON.stringify(promptData)} \n\n${systemInstruction}`;
 
         // --- 5. File Handling (Preserve existing logic) ---
         let filePaths = [];
