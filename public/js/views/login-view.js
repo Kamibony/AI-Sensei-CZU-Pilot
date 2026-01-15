@@ -41,14 +41,6 @@ export class LoginView extends Localized(LitElement) {
         this._error = '';
     }
 
-    _startDemo(role) {
-        this.dispatchEvent(new CustomEvent('demo-start', {
-            detail: { role },
-            bubbles: true,
-            composed: true
-        }));
-    }
-
     async _handleLogin(e) {
         e.preventDefault();
         const email = this.renderRoot.querySelector('#login-email').value;
@@ -228,22 +220,6 @@ export class LoginView extends Localized(LitElement) {
                             ${this.t('auth.no_account')}
                             <a href="#" @click=${this._toggleMode} class="${isProfessor ? 'text-indigo-700 hover:text-indigo-800' : 'text-green-700 hover:text-green-800'} font-bold hover:underline transition-colors">${this.t('auth.register_link')}</a>
                         </p>
-                    </div>
-
-                    <div class="mt-8 pt-8 border-t border-slate-200">
-                        <h3 class="text-center text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">
-                            ${this.t('auth.try_demo_mode') || 'Vyzkoušet bez registrace'}
-                        </h3>
-                        <div class="grid grid-cols-2 gap-4">
-                            <button type="button" @click=${() => this._startDemo('professor')} class="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-slate-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all group">
-                                <span class="text-2xl mb-2 group-hover:scale-110 transition-transform">👨‍🏫</span>
-                                <span class="font-bold text-slate-700 group-hover:text-indigo-700">Demo Profesor</span>
-                            </button>
-                            <button type="button" @click=${() => this._startDemo('student')} class="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-slate-100 hover:border-green-500 hover:bg-green-50 transition-all group">
-                                <span class="text-2xl mb-2 group-hover:scale-110 transition-transform">🎓</span>
-                                <span class="font-bold text-slate-700 group-hover:text-green-700">Demo Student</span>
-                            </button>
-                        </div>
                     </div>
                 </div>
 
