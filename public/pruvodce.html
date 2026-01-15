@@ -23,31 +23,18 @@
                         brand: {
                             50: '#eef2ff',
                             100: '#e0e7ff',
-                            200: '#c7d2fe',
-                            300: '#a5b4fc',
-                            400: '#818cf8',
                             500: '#6366f1',
                             600: '#4f46e5',
                             700: '#4338ca',
-                            800: '#3730a3',
                             900: '#312e81',
-                        },
-                        accent: {
-                            500: '#f43f5e', 
-                            400: '#fb7185',
-                        },
-                        success: {
-                            500: '#10b981',
                         }
                     },
-                    boxShadow: {
-                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-                        'glow': '0 0 20px rgba(99, 102, 241, 0.4)',
-                    },
                     animation: {
-                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                         'float': 'float 6s ease-in-out infinite',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                         'bounce-slight': 'bounceSlight 2s infinite',
+                        'grow-width': 'growWidth 1.5s ease-out forwards',
+                        'pop-in': 'popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
                     },
                     keyframes: {
                         float: {
@@ -57,6 +44,18 @@
                         bounceSlight: {
                             '0%, 100%': { transform: 'translateY(0)' },
                             '50%': { transform: 'translateY(-5px)' },
+                        },
+                        shimmer: {
+                            '0%': { transform: 'translateX(-100%)' },
+                            '100%': { transform: 'translateX(100%)' }
+                        },
+                        growWidth: {
+                            '0%': { width: '0%' },
+                            '100%': { width: 'var(--target-width)' }
+                        },
+                        popIn: {
+                            '0%': { opacity: '0', transform: 'scale(0.8)' },
+                            '100%': { opacity: '1', transform: 'scale(1)' }
                         }
                     }
                 }
@@ -64,124 +63,134 @@
         }
     </script>
     <style>
-        .fade-in-up {
-            animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        
-        .delay-100 { animation-delay: 0.1s; }
-        .delay-200 { animation-delay: 0.2s; }
-        .delay-300 { animation-delay: 0.3s; }
-
-        @keyframes fadeInUp {
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .gradient-text {
-            background: linear-gradient(135deg, #4f46e5 0%, #f43f5e 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .tech-grid-bg {
-            background-image: radial-gradient(#e0e7ff 1px, transparent 1px);
-            background-size: 24px 24px;
-        }
-
-        /* Tour Overlay Styles */
-        #virtual-tour-overlay {
-            backdrop-filter: blur(12px);
-        }
-        .tour-step {
-            display: none;
-            opacity: 0;
-            transition: opacity 0.5s ease;
-        }
-        .tour-step.active {
-            display: flex;
-            opacity: 1;
-        }
-        
         /* Custom Scrollbar */
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f5f9;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 3px;
-        }
-
-        /* --- FLIP CARD STYLES --- */
-        .flip-card {
-            background-color: transparent;
-            perspective: 1000px;
-            height: 280px; 
-        }
-
-        .flip-card-inner {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            text-align: center;
-            transition: transform 0.6s;
-            transform-style: preserve-3d;
-            border-radius: 1rem;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-        }
-
-        .flip-card.flipped .flip-card-inner {
-            transform: rotateY(180deg);
-        }
-
-        .flip-card-front, .flip-card-back {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            -webkit-backface-visibility: hidden;
-            backface-visibility: hidden;
-            border-radius: 1rem;
-            overflow: hidden;
-        }
-
-        .flip-card-front {
-            background-color: white;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid #e2e8f0;
-        }
-
-        .flip-card-back {
-            background-color: white;
-            color: #1e293b;
-            transform: rotateY(180deg);
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            justify-content: center;
-            padding: 1.5rem;
-            text-align: left;
-            border: 1px solid #6366f1;
-            box-shadow: inset 0 0 20px #eef2ff;
-        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         
-        /* Mobile Mockup Styles inside Tour */
-        .mockup-screen {
-            box-shadow: 0 0 0 10px #1e293b, 0 20px 50px -10px rgba(0,0,0,0.5);
+        .role-card { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .role-card:hover { transform: translateY(-10px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        .role-card.active { ring: 4px solid #6366f1; transform: scale(1.02); }
+        
+        /* Tour Overlay Styles */
+        #virtual-tour-overlay { backdrop-filter: blur(12px); }
+        .tour-step { display: none; opacity: 0; transition: opacity 0.5s ease; }
+        .tour-step.active { display: flex; opacity: 1; }
+        
+        /* Flip Card Styles */
+        .flip-card { background-color: transparent; perspective: 1000px; height: 280px; }
+        .flip-card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s; transform-style: preserve-3d; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+        .flip-card-front, .flip-card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: 1rem; overflow: hidden; }
+        .flip-card-front { background-color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #e2e8f0; }
+        .flip-card-back { background-color: white; color: #1e293b; transform: rotateY(180deg); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 1.5rem; text-align: left; border: 1px solid #6366f1; box-shadow: inset 0 0 20px #eef2ff; }
+        .mockup-screen { box-shadow: 0 0 0 10px #1e293b, 0 20px 50px -10px rgba(0,0,0,0.5); }
+
+        /* Typing Animation Dots */
+        .typing-dot {
+            animation: typing 1.4s infinite ease-in-out both;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
         }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-body antialiased selection:bg-brand-200 selection:text-brand-900">
 
+    <!-- NAVIGATION -->
+    <nav class="fixed w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <a href="/" class="flex items-center gap-2 text-slate-900 hover:text-brand-600 transition-colors">
+                    <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+                        <i class="fa-solid fa-graduation-cap"></i>
+                    </div>
+                    <span class="font-sans font-bold text-xl tracking-tight">AI Sensei</span>
+                </a>
+                <div class="flex gap-4">
+                    <a href="/login" class="px-5 py-2 bg-slate-900 text-white text-sm font-bold rounded-full hover:bg-brand-600 transition-all shadow-lg">
+                        Vstup do systému
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- HERO HEADER -->
+    <header class="pt-32 pb-16 text-center px-4">
+        <div class="max-w-4xl mx-auto">
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-brand-100 shadow-sm text-brand-700 text-xs font-bold uppercase tracking-wide mb-6">
+                <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
+                Interaktivní Průvodce
+            </div>
+            <h1 class="text-4xl lg:text-6xl font-sans font-extrabold text-slate-900 mb-6 leading-tight">
+                Poznejte budoucnost <br> <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-purple-600">vzdělávání naživo</span>
+            </h1>
+            <p class="text-lg text-slate-600 max-w-2xl mx-auto mb-10">
+                AI Sensei není jen nástroj, je to ekosystém. Vyberte si svou roli a prozkoumejte, jak vám umělá inteligence změní život.
+            </p>
+        </div>
+    </header>
+
+    <!-- MAIN INTERACTIVE SECTION -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+        
+        <!-- 3 CARDS SELECTION -->
+        <div class="grid md:grid-cols-3 gap-6 lg:gap-8 mb-16">
+            
+            <!-- Card 1: Ředitel -->
+            <div onclick="selectRole('director')" id="card-director" class="role-card bg-white rounded-3xl p-8 border border-slate-200 cursor-pointer relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-[100px] -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-3xl mb-6 relative z-10">
+                    <i class="fa-solid fa-building-columns"></i>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-900 mb-2">Pro Ředitele</h3>
+                <p class="text-slate-500 text-sm mb-6">Data, bezpečnost a strategický přehled o celé škole na jednom místě.</p>
+                <div class="flex items-center text-blue-600 font-bold text-sm group-hover:gap-2 transition-all">
+                    Zobrazit detaily <i class="fa-solid fa-arrow-right ml-1"></i>
+                </div>
+            </div>
+
+            <!-- Card 2: Profesor -->
+            <div onclick="selectRole('professor')" id="card-professor" class="role-card bg-white rounded-3xl p-8 border border-slate-200 cursor-pointer relative overflow-hidden group active">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-[100px] -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center text-3xl mb-6 relative z-10">
+                    <i class="fa-solid fa-chalkboard-user"></i>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-900 mb-2">Pro Profesory</h3>
+                <p class="text-slate-500 text-sm mb-6">Méně administrativy, více učení. Magická tvorba lekcí z PDF jedním klikem.</p>
+                <div class="flex items-center text-indigo-600 font-bold text-sm group-hover:gap-2 transition-all">
+                    Zobrazit detaily <i class="fa-solid fa-arrow-right ml-1"></i>
+                </div>
+            </div>
+
+            <!-- Card 3: Student -->
+            <div onclick="selectRole('student')" id="card-student" class="role-card bg-white rounded-3xl p-8 border border-slate-200 cursor-pointer relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-pink-50 rounded-bl-[100px] -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                <div class="w-16 h-16 bg-pink-100 text-pink-600 rounded-2xl flex items-center justify-center text-3xl mb-6 relative z-10">
+                    <i class="fa-solid fa-user-graduate"></i>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-900 mb-2">Pro Studenty</h3>
+                <p class="text-slate-500 text-sm mb-6">Učení hrou. Podcasty do sluchátek, kvízy v mobilu a AI parťák 24/7.</p>
+                <div class="flex items-center text-pink-600 font-bold text-sm group-hover:gap-2 transition-all">
+                    Zobrazit detaily <i class="fa-solid fa-arrow-right ml-1"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- DYNAMIC CONTENT AREA -->
+        <div id="detail-container" class="bg-slate-50 rounded-[2.5rem] border border-slate-200 p-8 lg:p-12 scroll-mt-24 transition-all duration-500 opacity-0 translate-y-10">
+            <!-- Content will be injected here via JS -->
+        </div>
+
+    </main>
+
     <!-- VIRTUAL TOUR OVERLAY -->
     <div id="virtual-tour-overlay" class="fixed inset-0 z-[100] bg-slate-900/90 hidden items-center justify-center p-4">
         <div class="bg-white w-full max-w-7xl h-[95vh] rounded-3xl shadow-2xl overflow-hidden relative flex flex-col">
-            <!-- Tour Header -->
             <div class="bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center shrink-0">
                 <div class="flex items-center gap-3">
                     <div id="tour-icon-container" class="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center text-white text-xl">
@@ -189,24 +198,20 @@
                     </div>
                     <div>
                         <span class="font-bold text-slate-900 block text-lg" id="tour-header-title">Virtuální Průvodce</span>
-                        <span class="text-xs text-slate-500 uppercase tracking-wider font-bold" id="tour-header-subtitle">Režim Profesora</span>
+                        <span class="text-xs text-slate-500 uppercase tracking-wider font-bold" id="tour-header-subtitle"></span>
                     </div>
                 </div>
                 <button onclick="closeTour()" class="w-10 h-10 rounded-full bg-slate-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all">
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
-
-            <!-- Tour Content Area (Dynamic) -->
-            <div id="tour-content-area" class="flex-1 relative bg-slate-50 overflow-hidden flex flex-col items-center justify-center">
+            
+            <div id="tour-content-area" class="flex-1 relative bg-slate-50 overflow-hidden flex flex-col items-center justify-center p-4">
                 <!-- Content injected via JS -->
             </div>
             
-            <!-- Tour Footer Controls -->
             <div class="bg-white border-t border-slate-200 p-4 flex justify-between items-center shrink-0">
-                <div class="flex gap-2" id="tour-progress-dots">
-                    <!-- Dots injected via JS -->
-                </div>
+                <div class="flex gap-2" id="tour-progress-dots"></div>
                 <button id="tour-next-btn" class="px-6 py-2 bg-brand-600 text-white rounded-lg font-bold hover:bg-brand-700 transition-colors flex items-center gap-2">
                     Další krok <i class="fa-solid fa-arrow-right"></i>
                 </button>
@@ -214,336 +219,254 @@
         </div>
     </div>
 
-    <!-- NAVIGATION -->
-    <nav class="fixed w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-200 transition-all duration-300" id="navbar">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16 items-center">
-                <div class="flex items-center gap-2">
-                    <a href="/" class="flex items-center gap-2 text-decoration-none">
-                        <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-brand-500/30">
-                            <i class="fa-solid fa-graduation-cap"></i>
-                        </div>
-                        <span class="font-sans font-bold text-xl tracking-tight text-slate-900">AI Sensei</span>
-                    </a>
-                </div>
-                <div class="hidden md:flex space-x-8">
-                    <a href="#pro-skoly" class="text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors">Pro Školy</a>
-                    <a href="#pro-profesory" class="text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors">Pro Profesory</a>
-                    <a href="#pro-studenty" class="text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors">Pro Studenty</a>
-                </div>
-                <a href="/login" class="px-5 py-2 bg-slate-900 text-white text-sm font-bold rounded-full hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/20">
-                    Vstup do systému
-                </a>
-            </div>
-        </div>
-    </nav>
-
-    <!-- HERO SECTION -->
-    <header class="pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden relative tech-grid-bg">
-        <!-- Background Elements -->
-        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl pointer-events-none">
-            <div class="absolute top-20 right-0 w-96 h-96 bg-brand-400/20 rounded-full blur-3xl mix-blend-multiply"></div>
-            <div class="absolute bottom-0 left-10 w-72 h-72 bg-accent-400/20 rounded-full blur-3xl mix-blend-multiply"></div>
-        </div>
-
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-            <div class="fade-in-up inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-brand-100 shadow-sm text-brand-700 text-xs font-bold uppercase tracking-wide mb-8 hover:scale-105 transition-transform cursor-default">
-                <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
-                Pilotní verze pro ČZU 2.0
-            </div>
-            
-            <h1 class="fade-in-up delay-100 text-5xl lg:text-7xl font-sans font-extrabold text-slate-900 tracking-tight mb-8 leading-tight">
-                Transformujte vzdělávání <br>
-                <span class="gradient-text">pomocí síly AI</span>
-            </h1>
-            
-            <p class="fade-in-up delay-200 text-lg lg:text-xl text-slate-600 max-w-3xl mx-auto mb-12 leading-relaxed">
-                Komplexní ekosystém, který automaticky převádí statické materiály na interaktivní 
-                <span class="font-semibold text-brand-600">Podcasty</span>, 
-                <span class="font-semibold text-brand-600">Myšlenkové mapy</span> a 
-                <span class="font-semibold text-brand-600">Gamifikované testy</span>.
-            </p>
-
-            <div class="fade-in-up delay-300 flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <button onclick="startTour('professor')" class="w-full sm:w-auto px-8 py-4 bg-brand-600 text-white rounded-xl font-bold shadow-xl shadow-brand-500/30 hover:bg-brand-700 hover:-translate-y-1 transition-all flex items-center justify-center gap-2 animate-float">
-                    <i class="fa-solid fa-play"></i> Rychlá Ukázka (Profesor)
-                </button>
-                <button onclick="document.getElementById('features-detail').scrollIntoView({behavior: 'smooth'})" class="w-full sm:w-auto px-8 py-4 bg-white text-slate-700 border border-slate-200 rounded-xl font-bold hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-users-viewfinder"></i> Vybrat Roli
-                </button>
-            </div>
-        </div>
-    </header>
-
-    <!-- DETAILED ROLE SELECTION SECTION -->
-    <section id="features-detail" class="py-20 bg-white">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            
-            <div class="text-center mb-16">
-                <h2 class="text-3xl lg:text-4xl font-bold text-slate-900 mb-4">Jeden systém, tři pohledy</h2>
-                <p class="text-slate-500 max-w-2xl mx-auto">AI Sensei se přizpůsobí tomu, kdo jste. Vyberte si svou roli a vyzkoušejte si systém na vlastní kůži.</p>
-            </div>
-
-            <!-- Tab Buttons -->
-            <div class="flex justify-center mb-12">
-                <div class="bg-slate-100 p-1.5 rounded-2xl inline-flex flex-wrap gap-1 shadow-inner">
-                    <button onclick="switchView('director')" id="btn-director" class="tab-btn px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 bg-white text-brand-600 shadow-sm">
-                        <i class="fa-solid fa-building-columns"></i> Pro Ředitele
-                    </button>
-                    <button onclick="switchView('professor')" id="btn-professor" class="tab-btn px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 text-slate-500 hover:text-slate-900">
-                        <i class="fa-solid fa-chalkboard-user"></i> Pro Profesory
-                    </button>
-                    <button onclick="switchView('student')" id="btn-student" class="tab-btn px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 text-slate-500 hover:text-slate-900">
-                        <i class="fa-solid fa-user-graduate"></i> Pro Studenty
-                    </button>
-                </div>
-            </div>
-
-            <!-- VIEW 1: DIRECTOR -->
-            <div id="view-director" class="view-content block animate-fade-in-up">
-                <div class="bg-slate-50 rounded-3xl p-8 lg:p-12 border border-slate-200">
-                    <div class="grid lg:grid-cols-2 gap-12 items-center">
-                        <div>
-                            <div class="inline-block px-3 py-1 rounded bg-blue-100 text-blue-700 text-xs font-bold uppercase mb-4">Management & Strategie</div>
-                            <h3 class="text-3xl font-bold text-slate-900 mb-4">Mějte školu pod palcem</h3>
-                            <p class="text-slate-600 mb-8 leading-relaxed">
-                                Jako ředitel potřebujete data, ne dojmy. AI Sensei vám poskytne "God Mode" pohled na celou instituci. Sledujte aktivitu, identifikujte slabá místa a garantujte bezpečnost dat díky technologii RAG.
-                            </p>
-                            <ul class="space-y-4 mb-8">
-                                <li class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><i class="fa-solid fa-chart-pie"></i></div>
-                                    <span class="font-bold text-slate-700">Analytics Dashboard v reálném čase</span>
-                                </li>
-                                <li class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600"><i class="fa-solid fa-shield-halved"></i></div>
-                                    <span class="font-bold text-slate-700">Bezpečnost a audit logy</span>
-                                </li>
-                                <li class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600"><i class="fa-solid fa-users-gear"></i></div>
-                                    <span class="font-bold text-slate-700">Centrální správa uživatelů</span>
-                                </li>
-                            </ul>
-                            <button onclick="startTour('director')" class="w-full sm:w-auto px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2">
-                                <i class="fa-solid fa-eye"></i> Spustit Manažerskou Prohlídku
-                            </button>
-                        </div>
-                        <div class="relative">
-                            <div class="absolute -inset-1 bg-gradient-to-r from-blue-400 to-purple-400 rounded-2xl blur opacity-20"></div>
-                            <div class="relative bg-white p-6 rounded-2xl shadow-xl border border-slate-100">
-                                <!-- Mini Dashboard Mockup -->
-                                <div class="flex justify-between items-end mb-4 border-b border-slate-100 pb-4">
-                                    <div>
-                                        <div class="text-xs text-slate-400 uppercase font-bold">Aktivní Studenti</div>
-                                        <div class="text-3xl font-bold text-slate-900">1,245</div>
-                                    </div>
-                                    <div class="text-green-500 font-bold text-sm">+12% <i class="fa-solid fa-arrow-trend-up"></i></div>
-                                </div>
-                                <div class="space-y-3">
-                                    <div class="flex justify-between text-sm"><span class="text-slate-500">Generované Lekce</span> <span class="font-bold">450</span></div>
-                                    <div class="flex justify-between text-sm"><span class="text-slate-500">Dokončené Kvízy</span> <span class="font-bold">8,920</span></div>
-                                    <div class="flex justify-between text-sm"><span class="text-slate-500">Průměrné Skóre</span> <span class="font-bold text-blue-600">88%</span></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- VIEW 2: PROFESSOR -->
-            <div id="view-professor" class="view-content hidden animate-fade-in-up">
-                <div class="bg-slate-50 rounded-3xl p-8 lg:p-12 border border-slate-200">
-                    <div class="grid lg:grid-cols-2 gap-12 items-center">
-                        <div>
-                            <div class="inline-block px-3 py-1 rounded bg-indigo-100 text-indigo-700 text-xs font-bold uppercase mb-4">Tvorba & Efektivita</div>
-                            <h3 class="text-3xl font-bold text-slate-900 mb-4">Váš AI Asistent pro výuku</h3>
-                            <p class="text-slate-600 mb-8 leading-relaxed">
-                                Zapomeňte na hodiny strávené formátováním slidů. Nahrajte PDF a nechte "Magický Generátor" vytvořit kostru lekce. Poté využijte 9 specializovaných editorů pro doladění detailů.
-                            </p>
-                            <ul class="space-y-4 mb-8">
-                                <li class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-                                    <span class="font-bold text-slate-700">Magická konverze PDF na Lekci</span>
-                                </li>
-                                <li class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full bg-pink-100 flex items-center justify-center text-pink-600"><i class="fa-solid fa-microphone-lines"></i></div>
-                                    <span class="font-bold text-slate-700">Automatická tvorba Podcastů</span>
-                                </li>
-                                <li class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600"><i class="fa-solid fa-pen-to-square"></i></div>
-                                    <span class="font-bold text-slate-700">9 Editorů (Kvíz, Komiks, Text...)</span>
-                                </li>
-                            </ul>
-                            <button onclick="startTour('professor')" class="w-full sm:w-auto px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2">
-                                <i class="fa-solid fa-wand-magic-sparkles"></i> Spustit Tvůrčí Prohlídku
-                            </button>
-                        </div>
-                        <div class="relative group cursor-pointer" onclick="startTour('professor')">
-                            <div class="absolute -inset-1 bg-gradient-to-r from-orange-400 to-pink-400 rounded-2xl blur opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                            <div class="relative bg-white p-8 rounded-2xl shadow-xl border border-slate-100 flex flex-col items-center justify-center h-64 text-center">
-                                <i class="fa-regular fa-file-pdf text-5xl text-slate-300 mb-4 group-hover:text-red-500 transition-colors"></i>
-                                <h4 class="font-bold text-slate-800">Skripta_2024.pdf</h4>
-                                <div class="mt-4 flex items-center gap-2 text-indigo-600 font-bold text-sm">
-                                    <span>Klikněte pro generování</span> <i class="fa-solid fa-arrow-right group-hover:translate-x-1 transition-transform"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- VIEW 3: STUDENT -->
-            <div id="view-student" class="view-content hidden animate-fade-in-up">
-                <div class="bg-slate-50 rounded-3xl p-8 lg:p-12 border border-slate-200">
-                    <div class="grid lg:grid-cols-2 gap-12 items-center">
-                        <div>
-                            <div class="inline-block px-3 py-1 rounded bg-pink-100 text-pink-700 text-xs font-bold uppercase mb-4">Zážitek & Gamifikace</div>
-                            <h3 class="text-3xl font-bold text-slate-900 mb-4">Učení, které baví</h3>
-                            <p class="text-slate-600 mb-8 leading-relaxed">
-                                Moderní rozhraní ve stylu sociálních sítí. Studenti sbírají body, udržují "streaks" a učí se cestou do školy pomocí audio podcastů. Kdykoli si nevědí rady, pomůže jim AI Guide Bot.
-                            </p>
-                            <ul class="space-y-4 mb-8">
-                                <li class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-700"><i class="fa-solid fa-mobile-screen-button"></i></div>
-                                    <span class="font-bold text-slate-700">Mobile-First Design</span>
-                                </li>
-                                <li class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600"><i class="fa-solid fa-fire"></i></div>
-                                    <span class="font-bold text-slate-700">Gamifikace (Body & Streaks)</span>
-                                </li>
-                                <li class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600"><i class="fa-solid fa-robot"></i></div>
-                                    <span class="font-bold text-slate-700">AI Guide Bot (Doučování 24/7)</span>
-                                </li>
-                            </ul>
-                            <button onclick="startTour('student')" class="w-full sm:w-auto px-8 py-3 bg-pink-600 text-white rounded-xl font-bold hover:bg-pink-700 transition-all shadow-lg shadow-pink-200 flex items-center justify-center gap-2">
-                                <i class="fa-solid fa-gamepad"></i> Spustit Studentskou Prohlídku
-                            </button>
-                        </div>
-                        <div class="flex justify-center">
-                            <!-- Mobile Frame CSS -->
-                            <div class="w-[200px] h-[380px] bg-slate-900 rounded-[2rem] border-4 border-slate-800 shadow-2xl overflow-hidden relative cursor-pointer hover:-translate-y-2 transition-transform" onclick="startTour('student')">
-                                <div class="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-4 bg-black rounded-b-lg z-10"></div>
-                                <div class="w-full h-full bg-white pt-8 px-3">
-                                    <div class="bg-indigo-50 p-2 rounded-lg mb-2 flex items-center gap-2">
-                                        <div class="w-8 h-8 bg-indigo-500 rounded-full"></div>
-                                        <div class="h-2 w-20 bg-indigo-200 rounded"></div>
-                                    </div>
-                                    <div class="bg-slate-50 p-2 rounded-lg mb-2 h-20 border border-slate-100"></div>
-                                    <div class="bg-pink-50 p-2 rounded-lg h-24 border border-pink-100 flex items-center justify-center text-pink-300">
-                                        <i class="fa-solid fa-play text-2xl"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-    </section>
-
-    <!-- FOOTER -->
-    <footer class="bg-white border-t border-slate-200 py-12 text-center">
-        <p class="text-slate-400 text-sm">© 2024 Ante Academy. Vytvořeno s <i class="fa-solid fa-heart text-red-500 mx-1"></i> pro budoucnost vzdělávání.</p>
-    </footer>
-
-    <!-- LOGIC SCRIPT -->
+    <!-- LOGIC -->
     <script>
-        // --- DATA STRUCTURES ---
+        // --- ROLE CONTENT DATA ---
+        const ROLE_CONTENT = {
+            'director': {
+                color: 'blue',
+                title: 'Řízení a Strategie',
+                desc: 'Mějte svou školu pod kontrolou díky pokročilé analytice a bezpečnosti.',
+                features: [
+                    { icon: 'fa-chart-pie', title: 'Real-time Dashboard', text: 'Okamžitý přehled o aktivitě a výsledcích všech tříd.' },
+                    { icon: 'fa-shield-halved', title: 'Bezpečnost (RAG)', text: 'AI pracuje pouze s vašimi daty. Žádné úniky, žádné halucinace.' },
+                    { icon: 'fa-users-gear', title: 'Správa Uživatelů', text: 'Centrální management přístupů pro celou instituci.' }
+                ],
+                button: 'Spustit Manažerskou Prohlídku',
+                mockup: `
+                    <div class="bg-white p-6 rounded-2xl shadow-xl border border-slate-100 max-w-md mx-auto">
+                        <div class="flex justify-between items-end mb-6 pb-4 border-b border-slate-100">
+                            <div><div class="text-xs text-slate-400 uppercase font-bold">Aktivita</div><div class="text-3xl font-bold text-slate-900">98%</div></div>
+                            <div class="text-green-500 font-bold">+12% <i class="fa-solid fa-arrow-trend-up"></i></div>
+                        </div>
+                        <div class="space-y-3">
+                            <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div class="bg-blue-600 h-full w-[85%] animate-grow-width" style="--target-width: 85%"></div></div>
+                            <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div class="bg-blue-400 h-full w-[65%] animate-grow-width" style="--target-width: 65%"></div></div>
+                            <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div class="bg-blue-300 h-full w-[45%] animate-grow-width" style="--target-width: 45%"></div></div>
+                        </div>
+                    </div>`
+            },
+            'professor': {
+                color: 'indigo',
+                title: 'Tvorba a Efektivita',
+                desc: 'Váš osobní AI asistent, který šetří hodiny příprav.',
+                features: [
+                    { icon: 'fa-wand-magic-sparkles', title: 'Magický Generátor', text: 'Nahrajte PDF a získejte hotovou lekci za 10 vteřin.' },
+                    { icon: 'fa-microphone-lines', title: 'Podcast Editor', text: 'Automatická konverze textů na audio dialogy.' },
+                    { icon: 'fa-pen-to-square', title: '9 Specializovaných Editorů', text: 'Kvízy, komiksy, flashcards a další.' }
+                ],
+                button: 'Spustit Tvůrčí Prohlídku',
+                mockup: `
+                    <div class="bg-white p-8 rounded-2xl shadow-xl border border-slate-100 max-w-md mx-auto text-center relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-indigo-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                        <i class="fa-regular fa-file-pdf text-5xl text-red-500 mb-4 relative z-10 animate-bounce-slight"></i>
+                        <h4 class="font-bold text-slate-800 relative z-10">Skripta.pdf</h4>
+                        <div class="mt-4 inline-flex items-center gap-2 text-indigo-600 font-bold text-sm bg-white px-4 py-2 rounded-full shadow-sm relative z-10">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Generuji lekci...
+                        </div>
+                    </div>`
+            },
+            'student': {
+                color: 'pink',
+                title: 'Zážitek a Gamifikace',
+                desc: 'Škola hrou. Aplikace, kterou studenti skutečně chtějí používat.',
+                features: [
+                    { icon: 'fa-mobile-screen-button', title: 'Mobile-First', text: 'Učení ve formátu sociálních sítí.' },
+                    { icon: 'fa-fire', title: 'Gamifikace', text: 'Sbírání bodů, žebříčky a denní streaks.' },
+                    { icon: 'fa-robot', title: 'AI Guide Bot', text: 'Osobní doučování dostupné 24/7.' }
+                ],
+                button: 'Spustit Studentskou Prohlídku',
+                mockup: `
+                    <div class="bg-slate-900 p-6 rounded-[2rem] shadow-2xl border-4 border-slate-800 max-w-[240px] mx-auto text-white">
+                        <div class="flex justify-between mb-6"><i class="fa-solid fa-bars"></i><i class="fa-solid fa-bell"></i></div>
+                        <div class="bg-white/10 p-4 rounded-xl mb-4 backdrop-blur-sm">
+                            <div class="text-xs text-white/60">Dnešní Streak</div>
+                            <div class="text-2xl font-bold text-yellow-400"><i class="fa-solid fa-fire"></i> 12</div>
+                        </div>
+                        <div class="bg-pink-600 p-4 rounded-xl flex items-center gap-3">
+                            <i class="fa-solid fa-play bg-white text-pink-600 rounded-full w-8 h-8 flex items-center justify-center"></i>
+                            <div class="text-xs font-bold">Podcast: Dějepis</div>
+                        </div>
+                    </div>`
+            }
+        };
+
+        // --- EXTENDED TOUR STEPS ---
         const TOUR_STEPS = {
+            'director': [
+                {
+                    title: '1. Live Dashboard',
+                    content: `
+                        <div class="w-full max-w-2xl mx-auto bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden">
+                            <div class="bg-slate-50 p-4 border-b border-slate-200 flex justify-between items-center">
+                                <span class="font-bold text-slate-700">Přehled Instituce</span>
+                                <span class="flex items-center gap-2 text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full"><span class="w-2 h-2 bg-green-600 rounded-full animate-pulse"></span> LIVE</span>
+                            </div>
+                            <div class="p-6 grid grid-cols-3 gap-4">
+                                <div class="text-center p-3 bg-blue-50 rounded-lg">
+                                    <div class="text-2xl font-bold text-blue-600">1,205</div>
+                                    <div class="text-xs text-slate-500">Studentů online</div>
+                                </div>
+                                <div class="text-center p-3 bg-indigo-50 rounded-lg">
+                                    <div class="text-2xl font-bold text-indigo-600">85</div>
+                                    <div class="text-xs text-slate-500">Aktivních lekcí</div>
+                                </div>
+                                <div class="text-center p-3 bg-green-50 rounded-lg">
+                                    <div class="text-2xl font-bold text-green-600">98%</div>
+                                    <div class="text-xs text-slate-500">Spokojenost</div>
+                                </div>
+                            </div>
+                        </div>`
+                },
+                {
+                    title: '2. Efektivita Výuky',
+                    content: `
+                        <div class="w-full max-w-lg bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+                            <h4 class="font-bold text-slate-700 mb-4">Srovnání Výkonnosti</h4>
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between text-xs mb-1 font-semibold"><span>Tradiční výuka</span> <span>65%</span></div>
+                                    <div class="h-3 bg-slate-100 rounded-full"><div class="h-full bg-slate-400 rounded-full animate-grow-width" style="--target-width: 65%"></div></div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-xs mb-1 font-semibold text-brand-600"><span>S AI Sensei</span> <span>92%</span></div>
+                                    <div class="h-3 bg-slate-100 rounded-full"><div class="h-full bg-gradient-to-r from-brand-500 to-purple-500 rounded-full animate-grow-width" style="--target-width: 92%"></div></div>
+                                </div>
+                            </div>
+                            <div class="mt-4 text-xs text-slate-500 italic text-center">Data za poslední semestr ukazují výrazný nárůst angažovanosti.</div>
+                        </div>`
+                },
+                {
+                    title: '3. Detailní Audit',
+                    content: `
+                        <div class="w-full max-w-md bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+                            <div class="bg-slate-800 text-white p-3 text-xs font-mono flex justify-between">
+                                <span>audit_log.txt</span>
+                                <span><i class="fa-solid fa-lock"></i> Encrypted</span>
+                            </div>
+                            <div class="p-3 text-[10px] font-mono space-y-2 text-slate-600">
+                                <div class="flex gap-2"><span class="text-slate-400">10:42:01</span> <span class="text-blue-600">User_882</span> přístup k testu "Matematika"</div>
+                                <div class="flex gap-2"><span class="text-slate-400">10:42:05</span> <span class="text-green-600">System</span> vygeneroval unikátní variantu</div>
+                                <div class="flex gap-2"><span class="text-slate-400">10:45:12</span> <span class="text-blue-600">User_882</span> odevzdal test (Score: 95%)</div>
+                            </div>
+                        </div>`
+                },
+                {
+                    title: '4. Bezpečnost (RAG)',
+                    content: `
+                        <div class="text-center">
+                            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 text-green-600 text-4xl mb-4 animate-pop-in">
+                                <i class="fa-solid fa-shield-halved"></i>
+                            </div>
+                            <h3 class="text-xl font-bold mb-2">Vaše data neopustí školu</h3>
+                            <p class="text-sm text-slate-500">Využíváme metodu <strong>RAG (Retrieval-Augmented Generation)</strong>. AI generuje obsah VÝHRADNĚ z materiálů, které dodáte. Žádné halucinace, žádný únik dat mimo váš privátní cloud.</p>
+                        </div>`
+                }
+            ],
             'professor': [
                 {
-                    title: '1. Nahrání Podkladů',
+                    title: '1. Začínáme souborem',
                     content: `
                         <div class="text-center">
                             <div class="w-24 h-24 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 animate-bounce-slight">
                                 <i class="fa-solid fa-cloud-arrow-up"></i>
                             </div>
-                            <h3 class="text-2xl font-bold mb-2">Začněte souborem</h3>
-                            <p class="text-slate-500">Nahrajte skripta, prezentace nebo poznámky (PDF, DOCX). Systém je připraven.</p>
+                            <h3 class="text-2xl font-bold mb-2 text-slate-800">Nahrajte skripta</h3>
+                            <p class="text-slate-500 max-w-md mx-auto">Jednoduše přetáhněte vaše stávající PDF, Word nebo PowerPoint soubory. Nemusíte nic přepisovat. Systém je bezpečný a šifrovaný.</p>
                         </div>`
                 },
                 {
-                    title: '2. Magické Generování',
+                    title: '2. Magická Analýza',
                     content: `
-                        <div class="text-center">
-                            <div class="w-24 h-24 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 shadow-lg shadow-indigo-200 animate-pulse-slow">
-                                <i class="fa-solid fa-wand-magic-sparkles text-white"></i>
-                            </div>
-                            <h3 class="text-2xl font-bold mb-2">Jeden klik a je hotovo</h3>
-                            <p class="text-slate-500">Magie v praxi. Nahrajte soubor a systém okamžitě vygeneruje kompletní lekci: text, kvízy, myšlenkovou mapu i podcast. <strong>Student může začít studovat ihned.</strong></p>
+                        <div class="w-full max-w-lg bg-white rounded-xl shadow-lg border border-slate-200 p-6 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent animate-[shimmer_2s_infinite]"></div>
+                            <h4 class="font-bold text-sm text-slate-400 uppercase mb-4">Gemini 2.5 Pro Processing</h4>
+                            <ul class="space-y-4 text-left">
+                                <li class="flex items-center gap-3 animate-fade-in-up" style="animation-delay: 0.1s"><div class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xs"><i class="fa-solid fa-check"></i></div> <span class="font-medium text-slate-700">Analýza textu a kontextu...</span></li>
+                                <li class="flex items-center gap-3 animate-fade-in-up" style="animation-delay: 0.8s"><div class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xs"><i class="fa-solid fa-check"></i></div> <span class="font-medium text-slate-700">Extrakce klíčových pojmů...</span></li>
+                                <li class="flex items-center gap-3 animate-fade-in-up" style="animation-delay: 1.5s"><div class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs animate-pulse"><i class="fa-solid fa-wand-magic-sparkles"></i></div> <span class="font-bold text-indigo-600">Generování struktury lekce...</span></li>
+                            </ul>
                         </div>`
                 },
                 {
-                    title: '3. AI Asistent',
+                    title: '3. Výsledek: Hotová Lekce',
+                    content: `
+                        <div class="w-full max-w-md bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden transform scale-95">
+                            <div class="h-32 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center">
+                                <i class="fa-solid fa-shapes text-6xl text-white/20"></i>
+                            </div>
+                            <div class="p-6">
+                                <h3 class="text-xl font-bold text-slate-800 mb-2">Průmyslová Revoluce</h3>
+                                <p class="text-sm text-slate-500 mb-4">Lekce obsahuje:</p>
+                                <div class="flex gap-2 mb-4">
+                                    <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded">Text</span>
+                                    <span class="px-2 py-1 bg-teal-100 text-teal-700 text-xs font-bold rounded">Kvíz (10)</span>
+                                    <span class="px-2 py-1 bg-pink-100 text-pink-700 text-xs font-bold rounded">Podcast</span>
+                                </div>
+                                <div class="bg-slate-50 p-3 rounded-lg border border-slate-100 text-xs text-slate-600">
+                                    <p><strong>Úvod:</strong> Průmyslová revoluce byla proces zásadních změn...</p>
+                                </div>
+                            </div>
+                        </div>`
+                },
+                {
+                    title: '4. AI Asistent (Copilot)',
                     content: `
                         <div class="w-full max-w-md bg-white rounded-xl shadow-lg border border-slate-200 p-5">
                             <div class="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
-                                <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-                                <span class="font-bold text-sm">Copilot</span>
+                                <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-md"><i class="fa-solid fa-robot"></i></div>
+                                <div>
+                                    <span class="font-bold text-sm text-slate-900 block">AI Copilot</span>
+                                    <span class="text-[10px] text-green-500 font-bold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Online</span>
+                                </div>
                             </div>
                             <div class="space-y-3">
-                                <div class="bg-indigo-50 p-3 rounded-lg rounded-tl-none text-sm text-indigo-900">
-                                    Navrhl jsem 3 varianty úvodu pro tuto lekci. Kterou chcete použít?
+                                <div class="bg-slate-100 p-3 rounded-2xl rounded-tl-none text-sm text-slate-600 max-w-[90%]">
+                                    Tento odstavec o parním stroji je pro studenty 4.A příliš složitý. Mám ho zjednodušit?
                                 </div>
-                                <div class="flex gap-2">
-                                    <button class="px-3 py-1 bg-white border border-slate-200 rounded text-xs hover:bg-slate-50">Formální</button>
-                                    <button class="px-3 py-1 bg-white border border-slate-200 rounded text-xs hover:bg-slate-50">Hravou</button>
-                                    <button class="px-3 py-1 bg-indigo-600 text-white rounded text-xs">Příběhovou</button>
+                                <div class="bg-indigo-50 p-3 rounded-2xl rounded-tr-none text-sm text-indigo-900 border border-indigo-100 shadow-sm ml-auto max-w-[90%]">
+                                    <strong>Ano, prosím.</strong> Udělej ho srozumitelnější a přidej přirovnání k varné konvici.
                                 </div>
                             </div>
                         </div>`
                 },
                 {
-                    title: '4. Přímá Komunikace',
-                    content: `
-                        <div class="w-full max-w-md bg-white rounded-xl shadow-lg border border-slate-200 p-6 text-center">
-                            <div class="flex justify-center gap-6 mb-6">
-                                <div class="w-16 h-16 bg-blue-500 text-white rounded-2xl flex items-center justify-center text-3xl shadow-md"><i class="fa-brands fa-telegram"></i></div>
-                                <div class="w-16 h-16 bg-indigo-600 text-white rounded-2xl flex items-center justify-center text-3xl shadow-md"><i class="fa-solid fa-comment-dots"></i></div>
-                            </div>
-                            <h3 class="text-xl font-bold text-slate-800 mb-2">Všude tam, kde jsou studenti</h3>
-                            <p class="text-slate-500 text-sm">Posílejte zprávy, úkoly a notifikace přímo do aplikace nebo na <strong>Telegram</strong>. Zvyšte zapojení studentů díky kanálům, které skutečně používají.</p>
-                        </div>`
-                },
-                {
-                    title: '5. Publikace Lekce',
+                    title: '5. Publikace',
                     content: `
                         <div class="text-center">
-                            <button class="px-8 py-4 bg-green-500 text-white text-xl font-bold rounded-full shadow-xl hover:scale-105 transition-transform flex items-center gap-3 mx-auto mb-6">
-                                <i class="fa-solid fa-rocket"></i> Publikovat Studentům
-                            </button>
-                            <p class="text-slate-500 max-w-sm mx-auto">Jedním kliknutím se lekce objeví v mobilní aplikaci všech studentů ve třídě. Okamžitě.</p>
+                            <div class="relative inline-block group cursor-pointer mb-6">
+                                <div class="absolute -inset-1 bg-gradient-to-r from-green-400 to-emerald-600 rounded-full blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-tilt"></div>
+                                <button class="relative px-8 py-4 bg-green-600 text-white text-xl font-bold rounded-full shadow-xl flex items-center gap-3">
+                                    <i class="fa-solid fa-rocket"></i> Publikovat Studentům
+                                </button>
+                            </div>
+                            <p class="text-slate-500 max-w-sm mx-auto text-sm">Jedním kliknutím se lekce objeví v mobilní aplikaci všech studentů. Odesíláme notifikace.</p>
                         </div>`
                 },
                 {
-                    title: '6. Ekosystém Editorů',
-                    // This will trigger the special Grid Render function
+                    title: '6. Ekosystém 9 Editorů',
                     type: 'grid' 
                 }
             ],
             'student': [
                 {
-                    title: '1. Feed & Úkoly',
+                    title: '1. Moderní Feed',
                     content: `
-                        <div class="flex justify-center items-center h-full scale-90">
-                            <div class="mockup-screen w-64 h-96 bg-white rounded-[2rem] overflow-hidden relative border-8 border-slate-800">
-                                <div class="bg-indigo-600 h-16 w-full flex items-end p-4 pb-2 text-white font-bold justify-between">
-                                    <span>Můj Feed</span>
-                                    <i class="fa-solid fa-bell"></i>
+                        <div class="flex justify-center scale-90">
+                            <div class="mockup-screen w-64 h-80 bg-white rounded-[2rem] border-8 border-slate-800 overflow-hidden relative">
+                                <div class="bg-white p-4 sticky top-0 border-b border-slate-100 z-10 flex justify-between items-center">
+                                    <span class="font-bold text-slate-900">Můj Feed</span>
+                                    <i class="fa-solid fa-bell text-slate-400"></i>
                                 </div>
-                                <div class="p-4 space-y-3 bg-slate-50 h-full">
-                                    <div class="bg-white shadow-sm border border-slate-100 p-3 rounded-xl flex items-center gap-3">
-                                        <div class="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600"><i class="fa-solid fa-fire"></i></div>
-                                        <div><div class="font-bold text-xs">Streak: 12 dní</div><div class="text-[10px] text-slate-400">Jen tak dál!</div></div>
+                                <div class="p-3 space-y-3 overflow-y-auto">
+                                    <div class="bg-gradient-to-r from-pink-500 to-orange-400 p-3 rounded-xl text-white shadow-md">
+                                        <div class="text-xs opacity-90 mb-1">Dnes</div>
+                                        <div class="font-bold text-sm">Kapitola: Řím</div>
+                                        <div class="mt-2 text-xs bg-white/20 inline-block px-2 py-1 rounded">Nový Podcast 🎧</div>
                                     </div>
-                                    <div class="bg-white p-3 rounded-xl border-l-4 border-indigo-500 shadow-sm">
-                                        <div class="text-[10px] text-slate-400 mb-1">Dnes, 8:00</div>
-                                        <div class="text-xs font-bold text-slate-800">Nová lekce: Římská říše</div>
-                                    </div>
-                                     <div class="bg-white p-3 rounded-xl border-l-4 border-pink-500 shadow-sm">
-                                        <div class="text-[10px] text-slate-400 mb-1">DÚ do pátku</div>
-                                        <div class="text-xs font-bold text-slate-800">Poslechni si podcast</div>
+                                    <div class="bg-white border border-slate-100 p-3 rounded-xl shadow-sm">
+                                        <div class="text-xs text-slate-400">Úkol do pátku</div>
+                                        <div class="font-bold text-sm text-slate-800">Kvíz z Fyziky</div>
                                     </div>
                                 </div>
                             </div>
@@ -552,31 +475,21 @@
                 {
                     title: '2. Audio Výuka',
                     content: `
-                        <div class="w-full max-w-sm bg-slate-900 rounded-2xl p-6 text-white shadow-2xl">
-                            <div class="flex justify-between items-center mb-6">
-                                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Podcast Přehrávač</span>
-                                <i class="fa-solid fa-ellipsis text-slate-400"></i>
+                        <div class="w-full max-w-sm bg-slate-900 rounded-2xl p-5 text-white shadow-2xl">
+                            <div class="w-full aspect-square bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl mb-4 flex items-center justify-center shadow-lg">
+                                <i class="fa-solid fa-headphones text-5xl"></i>
                             </div>
-                            <div class="w-24 h-24 bg-gradient-to-br from-pink-500 to-orange-400 rounded-2xl mx-auto mb-6 shadow-lg flex items-center justify-center text-4xl">
-                                <i class="fa-solid fa-headphones"></i>
+                            <h4 class="font-bold text-lg">Vznik Vesmíru</h4>
+                            <p class="text-slate-400 text-xs mb-4">Alex & Sarah • Fyzika</p>
+                            <div class="flex items-center gap-3">
+                                <span class="text-[10px] text-slate-400">01:20</span>
+                                <div class="h-1 flex-1 bg-slate-700 rounded-full overflow-hidden"><div class="h-full w-1/3 bg-white"></div></div>
+                                <span class="text-[10px] text-slate-400">05:45</span>
                             </div>
-                            <h4 class="text-center font-bold text-lg mb-1">Kapitola 3: Caesar</h4>
-                            <p class="text-center text-slate-400 text-xs mb-6">Dějepis • Alex & Sarah</p>
-                            
-                            <div class="w-full bg-slate-700 h-1 rounded-full mb-2">
-                                <div class="bg-white h-full w-1/3 rounded-full relative">
-                                    <div class="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full"></div>
-                                </div>
-                            </div>
-                            <div class="flex justify-between text-[10px] text-slate-400 mb-6">
-                                <span>04:20</span>
-                                <span>12:45</span>
-                            </div>
-                            
-                            <div class="flex justify-center items-center gap-6 text-2xl">
-                                <i class="fa-solid fa-backward-step text-slate-400"></i>
-                                <div class="w-12 h-12 bg-white text-slate-900 rounded-full flex items-center justify-center pl-1"><i class="fa-solid fa-play"></i></div>
-                                <i class="fa-solid fa-forward-step text-slate-400"></i>
+                            <div class="flex justify-center gap-6 text-2xl mt-4">
+                                <i class="fa-solid fa-backward-15 text-slate-400"></i>
+                                <i class="fa-solid fa-circle-pause text-4xl"></i>
+                                <i class="fa-solid fa-forward-15 text-slate-400"></i>
                             </div>
                         </div>`
                 },
@@ -584,225 +497,72 @@
                     title: '3. AI Guide Bot',
                     content: `
                         <div class="w-full max-w-md bg-white rounded-xl shadow-lg border border-slate-200 p-4">
-                            <div class="text-center border-b border-slate-100 pb-2 mb-4">
-                                <span class="text-xs font-bold text-slate-400 uppercase">Doučování 24/7</span>
-                            </div>
-                            <div class="flex gap-3 mb-4">
-                                <div class="w-8 h-8 rounded-full bg-slate-200 shrink-0 flex items-center justify-center text-xs font-bold">JA</div>
-                                <div class="bg-slate-100 p-3 rounded-2xl rounded-tl-none text-sm text-slate-600">Nerozumím tomu, co je to HDP. Můžeš mi to vysvětlit jako pro pětileté dítě?</div>
-                            </div>
-                            <div class="flex gap-3 flex-row-reverse">
-                                <div class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white shrink-0"><i class="fa-solid fa-robot text-xs"></i></div>
-                                <div class="bg-indigo-50 p-3 rounded-2xl rounded-tr-none text-sm text-indigo-900 border border-indigo-100 shadow-sm">
-                                    Jasně! Představ si HDP jako <strong>velký narozeninový dort</strong> 🎂. Tento dort představuje všechno, co naše země "upekla" (vyrobila) a prodala za jeden rok. Čím větší dort, tím bohatší země.
+                            <div class="space-y-4">
+                                <div class="flex gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">JA</div>
+                                    <div class="bg-slate-100 p-3 rounded-2xl rounded-tl-none text-sm text-slate-600">Nechápu ten vzorec na gravitaci. 🤯</div>
+                                </div>
+                                <div class="flex gap-1 ml-11">
+                                    <div class="w-2 h-2 bg-slate-300 rounded-full typing-dot"></div>
+                                    <div class="w-2 h-2 bg-slate-300 rounded-full typing-dot"></div>
+                                    <div class="w-2 h-2 bg-slate-300 rounded-full typing-dot"></div>
+                                </div>
+                                <div class="flex gap-3 flex-row-reverse animate-pop-in" style="animation-delay: 1.5s">
+                                    <div class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white"><i class="fa-solid fa-robot text-xs"></i></div>
+                                    <div class="bg-indigo-50 p-3 rounded-2xl rounded-tr-none text-sm text-indigo-900 border border-indigo-100">
+                                        Žádný strach! Představ si to jako neviditelnou gumičku, která přitahuje věci k sobě. Čím jsou věci těžší, tím je gumička silnější. 🍎🌍
+                                    </div>
                                 </div>
                             </div>
                         </div>`
                 },
                 {
-                    title: '4. Chat & Komunita',
-                    content: `
-                        <div class="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-200 p-5 relative overflow-hidden">
-                            <!-- Chat Bubbles -->
-                            <div class="space-y-3 mb-4">
-                                <div class="flex gap-2">
-                                    <div class="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-xs">P</div>
-                                    <div class="bg-slate-100 p-2 rounded-xl rounded-tl-none text-xs text-slate-600 max-w-[80%]">Nezapomeňte na zítřejší termín!</div>
-                                </div>
-                                <div class="flex gap-2 flex-row-reverse">
-                                    <div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs"><i class="fa-brands fa-telegram"></i></div>
-                                    <div class="bg-blue-50 p-2 rounded-xl rounded-tr-none text-xs text-blue-800 max-w-[80%] border border-blue-100">Díky za info, pane profesore! 👍</div>
-                                </div>
-                            </div>
-                            <div class="text-center pt-2 border-t border-slate-100">
-                                <h4 class="font-bold text-slate-800">Chat & Telegram</h4>
-                                <p class="text-xs text-slate-500 mt-1">Komunikuj se třídou přímo v appce nebo přes Telegram. Nic ti neuteče.</p>
-                            </div>
-                        </div>`
-                },
-                {
-                    title: '5. Interaktivní Kvíz',
-                    content: `
-                        <div class="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-200 p-6 text-center">
-                            <div class="w-12 h-12 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xl mx-auto mb-4">
-                                <i class="fa-solid fa-clipboard-question"></i>
-                            </div>
-                            <h4 class="font-bold text-slate-800 mb-6">Kdy byla založena Univerzita Karlova?</h4>
-                            <div class="space-y-2">
-                                <button class="w-full py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-sm transition-colors">1248</button>
-                                <button class="w-full py-3 rounded-xl bg-green-500 text-white border border-green-600 font-bold text-sm shadow-md">1348 <i class="fa-solid fa-check ml-1"></i></button>
-                                <button class="w-full py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-sm transition-colors">1420</button>
-                            </div>
-                            <div class="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center text-xs">
-                                <span class="text-slate-400">Otázka 3/10</span>
-                                <span class="font-bold text-teal-600">+50 Bodů</span>
-                            </div>
-                        </div>`
-                },
-                {
-                    title: '6. Gamifikace',
+                    title: '4. Gamifikace',
                     content: `
                         <div class="grid grid-cols-2 gap-4 text-center w-full max-w-md">
-                            <div class="bg-gradient-to-br from-yellow-400 to-orange-500 p-6 rounded-2xl text-white shadow-lg">
-                                <i class="fa-solid fa-trophy text-4xl mb-2 opacity-80"></i>
-                                <div class="text-2xl font-bold">1. Místo</div>
-                                <div class="text-xs opacity-90">v tomto týdnu</div>
+                            <div class="bg-gradient-to-br from-yellow-400 to-orange-500 p-4 rounded-2xl text-white shadow-lg transform rotate-3">
+                                <div class="text-4xl mb-2 animate-bounce-slight">🏆</div>
+                                <div class="font-bold text-xl">Level 5</div>
+                                <div class="text-xs opacity-90">Mistr Historie</div>
                             </div>
-                            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                                <i class="fa-solid fa-medal text-4xl text-purple-500 mb-2"></i>
-                                <div class="text-xl font-bold text-slate-800">Expert</div>
-                                <div class="text-xs text-slate-400">Úroveň Dějepisu</div>
+                            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center transform -rotate-2">
+                                <div class="text-3xl text-red-500 mb-1"><i class="fa-solid fa-fire"></i> 14</div>
+                                <div class="text-xs font-bold text-slate-600 uppercase">Dní v řadě</div>
                             </div>
-                            <div class="col-span-2 bg-slate-900 text-white p-4 rounded-xl flex items-center justify-between px-8">
-                                <div class="flex flex-col items-start">
-                                    <span class="text-xs text-slate-400 uppercase">Celkové Skóre</span>
-                                    <span class="text-2xl font-bold text-green-400">12,450 XP</span>
+                            <div class="col-span-2 mt-2">
+                                <div class="flex justify-between text-xs font-bold text-slate-500 mb-1"><span>XP do další úrovně</span> <span>850 / 1000</span></div>
+                                <div class="h-4 bg-slate-100 rounded-full border border-slate-200 overflow-hidden">
+                                    <div class="h-full bg-green-500 animate-grow-width" style="--target-width: 85%"></div>
                                 </div>
-                                <i class="fa-solid fa-chart-line text-3xl text-slate-700"></i>
-                            </div>
-                        </div>`
-                }
-            ],
-            'director': [
-                {
-                    title: '1. Hlavní Dashboard',
-                    content: `
-                        <div class="grid grid-cols-2 gap-4 w-full max-w-2xl">
-                            <div class="bg-white p-4 rounded-xl shadow border border-slate-100 text-center">
-                                <div class="text-4xl font-bold text-indigo-600 mb-1">98%</div>
-                                <div class="text-sm text-slate-500">Úspěšnost Studentů</div>
-                            </div>
-                            <div class="bg-white p-4 rounded-xl shadow border border-slate-100 text-center">
-                                <div class="text-4xl font-bold text-green-600 mb-1">Active</div>
-                                <div class="text-sm text-slate-500">Stav Systému</div>
-                            </div>
-                            <div class="col-span-2 bg-white p-4 rounded-xl shadow border border-slate-100 h-32 flex items-end justify-center gap-2">
-                                <div class="w-8 bg-indigo-200 h-1/2 rounded-t"></div>
-                                <div class="w-8 bg-indigo-300 h-3/4 rounded-t"></div>
-                                <div class="w-8 bg-indigo-500 h-full rounded-t"></div>
-                                <div class="w-8 bg-indigo-400 h-2/3 rounded-t"></div>
-                                <div class="w-8 bg-indigo-600 h-5/6 rounded-t"></div>
-                                <div class="w-8 bg-indigo-300 h-1/2 rounded-t"></div>
-                            </div>
-                        </div>`
-                },
-                {
-                    title: '2. Detail Třídy',
-                    content: `
-                        <div class="w-full max-w-lg bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-                            <div class="bg-slate-50 p-3 border-b border-slate-200 flex justify-between items-center">
-                                <span class="font-bold text-slate-700">Třída 4.A - Dějepis</span>
-                                <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Probíhá</span>
-                            </div>
-                            <div class="divide-y divide-slate-100">
-                                <div class="p-3 flex items-center justify-between hover:bg-slate-50">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-8 h-8 rounded-full bg-slate-200"></div>
-                                        <span class="text-sm font-medium">Novák Jan</span>
-                                    </div>
-                                    <span class="text-sm font-bold text-green-600">95%</span>
-                                </div>
-                                <div class="p-3 flex items-center justify-between hover:bg-slate-50">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-8 h-8 rounded-full bg-slate-200"></div>
-                                        <span class="text-sm font-medium">Svobodová Eva</span>
-                                    </div>
-                                    <span class="text-sm font-bold text-green-600">92%</span>
-                                </div>
-                                <div class="p-3 flex items-center justify-between hover:bg-slate-50 bg-red-50">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-8 h-8 rounded-full bg-slate-200"></div>
-                                        <span class="text-sm font-medium">Dvořák Petr</span>
-                                    </div>
-                                    <span class="text-sm font-bold text-red-600">45% <i class="fa-solid fa-circle-exclamation ml-1"></i></span>
-                                </div>
-                            </div>
-                        </div>`
-                },
-                {
-                    title: '3. Efektivita Výuky',
-                    content: `
-                        <div class="flex gap-4 w-full max-w-2xl">
-                            <div class="flex-1 bg-white p-5 rounded-xl shadow border border-slate-100">
-                                <h4 class="text-sm font-bold text-slate-500 uppercase mb-4">Oblíbenost Formátů</h4>
-                                <div class="space-y-3">
-                                    <div>
-                                        <div class="flex justify-between text-xs mb-1"><span>Podcasty</span> <span>85%</span></div>
-                                        <div class="h-2 bg-slate-100 rounded-full"><div class="h-full w-[85%] bg-pink-500 rounded-full"></div></div>
-                                    </div>
-                                    <div>
-                                        <div class="flex justify-between text-xs mb-1"><span>Kvízy</span> <span>72%</span></div>
-                                        <div class="h-2 bg-slate-100 rounded-full"><div class="h-full w-[72%] bg-teal-500 rounded-full"></div></div>
-                                    </div>
-                                    <div>
-                                        <div class="flex justify-between text-xs mb-1"><span>Text</span> <span>40%</span></div>
-                                        <div class="h-2 bg-slate-100 rounded-full"><div class="h-full w-[40%] bg-blue-500 rounded-full"></div></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>`
-                },
-                {
-                    title: '4. Bezpečnost (RAG)',
-                    content: `
-                        <div class="text-center max-w-lg">
-                            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-4xl text-green-600 mx-auto mb-6">
-                                <i class="fa-solid fa-shield-virus"></i>
-                            </div>
-                            <h3 class="text-2xl font-bold mb-3 text-slate-900">Vaše data, vaše kontrola</h3>
-                            <div class="bg-white p-4 rounded-xl border border-slate-200 text-left text-sm text-slate-600 shadow-sm">
-                                <p class="mb-2"><i class="fa-solid fa-check text-green-500 mr-2"></i> <strong>RAG Technologie:</strong> AI odpovídá pouze na základě vámi schválených dokumentů.</p>
-                                <p class="mb-2"><i class="fa-solid fa-check text-green-500 mr-2"></i> <strong>GDPR Compliant:</strong> Data studentů jsou anonymizovaná a šifrovaná.</p>
-                                <p><i class="fa-solid fa-check text-green-500 mr-2"></i> <strong>Audit Log:</strong> Přesně vidíte, kdo a kdy přistupoval k materiálům.</p>
                             </div>
                         </div>`
                 }
             ]
         };
-
+        
+        // Editor Grid Data
         const EDITOR_DATA = {
-            'text': { title: 'Text Editor', icon: '<i class="fa-solid fa-file-lines"></i>', desc: 'Základní výklad', features: ['AI Asistent', 'Formátování'] },
-            'presentation': { title: 'Prezentace', icon: '<i class="fa-solid fa-person-chalkboard"></i>', desc: 'Slidy pro výuku', features: ['Speaker Notes', 'Export PDF'] },
+            'text': { title: 'Text Editor', icon: '<i class="fa-solid fa-file-lines"></i>', desc: 'Strukturovaný výklad', features: ['AI Asistent'] },
             'quiz': { title: 'Kvíz', icon: '<i class="fa-solid fa-clipboard-question"></i>', desc: 'Rychlé ověření', features: ['ABCD', 'Pravda/Lež'] },
-            'podcast': { title: 'Podcast', icon: '<i class="fa-solid fa-microphone-lines"></i>', desc: 'Audio dialog', features: ['2 Hlasy', 'MP3 Export'] },
-            'comic': { title: 'Komiks', icon: '<i class="fa-solid fa-comments"></i>', desc: 'Vizuální příběh', features: ['AI Scénář', 'Stylizace'] },
-            'mindmap': { title: 'Mindmap', icon: '<i class="fa-solid fa-sitemap"></i>', desc: 'Souvislosti', features: ['Hierarchie', 'Editace'] },
-            'flashcards': { title: 'Flashcards', icon: '<i class="fa-solid fa-layer-group"></i>', desc: 'Drilování', features: ['Otočení', 'Opakování'] },
-            'test': { title: 'Test', icon: '<i class="fa-solid fa-graduation-cap"></i>', desc: 'Zkoušení', features: ['Známkování', 'Limity'] },
-            'post': { title: 'Post', icon: '<i class="fa-solid fa-paper-plane"></i>', desc: 'Oznámení', features: ['Notifikace', 'Přílohy'] }
+            'podcast': { title: 'Podcast', icon: '<i class="fa-solid fa-microphone-lines"></i>', desc: 'Audio dialog', features: ['2 Hlasy', 'CS/EN'] },
+            'comic': { title: 'Komiks', icon: '<i class="fa-solid fa-comments"></i>', desc: 'Vizuální příběh', features: ['AI Scénář'] },
+            'mindmap': { title: 'Mindmap', icon: '<i class="fa-solid fa-sitemap"></i>', desc: 'Souvislosti', features: ['Hierarchie'] },
+            'flashcards': { title: 'Flashcards', icon: '<i class="fa-solid fa-layer-group"></i>', desc: 'Drilování pojmů', features: ['Otočení'] },
+            'test': { title: 'Test', icon: '<i class="fa-solid fa-graduation-cap"></i>', desc: 'Zkoušení', features: ['Známkování'] },
+            'post': { title: 'Post', icon: '<i class="fa-solid fa-paper-plane"></i>', desc: 'Oznámení', features: ['Notifikace'] },
+            'presentation': { title: 'Prezentace', icon: '<i class="fa-solid fa-person-chalkboard"></i>', desc: 'Slidy', features: ['Speaker Notes'] }
         };
 
-        // --- STATE ---
-        let currentTourRole = 'professor';
+        // Tour Functions
+        let currentTourRole = '';
         let currentStepIndex = 0;
-
-        // --- MAIN FUNCTIONS ---
-
-        function switchView(role) {
-            // Hide all views
-            document.querySelectorAll('.view-content').forEach(el => {
-                el.classList.add('hidden');
-                el.classList.remove('block');
-            });
-            // Show selected
-            document.getElementById(`view-${role}`).classList.remove('hidden');
-            document.getElementById('view-' + role).classList.add('block'); // Using concat for safety
-            
-            // Buttons style reset
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.className = 'tab-btn px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 text-slate-500 hover:text-slate-900';
-            });
-            // Active button
-            document.getElementById(`btn-${role}`).className = 'tab-btn active px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 bg-white text-brand-600 shadow-sm ring-1 ring-slate-200';
-        }
-
-        // --- TOUR ENGINE ---
 
         function startTour(role) {
             currentTourRole = role;
             currentStepIndex = 0;
+            document.getElementById('virtual-tour-overlay').classList.remove('hidden');
+            document.getElementById('virtual-tour-overlay').classList.add('flex');
             
-            // Set Header Info
             const titles = { 'professor': 'Režim Profesora', 'student': 'Režim Studenta', 'director': 'Režim Ředitele' };
             const icons = { 'professor': 'fa-chalkboard-user', 'student': 'fa-user-graduate', 'director': 'fa-building-columns' };
             const colors = { 'professor': 'bg-indigo-600', 'student': 'bg-pink-600', 'director': 'bg-blue-600' };
@@ -811,11 +571,7 @@
             document.getElementById('tour-header-subtitle').innerText = `Krok 1 z ${TOUR_STEPS[role].length}`;
             document.getElementById('tour-header-icon').className = `fa-solid ${icons[role]}`;
             document.getElementById('tour-icon-container').className = `w-10 h-10 rounded-xl flex items-center justify-center text-white text-xl ${colors[role]}`;
-
-            // Show Overlay
-            document.getElementById('virtual-tour-overlay').classList.remove('hidden');
-            document.getElementById('virtual-tour-overlay').classList.add('flex');
-
+            
             renderStep();
         }
 
@@ -839,76 +595,120 @@
             const nextBtn = document.getElementById('tour-next-btn');
             const subtitle = document.getElementById('tour-header-subtitle');
 
-            // Update Header
             subtitle.innerText = `Krok ${currentStepIndex + 1} z ${TOUR_STEPS[currentTourRole].length}`;
-
-            // Render Content
+            
+            // Update UI
             if (stepData.type === 'grid') {
                 contentArea.innerHTML = `
-                    <div class="w-full h-full flex flex-col items-center p-4 overflow-hidden">
-                        <h3 class="text-2xl font-bold mb-4">${stepData.title}</h3>
-                        <div id="flashcard-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-5xl overflow-y-auto custom-scrollbar pb-10 px-2"></div>
-                    </div>`;
-                renderFlashcardGrid();
+                    <div class="text-center mb-4"><h3 class="text-2xl font-bold">${stepData.title}</h3></div>
+                    <div id="flashcard-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-5xl overflow-y-auto p-2 pb-10 custom-scrollbar"></div>`;
+                renderFlashcards();
             } else {
                 contentArea.innerHTML = `
                     <div class="animate-fade-in-up w-full h-full flex flex-col items-center justify-center p-4">
-                        <h3 class="text-2xl lg:text-3xl font-bold text-slate-900 mb-6">${stepData.title}</h3>
+                        <h3 class="text-2xl lg:text-3xl font-bold text-slate-900 mb-6 text-center">${stepData.title}</h3>
                         ${stepData.content}
                     </div>`;
             }
-
-            // Update Progress Dots
-            const dotsContainer = document.getElementById('tour-progress-dots');
-            dotsContainer.innerHTML = '';
-            TOUR_STEPS[currentTourRole].forEach((_, idx) => {
-                const dot = document.createElement('div');
-                dot.className = `w-2.5 h-2.5 rounded-full transition-colors ${idx === currentStepIndex ? 'bg-slate-800' : 'bg-slate-300'}`;
-                dotsContainer.appendChild(dot);
+            
+            // Dots
+            const dots = document.getElementById('tour-progress-dots');
+            dots.innerHTML = '';
+            TOUR_STEPS[currentTourRole].forEach((_, i) => {
+                dots.innerHTML += `<div class="w-2.5 h-2.5 rounded-full transition-colors ${i === currentStepIndex ? 'bg-slate-800' : 'bg-slate-300'}"></div>`;
             });
 
-            // Update Button Text
+            // Button
             if (currentStepIndex === TOUR_STEPS[currentTourRole].length - 1) {
                 nextBtn.innerHTML = 'Dokončit <i class="fa-solid fa-check"></i>';
                 nextBtn.className = "px-6 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors flex items-center gap-2";
+                nextBtn.onclick = closeTour;
             } else {
                 nextBtn.innerHTML = 'Další krok <i class="fa-solid fa-arrow-right"></i>';
                 nextBtn.className = "px-6 py-2 bg-brand-600 text-white rounded-lg font-bold hover:bg-brand-700 transition-colors flex items-center gap-2";
+                nextBtn.onclick = nextTourStep;
             }
-            
-            // Button Logic bind
-            nextBtn.onclick = nextTourStep;
         }
 
-        function renderFlashcardGrid() {
-            const container = document.getElementById('flashcard-grid');
+        function renderFlashcards() {
+            const grid = document.getElementById('flashcard-grid');
+            if(!grid) return;
             Object.values(EDITOR_DATA).forEach(data => {
-                const card = document.createElement('div');
-                card.className = 'flip-card group cursor-pointer h-48'; // Shorter height for overlay
-                card.onclick = function() { this.classList.toggle('flipped'); };
-                
-                card.innerHTML = `
-                    <div class="flip-card-inner">
-                        <div class="flip-card-front shadow-md border-slate-100 flex flex-col items-center justify-center bg-white p-4">
-                            <div class="text-3xl text-indigo-600 mb-2">${data.icon}</div>
-                            <div class="font-bold text-slate-800">${data.title}</div>
-                            <div class="text-xs text-slate-400 mt-1">Otočit</div>
-                        </div>
-                        <div class="flip-card-back shadow-md border-indigo-200 bg-indigo-50 p-4 flex flex-col justify-center">
-                            <div class="font-bold text-indigo-900 mb-1 flex items-center gap-2">${data.icon} ${data.title}</div>
-                            <p class="text-xs text-slate-600 mb-2 leading-tight">${data.desc}</p>
-                            <ul class="text-[10px] text-slate-500 space-y-1">
-                                ${data.features.map(f => `<li>• ${f}</li>`).join('')}
-                            </ul>
+                grid.innerHTML += `
+                    <div class="flip-card cursor-pointer h-40 group" onclick="this.classList.toggle('flipped')">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front p-4 flex flex-col items-center justify-center bg-white shadow rounded-xl border border-slate-100 group-hover:border-indigo-300 transition-colors">
+                                <div class="text-indigo-600 text-3xl mb-2 group-hover:scale-110 transition-transform">${data.icon}</div>
+                                <div class="font-bold text-slate-800">${data.title}</div>
+                                <div class="text-xs text-slate-400 mt-1">Klikni pro detail</div>
+                            </div>
+                            <div class="flip-card-back p-4 bg-indigo-50 shadow rounded-xl border border-indigo-200 flex flex-col justify-center items-start">
+                                <div class="font-bold text-indigo-900 mb-1 flex items-center gap-2">${data.icon} ${data.title}</div>
+                                <p class="text-xs text-slate-600 mb-2 leading-tight">${data.desc}</p>
+                                <ul class="text-[10px] text-slate-500 space-y-1 w-full">
+                                    ${data.features.map(f => `<li><i class="fa-solid fa-check text-green-500 mr-1"></i> ${f}</li>`).join('')}
+                                </ul>
+                            </div>
                         </div>
                     </div>`;
-                container.appendChild(card);
             });
+        }
+
+        // --- RENDER LOGIC ---
+        function selectRole(role) {
+            // Update Cards UI
+            document.querySelectorAll('.role-card').forEach(el => {
+                el.classList.remove('active', 'ring-4', 'ring-blue-500', 'ring-indigo-500', 'ring-pink-500', 'bg-slate-50');
+                el.classList.add('bg-white');
+            });
+            
+            const activeCard = document.getElementById(`card-${role}`);
+            const data = ROLE_CONTENT[role];
+            activeCard.classList.add('active', `ring-${data.color}-500`, 'bg-slate-50');
+
+            // Render Detail Content
+            const container = document.getElementById('detail-container');
+            container.classList.remove('opacity-100', 'translate-y-0');
+            container.classList.add('opacity-0', 'translate-y-10');
+
+            setTimeout(() => {
+                container.innerHTML = `
+                    <div class="grid lg:grid-cols-2 gap-12 items-center">
+                        <div>
+                            <h2 class="text-3xl font-bold text-slate-900 mb-4">${data.title}</h2>
+                            <p class="text-lg text-slate-600 mb-8 leading-relaxed">${data.desc}</p>
+                            <div class="grid sm:grid-cols-2 gap-6 mb-10">
+                                ${data.features.map(f => `
+                                    <div class="flex gap-4 p-3 bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                                        <div class="w-10 h-10 rounded-lg bg-${data.color}-100 text-${data.color}-600 flex items-center justify-center text-lg shrink-0">
+                                            <i class="fa-solid ${f.icon}"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-slate-900 text-sm">${f.title}</h4>
+                                            <p class="text-xs text-slate-500 mt-1">${f.text}</p>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <button onclick="startTour('${role}')" class="w-full sm:w-auto px-8 py-4 bg-${data.color}-600 text-white text-lg font-bold rounded-xl shadow-lg hover:bg-${data.color}-700 hover:-translate-y-1 transition-all flex items-center justify-center gap-3 animate-float">
+                                <i class="fa-solid fa-play"></i> ${data.button}
+                            </button>
+                        </div>
+                        <div class="flex justify-center items-center transform hover:scale-105 transition-transform duration-500">
+                            ${data.mockup}
+                        </div>
+                    </div>
+                `;
+                container.classList.remove('opacity-0', 'translate-y-10');
+                container.classList.add('opacity-100', 'translate-y-0');
+                
+                if(window.innerWidth < 1024) container.scrollIntoView({behavior: 'smooth', block: 'start'});
+            }, 300);
         }
 
         // Init
         document.addEventListener('DOMContentLoaded', () => {
-            switchView('director');
+            selectRole('professor'); // Default selection
         });
     </script>
 </body>
