@@ -9,6 +9,7 @@ export class EditorViewComic extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean },
+        files: { type: Array },
         _generatingPanels: { state: true, type: Object }
     };
 
@@ -19,6 +20,25 @@ export class EditorViewComic extends Localized(LitElement) {
 
     createRenderRoot() { return this; }
 
+    _getScript() {
+        let script = [];
+        const raw = this.lesson?.comic_script;
+
+        if (raw) {
+            if (Array.isArray(raw)) {
+                script = raw;
+            } else if (typeof raw === 'object' && Array.isArray(raw.comic_script)) {
+                 script = raw.comic_script;
+            } else if (typeof raw === 'string') {
+                 try {
+                     const parsed = JSON.parse(raw);
+                     script = parsed.comic_script || (Array.isArray(parsed) ? parsed : []);
+                 } catch(e) { console.warn("Failed to parse comic script", e); }
+            }
+        }
+        return script;
+    }
+
     _updateScript(newScript) {
         this.dispatchEvent(new CustomEvent('lesson-updated', {
             detail: { partial: { comic_script: newScript } },
@@ -28,13 +48,15 @@ export class EditorViewComic extends Localized(LitElement) {
     }
 
     _handlePanelChange(index, field, value) {
-        const script = [...(this.lesson.comic_script || [])];
-        script[index] = { ...script[index], [field]: value };
-        this._updateScript(script);
+        const script = [...this._getScript()];
+        if (script[index]) {
+            script[index] = { ...script[index], [field]: value };
+            this._updateScript(script);
+        }
     }
 
     _addPanel() {
-        const script = [...(this.lesson.comic_script || [])];
+        const script = [...this._getScript()];
         script.push({
             panel_number: script.length + 1,
             description: '',
@@ -44,18 +66,60 @@ export class EditorViewComic extends Localized(LitElement) {
     }
 
     _deletePanel(index) {
-        const script = [...(this.lesson.comic_script || [])];
+        const script = [...this._getScript()];
         script.splice(index, 1);
         // Re-number panels
         const renumbered = script.map((panel, i) => ({ ...panel, panel_number: i + 1 }));
         this._updateScript(renumbered);
     }
 
+    // --- Phase 2: Editor Standardization ---
+    _handleAiCompletion(e) {
+        const data = e.detail.data;
+        if (!data) return;
+
+        // 1. Normalize
+        let script = [];
+        if (typeof data === 'object') {
+             if (Array.isArray(data.panels)) script = data.panels;
+             else if (Array.isArray(data)) script = data;
+        } else if (typeof data === 'string') {
+             try {
+                 const parsed = JSON.parse(data);
+                 if (parsed.panels) script = parsed.panels;
+                 else if (Array.isArray(parsed)) script = parsed;
+             } catch (e) { console.warn("AI Comic Parse Error", e); }
+        }
+
+        // 3. Assign & 4. Save
+        if (script.length > 0) {
+             // Ensure panel numbers and map caption to dialogue
+             script = script.map((p, i) => ({
+                 ...p,
+                 panel_number: i + 1,
+                 dialogue: p.caption || p.dialogue || ''
+             }));
+
+             this.lesson.comic_script = script;
+             this._updateScript(script);
+             this.requestUpdate();
+        }
+    }
+
+    _handleDiscard() {
+        if (confirm(this.t('common.confirm_discard') || "Opravdu chcete zahodit veškerý obsah a začít znovu?")) {
+            this.lesson.comic_script = [];
+            this._updateScript([]);
+            this.requestUpdate();
+        }
+    }
+
     async _generatePanelImage(index) {
         if (this._generatingPanels[index]) return;
 
-        const panel = this.lesson.comic_script[index];
-        if (!panel.description || panel.description.trim() === '') {
+        const script = this._getScript();
+        const panel = script[index];
+        if (!panel || !panel.description || panel.description.trim() === '') {
             window.dispatchEvent(new CustomEvent('show-toast', {
                 detail: { message: 'Popis panelu je prázdný.', type: 'error' }
             }));
@@ -93,9 +157,16 @@ export class EditorViewComic extends Localized(LitElement) {
     }
 
     render() {
-        const rawScript = this.lesson?.comic_script;
-        const script = Array.isArray(rawScript) ? rawScript : [];
+        const script = this._getScript();
         const hasContent = script.length > 0;
+
+        // Explicit Context Injection
+        const aiContext = {
+            subject: this.lesson?.subject || '',
+            topic: this.lesson?.topic || '',
+            title: this.lesson?.title || '',
+            targetAudience: this.lesson?.targetAudience || ''
+        };
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
@@ -194,9 +265,22 @@ export class EditorViewComic extends Localized(LitElement) {
                                     </div>
                                 `)}
                             </div>
+
+                            <div class="mt-8 pt-6 border-t border-slate-200 flex justify-center">
+                                <button
+                                    @click="${this._handleDiscard}"
+                                    class="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium flex items-center gap-2"
+                                >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    ${this.t('common.discard_restart') !== 'common.discard_restart' ? this.t('common.discard_restart') : 'Zahodit a začít znovu'}
+                                </button>
+                            </div>
                         ` : html`
                             <ai-generator-panel
+                                @ai-completion="${this._handleAiCompletion}"
                                 .lesson="${this.lesson}"
+                                .files="${this.files}"
+                                .context="${aiContext}"
                                 viewTitle="${this.t('editor.comic.title')}"
                                 contentType="comic"
                                 fieldToUpdate="comic_script"

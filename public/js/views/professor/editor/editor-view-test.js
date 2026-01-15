@@ -7,7 +7,8 @@ import './professor-header-editor.js';
 export class EditorViewTest extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
-        isSaving: { type: Boolean }
+        isSaving: { type: Boolean },
+        files: { type: Array }
     };
 
     createRenderRoot() { return this; }
@@ -58,15 +59,67 @@ export class EditorViewTest extends Localized(LitElement) {
         this._dispatchUpdate(questions);
     }
 
-    _getQuestions() {
-        // Priority: this.lesson.test (Array) -> this.lesson.test.questions (Legacy) -> this.lesson.content.questions (Legacy)
-        const fromTest = Array.isArray(this.lesson?.test) ? this.lesson.test : this.lesson?.test?.questions;
-        const fromContent = this.lesson?.content?.questions;
+    // --- Phase 2: Editor Standardization ---
+    _handleAiCompletion(e) {
+        const data = e.detail.data;
+        if (!data) return;
 
-        // Return a DEEP COPY to ensure we don't mutate state directly before dispatch
-        if (fromTest) return JSON.parse(JSON.stringify(fromTest));
-        if (fromContent) return JSON.parse(JSON.stringify(fromContent));
-        return [];
+        // 1. Normalize
+        let questions = [];
+        if (typeof data === 'object') {
+             if (Array.isArray(data.questions)) questions = data.questions;
+             else if (Array.isArray(data)) questions = data;
+        } else if (typeof data === 'string') {
+             try {
+                 const parsed = JSON.parse(data);
+                 if (parsed.questions) questions = parsed.questions;
+                 else if (Array.isArray(parsed)) questions = parsed;
+             } catch (e) { console.warn("AI Test Parse Error", e); }
+        }
+
+        // 3. Assign & 4. Save
+        if (questions.length > 0) {
+            // Update local state first
+            this.lesson.test = questions;
+
+            // Critical: Save immediately
+            this._dispatchUpdate(questions);
+
+            // 5. Refresh
+            this.requestUpdate();
+        }
+    }
+
+    _getQuestions() {
+        let questions = [];
+
+        // 1. Check 'test' property (Defensive Normalization)
+        let rawTest = this.lesson?.test;
+
+        if (rawTest) {
+             if (typeof rawTest === 'string') {
+                 try {
+                     const parsed = JSON.parse(rawTest);
+                     // Polymorphic handling: Array or Object with questions
+                     if (Array.isArray(parsed)) rawTest = parsed;
+                     else if (parsed.questions && Array.isArray(parsed.questions)) rawTest = parsed.questions;
+                     else if (parsed.test && Array.isArray(parsed.test)) rawTest = parsed.test;
+                 } catch(e) { console.warn("Failed to parse test data", e); }
+             }
+
+             if (Array.isArray(rawTest)) {
+                 questions = rawTest;
+             } else if (rawTest && rawTest.questions && Array.isArray(rawTest.questions)) {
+                 questions = rawTest.questions;
+             }
+        }
+
+        // 2. Fallback to 'content.questions' (Legacy)
+        if (questions.length === 0 && this.lesson?.content?.questions && Array.isArray(this.lesson.content.questions)) {
+            questions = this.lesson.content.questions;
+        }
+
+        return JSON.parse(JSON.stringify(questions));
     }
 
     _dispatchUpdate(questions) {
@@ -83,6 +136,14 @@ export class EditorViewTest extends Localized(LitElement) {
     render() {
         const questions = this._getQuestions();
         const hasContent = questions.length > 0;
+
+        // Explicit Context Injection
+        const aiContext = {
+            subject: this.lesson?.subject || '',
+            topic: this.lesson?.topic || '',
+            title: this.lesson?.title || '',
+            targetAudience: this.lesson?.targetAudience || ''
+        };
 
         return html`
             <div class="h-full flex flex-col bg-slate-100 relative">
@@ -115,7 +176,10 @@ export class EditorViewTest extends Localized(LitElement) {
                                     <!-- AI Generator (Styled Formally) -->
                                     <div class="border border-slate-200 bg-slate-50 p-6">
                                         <ai-generator-panel
+                                            @ai-completion="${this._handleAiCompletion}"
                                             .lesson=${this.lesson}
+                                            .files=${this.files}
+                                            .context=${aiContext}
                                             viewTitle="${this.t('editor.test.ai_title')}"
                                             contentType="test"
                                             fieldToUpdate="test"

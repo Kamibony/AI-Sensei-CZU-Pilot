@@ -156,6 +156,16 @@ export class StudentLessonDetail extends LitElement {
 
     async updated(changedProperties) {
         super.updated(changedProperties);
+
+        // ARCHITECTURAL CHANGE: Force UI Language based on Lesson settings
+        if (this.lessonData && this.lessonData.language) {
+            const currentLang = translationService.currentLanguage;
+            if (this.lessonData.language !== currentLang) {
+                 console.log(`[Localization] Enforcing lesson language: ${this.lessonData.language}`);
+                 translationService.setLanguage(this.lessonData.language);
+            }
+        }
+
         if (this.activeTabId === 'presentation') {
             await this.updateComplete;
             const container = this.renderRoot.querySelector('#presentation-container');

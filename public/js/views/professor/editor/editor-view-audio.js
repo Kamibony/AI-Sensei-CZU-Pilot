@@ -9,10 +9,30 @@ export class EditorViewAudio extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         isSaving: { type: Boolean },
+        files: { type: Array },
         isGeneratingAudio: { type: Boolean, state: true }
     };
 
     createRenderRoot() { return this; }
+
+    _getScript() {
+        let script = [];
+        const raw = this.lesson?.podcast_script;
+
+        if (raw) {
+            if (Array.isArray(raw)) {
+                script = raw;
+            } else if (typeof raw === 'object' && Array.isArray(raw.podcast_script)) {
+                 script = raw.podcast_script;
+            } else if (typeof raw === 'string') {
+                 try {
+                     const parsed = JSON.parse(raw);
+                     script = parsed.podcast_script || (Array.isArray(parsed) ? parsed : []);
+                 } catch(e) { console.warn("Failed to parse podcast script", e); }
+            }
+        }
+        return script;
+    }
 
     _updateScript(newScript) {
         this.dispatchEvent(new CustomEvent('lesson-updated', {
@@ -23,13 +43,15 @@ export class EditorViewAudio extends Localized(LitElement) {
     }
 
     _handleLineChange(index, field, value) {
-        const script = [...(this.lesson.podcast_script || [])];
-        script[index] = { ...script[index], [field]: value };
-        this._updateScript(script);
+        const script = [...this._getScript()];
+        if (script[index]) {
+            script[index] = { ...script[index], [field]: value };
+            this._updateScript(script);
+        }
     }
 
     _addLine() {
-        const script = [...(this.lesson.podcast_script || [])];
+        const script = [...this._getScript()];
         // Alternate speaker if possible
         const lastSpeaker = script.length > 0 ? script[script.length - 1].speaker : 'Guest';
         const newSpeaker = lastSpeaker === 'Host' ? 'Guest' : 'Host';
@@ -38,16 +60,60 @@ export class EditorViewAudio extends Localized(LitElement) {
     }
 
     _deleteLine(index) {
-        const script = [...(this.lesson.podcast_script || [])];
+        const script = [...this._getScript()];
         script.splice(index, 1);
         this._updateScript(script);
+    }
+
+    // --- Phase 2: Editor Standardization ---
+    async _handleAiCompletion(e) {
+        const data = e.detail.data;
+        if (!data) return;
+
+        // 1. Normalize
+        let script = [];
+        if (typeof data === 'object') {
+             if (Array.isArray(data.script)) script = data.script;
+             else if (Array.isArray(data)) script = data;
+        } else if (typeof data === 'string') {
+             try {
+                 const parsed = JSON.parse(data);
+                 if (parsed.script) script = parsed.script;
+                 else if (Array.isArray(parsed)) script = parsed;
+             } catch (e) {
+                 // Fallback if just text
+                 script = [{ speaker: "Host", text: data }];
+             }
+        }
+
+        // 3. Assign & 4. Save
+        if (script.length > 0) {
+            this.lesson = { ...this.lesson, podcast_script: script };
+            this._updateScript(script);
+            await this.requestUpdate();
+
+            // Phase 4: Chain Audio Generation
+            // Trigger audio generation immediately after script is ready
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: 'Scénář připraven. Generuji audio...', type: 'info' }
+            }));
+            await this._generateAudio();
+        }
+    }
+
+    _handleDiscard() {
+        if (confirm(this.t('common.confirm_discard') || "Opravdu chcete zahodit veškerý obsah a začít znovu?")) {
+            this.lesson.podcast_script = [];
+            this._updateScript([]);
+            this.requestUpdate();
+        }
     }
 
     async _generateAudio() {
         if (this.isGeneratingAudio) return;
 
-        const rawScript = this.lesson?.podcast_script;
-        if (!Array.isArray(rawScript) || rawScript.length === 0) {
+        const script = this._getScript();
+        if (script.length === 0) {
             window.dispatchEvent(new CustomEvent('show-toast', {
                 detail: { message: 'Scénář je prázdný.', type: 'error' }
             }));
@@ -55,9 +121,29 @@ export class EditorViewAudio extends Localized(LitElement) {
         }
 
         // Construct text in format: "[Speaker]: Text..."
-        const fullText = rawScript
+        let fullText = script
             .map(line => `[${line.speaker}]: ${line.text}`)
             .join('\n');
+
+        // SAFETY GUARD: Check length limit for Google TTS (approx 5000 bytes, safe limit 4500 chars)
+        if (fullText.length > 4500) {
+            console.warn(`Audio script too long (${fullText.length} chars). Truncating to safe limit.`);
+
+            // Truncate to 4500
+            let safeText = fullText.substring(0, 4500);
+
+            // Try to cut at the last sentence end to be polite
+            const lastPeriod = safeText.lastIndexOf('.');
+            if (lastPeriod > 0) {
+                safeText = safeText.substring(0, lastPeriod + 1);
+            }
+
+            fullText = safeText;
+
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: 'Scénář byl příliš dlouhý a byl zkrácen pro generování audia.', type: 'warning' }
+            }));
+        }
 
         this.isGeneratingAudio = true;
         try {
@@ -99,10 +185,17 @@ export class EditorViewAudio extends Localized(LitElement) {
     }
 
     render() {
-        const rawScript = this.lesson?.podcast_script;
-        const script = Array.isArray(rawScript) ? rawScript : [];
+        const script = this._getScript();
         const hasContent = script.length > 0;
         const audioUrl = this.lesson?.podcast_audio_url;
+
+        // Explicit Context Injection
+        const aiContext = {
+            subject: this.lesson?.subject || '',
+            topic: this.lesson?.topic || '',
+            title: this.lesson?.title || '',
+            targetAudience: this.lesson?.targetAudience || ''
+        };
 
         return html`
             <div class="h-full flex flex-col bg-slate-50 relative">
@@ -189,22 +282,44 @@ export class EditorViewAudio extends Localized(LitElement) {
                                             ${this.t('editor.audio.add_line')}
                                         </button>
                                     </div>
+
+                                    <div class="mt-8 pt-6 border-t border-slate-200 flex justify-center">
+                                        <button
+                                            @click="${this._handleDiscard}"
+                                            class="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium flex items-center gap-2"
+                                        >
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                            ${this.t('common.discard_restart') !== 'common.discard_restart' ? this.t('common.discard_restart') : 'Zahodit a začít znovu'}
+                                        </button>
+                                    </div>
                                 </div>
                             ` : html`
                                 <ai-generator-panel
+                                    @ai-completion="${this._handleAiCompletion}"
                                     .lesson="${this.lesson}"
+                                    .files="${this.files}"
+                                    .context="${aiContext}"
                                     viewTitle="${this.t('editor.audio.title')}"
                                     contentType="podcast"
                                     fieldToUpdate="podcast_script"
                                     description="${this.t('editor.audio.description')}"
-                                    .inputsConfig=${[{
-                                        id: 'episode_count',
-                                        type: 'number',
-                                        label: 'Počet epizod (aktuálně fixně 1)',
-                                        default: 1,
-                                        min: 1,
-                                        max: 1
-                                    }]}
+                                    .inputsConfig=${[
+                                        {
+                                            id: 'topic',
+                                            type: 'textarea',
+                                            label: 'Téma podcastu',
+                                            placeholder: 'O čem mají diskutovat?',
+                                            default: this.lesson?.topic || ''
+                                        },
+                                        {
+                                            id: 'episode_count',
+                                            type: 'number',
+                                            label: 'Počet epizod (aktuálně fixně 1)',
+                                            default: 1,
+                                            min: 1,
+                                            max: 1
+                                        }
+                                    ]}
                                 ></ai-generator-panel>
                             `}
 

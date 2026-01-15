@@ -23,6 +23,7 @@ import './editor/editor-view-audio.js';
 import './editor/ai-generator-panel.js';
 import './editor/professor-header-editor.js';
 
+import { sanitizeMermaidCode } from './editor/utils-parsing.mjs';
 import { processFileForRAG, uploadMultipleFiles, uploadSingleFile, renderMediaLibraryFiles, getSelectedFiles, clearSelectedFiles } from '../../utils/upload-handler.js';
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -468,7 +469,8 @@ export class LessonEditor extends BaseView {
         files: this._uploadedFiles,
         updatedAt: new Date().toISOString(),
         ownerId: user.uid,
-        intent: this.lesson.intent || null
+        intent: this.lesson.intent || null,
+        language: translationService.currentLanguage || 'cs',
       };
 
       lessonData = deepSanitize(lessonData);
@@ -533,10 +535,13 @@ export class LessonEditor extends BaseView {
   }
 
   _handleClassToggle(classId) {
-      if (this._selectedClassIds.includes(classId)) {
-          this._selectedClassIds = this._selectedClassIds.filter(id => id !== classId);
+      const idStr = String(classId);
+      const currentIds = (this._selectedClassIds || []).map(String);
+
+      if (currentIds.includes(idStr)) {
+          this._selectedClassIds = currentIds.filter(id => id !== idStr);
       } else {
-          this._selectedClassIds = [...this._selectedClassIds, classId];
+          this._selectedClassIds = [...currentIds, idStr];
       }
       if (this.lesson) {
           this.lesson = { ...this.lesson, assignedToGroups: this._selectedClassIds };
@@ -1121,6 +1126,102 @@ export class LessonEditor extends BaseView {
       }
   }
 
+  // --- STRICT CONTENT VALIDATION ---
+  _hasMeaningfulContent(type) {
+      if (!this.lesson) return false;
+      const l = this.lesson;
+
+      switch (type) {
+          case 'text':
+              // Text: Must have > 10 meaningful chars
+              if (l.text_content && typeof l.text_content === 'string' && l.text_content.replace(/\s/g, '').length > 10) return true;
+              if (l.content) {
+                  if (typeof l.content === 'string' && l.content.replace(/\s/g, '').length > 10) return true;
+                  if (l.content.text_content && typeof l.content.text_content === 'string' && l.content.text_content.replace(/\s/g, '').length > 10) return true;
+                  // l.content.blocks is robust
+                  if (Array.isArray(l.content.blocks) && l.content.blocks.length > 0) return true;
+              }
+              break;
+
+          case 'presentation':
+               // Arrays must have items
+               if (Array.isArray(l.slides) && l.slides.length > 0) return true;
+               if (l.presentation && Array.isArray(l.presentation.slides) && l.presentation.slides.length > 0) return true;
+               break;
+
+          case 'quiz':
+          case 'test':
+              if (l[type]) {
+                  if (Array.isArray(l[type]) && l[type].length > 0) return true;
+                  if (l[type].questions && Array.isArray(l[type].questions) && l[type].questions.length > 0) return true;
+              }
+              // Legacy/Fallback for Quiz
+              if (type === 'quiz' && Array.isArray(l.questions) && l.questions.length > 0) return true;
+              // Check content.questions
+              if (l.content && l.content.questions && Array.isArray(l.content.questions) && l.content.questions.length > 0) return true;
+              break;
+
+          case 'post':
+              // Post: Text > 10
+              if (l.postContent && typeof l.postContent === 'string' && l.postContent.replace(/\s/g, '').length > 10) return true;
+              if (l.social_post) {
+                  if (typeof l.social_post.content === 'string' && l.social_post.content.replace(/\s/g, '').length > 10) return true;
+              }
+              // Treat same as Text
+              if (l.content) {
+                  if (typeof l.content === 'string' && l.content.replace(/\s/g, '').length > 10) return true;
+                  if (l.content.text_content && typeof l.content.text_content === 'string' && l.content.text_content.replace(/\s/g, '').length > 10) return true;
+              }
+              break;
+
+          case 'video':
+              // Video: URL exists and sane length
+              if (l.videoUrl && typeof l.videoUrl === 'string' && l.videoUrl.length > 5) return true;
+              break;
+
+          case 'audio':
+              if (l.audioContent && typeof l.audioContent === 'string' && l.audioContent.length > 5) return true;
+              if (l.podcast_script) {
+                  if (Array.isArray(l.podcast_script) && l.podcast_script.length > 0) return true;
+                  if (Array.isArray(l.podcast_script.script) && l.podcast_script.script.length > 0) return true;
+              }
+              // EXPAND: Check ALL possible URL keys
+              if ((l.audioUrl || l.url || l.fileUrl) && String(l.audioUrl || l.url || l.fileUrl).length > 5) return true;
+              if (l.content) {
+                  if (typeof l.content === 'string' && l.content.startsWith('http')) return true;
+                  if ((l.content.audioUrl || l.content.url) && String(l.content.audioUrl || l.content.url).length > 5) return true;
+              }
+              break;
+
+          case 'comic':
+               if (l.comic_script && Array.isArray(l.comic_script) && l.comic_script.length > 0) return true;
+               if (l.comic && Array.isArray(l.comic.panels) && l.comic.panels.length > 0) return true;
+               // EXPAND: Check if block.content IS the array of panels
+               if (Array.isArray(l.content) && l.content.length > 0) return true;
+               if (l.content && Array.isArray(l.content.panels) && l.content.panels.length > 0) return true;
+               break;
+
+          case 'flashcards':
+               if (l.flashcards) {
+                   if (Array.isArray(l.flashcards) && l.flashcards.length > 0) return true;
+                   if (Array.isArray(l.flashcards.cards) && l.flashcards.cards.length > 0) return true;
+               }
+               break;
+
+          case 'mindmap':
+               // Strict check using sanitizer
+               const code = sanitizeMermaidCode(l.mindmap);
+               // Must be longer than empty config and NOT an error
+               if (code && code.length > 10 && !code.includes("Error[")) return true;
+               break;
+
+          default:
+              break;
+      }
+
+      return false;
+  }
+
   _renderWizardMode() {
       if (this._isLoading) {
           return html`
@@ -1298,9 +1399,9 @@ export class LessonEditor extends BaseView {
             ` : html`
                 <div class="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
                     ${this._availableClasses.map(group => html`
-                        <label class="flex items-center justify-between p-2 rounded-xl border ${this._selectedClassIds.includes(group.id) ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-100 hover:bg-slate-50'} cursor-pointer text-sm">
+                        <label class="flex items-center justify-between p-2 rounded-xl border ${(this._selectedClassIds || []).map(String).includes(String(group.id)) ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-100 hover:bg-slate-50'} cursor-pointer text-sm">
                             <span class="font-semibold text-slate-700">${group.name}</span>
-                            <input type="checkbox" .checked="${this._selectedClassIds.includes(group.id)}" @change="${() => this._handleClassToggle(group.id)}" class="rounded text-indigo-600 focus:ring-indigo-500"/>
+                            <input type="checkbox" .checked="${(this._selectedClassIds || []).map(String).includes(String(group.id))}" @change="${() => this._handleClassToggle(String(group.id))}" class="rounded text-indigo-600 focus:ring-indigo-500"/>
                         </label>
                     `)}
                 </div>
@@ -1367,16 +1468,16 @@ export class LessonEditor extends BaseView {
                   </div>
 
                   <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      ${this._renderContentCard('text', '📝', translationService.t('content_types.text'), this.lesson.text_content || (this.lesson.content?.blocks?.length > 0))}
-                      ${this._renderContentCard('presentation', '📊', translationService.t('content_types.presentation'), this.lesson.slides?.length > 0 || this.lesson.presentation?.slides?.length > 0)}
-                      ${this._renderContentCard('quiz', '❓', translationService.t('content_types.quiz'), this.lesson.questions?.length > 0 || this.lesson.quiz?.questions?.length > 0)}
-                      ${this._renderContentCard('test', '📝', translationService.t('content_types.test'), this.lesson.test?.questions?.length > 0)}
-                      ${this._renderContentCard('post', '📰', translationService.t('content_types.post'), !!this.lesson.postContent)}
-                      ${this._renderContentCard('video', '🎥', translationService.t('content_types.video'), !!this.lesson.videoUrl)}
-                      ${this._renderContentCard('audio', '🎙️', translationService.t('content_types.audio'), (this.lesson.podcast_script?.script?.length > 0) || !!this.lesson.audioContent)}
-                      ${this._renderContentCard('comic', '💬', translationService.t('content_types.comic'), this.lesson.comic?.panels?.length > 0)}
-                      ${this._renderContentCard('flashcards', '🃏', translationService.t('content_types.flashcards'), this.lesson.flashcards?.cards?.length > 0)}
-                      ${this._renderContentCard('mindmap', '🧠', translationService.t('content_types.mindmap'), !!this.lesson.mindmap?.mermaid)}
+                      ${this._renderContentCard('text', '📝', translationService.t('content_types.text'), this._hasMeaningfulContent('text'))}
+                      ${this._renderContentCard('presentation', '📊', translationService.t('content_types.presentation'), this._hasMeaningfulContent('presentation'))}
+                      ${this._renderContentCard('quiz', '❓', translationService.t('content_types.quiz'), this._hasMeaningfulContent('quiz'))}
+                      ${this._renderContentCard('test', '📝', translationService.t('content_types.test'), this._hasMeaningfulContent('test'))}
+                      ${this._renderContentCard('post', '📰', translationService.t('content_types.post'), this._hasMeaningfulContent('post'))}
+                      ${this._renderContentCard('video', '🎥', translationService.t('content_types.video'), this._hasMeaningfulContent('video'))}
+                      ${this._renderContentCard('audio', '🎙️', translationService.t('content_types.audio'), this._hasMeaningfulContent('audio'))}
+                      ${this._renderContentCard('comic', '💬', translationService.t('content_types.comic'), this._hasMeaningfulContent('comic'))}
+                      ${this._renderContentCard('flashcards', '🃏', translationService.t('content_types.flashcards'), this._hasMeaningfulContent('flashcards'))}
+                      ${this._renderContentCard('mindmap', '🧠', translationService.t('content_types.mindmap'), this._hasMeaningfulContent('mindmap'))}
                   </div>
               </div>
 
@@ -1473,65 +1574,66 @@ export class LessonEditor extends BaseView {
 
   _renderSpecificEditor() {
       const handleUpdate = this._handleLessonUpdatedEvent.bind(this);
+      const files = this.lesson?.files || [];
 
       switch (this._activeTool) {
           case 'text': 
               return html`<editor-view-text @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate} 
                   id="active-editor" class="w-full h-full block"></editor-view-text>`;
           
           case 'presentation': 
               return html`<editor-view-presentation @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-presentation>`;
           
           case 'quiz': 
               return html`<editor-view-quiz @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-quiz>`;
           
           case 'test': 
               return html`<editor-view-test @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-test>`;
           
           case 'post': 
               return html`<editor-view-post @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-post>`;
           
           case 'video': 
               return html`<editor-view-video @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate} 
                   id="active-editor" class="w-full h-full block"></editor-view-video>`;
           
           case 'comic': 
               return html`<editor-view-comic @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-comic>`;
           
           case 'flashcards': 
               return html`<editor-view-flashcards @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-flashcards>`;
           
           case 'mindmap': 
               return html`<editor-view-mindmap @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-mindmap>`;
 
           case 'audio':
               return html`<editor-view-audio @back=${this._handleBackToHub} @save=${this._handleSave}
-                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-audio>`;
                   

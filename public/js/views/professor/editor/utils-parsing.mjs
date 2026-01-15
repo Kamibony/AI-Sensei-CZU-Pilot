@@ -53,21 +53,15 @@ export function parseAiResponse(data, expectedKey) {
     if (!data) return [];
 
     // --- SAFETY PATCH: Catch potential PDF preview errors ---
-    // User reported "TypeError: pdf is not a function".
-    // We wrap this block to catch any legacy calls to a 'pdf' function that might occur here.
     try {
-        // If 'pdf' is referenced but not a function, accessing it might throw, or calling it will throw.
-        // We do a safe check.
         if (typeof window !== 'undefined' && window.pdf && typeof window.pdf !== 'function') {
              console.warn("Detected invalid 'pdf' object. Suppressing crash.");
-             // If this function was expected to return something from pdf(), we return empty.
              return [];
         }
     } catch (e) {
         console.warn("Client-side PDF safety check caught error:", e);
-        return []; // Return empty array to prevent crash propagation
+        return [];
     }
-    // -------------------------------------------------------
 
     // Case 1: Already an array
     if (Array.isArray(data)) return data;
@@ -97,4 +91,121 @@ export function parseAiResponse(data, expectedKey) {
     }
 
     return [];
+}
+
+/**
+ * Aggressive Sanitization Layer for Mermaid Code
+ * Acts as a strict firewall before data reaches the renderer.
+ *
+ * PHASE 3: The Definitive Mindmap Parser
+ * Logic:
+ * 1. Unwrap: Extract text from objects/nested keys
+ * 2. Clean Markdown: Remove code fences
+ * 3. FORCE STRINGIFY: Treat content inside (), [], {} as Pure Text, wrapped in quotes.
+ * 4. Strip HTML: Ruthlessly remove tags
+ */
+export function sanitizeMermaidCode(input) {
+    // 0. Handle null/undefined/empty/whitespace
+    if (input === null || input === undefined) return "";
+    let text = input;
+
+    // 1. Unwrap from Object (Polymorphic Input)
+    if (typeof input === 'object') {
+        if (input.error) {
+             const errMsg = input.message ? input.message.replace(/[^a-zA-Z0-9 ]/g, '') : "Neznámá chyba";
+             return `graph TD; Error[Chyba]-->Detail["${errMsg}"]`;
+        }
+        if (input.mermaid) text = input.mermaid;
+        else if (input.mindmap) text = input.mindmap;
+        else if (input.content) text = input.content;
+        else if (input.code) text = input.code;
+        else {
+             return "graph TD; Error[Neznámý formát dat]-->Check[Zkontroluj konzoli]";
+        }
+    }
+
+    // Ensure string
+    if (typeof text !== 'string') {
+        text = String(text || "");
+    }
+
+    if (text.trim() === '') return "";
+
+    // 2. Clean Markdown Code Fences
+    text = text.replace(/```mermaid/gi, '').replace(/```json/gi, '').replace(/```/g, '');
+
+    // 3. PHASE 3: Force Stringify inside brackets (State Machine)
+    let result = "";
+    let i = 0;
+    while (i < text.length) {
+        const char = text[i];
+
+        if (char === '(' || char === '[' || char === '{') {
+            const opener = char;
+            let closer = '';
+            if (opener === '(') closer = ')';
+            else if (opener === '[') closer = ']';
+            else if (opener === '{') closer = '}';
+
+            let depth = 1;
+            let captured = "";
+            let j = i + 1;
+            let inQuote = false;
+
+            while (j < text.length && depth > 0) {
+                const c = text[j];
+
+                if (c === '"') {
+                    inQuote = !inQuote;
+                }
+
+                if (!inQuote) {
+                    if (c === opener) {
+                        depth++;
+                    } else if (c === closer) {
+                        depth--;
+                    }
+                }
+
+                if (depth > 0) {
+                    captured += c;
+                    j++;
+                }
+            }
+
+            if (depth === 0) {
+                // Found match. j is at the closer.
+                // captured is the content inside.
+                // Sanitize: Replace " with '
+                const sanitized = captured.replace(/"/g, "'");
+                // Re-wrap: opener + " + sanitized + " + closer
+                result += opener + '"' + sanitized + '"' + closer;
+                i = j + 1;
+            } else {
+                // Unbalanced. Just append the char and continue.
+                result += char;
+                i++;
+            }
+        } else {
+            result += char;
+            i++;
+        }
+    }
+
+    text = result;
+
+    // 4. Strip HTML (Aggressive)
+    text = text.replace(/<[a-zA-Z\/!?][^>]*>/g, '');
+
+    // 5. Decode HTML entities
+    text = text.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+
+    // Clean up whitespace
+    text = text.trim();
+
+    if (!text) {
+        return "graph TD; Error[Chyba dat]-->Fix[Skus znova]";
+    }
+
+    return text;
 }

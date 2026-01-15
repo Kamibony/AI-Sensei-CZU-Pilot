@@ -4,6 +4,7 @@ import { ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { db } from '../../../firebase-init.js';
 import { Localized } from '../../../utils/localization-mixin.js';
+import { translationService } from '../../../utils/translation-service.js';
 import { showToast } from '../../../utils/utils.js';
 import { renderSelectedFiles, getSelectedFiles, renderMediaLibraryFiles, loadSelectedFiles } from '../../../utils/upload-handler.js';
 import { callGenerateContent } from '../../../gemini-api.js';
@@ -23,6 +24,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         fieldToUpdate: { type: String },
         promptPlaceholder: { type: String },
         description: { type: String },
+        context: { type: Object },
         inputsConfig: { type: Array },
         _generationOutput: { state: true },
         _isLoading: { state: true, type: Boolean },
@@ -110,7 +112,21 @@ export class AiGeneratorPanel extends Localized(LitElement) {
 
     _createDocumentSelectorUI() {
         // If files are passed via props, we don't show this selector as it's handled by parent
-        if (this.files) return nothing;
+        if (this.files) {
+            // STRICT CHECK: Warning should ONLY appear if files array exists but is empty
+            if (this.files.length > 0) return nothing;
+
+            return html`
+                <div class="mb-6 p-4 rounded-xl border bg-orange-50 border-orange-200">
+                     <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-semibold text-orange-800">${this.t('editor.ai.rag_no_files')}</h3>
+                    </div>
+                    <p class="text-xs text-orange-700 mt-2 font-bold">
+                        ⚠️ ${this.t('editor.ai.rag_warning_hallucination')}
+                    </p>
+                </div>
+            `;
+        }
 
         const listId = `selected-files-list-rag-${this.contentType}`;
         const hasFiles = this._filesCount > 0;
@@ -171,9 +187,12 @@ export class AiGeneratorPanel extends Localized(LitElement) {
     async _handleGeneration() {
         if (this._isLoading) return;
         this._isLoading = true;
-        this._generationOutput = null; // Clear previous output, but NOT files
+        this._generationOutput = null;
 
+        // --- 1. Unified Data Gathering (Hybrid Strategy) ---
         const promptData = {};
+
+        // A) Internal Config (Shadow DOM / Local)
         if (this.inputsConfig) {
             this.inputsConfig.forEach(input => {
                 const el = this.querySelector(`#${input.id}`);
@@ -181,13 +200,89 @@ export class AiGeneratorPanel extends Localized(LitElement) {
             });
         }
 
+        // B) External/Slot Inputs (Light DOM)
+        // These elements are injected via slots, so we must query them in the Light DOM.
+        const externalInputs = ['question-count-input', 'difficulty-select', 'type-select', 'slide-count'];
+        externalInputs.forEach(id => {
+            const el = this.querySelector(`#${id}`);
+            if (el) {
+                // Normalize keys: 'question-count-input' -> 'question_count'
+                const key = id.replace('-input', '').replace('-select', '').replace(/-/g, '_');
+                promptData[key] = el.value;
+            }
+        });
+
+        // --- 2. Constraint Logic ---
+        let countConstraint = "";
+        // specific fallback for legacy extraParams if input finding fails
+        let targetCount = parseInt(promptData.question_count || promptData.slide_count || promptData.card_count || 0);
+
+        if (!targetCount && this.extraParams && this.extraParams.question_count) {
+            targetCount = this.extraParams.question_count;
+        }
+
+        if (targetCount > 0) {
+            // Hard constraint for Gemini 2.5 Pro
+            countConstraint = `\n\nCONSTRAINT: The user explicitly requested exactly ${targetCount} items. You MUST generate exactly ${targetCount} items in the JSON array. Failing to match this number is a critical error.`;
+        }
+
+        // --- 3. Context & Schema Injection ---
+        const language = (this.context && this.context.language) || (this.lesson && this.lesson.language) || translationService.currentLanguage || 'cs';
+        let contextInstruction = "";
+
+        if (this.context) {
+            if (this.context.existingText) contextInstruction += `\n\nCONTEXT - CURRENT CONTENT: "${this.context.existingText.substring(0, 1000)}..."`;
+            if (this.context.targetAudience) contextInstruction += `\nCONTEXT - TARGET AUDIENCE: ${this.context.targetAudience}`;
+            if (this.context.topic && !promptData.topic) promptData.topic = this.context.topic;
+            if (this.context.subject && !promptData.subject) promptData.subject = this.context.subject;
+        }
+
+        let structureInstruction = "";
+        switch (this.contentType) {
+            case 'quiz':
+            case 'test':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"questions": [{"question": "string", "options": ["string", "string", "string", "string"], "correctAnswer": number}]}. Ensure 'correctAnswer' is an index 0-3.${countConstraint}`;
+                break;
+            case 'presentation':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object: {"slides": [{"title": "string", "bullets": ["string"], "content": "string"}]}.${countConstraint}`;
+                break;
+            case 'podcast':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object: {"script": [{"speaker": "Host" | "Guest", "text": "string"}]}.${countConstraint ? '' : ' Keep under 400 words.'}`;
+                break;
+            case 'post':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object with this exact structure: {"platform": "Twitter" | "LinkedIn" | "Instagram", "content": "string", "hashtags": ["string"]}.`;
+                break;
+            case 'flashcards':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object: {"flashcards": [{"front": "string", "back": "string"}]}.${countConstraint}`;
+                break;
+            case 'comic':
+            case 'comic-strip':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object: {"panels": [{"description": "visual description", "caption": "speech bubble text"}]}.${countConstraint}`;
+                break;
+            case 'mindmap':
+                structureInstruction = `\n\nOUTPUT SCHEMA: Return ONLY a JSON object: {"mermaid": "graph TD; ..."}. All node labels MUST be enclosed in double quotes.`;
+                break;
+        }
+
+        const systemInstruction = `SYSTEM INSTRUCTION: Generate the response strictly in the '${language}' language. Do NOT translate standard technical terms if they are commonly used in English within this professional context.${contextInstruction}${structureInstruction}`;
+
+        // --- 4. Consolidated Prompt Construction ---
+        // DEPRECATED: appending to promptData[key]
+        // ENFORCED: Always construct userPrompt containing parameters, instructions, and schema.
+        promptData.userPrompt = `Generate content for ${this.contentType}. Data: ${JSON.stringify(promptData)} \n\n${systemInstruction}`;
+
+        // --- 5. File Handling (Preserve existing logic) ---
         let filePaths = [];
-        // FIX: Extract file paths correctly whether passing objects or strings
         if (this.files) {
             filePaths = this.files.map(f => typeof f === 'string' ? f : (f.storagePath || f.fullPath)).filter(Boolean);
         } else {
-            filePaths = getSelectedFiles().map(f => f.storagePath || f.fullPath).filter(Boolean);
+            // Legacy global fallback
+            if (typeof getSelectedFiles === 'function') {
+                filePaths = getSelectedFiles().map(f => f.storagePath || f.fullPath).filter(Boolean);
+            }
         }
+
+        console.log(`[AiGenerator] Sending request. ContentType: ${this.contentType}, Items Requested: ${targetCount || 'Auto'}`);
 
         try {
             const result = await callGenerateContent({ 
@@ -201,6 +296,16 @@ export class AiGeneratorPanel extends Localized(LitElement) {
             if (result.data) {
                 this._generationOutput = result.data;
                 showToast(this.t('editor.ai.generation_success'), "success");
+
+                // PROOF OF LIFE: Log the event dispatch
+                console.log("AI Panel: Dispatching ai-completion event", result.data);
+
+                // Dispatch event so parent components can react (fixing the silent failure)
+                this.dispatchEvent(new CustomEvent('ai-completion', {
+                    detail: { data: result.data },
+                    bubbles: true,
+                    composed: true
+                }));
 
                 // Auto-save if enabled (removes the need for manual save button)
                 if (this.autoSave && this.onSave) {

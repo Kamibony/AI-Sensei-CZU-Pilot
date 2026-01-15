@@ -6,7 +6,8 @@ import './ai-generator-panel.js';
 export class EditorViewPost extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
-        isSaving: { type: Boolean }
+        isSaving: { type: Boolean },
+        files: { type: Array }
     };
 
     createRenderRoot() { return this; }
@@ -19,27 +20,42 @@ export class EditorViewPost extends Localized(LitElement) {
         }));
     }
 
-    _handleAiGeneration(e) {
-        const result = e.detail.result;
-        // The AI result for post is expected to be an object { platform, content, hashtags }
-        // or a string that we might need to parse, but ai-generator-panel tries to parse JSON.
+    // --- Phase 2: Editor Standardization ---
+    _handleAiCompletion(e) {
+        const data = e.detail.data;
+        if (!data) return;
 
-        let postData = result;
+        let postData = data;
+        // 1. Normalize
+        if (typeof data === 'string') {
+            try {
+                postData = JSON.parse(data);
+            } catch(e) {
+                // Fallback: If text, assume content
+                postData = { content: data, platform: 'Twitter', hashtags: [] };
+            }
+        }
+
+        // Handle array wrapper if any
+        if (Array.isArray(postData)) postData = postData[0];
 
         // Sanitize hashtags to array if they come as string from AI
         if (postData.hashtags && typeof postData.hashtags === 'string') {
             postData.hashtags = postData.hashtags.split(/[\s,]+/).filter(tag => tag.length > 0);
         }
 
-        // Apply to local state and notify
-        // We construct a new post object
+        // 3. Assign
         const newPost = {
             platform: postData.platform || 'Twitter',
             content: postData.content || '',
             hashtags: postData.hashtags || []
         };
 
+        this.lesson.social_post = newPost;
+
+        // 4. Save
         this._updatePost(newPost);
+        this.requestUpdate();
     }
 
     _handleFieldChange(field, value) {
@@ -53,6 +69,14 @@ export class EditorViewPost extends Localized(LitElement) {
         }
 
         this._updatePost(post);
+    }
+
+    _handleDiscard() {
+        if (confirm(this.t('common.confirm_discard') || "Opravdu chcete zahodit veškerý obsah a začít znovu?")) {
+            this.lesson.social_post = {};
+            this._updatePost({});
+            this.requestUpdate();
+        }
     }
 
     render() {
@@ -203,9 +227,21 @@ export class EditorViewPost extends Localized(LitElement) {
                                     </div>
                                 </div>
                             </div>
+
+                            <div class="mt-8 pt-6 border-t border-slate-200 flex justify-center">
+                                <button
+                                    @click="${this._handleDiscard}"
+                                    class="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium flex items-center gap-2"
+                                >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    ${this.t('common.discard_restart') !== 'common.discard_restart' ? this.t('common.discard_restart') : 'Zahodit a začít znovu'}
+                                </button>
+                            </div>
                         ` : html`
                             <ai-generator-panel
+                                @ai-completion="${this._handleAiCompletion}"
                                 .lesson="${this.lesson}"
+                                .files="${this.files}"
                                 viewTitle="${this.t('editor.post.title')}"
                                 contentType="post"
                                 fieldToUpdate="social_post"
@@ -217,7 +253,6 @@ export class EditorViewPost extends Localized(LitElement) {
                                     options: ['Twitter', 'LinkedIn', 'Instagram'],
                                     default: 'Twitter'
                                 }]}
-                                @ai-generation-completed="${this._handleAiGeneration}"
                             ></ai-generator-panel>
                         `}
                     </div>
