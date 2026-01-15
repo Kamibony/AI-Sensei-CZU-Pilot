@@ -104,18 +104,56 @@ class StudentDashboard extends Localized(LitElement) {
         // 1. Fetch student data (streak, groups)
         if (this._unsubStudent) this._unsubStudent();
 
-        const studentsPath = getCollectionPath('students');
-        try {
-            this._unsubStudent = onSnapshot(doc(db, studentsPath, this.user.uid), (docSnap) => {
-                if (docSnap.exists()) {
-                    this.studentData = docSnap.data();
-                    this._fetchLastLesson();
-                }
-            }, (error) => {
-                console.error("Error fetching student data:", error);
-            });
-        } catch (e) {
-            console.error("Error setting up student listener:", e);
+        if (this.user.isAnonymous) {
+            // Demo Mode: Query groups where ownerId == this.user.uid
+            const groupsPath = getCollectionPath('groups');
+            try {
+                const q = query(
+                    collection(db, groupsPath),
+                    where('ownerId', '==', this.user.uid)
+                );
+
+                this._unsubStudent = onSnapshot(q, (snapshot) => {
+                    if (!snapshot.empty) {
+                        const groupDoc = snapshot.docs[0];
+
+                        // Set classId as requested (non-reactive)
+                        this.classId = groupDoc.id;
+
+                        // Mock student data for demo
+                        this.studentData = {
+                            name: 'Demo Student',
+                            streak: 1,
+                            memberOfGroups: [groupDoc.id],
+                            classId: groupDoc.id
+                        };
+                        this._fetchLastLesson();
+                    } else {
+                        // Not seeded yet or error
+                        this.studentData = { name: 'Demo Student', memberOfGroups: [] };
+                        this.lastLesson = null;
+                    }
+                }, (error) => {
+                    console.error("Error fetching demo group:", error);
+                });
+            } catch (e) {
+                console.error("Error setting up demo listener:", e);
+            }
+        } else {
+            // Standard Mode: Listen to users/students profile
+            const studentsPath = getCollectionPath('students');
+            try {
+                this._unsubStudent = onSnapshot(doc(db, studentsPath, this.user.uid), (docSnap) => {
+                    if (docSnap.exists()) {
+                        this.studentData = docSnap.data();
+                        this._fetchLastLesson();
+                    }
+                }, (error) => {
+                    console.error("Error fetching student data:", error);
+                });
+            } catch (e) {
+                console.error("Error setting up student listener:", e);
+            }
         }
     }
 
