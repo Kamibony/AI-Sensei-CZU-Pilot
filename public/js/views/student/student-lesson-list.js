@@ -49,55 +49,27 @@ export class StudentLessonList extends LitElement {
             return;
         }
 
-        if (currentUser.isAnonymous) {
-            // Demo Mode Logic
-            const groupsPath = getCollectionPath('groups');
-            const q = query(
-                collection(firebaseInit.db, groupsPath),
-                where('ownerId', '==', currentUser.uid)
-            );
+        // Standard Mode
+        const studentsPath = getCollectionPath("students");
+        const studentDocRef = doc(firebaseInit.db, studentsPath, currentUser.uid);
 
-            this.studentUnsubscribe = onSnapshot(q, (snapshot) => {
-                if (this.lessonsUnsubscribe) this.lessonsUnsubscribe();
+        this.studentUnsubscribe = onSnapshot(studentDocRef, (studentSnap) => {
+            if (this.lessonsUnsubscribe) this.lessonsUnsubscribe();
 
-                if (snapshot.empty) {
-                    this.isNotInAnyGroup = true;
-                    this.lessons = [];
-                    this.isLoading = false;
-                    return;
-                }
-
-                const groupDoc = snapshot.docs[0];
-                this._setupLessonsListener([groupDoc.id]);
-            }, (error) => {
-                console.error("Error fetching demo group:", error);
-                this.error = "Chyba načítání demo třídy.";
+            if (!studentSnap.exists() || !studentSnap.data().memberOfGroups || studentSnap.data().memberOfGroups.length === 0) {
+                this.isNotInAnyGroup = true;
+                this.lessons = [];
                 this.isLoading = false;
-            });
+                return;
+            }
 
-        } else {
-            // Standard Mode
-            const studentsPath = getCollectionPath("students");
-            const studentDocRef = doc(firebaseInit.db, studentsPath, currentUser.uid);
+            this._setupLessonsListener(studentSnap.data().memberOfGroups);
 
-            this.studentUnsubscribe = onSnapshot(studentDocRef, (studentSnap) => {
-                if (this.lessonsUnsubscribe) this.lessonsUnsubscribe();
-
-                if (!studentSnap.exists() || !studentSnap.data().memberOfGroups || studentSnap.data().memberOfGroups.length === 0) {
-                    this.isNotInAnyGroup = true;
-                    this.lessons = [];
-                    this.isLoading = false;
-                    return;
-                }
-
-                this._setupLessonsListener(studentSnap.data().memberOfGroups);
-
-            }, (error) => {
-                console.error("Error fetching student profile:", error);
-                this.error = "Chyba profilu.";
-                this.isLoading = false;
-            });
-        }
+        }, (error) => {
+            console.error("Error fetching student profile:", error);
+            this.error = "Chyba profilu.";
+            this.isLoading = false;
+        });
     }
 
     _setupLessonsListener(myGroups) {

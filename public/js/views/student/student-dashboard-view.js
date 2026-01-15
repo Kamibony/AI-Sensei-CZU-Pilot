@@ -104,56 +104,19 @@ class StudentDashboard extends Localized(LitElement) {
         // 1. Fetch student data (streak, groups)
         if (this._unsubStudent) this._unsubStudent();
 
-        if (this.user.isAnonymous) {
-            // Demo Mode: Query groups where ownerId == this.user.uid
-            const groupsPath = getCollectionPath('groups');
-            try {
-                const q = query(
-                    collection(db, groupsPath),
-                    where('ownerId', '==', this.user.uid)
-                );
-
-                this._unsubStudent = onSnapshot(q, (snapshot) => {
-                    if (!snapshot.empty) {
-                        const groupDoc = snapshot.docs[0];
-
-                        // Set classId as requested (non-reactive)
-                        this.classId = groupDoc.id;
-
-                        // Mock student data for demo
-                        this.studentData = {
-                            name: 'Demo Student',
-                            streak: 1,
-                            memberOfGroups: [groupDoc.id],
-                            classId: groupDoc.id
-                        };
-                        this._fetchLastLesson();
-                    } else {
-                        // Not seeded yet or error
-                        this.studentData = { name: 'Demo Student', memberOfGroups: [] };
-                        this.lastLesson = null;
-                    }
-                }, (error) => {
-                    console.error("Error fetching demo group:", error);
-                });
-            } catch (e) {
-                console.error("Error setting up demo listener:", e);
-            }
-        } else {
-            // Standard Mode: Listen to users/students profile
-            const studentsPath = getCollectionPath('students');
-            try {
-                this._unsubStudent = onSnapshot(doc(db, studentsPath, this.user.uid), (docSnap) => {
-                    if (docSnap.exists()) {
-                        this.studentData = docSnap.data();
-                        this._fetchLastLesson();
-                    }
-                }, (error) => {
-                    console.error("Error fetching student data:", error);
-                });
-            } catch (e) {
-                console.error("Error setting up student listener:", e);
-            }
+        // Standard Mode: Listen to users/students profile
+        const studentsPath = getCollectionPath('students');
+        try {
+            this._unsubStudent = onSnapshot(doc(db, studentsPath, this.user.uid), (docSnap) => {
+                if (docSnap.exists()) {
+                    this.studentData = docSnap.data();
+                    this._fetchLastLesson();
+                }
+            }, (error) => {
+                console.error("Error fetching student data:", error);
+            });
+        } catch (e) {
+            console.error("Error setting up student listener:", e);
         }
     }
 
@@ -199,8 +162,6 @@ class StudentDashboard extends Localized(LitElement) {
     render() {
         if (!this.user) return html`<div>${this.t('common.loading')}</div>`;
 
-        const isDemo = this.user.isAnonymous;
-
         return html`
             <div class="h-full overflow-hidden bg-slate-50 flex relative">
                 <!-- Desktop Sidebar (Hidden on Mobile) -->
@@ -225,10 +186,10 @@ class StudentDashboard extends Localized(LitElement) {
                         <div class="p-4 border-t border-slate-200">
                             <div class="flex items-center gap-3 mb-4 px-2">
                                 <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
-                                    ${(this.user.email || 'Student')[0].toUpperCase()}
+                                    ${this.user.email[0].toUpperCase()}
                                 </div>
                                 <div class="flex-1 min-w-0">
-                                    <p class="text-sm font-medium text-slate-900 truncate">${this.user.email || 'Demo Student'}</p>
+                                    <p class="text-sm font-medium text-slate-900 truncate">${this.user.email}</p>
                                     <p class="text-xs text-slate-500">${this.t('student.role_label')}</p>
                                 </div>
                             </div>
@@ -253,12 +214,6 @@ class StudentDashboard extends Localized(LitElement) {
                 </nav>
 
                 <main class="flex-1 md:ml-64 h-full overflow-y-auto transition-all duration-200 pb-24 md:pb-0">
-                    ${isDemo ? html`
-                        <div class="bg-amber-100 border-b border-amber-200 text-amber-800 px-4 py-2 text-center text-sm font-bold flex items-center justify-center gap-2 sticky top-0 z-40">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                            DEMO REŽIM - Dáta sú dočasné
-                        </div>
-                    ` : nothing}
                     <div class="p-6 md:p-8 max-w-7xl mx-auto">
                         ${this.renderContent()}
                     </div>
@@ -445,9 +400,9 @@ class StudentDashboard extends Localized(LitElement) {
 
                         <div class="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 flex flex-col items-center text-center">
                             <div class="w-24 h-24 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-3xl mb-4">
-                                ${(this.user.email || 'Student')[0].toUpperCase()}
+                                ${this.user.email[0].toUpperCase()}
                             </div>
-                            <h3 class="text-xl font-bold text-slate-900">${this.user.email || 'Demo Student'}</h3>
+                            <h3 class="text-xl font-bold text-slate-900">${this.user.email}</h3>
                             <p class="text-slate-500 mb-6">${this.t('student.role_label')}</p>
 
                             <button @click="${this.handleLogout}" class="w-full max-w-sm flex items-center justify-center gap-2 px-6 py-4 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-all font-bold active:scale-95 transform duration-200">
@@ -482,7 +437,7 @@ class StudentDashboard extends Localized(LitElement) {
                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
                             <h2 class="text-2xl md:text-3xl font-extrabold mb-2">
-                                ${this.t('student.dashboard.welcome')}, ${(this.user.email || 'Student').split('@')[0]}! 👋
+                                ${this.t('student.dashboard.welcome')}, ${this.user.email.split('@')[0]}! 👋
                             </h2>
                             <p class="text-indigo-100 text-base md:text-lg opacity-90">
                                 ${this.t('student.dashboard.welcome_subtitle') || 'Vítejte ve svém studijním centru.'}
