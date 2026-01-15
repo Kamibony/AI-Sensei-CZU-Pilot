@@ -157,6 +157,8 @@ class StudentDashboard extends Localized(LitElement) {
     render() {
         if (!this.user) return html`<div>${this.t('common.loading')}</div>`;
 
+        const isDemo = this.user.isAnonymous;
+
         return html`
             <div class="h-full overflow-hidden bg-slate-50 flex relative">
                 <!-- Desktop Sidebar (Hidden on Mobile) -->
@@ -209,6 +211,12 @@ class StudentDashboard extends Localized(LitElement) {
                 </nav>
 
                 <main class="flex-1 md:ml-64 h-full overflow-y-auto transition-all duration-200 pb-24 md:pb-0">
+                    ${isDemo ? html`
+                        <div class="bg-amber-100 border-b border-amber-200 text-amber-800 px-4 py-2 text-center text-sm font-bold flex items-center justify-center gap-2 sticky top-0 z-40">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            DEMO REŽIM - Dáta sú dočasné
+                        </div>
+                    ` : nothing}
                     <div class="p-6 md:p-8 max-w-7xl mx-auto">
                         ${this.renderContent()}
                     </div>
