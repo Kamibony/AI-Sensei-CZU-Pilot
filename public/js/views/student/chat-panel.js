@@ -149,12 +149,12 @@ export class ChatPanel extends LitElement {
             return html`
                 <div class="flex flex-col items-center justify-center p-8 text-center flex-grow">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-[#56A0D3] mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 17l-4 4-4-4"></path><path d="M13 19V5"></path><path d="M9 13l4-4 4 4"></path></svg>
-                    <h3 class="text-xl font-bold mb-2">Komunikujte cez Telegram</h3>
-                    <p class="text-slate-600 mb-4">Pre jednoduchšiu a rýchlejšiu komunikáciu v mobile použite nášho bota v aplikácii Telegram.</p>
+                    <h3 class="text-xl font-bold mb-2">Komunikujte přes Telegram</h3>
+                    <p class="text-slate-600 mb-4">Pro jednodušší a rychlejší komunikaci v mobilu použijte našeho bota v aplikaci Telegram.</p>
                     <a href="https://t.me/ai_sensei_czu_bot" target="_blank" class="bg-[#56A0D3] text-white font-bold py-3 px-6 rounded-full hover:bg-[#4396C8] transition-colors mb-4">
-                        Otvoriť Telegram Bota
+                        Otevřít Telegram Bota
                     </a>
-                    <p class="text-sm text-slate-500 mt-2">Po otvorení pošlite botovi pre spárovanie tento kód:</p>
+                    <p class="text-sm text-slate-500 mt-2">Po otevření pošlete botovi pro spárování tento kód:</p>
                     <strong class="block bg-gray-200 text-slate-800 p-2 rounded-lg text-lg select-all font-mono">${token}</strong>
                 </div>
             `;
