@@ -1,6 +1,7 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { getAiAssistantResponse } from '../gemini-api.js';
 import { APP_KNOWLEDGE_BASE } from '../utils/app-knowledge-base.js';
+import { translationService } from '../utils/translation-service.js';
 
 export class GuideBot extends LitElement {
     static properties = {
@@ -15,10 +16,7 @@ export class GuideBot extends LitElement {
     constructor() {
         super();
         this.isOpen = false;
-        this.messages = [{
-            sender: 'ai',
-            text: 'Ahoj! Jsem tvůj AI průvodce. S čím ti mohu pomoci?'
-        }];
+        this.messages = [];
         this.isLoading = false;
         this.userRole = 'unknown';
         this.currentView = 'unknown';
@@ -31,6 +29,12 @@ export class GuideBot extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
+        // Init default message with translation
+        this.messages = [{
+            sender: 'ai',
+            text: translationService.t('guide_bot.welcome_ai')
+        }];
+
         // Fix positioning on the host element to avoid clipping and stacking issues
         this.style.position = 'fixed';
         this.style.bottom = '20px';
@@ -40,6 +44,20 @@ export class GuideBot extends LitElement {
         this.style.display = 'flex';
         this.style.flexDirection = 'column';
         this.style.alignItems = 'flex-end';
+
+        this._langUnsubscribe = translationService.subscribe(() => {
+            // Re-render to update UI strings
+            this.requestUpdate();
+            // Optionally update existing static messages if needed, but usually new messages will use new lang
+            // For the welcome message, if it's the only one, we could update it, but let's keep history static
+        });
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        if (this._langUnsubscribe) {
+            this._langUnsubscribe();
+        }
     }
 
     toggleChat() {
@@ -79,9 +97,9 @@ export class GuideBot extends LitElement {
                 data: this.contextData
             });
 
-            // AI LOGIC FIX: Injected System Instruction
+            // AI LOGIC FIX: Injected System Instruction from Translation Service
             const systemPrompt = `
-System: You are the AI Guide for the 'AI Sensei' educational platform. Help users (Students and Professors) navigate the interface. Answer briefly and helpfully in Czech.
+System: ${translationService.t('guide_bot.system_instruction')}
 Here is how the app works:
 ${APP_KNOWLEDGE_BASE}
 
@@ -101,18 +119,18 @@ User Question: "${text}"
             });
 
             // 4. Add AI Response
-            let aiText = "Omlouvám se, ale momentálně nemohu odpovědět.";
+            let aiText = translationService.t('guide_bot.error_response');
             if (response && response.answer) {
                 aiText = response.answer;
             } else if (response && response.error) {
-                aiText = `Chyba: ${response.error}`;
+                aiText = `${translationService.t('chat.error_ai')} ${response.error}`;
             }
 
             this.messages = [...this.messages, { sender: 'ai', text: aiText }];
 
         } catch (error) {
             console.error("GuideBot Error:", error);
-            this.messages = [...this.messages, { sender: 'ai', text: "Došlo k chybě při komunikaci s AI." }];
+            this.messages = [...this.messages, { sender: 'ai', text: translationService.t('guide_bot.error_generic') }];
         } finally {
             this.isLoading = false;
             this.requestUpdate();
@@ -137,7 +155,7 @@ User Question: "${text}"
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                     <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
                                 </svg>
-                                <span class="font-semibold">AI Průvodce</span>
+                                <span class="font-semibold">${translationService.t('guide_bot.title')}</span>
                             </div>
                             <button @click=${this.toggleChat} class="text-white/80 hover:text-white">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -171,7 +189,7 @@ User Question: "${text}"
                             <div class="relative">
                                 <input type="text"
                                     class="w-full pl-4 pr-10 py-2 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-sm"
-                                    placeholder="Zeptej se na cokoliv..."
+                                    placeholder="${translationService.t('guide_bot.placeholder')}"
                                     @keydown=${this._handleInputKey}
                                     ?disabled=${this.isLoading}
                                 >
@@ -188,7 +206,7 @@ User Question: "${text}"
                 <!-- Toggle Button -->
                 <button @click=${this.toggleChat} class="pointer-events-auto bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-4 shadow-lg transition-transform hover:scale-110 flex items-center justify-center group">
                     <span class="absolute right-full mr-3 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                        AI Průvodce
+                        ${translationService.t('guide_bot.title')}
                     </span>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
