@@ -29,6 +29,19 @@ export class GuideBot extends LitElement {
         return this;
     }
 
+    connectedCallback() {
+        super.connectedCallback();
+        // Fix positioning on the host element to avoid clipping and stacking issues
+        this.style.position = 'fixed';
+        this.style.bottom = '20px';
+        this.style.right = '20px';
+        this.style.zIndex = '9999';
+        this.style.pointerEvents = 'none'; // Allow clicks to pass through the empty container
+        this.style.display = 'flex';
+        this.style.flexDirection = 'column';
+        this.style.alignItems = 'flex-end';
+    }
+
     toggleChat() {
         this.isOpen = !this.isOpen;
         if (this.isOpen) {
@@ -66,8 +79,9 @@ export class GuideBot extends LitElement {
                 data: this.contextData
             });
 
+            // AI LOGIC FIX: Injected System Instruction
             const systemPrompt = `
-System: You are AI Sensei Guide.
+System: You are the AI Guide for the 'AI Sensei' educational platform. Help users (Students and Professors) navigate the interface. Answer briefly and helpfully in Czech.
 Here is how the app works:
 ${APP_KNOWLEDGE_BASE}
 
@@ -81,11 +95,6 @@ User Question: "${text}"
 `;
 
             // 3. Call AI API
-            // We use 'guide-bot' as the lessonId to signal the backend (if modified) or just pass it as a dummy if using a generic generator.
-            // Since we modified backend to accept 'guide-bot' or we will modify it, we pass it here.
-            // Wait, I haven't modified the backend yet. I need to do that step.
-            // But assuming the backend will be fixed to handle lessonId='guide-bot' by skipping lesson lookup.
-
             const response = await getAiAssistantResponse({
                 lessonId: 'guide-bot',
                 userQuestion: systemPrompt
@@ -119,8 +128,6 @@ User Question: "${text}"
 
     render() {
         return html`
-            <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-none">
-
                 <!-- Chat Window -->
                 ${this.isOpen ? html`
                     <div class="pointer-events-auto bg-white w-80 h-96 rounded-2xl shadow-2xl flex flex-col mb-4 border border-slate-200 overflow-hidden animate-in fade-in slide-in-from-bottom-10 duration-200">
@@ -187,7 +194,6 @@ User Question: "${text}"
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </button>
-            </div>
         `;
     }
 }

@@ -145,7 +145,7 @@ export class PodcastComponent extends LitElement {
             // Note: We don't auto-play to respect browser policies, user must click play
         } catch (error) {
             console.error("Error loading podcast audio:", error);
-            this._error = "Nepodarilo sa načítať audio súbor. Možno ešte nebol vygenerovaný.";
+            this._error = "Nepodařilo se načíst audio soubor.";
             this._isLoading = false;
         }
     }
@@ -181,18 +181,40 @@ export class PodcastComponent extends LitElement {
 
     render() {
         const t = (key) => translationService.t(key);
-        // Fallback ak audio ešte nie je vygenerované
-        if (!this.audioPath) {
-            return html`
-                <div class="podcast-player" style="text-align: center; padding: 3rem;">
-                    <div style="font-size: 3rem; margin-bottom: 1rem;">🎧</div>
-                    <h3 style="margin-bottom: 0.5rem; font-weight: bold;">Podcast nie je pripravený</h3>
-                    <p style="color: #94a3b8; font-size: 0.9rem;">Profesor musí najprv vygenerovať audio verziu lekcie.</p>
-                    <div class="script-container" style="margin-top: 1.5rem; text-align: left;">
-                        ${this.podcastData?.script || typeof this.podcastData === 'string' ? this.podcastData : ''}
-                    </div>
+        const scriptContent = this.podcastData?.script || (typeof this.podcastData === 'string' ? this.podcastData : '');
+
+        if (this._isLoading && !this._error) {
+             return html`
+                <div class="podcast-player" style="display: flex; justify-content: center; align-items: center; min-height: 300px; color: white;">
+                     <div class="loading-pulse" style="font-size: 1.5rem;">⌛ Načítám audio...</div>
                 </div>
-            `;
+             `;
+        }
+
+        // Fallback: If no audio path OR error loading audio, show transcript if available
+        if (!this.audioPath || this._error) {
+            if (scriptContent) {
+                 return html`
+                    <div class="podcast-player" style="text-align: center; padding: 3rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">📜</div>
+                        <h3 style="margin-bottom: 0.5rem; font-weight: bold;">Přehrávání není k dispozici</h3>
+                        <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Přečtěte si přepis podcastu níže.</p>
+
+                        <div class="script-container custom-scrollbar" style="text-align: left; max-height: 400px; overflow-y: auto;">
+                            ${scriptContent}
+                        </div>
+                    </div>
+                `;
+            } else {
+                 // No audio AND no script
+                 return html`
+                    <div class="podcast-player" style="text-align: center; padding: 3rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🎧</div>
+                        <h3 style="margin-bottom: 0.5rem; font-weight: bold;">Podcast není připraven</h3>
+                        <p style="color: #94a3b8; font-size: 0.9rem;">Profesor zatím nevygeneroval audio ani scénář.</p>
+                    </div>
+                 `;
+            }
         }
 
         return html`
@@ -201,8 +223,6 @@ export class PodcastComponent extends LitElement {
                     <span class="status-badge">Professional Audio</span>
                     <h2 class="episode-title">${this.podcastData?.title || translationService.t('content_types.audio')}</h2>
                 </div>
-
-                ${this._error ? html`<div class="error-msg">${this._error}</div>` : ''}
 
                 <div class="progress-wrapper">
                     <input type="range" min="0" max="${this._duration || 100}" .value="${this._currentTime}" 
@@ -236,7 +256,7 @@ export class PodcastComponent extends LitElement {
                 </div>
 
                 <div class="script-container custom-scrollbar">
-                    ${this.podcastData?.script || typeof this.podcastData === 'string' ? this.podcastData : ''}
+                    ${scriptContent}
                 </div>
             </div>
         `;
