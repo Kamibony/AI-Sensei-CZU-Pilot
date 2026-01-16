@@ -674,6 +674,7 @@
       "back": "Voltar",
       "basicInfo": "Básico",
       "classAssignment": "Turmas",
+      "context_files": "Contexto para IA",
       "creating_draft": "Criando rascunho...",
       "error_save_before_magic": "Erro ao salvar a lição antes da geração.",
       "filesAndRag": "Arquivos & RAG",
@@ -687,7 +688,11 @@
       "library_btn": "Biblioteca",
       "library_files_added": "Adicionado {count} arquivos da biblioteca.",
       "magicGenerate": "Gerar (IA)",
+      "magic_generating_desc": "Gerando todo o conteúdo da lição. Isso pode levar um momento.",
+      "magic_generating_title": "AI Sensei fazendo mágica...",
       "magic_generator_desc": "Gere uma lição completa a partir de arquivos PDF.",
+      "magic_subtitle_animated": "Gerando conteúdo da lição a partir dos seus arquivos",
+      "magic_title_animated": "Criando mágica...",
       "no_files_magic_hint": "Nenhum arquivo carregado. Adicione materiais para a Geração Mágica.",
       "pdf_only": "Apenas arquivos PDF",
       "post": {
@@ -718,7 +723,9 @@
       "titleNew": "Nova Lição",
       "title_required": "Título obrigatório",
       "topic": "Tópico",
-      "upload_btn": "Enviar"
+      "upload_btn": "Enviar",
+      "upload_files": "Enviar arquivos",
+      "upload_pdf_hint": "Envie PDF..."
     },
     "enter_class_name": "Nome da turma",
     "error_create_class": "Erro ao criar turma.",
@@ -799,6 +806,7 @@
     "code_placeholder": "Código",
     "continue": "Continuar",
     "continue_learning": "Continuar aprendendo",
+    "continue_lesson": "Continuar",
     "dashboard": {
       "activeLessons": "Ativas",
       "agenda": "Agenda",
@@ -956,20 +964,20 @@
   "guide_bot": {
     "system_instruction": "Você é um guia de IA para a plataforma educacional AI Sensei. Ajude os usuários (alunos e professores) a navegar na interface. Responda de forma breve e útil em português.",
     "title": "Guia de IA",
-    "welcome_ai": "Olá! Sou seu guia de IA. Como posso ajudar?",
+    "welcome_ai": "Olá! Sou seu guia de IA. Como posso ajudá-lo hoje?",
     "error_response": "Desculpe, não consigo responder no momento.",
-    "error_generic": "Ocorreu um erro na comunicação com a IA.",
+    "error_generic": "Ocorreu um erro de comunicação com a IA.",
     "placeholder": "Pergunte qualquer coisa..."
   },
   "podcast": {
-    "audio_unavailable": "Áudio indisponível ou gerando",
+    "audio_unavailable": "Áudio indisponível ou sendo gerado",
     "read_transcript": "Leia a transcrição abaixo",
     "playing_not_available": "Reprodução indisponível",
-    "not_ready": "Podcast não está pronto",
-    "not_ready_desc": "O professor ainda não gerou o áudio ou roteiro.",
+    "not_ready": "Podcast não preparado",
+    "not_ready_desc": "O professor ainda não gerou o áudio ou o roteiro.",
     "loading": "Carregando áudio...",
     "professional_audio": "Áudio Profissional",
-    "error_loading": "Falha ao carregar arquivo de áudio."
+    "error_loading": "Falha ao carregar o arquivo de áudio."
   },
   "chat": {
     "placeholder": "Pergunte...",
