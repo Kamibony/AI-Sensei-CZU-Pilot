@@ -6,7 +6,6 @@ import { initStudentApp } from './student.js';
 import './views/login-view.js'; // Import component definition
 import { showToast, showGlobalSpinner, hideGlobalSpinner } from './utils/utils.js';
 import { translationService } from './utils/translation-service.js';
-
 // Pomocná funkcia na čakanie na rolu (Backoff strategy)
 async function waitForUserRole(user, maxAttempts = 10) {
     for (let i = 0; i < maxAttempts; i++) {
@@ -38,8 +37,9 @@ async function main() {
             // Zobrazíme loading ihneď, lebo získavanie roly môže trvať
             showGlobalSpinner(translationService.t('common.app_setting_account'));
 
+            let userRole;
             let tokenResult = await user.getIdTokenResult();
-            let userRole = tokenResult.claims.role;
+            userRole = tokenResult.claims.role;
 
             // Ak rola chýba, predpokladáme, že je to nová registrácia
             // a funkcia na serveri ešte len beží. Spustíme čakanie.

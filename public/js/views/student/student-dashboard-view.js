@@ -13,7 +13,7 @@ import {
 import { signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { showToast } from '../../utils/utils.js';
+import { showToast, getCollectionPath } from '../../utils/utils.js';
 import { translationService } from '../../utils/translation-service.js';
 import { Localized } from '../../utils/localization-mixin.js';
 
@@ -104,14 +104,20 @@ class StudentDashboard extends Localized(LitElement) {
         // 1. Fetch student data (streak, groups)
         if (this._unsubStudent) this._unsubStudent();
 
-        this._unsubStudent = onSnapshot(doc(db, 'students', this.user.uid), (docSnap) => {
-            if (docSnap.exists()) {
-                this.studentData = docSnap.data();
-                this._fetchLastLesson();
-            }
-        }, (error) => {
-            console.error("Error fetching student data:", error);
-        });
+        // Standard Mode: Listen to users/students profile
+        const studentsPath = getCollectionPath('students');
+        try {
+            this._unsubStudent = onSnapshot(doc(db, studentsPath, this.user.uid), (docSnap) => {
+                if (docSnap.exists()) {
+                    this.studentData = docSnap.data();
+                    this._fetchLastLesson();
+                }
+            }, (error) => {
+                console.error("Error fetching student data:", error);
+            });
+        } catch (e) {
+            console.error("Error setting up student listener:", e);
+        }
     }
 
     _fetchLastLesson() {
@@ -126,8 +132,9 @@ class StudentDashboard extends Localized(LitElement) {
         if (groups.length > 10) groups = groups.slice(0, 10);
 
         try {
+            const lessonsPath = getCollectionPath('lessons');
             const q = query(
-                collection(db, 'lessons'),
+                collection(db, lessonsPath),
                 where('assignedToGroups', 'array-contains-any', groups),
                 where('isPublished', '==', true),
                 orderBy('createdAt', 'desc'),

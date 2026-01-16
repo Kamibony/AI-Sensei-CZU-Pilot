@@ -2,6 +2,7 @@ import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@
 import { doc, onSnapshot, collection, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { translationService } from '../../utils/translation-service.js';
+import { getCollectionPath } from '../../utils/utils.js';
 
 export class StudentLessonList extends LitElement {
 
@@ -48,7 +49,9 @@ export class StudentLessonList extends LitElement {
             return;
         }
 
-        const studentDocRef = doc(firebaseInit.db, "students", currentUser.uid);
+        // Standard Mode
+        const studentsPath = getCollectionPath("students");
+        const studentDocRef = doc(firebaseInit.db, studentsPath, currentUser.uid);
 
         this.studentUnsubscribe = onSnapshot(studentDocRef, (studentSnap) => {
             if (this.lessonsUnsubscribe) this.lessonsUnsubscribe();
@@ -60,46 +63,50 @@ export class StudentLessonList extends LitElement {
                 return;
             }
 
-            this.isNotInAnyGroup = false;
-            let myGroups = studentSnap.data().memberOfGroups;
-            if (myGroups.length > 10) myGroups = myGroups.slice(0, 10);
-
-            try {
-                const lessonsQuery = query(
-                    collection(firebaseInit.db, "lessons"),
-                    where("assignedToGroups", "array-contains-any", myGroups),
-                    where("status", "==", "published"), // Students must NOT see drafts
-                    orderBy("createdAt", "desc")
-                );
-
-                this.lessonsUnsubscribe = onSnapshot(lessonsQuery, (querySnapshot) => {
-                    this.lessons = querySnapshot.docs.map(doc => ({
-                        id: doc.id,
-                        ...doc.data(),
-                        createdAt: doc.data().createdAt?.toDate ? doc.data().createdAt.toDate().toISOString() : new Date().toISOString()
-                    }));
-                    this.isLoading = false;
-                }, (error) => {
-                    console.error("Error fetching lessons:", error);
-                    if (error.code === 'failed-precondition' || error.message.includes('index')) {
-                        console.error("🔥 MISSING INDEX ERROR: The query requires an index. Please create it in the Firebase Console.", error);
-                        this.error = "Systémová chyba: Chybí databázový index. Kontaktujte prosím podporu.";
-                    } else {
-                        this.error = "Nepodařilo se načíst lekce.";
-                    }
-                    this.isLoading = false;
-                });
-            } catch (e) {
-                console.error("Query setup error:", e);
-                this.error = "Chyba dotazu.";
-                this.isLoading = false;
-            }
+            this._setupLessonsListener(studentSnap.data().memberOfGroups);
 
         }, (error) => {
             console.error("Error fetching student profile:", error);
             this.error = "Chyba profilu.";
             this.isLoading = false;
         });
+    }
+
+    _setupLessonsListener(myGroups) {
+        this.isNotInAnyGroup = false;
+        if (myGroups.length > 10) myGroups = myGroups.slice(0, 10);
+
+        try {
+            const lessonsPath = getCollectionPath("lessons");
+            const lessonsQuery = query(
+                collection(firebaseInit.db, lessonsPath),
+                where("assignedToGroups", "array-contains-any", myGroups),
+                where("status", "==", "published"), // Students must NOT see drafts
+                orderBy("createdAt", "desc")
+            );
+
+            this.lessonsUnsubscribe = onSnapshot(lessonsQuery, (querySnapshot) => {
+                this.lessons = querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    createdAt: doc.data().createdAt?.toDate ? doc.data().createdAt.toDate().toISOString() : new Date().toISOString()
+                }));
+                this.isLoading = false;
+            }, (error) => {
+                console.error("Error fetching lessons:", error);
+                if (error.code === 'failed-precondition' || error.message.includes('index')) {
+                    console.error("🔥 MISSING INDEX ERROR: The query requires an index. Please create it in the Firebase Console.", error);
+                    this.error = "Systémová chyba: Chybí databázový index. Kontaktujte prosím podporu.";
+                } else {
+                    this.error = "Nepodařilo se načíst lekce.";
+                }
+                this.isLoading = false;
+            });
+        } catch (e) {
+            console.error("Query setup error:", e);
+            this.error = "Chyba dotazu.";
+            this.isLoading = false;
+        }
     }
 
     _handleLessonClick(lessonId) {

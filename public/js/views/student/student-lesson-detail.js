@@ -209,7 +209,7 @@ export class StudentLessonDetail extends LitElement {
 
     _getDefaultTab() {
         if (!this.lessonData) return null;
-        if (this.lessonData.text_content || (this.lessonData.files && this.lessonData.files.length > 0)) return 'study';
+        if (this.lessonData.text_content) return 'study';
         if (this.lessonData.podcast_script) return 'podcast';
         if (this.lessonData.presentation) return 'presentation';
         if (this.lessonData.quiz) return 'quiz';
@@ -234,7 +234,7 @@ export class StudentLessonDetail extends LitElement {
         const ld = this.lessonData;
 
         // 1. Study Room (Combines Text + Files + Video)
-        if (ld.text_content || (ld.files && ld.files.length > 0) || ld.youtube_link) {
+        if (ld.text_content || ld.youtube_link) {
             tabs.push({ id: 'study', label: translationService.t('student.tabs.study'), icon: '📚', desc: translationService.t('student.tabs.desc_study') });
         }
         // 2. Podcast
@@ -470,32 +470,6 @@ export class StudentLessonDetail extends LitElement {
                                     ? html`<iframe class="w-full h-full" src="https://www.youtube.com/embed/${videoIdMatch[1]}" frameborder="0" allowfullscreen></iframe>`
                                     : html`<div class="flex items-center justify-center h-full text-white">Invalid Video URL</div>`;
                             })()}
-                        </div>
-                    </div>
-                ` : ''}
-
-                <!-- 3. Attached Files -->
-                ${this.lessonData.files && this.lessonData.files.length > 0 ? html`
-                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8">
-                        <h3 class="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-                            <span>📎</span> Materiály ke stažení
-                        </h3>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            ${this.lessonData.files.map(file => html`
-                                <a href="${file.url}" target="_blank"
-                                   class="flex items-center p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md hover:bg-indigo-50/30 transition-all group">
-                                    <div class="w-12 h-12 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl mr-4 group-hover:scale-110 transition-transform">
-                                        📄
-                                    </div>
-                                    <div class="overflow-hidden">
-                                        <div class="font-bold text-slate-700 truncate group-hover:text-indigo-700 transition-colors">${file.name}</div>
-                                        <div class="text-xs text-slate-400 mt-1">Klikněte pro stažení</div>
-                                    </div>
-                                    <div class="ml-auto text-slate-300 group-hover:text-indigo-400">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                                    </div>
-                                </a>
-                            `)}
                         </div>
                     </div>
                 ` : ''}

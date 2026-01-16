@@ -957,5 +957,33 @@
     "subtitle": "Přetáhněte lekce do požadovaného dne.",
     "title": "Plán výuky (31 dní)",
     "week": "Týden"
+  },
+  "guide_bot": {
+    "system_instruction": "Jsi AI průvodce vzdělávací platformou AI Sensei. Pomáhej uživatelům (studentům a profesorům) orientovat se v rozhraní. Odpovídej stručně a nápomocně v češtině.",
+    "title": "AI Průvodce",
+    "welcome_ai": "Ahoj! Jsem tvůj AI průvodce. S čím ti mohu pomoci?",
+    "error_response": "Omlouvám se, ale momentálně nemohu odpovědět.",
+    "error_generic": "Došlo k chybě při komunikaci s AI.",
+    "placeholder": "Zeptej se na cokoliv..."
+  },
+  "podcast": {
+    "audio_unavailable": "Audio se generuje nebo není k dispozici",
+    "read_transcript": "Přečtěte si přepis níže",
+    "playing_not_available": "Přehrávání není k dispozici",
+    "not_ready": "Podcast není připraven",
+    "not_ready_desc": "Profesor zatím nevygeneroval audio ani scénář.",
+    "loading": "Načítám audio...",
+    "professional_audio": "Profesionální Audio",
+    "error_loading": "Nepodařilo se načíst audio soubor."
+  },
+  "chat": {
+    "placeholder": "Zeptej se...",
+    "placeholder_message": "Zpráva",
+    "placeholder_professor": "Zadejte dotaz pro profesora...",
+    "ai_guide": "AI Průvodce",
+    "ask_anything": "Zeptej se na cokoliv...",
+    "error_ai": "Chyba AI:",
+    "error_send": "CHYBA: Zprávu se nepodařilo odeslat.",
+    "error_notify_prof": "Nepodařilo se upozornit profesora na zprávu."
   }
 }

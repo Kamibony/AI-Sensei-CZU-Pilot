@@ -1,7 +1,7 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
-import { showToast } from '../../utils/utils.js';
+import { showToast, getCollectionPath } from '../../utils/utils.js';
 import { translationService } from '../../utils/translation-service.js';
 
 export class ProfessorClassesView extends LitElement {
@@ -46,11 +46,12 @@ export class ProfessorClassesView extends LitElement {
             return;
         }
 
+        const groupsPath = getCollectionPath('groups');
         let q;
         if (user.email === 'profesor@profesor.cz') {
-             q = query(collection(firebaseInit.db, 'groups'));
+             q = query(collection(firebaseInit.db, groupsPath));
         } else {
-             q = query(collection(firebaseInit.db, 'groups'), where("ownerId", "==", user.uid));
+             q = query(collection(firebaseInit.db, groupsPath), where("ownerId", "==", user.uid));
         }
 
         this.classesUnsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -94,9 +95,10 @@ export class ProfessorClassesView extends LitElement {
         }
 
         try {
+            const groupsPath = getCollectionPath('groups');
             // Unique Name Check
             const q = query(
-                collection(firebaseInit.db, 'groups'),
+                collection(firebaseInit.db, groupsPath),
                 where("ownerId", "==", user.uid),
                 where("name", "==", className)
             );
@@ -106,7 +108,7 @@ export class ProfessorClassesView extends LitElement {
                 return;
             }
 
-            const docRef = await addDoc(collection(firebaseInit.db, 'groups'), {
+            const docRef = await addDoc(collection(firebaseInit.db, groupsPath), {
                 name: className,
                 ownerId: user.uid,
                 joinCode: this._generateJoinCode(),
