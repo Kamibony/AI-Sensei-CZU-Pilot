@@ -952,5 +952,33 @@
     "subtitle": "Arraste as lições.",
     "title": "Plano de Ensino",
     "week": "Semana"
+  },
+  "guide_bot": {
+    "system_instruction": "Você é um guia de IA para a plataforma educacional AI Sensei. Ajude os usuários (alunos e professores) a navegar na interface. Responda de forma breve e útil em português.",
+    "title": "Guia de IA",
+    "welcome_ai": "Olá! Sou seu guia de IA. Como posso ajudar?",
+    "error_response": "Desculpe, não consigo responder no momento.",
+    "error_generic": "Ocorreu um erro na comunicação com a IA.",
+    "placeholder": "Pergunte qualquer coisa..."
+  },
+  "podcast": {
+    "audio_unavailable": "Áudio indisponível ou gerando",
+    "read_transcript": "Leia a transcrição abaixo",
+    "playing_not_available": "Reprodução indisponível",
+    "not_ready": "Podcast não está pronto",
+    "not_ready_desc": "O professor ainda não gerou o áudio ou roteiro.",
+    "loading": "Carregando áudio...",
+    "professional_audio": "Áudio Profissional",
+    "error_loading": "Falha ao carregar arquivo de áudio."
+  },
+  "chat": {
+    "placeholder": "Pergunte...",
+    "placeholder_message": "Mensagem",
+    "placeholder_professor": "Digite sua pergunta para o professor...",
+    "ai_guide": "Guia de IA",
+    "ask_anything": "Pergunte qualquer coisa...",
+    "error_ai": "Erro IA:",
+    "error_send": "ERRO: Falha ao enviar mensagem.",
+    "error_notify_prof": "Falha ao notificar o professor."
   }
 }

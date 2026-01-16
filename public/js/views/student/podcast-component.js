@@ -119,6 +119,7 @@ export class PodcastComponent extends LitElement {
         if (this.audioPath) {
             this._loadAudioUrl();
         }
+        this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
     updated(changedProperties) {
@@ -131,6 +132,9 @@ export class PodcastComponent extends LitElement {
         super.disconnectedCallback();
         this._audio.pause();
         this._audio.src = "";
+        if (this._langUnsubscribe) {
+            this._langUnsubscribe();
+        }
     }
 
     async _loadAudioUrl() {
@@ -145,7 +149,7 @@ export class PodcastComponent extends LitElement {
             // Note: We don't auto-play to respect browser policies, user must click play
         } catch (error) {
             console.error("Error loading podcast audio:", error);
-            this._error = "Nepodařilo se načíst audio soubor.";
+            this._error = translationService.t('podcast.error_loading');
             this._isLoading = false;
         }
     }
@@ -186,7 +190,7 @@ export class PodcastComponent extends LitElement {
         if (this._isLoading && !this._error) {
              return html`
                 <div class="podcast-player" style="display: flex; justify-content: center; align-items: center; min-height: 300px; color: white;">
-                     <div class="loading-pulse" style="font-size: 1.5rem;">⌛ Načítám audio...</div>
+                     <div class="loading-pulse" style="font-size: 1.5rem;">⌛ ${t('podcast.loading')}</div>
                 </div>
              `;
         }
@@ -197,8 +201,8 @@ export class PodcastComponent extends LitElement {
                  return html`
                     <div class="podcast-player" style="text-align: center; padding: 3rem;">
                         <div style="font-size: 3rem; margin-bottom: 1rem;">📜</div>
-                        <h3 style="margin-bottom: 0.5rem; font-weight: bold;">Přehrávání není k dispozici</h3>
-                        <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Přečtěte si přepis podcastu níže.</p>
+                        <h3 style="margin-bottom: 0.5rem; font-weight: bold;">${t('podcast.playing_not_available')}</h3>
+                        <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">${t('podcast.read_transcript')}</p>
 
                         <div class="script-container custom-scrollbar" style="text-align: left; max-height: 400px; overflow-y: auto;">
                             ${scriptContent}
@@ -210,8 +214,8 @@ export class PodcastComponent extends LitElement {
                  return html`
                     <div class="podcast-player" style="text-align: center; padding: 3rem;">
                         <div style="font-size: 3rem; margin-bottom: 1rem;">🎧</div>
-                        <h3 style="margin-bottom: 0.5rem; font-weight: bold;">Podcast není připraven</h3>
-                        <p style="color: #94a3b8; font-size: 0.9rem;">Profesor zatím nevygeneroval audio ani scénář.</p>
+                        <h3 style="margin-bottom: 0.5rem; font-weight: bold;">${t('podcast.not_ready')}</h3>
+                        <p style="color: #94a3b8; font-size: 0.9rem;">${t('podcast.not_ready_desc')}</p>
                     </div>
                  `;
             }
@@ -220,8 +224,8 @@ export class PodcastComponent extends LitElement {
         return html`
             <div class="podcast-player">
                 <div class="player-header">
-                    <span class="status-badge">Professional Audio</span>
-                    <h2 class="episode-title">${this.podcastData?.title || translationService.t('content_types.audio')}</h2>
+                    <span class="status-badge">${t('podcast.professional_audio')}</span>
+                    <h2 class="episode-title">${this.podcastData?.title || t('content_types.audio')}</h2>
                 </div>
 
                 <div class="progress-wrapper">

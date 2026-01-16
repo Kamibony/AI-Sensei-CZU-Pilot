@@ -92,7 +92,7 @@ export class ChatPanel extends LitElement {
                     <div class="bg-[#56A0D3] text-white p-3 rounded-t-2xl flex items-center shadow-md flex-shrink-0">
                         <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center font-bold text-xl text-[#56A0D3]">A</div>
                         <div class="ml-3">
-                            <h3 class="font-semibold text-lg">AI Asistent</h3>
+                            <h3 class="font-semibold text-lg">${translationService.t('chat.ai_guide')}</h3>
                             <p class="text-sm text-gray-200">Vyberte způsob komunikace</p>
                         </div>
                     </div>
@@ -136,7 +136,7 @@ export class ChatPanel extends LitElement {
                 </div>
                 <div class="bg-white p-3 border-t flex-shrink-0">
                     <div class="flex items-center">
-                        <input type="text" id="chat-input" placeholder="Zpráva" class="flex-grow bg-gray-100 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#56A0D3]" @keypress=${this._handleKeypress}>
+                        <input type="text" id="chat-input" placeholder="${translationService.t('chat.placeholder_message')}" class="flex-grow bg-gray-100 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#56A0D3]" @keypress=${this._handleKeypress}>
                         <button id="send-chat-btn" class="ml-2 w-10 h-10 bg-[#56A0D3] text-white rounded-full flex items-center justify-center hover:bg-[#4396C8] transition-colors" @click=${this._sendMessage}>
                             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                         </button>
@@ -172,7 +172,7 @@ export class ChatPanel extends LitElement {
                     ${this._renderChatHistory()}
                 </div>
                 <div class="flex gap-2 flex-shrink-0">
-                    <input type="text" id="chat-input" placeholder="Zadejte dotaz pro profesora..." class="flex-grow p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" @keypress=${this._handleKeypress}>
+                    <input type="text" id="chat-input" placeholder="${translationService.t('chat.placeholder_professor')}" class="flex-grow p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" @keypress=${this._handleKeypress}>
                     <button id="send-chat-btn" class="bg-slate-700 text-white font-bold py-3 px-5 rounded-lg hover:bg-slate-800 transition-colors" @click=${this._sendMessage}>Odeslat</button>
                 </div>
             </div>
@@ -214,7 +214,7 @@ export class ChatPanel extends LitElement {
         } else { // ai, professor
             alignmentClasses = 'mr-auto float-left';
             baseClasses += ` ${isAI ? 'bg-white' : 'bg-gray-200'} text-slate-800 ${alignmentClasses} rounded-tl-none`;
-            if (data.sender === 'ai') senderPrefix = '<strong>AI Asistent:</strong><br>';
+            if (data.sender === 'ai') senderPrefix = `<strong>${translationService.t('chat.ai_guide')}:</strong><br>`;
             if (data.sender === 'professor') senderPrefix = '<strong>Profesor:</strong><br>';
         }
         
@@ -318,7 +318,7 @@ export class ChatPanel extends LitElement {
                     });
                     const response = result.data;
                     
-                    let aiResponseText = response.error ? `Chyba AI: ${response.error}` : (response.answer || "Omlouvám se, nedostal jsem odpověď.");
+                    let aiResponseText = response.error ? `${translationService.t('chat.error_ai')} ${response.error}` : (response.answer || translationService.t('guide_bot.error_response'));
 
                     // Uloženie odpovede AI do DB
                      await addDoc(messageRef, {
@@ -333,7 +333,7 @@ export class ChatPanel extends LitElement {
 
                 } catch (aiError) {
                     console.error("Error getting AI response:", aiError);
-                    const errorText = `Omlouvám se, došlo k chybě při komunikaci s AI: ${aiError.message || aiError}`;
+                    const errorText = `${translationService.t('guide_bot.error_generic')} ${aiError.message || aiError}`;
                     await addDoc(messageRef, {
                          lessonId: this.lessonId,
                          text: errorText,
@@ -352,14 +352,14 @@ export class ChatPanel extends LitElement {
                     await notifyProfessorCallable({ text: text });
                 } catch (callError) {
                      console.error("Error notifying professor:", callError);
-                     showToast("Nepodařilo se upozornit profesora na zprávu.", true);
+                     showToast(translationService.t('chat.error_notify_prof'), true);
                 }
             }
         } catch (error) {
             console.error("Error sending message or saving to DB:", error);
             showToast(translationService.t('student_dashboard.chat_error_send'), true);
             // Zobrazíme chybu v chate
-            this.chatHistory = [...this.chatHistory, { text: `CHYBA: Zprávu "${text}" se nepodařilo odeslat.`, sender: 'system-error' }];
+            this.chatHistory = [...this.chatHistory, { text: `${translationService.t('chat.error_send')} "${text}"`, sender: 'system-error' }];
         }
     }
 }
