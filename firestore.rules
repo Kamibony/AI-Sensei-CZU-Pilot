@@ -89,14 +89,13 @@ service cloud.firestore {
 
     // Odborný výcvik (Praxe)
     match /practical_sessions/{sessionId} {
-      allow read: if isAuthenticated(); // Students need to read active sessions
-      allow create: if isProfessor();
-      allow update: if isOwner(resource.data.ownerId) || isProfessor();
+      allow read: if isSignedIn(); // Students need to read active sessions
+      allow create, update, delete: if isProfessor() || isProfessorRole();
     }
     match /practical_submissions/{submissionId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated(); // Students create submissions
-      allow update: if isProfessor(); // Professor grades it
+      allow read: if (resource.data.studentId == request.auth.uid) || isProfessor() || isProfessorRole();
+      allow create: if isSignedIn(); // Students create submissions
+      allow update: if isProfessor() || isProfessorRole(); // Professor grades it
     }
 
     // Kolekcia pre metadáta súborov (index pre Storage)
