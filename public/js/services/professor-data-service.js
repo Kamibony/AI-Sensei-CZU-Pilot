@@ -1,4 +1,4 @@
-import { collection, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, query, orderBy, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db, auth } from '../firebase-init.js';
 import { showToast, getCollectionPath } from '../utils/utils.js';
 
@@ -31,6 +31,24 @@ export class ProfessorDataService {
         } catch (error) {
             console.warn("Lekcia sa nenašla alebo chýbajú práva:", error);
             return null;
+        }
+    }
+
+    async updateLessonSchedule(lessonId, availableFrom, availableUntil) {
+        try {
+            if (!this.db || !this.auth.currentUser) return false;
+
+            const lessonRef = doc(this.db, 'lessons', lessonId);
+            await updateDoc(lessonRef, {
+                availableFrom: availableFrom ? new Date(availableFrom) : null,
+                availableUntil: availableUntil ? new Date(availableUntil) : null,
+                isScheduled: !!availableFrom
+            });
+            return true;
+        } catch (error) {
+            console.error("Error updating lesson schedule:", error);
+            showToast("Chyba při plánování lekce.", "error");
+            return false;
         }
     }
 

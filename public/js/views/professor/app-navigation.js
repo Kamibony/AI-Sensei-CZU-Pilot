@@ -187,9 +187,13 @@ export class AppNavigation extends LitElement {
                 <div class="nav-section">
                     <div class="nav-section-label">Tvůrčí studio</div>
                     <ul class="nav-list">
-                        <button class="nav-item ${this.activeView === 'timeline' ? 'active' : ''}" @click=${() => this._navigateTo('timeline')}>
+                        <button class="nav-item ${this.activeView === 'library' ? 'active' : ''}" @click=${() => this._navigateTo('library')}>
                             <span class="icon">📚</span>
-                            <span>Knihovna Lekcí</span>
+                            <span>${t('nav.library')}</span>
+                        </button>
+                        <button class="nav-item ${this.activeView === 'timeline' ? 'active' : ''}" @click=${() => this._navigateTo('timeline')}>
+                            <span class="icon">📅</span>
+                            <span>${t('nav.timeline')}</span>
                         </button>
                         <button class="nav-item ${this.activeView === 'media' ? 'active' : ''}" @click=${() => this._navigateTo('media')}>
                             <span class="icon">🎞</span>

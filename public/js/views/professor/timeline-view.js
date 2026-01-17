@@ -1,295 +1,287 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from '../../utils/utils.js';
-import * as firebaseInit from '../../firebase-init.js';
-import { Localized } from '../../utils/localization-mixin.js';
+import { Timeline } from 'https://esm.sh/vis-timeline?bundle';
+import { DataSet } from 'https://esm.sh/vis-data?bundle';
+import { ProfessorDataService } from '../../services/professor-data-service.js';
 import { translationService } from '../../utils/translation-service.js';
+import { showToast } from '../../utils/utils.js';
 
-export class ProfessorTimelineView extends Localized(LitElement) {
+export class TimelineView extends LitElement {
     static properties = {
-        lessonsData: { type: Array },
-        _timelineEvents: { state: true, type: Array },
+        lessons: { state: true },
+        isLoading: { state: true }
     };
-
-    createRenderRoot() { return this; }
 
     constructor() {
         super();
-        this.lessonsData = [];
-        this._timelineEvents = [];
+        this.lessons = [];
+        this.isLoading = true;
+        this.dataService = new ProfessorDataService();
+        this.timeline = null;
+        this.items = null;
+        this._unscheduledLessons = [];
     }
+
+    createRenderRoot() { return this; }
 
     connectedCallback() {
         super.connectedCallback();
-        // Prekresliť pri zmene jazyka, aby sa aktualizovali dátumy
-        this._unsubscribe = translationService.subscribe(() => {
-            this._renderDaysAndEvents();
-            this.requestUpdate();
-        });
-        this._fetchTimelineEvents();
+        this._injectStyles();
+        this._loadData();
     }
 
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        if (this._unsubscribe) this._unsubscribe();
-    }
-
-    async _fetchTimelineEvents() {
-        try {
-            const currentUser = firebaseInit.auth.currentUser;
-            if (!currentUser) {
-                this._timelineEvents = [];
-                this._renderDaysAndEvents();
-                return;
-            }
-
-            const timelineCollection = collection(firebaseInit.db, 'timeline_events');
-            let q;
-            if (currentUser.email === 'profesor@profesor.cz') {
-                q = query(timelineCollection, orderBy("orderIndex"));
-            } else {
-                q = query(
-                    timelineCollection,
-                    where("ownerId", "==", currentUser.uid),
-                    orderBy("orderIndex")
-                );
-            }
-
-            const querySnapshot = await getDocs(q);
-            this._timelineEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            this._renderDaysAndEvents();
-        } catch (error) {
-            console.error("Error fetching timeline events:", error);
-            showToast(this.t('timeline.error_fetch'), true);
+    _injectStyles() {
+        if (!document.getElementById('vis-timeline-css')) {
+            const link = document.createElement('link');
+            link.id = 'vis-timeline-css';
+            link.rel = 'stylesheet';
+            link.href = 'https://unpkg.com/vis-timeline/styles/vis-timeline-graph2d.min.css';
+            document.head.appendChild(link);
         }
     }
 
-    _getLocalizedDateDetails(offsetDays = 0) {
-        const date = new Date();
-        date.setDate(date.getDate() + offsetDays);
+    async _loadData() {
+        this.isLoading = true;
+        this.lessons = await this.dataService.fetchLessons();
+        this._updateLists();
+        this.isLoading = false;
+
+        // Wait for render then init timeline
+        setTimeout(() => this._initTimeline(), 0);
+    }
+
+    _updateLists() {
+        this._unscheduledLessons = this.lessons.filter(l => !l.availableFrom);
+        if (this.items) {
+            const scheduled = this.lessons.filter(l => l.availableFrom).map(this._mapLessonToItem.bind(this));
+            this.items.clear();
+            this.items.add(scheduled);
+        }
+        this.requestUpdate();
+    }
+
+    _mapLessonToItem(lesson) {
+        const start = new Date(lesson.availableFrom);
+        let end = lesson.availableUntil ? new Date(lesson.availableUntil) : null;
         
-        // Použitie aktuálneho jazyka aplikácie
-        const lang = translationService.currentLanguage === 'cs' ? 'cs-CZ' : 'pt-BR';
+        // If no end date, default to 1 week duration for visualization or point?
+        // Prompt says "assume a default duration (e.g., 1 week) or just a point in time".
+        // Let's ensure it has an end for visualization if it's a range.
+        // If availableUntil is null, we can treat it as a point or a range.
+        // Let's try point if availableUntil is null, unless we want to enforce duration.
+        // But for "Interactive Lesson Planner", ranges are usually better.
         
+        if (!end) {
+             end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+        }
+
+        const now = new Date();
+        let className = 'bg-blue-500 border-blue-600 text-white'; // Future
+        if (end < now) {
+            className = 'bg-gray-400 border-gray-500 text-white'; // Past
+        } else if (start <= now && end >= now) {
+            className = 'bg-green-500 border-green-600 text-white'; // Active
+        }
+
         return {
-            weekday: date.toLocaleDateString(lang, { weekday: 'long' }),
-            dayMonth: date.toLocaleDateString(lang, { day: 'numeric', month: 'numeric' }),
-            fullDate: date,
-            isToday: offsetDays === 0
+            id: lesson.id,
+            content: `<span class="font-semibold text-sm">${lesson.title}</span>`,
+            start: start,
+            end: end,
+            className: `${className} rounded shadow-sm opacity-90 hover:opacity-100`,
+            title: lesson.topic || lesson.title // Tooltip
         };
     }
 
-    async _updateAllOrderIndexes() {
-        const timelineContainer = this.querySelector('#timeline-container');
-        if (!timelineContainer) return;
-        const allEventElements = Array.from(timelineContainer.querySelectorAll('.lesson-bubble'));
-        const batch = writeBatch(firebaseInit.db);
-        let updatesMade = 0;
-        allEventElements.forEach((item, index) => {
-            const eventId = item.dataset.eventId;
-            if (eventId && this._timelineEvents.some(event => event.id === eventId)) {
-                batch.update(doc(firebaseInit.db, 'timeline_events', eventId), { orderIndex: index });
-                updatesMade++;
-            }
-        });
-        if (updatesMade > 0) await batch.commit().catch(e => console.error(e));
-    }
+    _initTimeline() {
+        const container = this.querySelector('#timeline-visualization');
+        if (!container) return;
 
-    _renderScheduledEvent(event) {
-        const lesson = this.lessonsData.find(l => l.id === event.lessonId);
-        if (!lesson) return null;
+        // Destroy existing if any
+        if (this.timeline) {
+            this.timeline.destroy();
+        }
 
-        const el = document.createElement('div');
-        el.className = 'lesson-bubble p-3 rounded-lg shadow-sm flex items-center justify-between border bg-white hover:bg-slate-50 border-slate-200 cursor-grab mb-2 transition-all group';
-        el.dataset.eventId = event.id;
-        el.dataset.lessonId = event.lessonId;
-        el.innerHTML = `
-            <div class="flex items-center space-x-3 flex-grow min-w-0">
-                <span class="text-xl flex-shrink-0">${lesson.icon || '📝'}</span>
-                <div class="min-w-0">
-                    <p class="font-semibold text-sm text-slate-800 truncate" title="${lesson.title}">${lesson.title}</p>
-                     ${lesson.subtitle ? `<p class="text-xs text-slate-500 truncate">${lesson.subtitle}</p>` : ''}
-                </div>
-            </div>
-            <button class="delete-event-btn p-1.5 rounded-md hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors flex-shrink-0 ml-2 opacity-0 group-hover:opacity-100" title="${this.t('common.delete')}">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>`;
+        const scheduledLessons = this.lessons
+            .filter(l => l.availableFrom)
+            .map(this._mapLessonToItem.bind(this));
+
+        this.items = new DataSet(scheduledLessons);
+
+        const options = {
+            height: '100%',
+            minHeight: '400px',
+            editable: {
+                add: false,         // handled by drag-drop
+                updateTime: true,
+                updateGroup: false,
+                remove: true        // allow removing (unscheduling)
+            },
+            onMove: this._onMoveItem.bind(this),
+            onRemove: this._onRemoveItem.bind(this),
+            tooltip: {
+                followMouse: true
+            },
+            margin: {
+                item: 10
+            },
+            orientation: 'top'
+        };
+
+        this.timeline = new Timeline(container, this.items, options);
         
-        el.querySelector('.delete-event-btn').addEventListener('click', async (e) => {
-            e.stopPropagation();
-            if (confirm(this.t('timeline.confirm_remove'))) {
-                try {
-                    await deleteDoc(doc(firebaseInit.db, 'timeline_events', event.id));
-                    el.remove();
-                    this._timelineEvents = this._timelineEvents.filter(ev => ev.id !== event.id);
-                    if (!this._timelineEvents.some(ev => ev.lessonId === event.lessonId)) {
-                        await updateDoc(doc(firebaseInit.db, 'lessons', event.lessonId), { isScheduled: false }).catch(console.error);
-                    }
-                    showToast(this.t('timeline.removed_success'));
-                    await this._updateAllOrderIndexes();
-                } catch (error) {
-                    console.error(error); 
-                    showToast(this.t('timeline.error_remove'), true); 
-                    this._fetchTimelineEvents();
-                }
-            }
-        });
-        return el;
+        // Handle drop from sidebar
+        // We need to bind these events to the container div in render
     }
 
-    async _handleLessonDrop(evt) {
-        const lessonId = evt.item.dataset.lessonId;
-        const targetDayIndex = parseInt(evt.to.closest('.day-slot').dataset.dayIndex);
-        const tempEl = evt.item;
-        const newIndexInDay = Array.from(evt.to.children).indexOf(tempEl);
+    async _onMoveItem(item, callback) {
+        const success = await this.dataService.updateLessonSchedule(
+            item.id,
+            item.start,
+            item.end
+        );
 
-        tempEl.innerHTML = `<div class="p-3 text-slate-400 text-sm flex items-center"><div class="spinner mr-2 w-4 h-4 border-2"></div> ${this.t('timeline.scheduling')}</div>`;
-        tempEl.className = "bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg p-2 mb-2 opacity-70";
+        if (success) {
+            // Update local state to reflect change
+            const lesson = this.lessons.find(l => l.id === item.id);
+            if (lesson) {
+                lesson.availableFrom = item.start;
+                lesson.availableUntil = item.end;
+                this._updateLists(); // Re-calc colors
+            }
+            callback(item);
+        } else {
+            callback(null); // Cancel move
+        }
+    }
 
-        try {
-            let globalOrderIndex = 0;
-            const daySlots = this.querySelectorAll('.day-slot');
-            for (let i = 0; i < daySlots.length; i++) {
-                 const currentDayIndex = parseInt(daySlots[i].dataset.dayIndex);
-                 if (currentDayIndex < targetDayIndex) {
-                     globalOrderIndex += daySlots[i].querySelectorAll('.lessons-container .lesson-bubble').length;
-                 } else if (currentDayIndex === targetDayIndex) {
-                     globalOrderIndex += newIndexInDay;
-                     break;
+    async _onRemoveItem(item, callback) {
+        if (confirm(translationService.t('timeline.confirm_remove'))) {
+            const success = await this.dataService.updateLessonSchedule(item.id, null, null);
+            if (success) {
+                 const lesson = this.lessons.find(l => l.id === item.id);
+                 if (lesson) {
+                     lesson.availableFrom = null;
+                     lesson.availableUntil = null;
+                     this._updateLists();
                  }
+                 callback(item);
+            } else {
+                callback(null);
             }
-
-            const ownerId = firebaseInit.auth.currentUser.uid;
-            const newEventData = { lessonId, ownerId, dayIndex: targetDayIndex, createdAt: serverTimestamp(), orderIndex: globalOrderIndex };
-            const docRef = await addDoc(collection(firebaseInit.db, 'timeline_events'), newEventData);
-            await updateDoc(doc(firebaseInit.db, 'lessons', lessonId), { isScheduled: true }).catch(console.error);
-
-            const newDbEvent = { id: docRef.id, ...newEventData };
-            const newElement = this._renderScheduledEvent(newDbEvent);
-            if(newElement) {
-                 tempEl.parentNode.replaceChild(newElement, tempEl);
-                 this._timelineEvents.push(newDbEvent);
-                 showToast(this.t('timeline.scheduled_success'));
-            } else { tempEl.remove(); }
-            await this._updateAllOrderIndexes();
-        } catch (error) {
-            console.error(error); 
-            showToast(this.t('timeline.error_schedule'), true);
-            tempEl.remove(); this._fetchTimelineEvents();
+        } else {
+            callback(null);
         }
     }
 
-    async _handleLessonMove(evt) {
-        const eventId = evt.item.dataset.eventId;
-        const newDayIndex = parseInt(evt.to.closest('.day-slot').dataset.dayIndex);
-        try {
-            await updateDoc(doc(firebaseInit.db, 'timeline_events', eventId), { dayIndex: newDayIndex });
-            const ev = this._timelineEvents.find(e => e.id === eventId);
-            if (ev) ev.dayIndex = newDayIndex;
-            await this._updateAllOrderIndexes();
-        } catch (e) { console.error(e); this._fetchTimelineEvents(); }
+    _handleDragStart(e, lesson) {
+        e.dataTransfer.effectAllowed = 'copy';
+        e.dataTransfer.setData('text/plain', lesson.id);
+        e.dataTransfer.setData('application/json', JSON.stringify(lesson));
     }
 
-    async addLessonToFirstAvailableSlot(lesson) {
-        if (!lesson?.id) return;
-        // Hľadáme prvý deň s < 5 lekciami v rámci 31 dní
-        let targetDayIndex = 0;
-        for (let i = 0; i < 31; i++) {
-            if (this._timelineEvents.filter(ev => ev.dayIndex === i).length < 5) {
-                targetDayIndex = i;
-                break;
-            }
-        }
+    async _handleDrop(e) {
+        e.preventDefault();
+        const container = this.querySelector('#timeline-visualization');
+        if (!container || !this.timeline) return;
 
-        const maxOrderIndex = this._timelineEvents.reduce((max, ev) => Math.max(max, ev.orderIndex || 0), -1);
-        const ownerId = firebaseInit.auth.currentUser.uid;
-        const newEventData = { lessonId: lesson.id, ownerId, dayIndex: targetDayIndex, createdAt: serverTimestamp(), orderIndex: maxOrderIndex + 1 };
+        const lessonId = e.dataTransfer.getData('text/plain');
+        if (!lessonId) return;
 
-        try {
-            const daySlot = this.querySelector(`.day-slot[data-day-index='${targetDayIndex}'] .lessons-container`);
-            if (daySlot) {
-                const ph = document.createElement('div');
-                ph.className = 'p-3 mb-2 text-slate-400 opacity-50 border-2 border-dashed rounded-lg text-sm';
-                ph.textContent = `${this.t('timeline.scheduling')} ${lesson.title}...`;
-                daySlot.appendChild(ph);
-                ph.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        // Calculate time from drop position
+        const props = this.timeline.getEventProperties(e);
+        const dropTime = props.time;
 
-                const docRef = await addDoc(collection(firebaseInit.db, 'timeline_events'), newEventData);
-                await updateDoc(doc(firebaseInit.db, 'lessons', lesson.id), { isScheduled: true });
+        const start = dropTime;
+        const end = new Date(dropTime.getTime() + 7 * 24 * 60 * 60 * 1000); // Default 1 week
+
+        const success = await this.dataService.updateLessonSchedule(lessonId, start, end);
+        if (success) {
+            const lesson = this.lessons.find(l => l.id === lessonId);
+            if (lesson) {
+                lesson.availableFrom = start;
+                lesson.availableUntil = end;
+                this._updateLists();
                 
-                const newDbEvent = { id: docRef.id, ...newEventData };
-                this._timelineEvents.push(newDbEvent);
-                const newEl = this._renderScheduledEvent(newDbEvent);
-                if (newEl) daySlot.replaceChild(newEl, ph); else ph.remove();
-                
-                const dayName = this._getLocalizedDateDetails(targetDayIndex).weekday;
-                showToast(`${this.t('timeline.added_to')} ${dayName}.`);
+                // Manually add to items because _updateLists might not trigger full redraw if items are same obj
+                // But _updateLists calls this.items.add(scheduled) after clearing?
+                // Wait, _updateLists clears and re-adds. That works.
+                showToast(translationService.t('timeline.scheduled_success'), 'success');
             }
-        } catch (e) { 
-            console.error(e); 
-            showToast(this.t('timeline.error_schedule'), true); 
-            this._fetchTimelineEvents(); 
         }
     }
 
-    _renderDaysAndEvents() {
-         const container = this.querySelector('#timeline-container');
-         if (!container) return;
-         container.innerHTML = '';
-
-        const grid = document.createElement('div');
-        grid.className = "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4";
-
-        for (let i = 0; i < 31; i++) {
-            const { weekday, dayMonth, fullDate, isToday } = this._getLocalizedDateDetails(i);
-            const isWeekend = fullDate.getDay() === 0 || fullDate.getDay() === 6;
-
-            const dayWrapper = document.createElement('div');
-            dayWrapper.className = `day-slot rounded-xl border-2 ${isToday ? 'border-blue-300 bg-blue-50/30' : (isWeekend ? 'bg-slate-50 border-slate-100' : 'bg-white border-slate-200')} flex flex-col overflow-hidden transition-all hover:border-blue-200 min-h-[180px]`;
-            dayWrapper.dataset.dayIndex = i;
-
-            dayWrapper.innerHTML = `
-                <div class="px-4 py-2 border-b ${isToday ? 'bg-blue-100/50' : (isWeekend ? 'bg-slate-100' : 'bg-slate-50')} flex justify-between items-center sticky top-0 z-10">
-                    <span class="font-bold ${isToday ? 'text-blue-800' : 'text-slate-700'} capitalize truncate">${weekday}</span>
-                    <span class="text-xs ${isToday ? 'text-blue-600 font-semibold' : 'text-slate-400'} ml-2">${dayMonth}</span>
-                </div>
-                <div class="lessons-container flex-grow p-2 space-y-2 min-h-[120px] overflow-y-auto custom-scrollbar"></div>
-            `;
-            grid.appendChild(dayWrapper);
-        }
-        container.appendChild(grid);
-
-        this._timelineEvents.sort((a,b) => a.orderIndex - b.orderIndex).forEach(event => {
-            const daySlot = container.querySelector(`.day-slot[data-day-index='${event.dayIndex ?? 0}'] .lessons-container`);
-            if (daySlot) {
-                const el = this._renderScheduledEvent(event);
-                if (el) daySlot.appendChild(el);
-            }
-        });
-
-        container.querySelectorAll('.lessons-container').forEach(c => {
-            if (typeof Sortable !== 'undefined') {
-                Sortable.get(c)?.destroy();
-                new Sortable(c, { group: 'lessons', animation: 150, ghostClass: 'opacity-50', onAdd: (e) => this._handleLessonDrop(e), onUpdate: (e) => this._handleLessonMove(e) });
-            }
-        });
+    _handleDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
     }
-
-    firstUpdated() { this._renderDaysAndEvents(); }
 
     render() {
+        const t = (key) => translationService.t(key);
+
         return html`
-            <header class="px-6 py-4 border-b border-slate-200 bg-white sticky top-0 z-20 shadow-sm flex justify-between items-center">
-                <div>
-                    <h1 class="text-2xl font-extrabold text-slate-800">${this.t('timeline.title')}</h1>
-                    <p class="text-sm text-slate-500">${this.t('timeline.subtitle')}</p>
+            <div class="h-full flex flex-col bg-slate-50/50">
+                <!-- Header -->
+                <div class="px-8 py-6 border-b border-slate-200 bg-white shadow-sm flex justify-between items-center z-10">
+                    <div>
+                        <h1 class="text-2xl font-bold text-slate-800">${t('nav.timeline')}</h1>
+                        <p class="text-slate-500 text-sm mt-1">${t('timeline.subtitle')}</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm text-slate-500">
+                         <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-green-500"></span> ${t('dashboard.active_lessons')}</span>
+                         <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-blue-500"></span> ${t('common.new')}</span>
+                         <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-gray-400"></span> ${t('status.archived')}</span>
+                    </div>
                 </div>
-            </header>
-            <div class="flex-grow overflow-y-auto bg-slate-100 custom-scrollbar">
-                <div id="timeline-container" class="p-6 pb-20"></div>
+
+                <div class="flex-1 overflow-hidden p-6">
+                    <div class="h-full grid grid-cols-12 gap-6">
+                        <!-- Sidebar: Unscheduled -->
+                        <div class="col-span-3 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+                            <div class="p-4 border-b border-slate-100 bg-slate-50">
+                                <h3 class="font-bold text-slate-700">Nestanoveno</h3>
+                                <p class="text-xs text-slate-400 mt-1">Přetáhněte do kalendáře</p>
+                            </div>
+                            <div class="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
+                                ${this.isLoading ? html`<div class="text-center p-4">Loading...</div>` : ''}
+                                ${!this.isLoading && this._unscheduledLessons.length === 0 ? html`
+                                    <div class="text-center p-8 text-slate-400 text-sm">
+                                        Vše naplánováno! 🎉
+                                    </div>
+                                ` : this._unscheduledLessons.map(lesson => html`
+                                    <div
+                                        draggable="true"
+                                        @dragstart="${(e) => this._handleDragStart(e, lesson)}"
+                                        class="p-3 bg-white border border-slate-200 rounded-lg shadow-sm cursor-grab hover:border-indigo-300 hover:shadow-md transition-all active:cursor-grabbing group">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">${lesson.subject || 'Obecné'}</span>
+                                            <span class="text-lg opacity-50 group-hover:opacity-100 transition-opacity">⋮⋮</span>
+                                        </div>
+                                        <h4 class="font-semibold text-slate-800 text-sm line-clamp-2">${lesson.title}</h4>
+                                    </div>
+                                `)}
+                            </div>
+                        </div>
+
+                        <!-- Main: Timeline -->
+                        <div class="col-span-9 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden relative">
+                             <div
+                                id="timeline-visualization"
+                                class="w-full h-full"
+                                @dragover="${this._handleDragOver}"
+                                @drop="${this._handleDrop}"
+                             ></div>
+
+                             <!-- Help Tooltip -->
+                             <div class="absolute bottom-4 right-4 bg-white/90 backdrop-blur border border-slate-200 p-3 rounded-lg shadow-lg text-xs text-slate-600 max-w-xs z-10">
+                                <p class="font-semibold mb-1">💡 Tip:</p>
+                                <p>Přetáhněte lekce z levého panelu. Upravte délku trvání tažením okrajů.</p>
+                             </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
     }
 }
 
-customElements.define('professor-timeline-view', ProfessorTimelineView);
+customElements.define('timeline-view', TimelineView);

@@ -242,7 +242,7 @@ export class ProfessorApp extends LitElement {
                     </lesson-editor>
                 `;
             case 'timeline':
-                return html`<timeline-view .lesson="${this._currentData}"></timeline-view>`;
+                return html`<timeline-view></timeline-view>`;
             case 'students':
                 return html`<professor-students-view></professor-students-view>`;
             case 'student-profile':
