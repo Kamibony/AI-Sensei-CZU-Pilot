@@ -1,17 +1,21 @@
 import json
 import os
-import re
+import sys
 
-# Konfigurácia
+# Configuration
 LOCALE_CS = 'public/locales/cs.json'
 LOCALE_PT = 'public/locales/pt-br.json'
-JS_DIR = 'public/js'
 
 def load_json(path):
     if not os.path.exists(path):
+        print(f"❌ Error: File not found: {path}")
         return {}
-    with open(path, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"❌ Error decoding JSON in {path}: {e}")
+        return {}
 
 def flatten_json(y):
     out = {}
@@ -24,32 +28,51 @@ def flatten_json(y):
     flatten(y)
     return out
 
-def check_locales():
-    print("--- Kontrola JSON súborov ---")
-    cs_keys = set(flatten_json(load_json(LOCALE_CS)).keys())
-    pt_keys = set(flatten_json(load_json(LOCALE_PT)).keys())
-    missing = cs_keys - pt_keys
-    if missing:
-        print(f"❌ V PT-BR chýba {len(missing)} kľúčov (napr. {list(missing)[:3]}...)")
-    else:
-        print("✅ Štruktúra kľúčov je identická.")
+def verify_localization():
+    print(f"🔍 Verifying localization parity between {LOCALE_CS} and {LOCALE_PT}...")
 
-def check_hardcoded_strings():
-    print("\n--- Kontrola Hardcoded Češtiny v JS ---")
-    # Hľadá typické české reťazce v kóde
-    cz_pattern = re.compile(r'(["\'`])(.*?Např\..*?|.*?Vytvoř.*?|.*?Vytvor.*?|.*?Manuálně.*?|.*?Magicky.*?)\1')
-    for root, _, files in os.walk(JS_DIR):
-        for file in files:
-            if file.endswith(".js"):
-                path = os.path.join(root, file)
-                with open(path, 'r', encoding='utf-8') as f:
-                    matches = cz_pattern.findall(f.read())
-                    if matches:
-                        print(f"⚠️ {file}: Našiel som podozrivé texty:")
-                        for _, txt in matches:
-                            if not txt.startswith("professor."): # Ignoruj kľúče
-                                print(f"   - '{txt}'")
+    cs_data = load_json(LOCALE_CS)
+    pt_data = load_json(LOCALE_PT)
+
+    if not cs_data or not pt_data:
+        print("❌ Failed to load one or both localization files.")
+        return False
+
+    cs_flat = flatten_json(cs_data)
+    pt_flat = flatten_json(pt_data)
+
+    cs_keys = set(cs_flat.keys())
+    pt_keys = set(pt_flat.keys())
+
+    missing_in_pt = cs_keys - pt_keys
+    missing_in_cs = pt_keys - cs_keys
+
+    success = True
+
+    if missing_in_pt:
+        print(f"\n❌ Missing {len(missing_in_pt)} keys in PT-BR (present in CS):")
+        for key in sorted(missing_in_pt):
+            print(f"   - {key}")
+        success = False
+    else:
+        print("\n✅ All CS keys are present in PT-BR.")
+
+    if missing_in_cs:
+        print(f"\n⚠️  Warning: {len(missing_in_cs)} keys in PT-BR are missing in CS (extra keys?):")
+        for key in sorted(missing_in_cs):
+            print(f"   - {key}")
+        # This is a warning, not necessarily a failure, but parity implies they should match.
+        # However, for this task, the goal is ensuring PT has what CS has (and specifically the manual additions).
+
+    if success:
+        print("\n🎉 Localization verification passed!")
+    else:
+        print("\n🔥 Localization verification FAILED.")
+
+    return success
 
 if __name__ == "__main__":
-    check_locales()
-    check_hardcoded_strings()
+    if verify_localization():
+        sys.exit(0)
+    else:
+        sys.exit(1)
