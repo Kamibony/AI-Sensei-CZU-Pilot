@@ -19,8 +19,7 @@ export class TimelineView extends LitElement {
     static properties = {
         lessons: { state: true },
         isLoading: { state: true },
-        selectedDate: { state: true },
-        isBacklogOpen: { state: true },
+        currentWeekStart: { state: true },
         _draggedLessonId: { state: true }
     };
 
@@ -31,14 +30,10 @@ export class TimelineView extends LitElement {
         this.lessons = [];
         this.isLoading = true;
         this.dataService = new ProfessorDataService();
-        this.selectedDate = new Date();
-        this.selectedDate.setHours(0, 0, 0, 0);
-        this.isBacklogOpen = false;
         this._draggedLessonId = null;
-        this._timelineRef = null; // Will hold reference to scroll container
 
-        // Generate timeline range (e.g., +/- 60 days)
-        this._days = this._generateDays(60);
+        // Initialize to current week's Monday
+        this.currentWeekStart = this._getStartOfWeek(new Date());
     }
 
     connectedCallback() {
@@ -50,43 +45,44 @@ export class TimelineView extends LitElement {
         this.isLoading = true;
         this.lessons = await this.dataService.fetchLessons();
         this.isLoading = false;
-
-        // Wait for render then scroll to today
-        await this.updateComplete;
-        this._scrollToToday();
     }
 
-    _generateDays(range) {
-        const days = [];
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+    // --- Date Logic ---
 
-        for (let i = -range; i <= range; i++) {
-            const date = new Date(today);
-            date.setDate(today.getDate() + i);
-            days.push(date);
+    _getStartOfWeek(date) {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+        d.setDate(diff);
+        d.setHours(0, 0, 0, 0);
+        return d;
+    }
+
+    _generateWeekDays(startOfWeek) {
+        const days = [];
+        for (let i = 0; i < 5; i++) { // Mon-Fri
+            const d = new Date(startOfWeek);
+            d.setDate(startOfWeek.getDate() + i);
+            days.push(d);
         }
         return days;
     }
 
-    _scrollToToday() {
-        const scrollContainer = this.querySelector('#timeline-scroll-container');
-        const todayElement = this.querySelector('#day-card-today');
-
-        if (scrollContainer && todayElement) {
-            const containerWidth = scrollContainer.clientWidth;
-            const cardLeft = todayElement.offsetLeft;
-            const cardWidth = todayElement.clientWidth;
-
-            // Center the element
-            scrollContainer.scrollTo({
-                left: cardLeft - (containerWidth / 2) + (cardWidth / 2),
-                behavior: 'smooth'
-            });
-        }
+    _nextWeek() {
+        const next = new Date(this.currentWeekStart);
+        next.setDate(next.getDate() + 7);
+        this.currentWeekStart = next;
     }
 
-    // --- Date Helpers ---
+    _prevWeek() {
+        const prev = new Date(this.currentWeekStart);
+        prev.setDate(prev.getDate() - 7);
+        this.currentWeekStart = prev;
+    }
+
+    _goToToday() {
+        this.currentWeekStart = this._getStartOfWeek(new Date());
+    }
 
     _isSameDay(d1, d2) {
         return d1.getFullYear() === d2.getFullYear() &&
@@ -98,16 +94,21 @@ export class TimelineView extends LitElement {
         return this._isSameDay(date, new Date());
     }
 
+    _formatDateRange(start) {
+        const end = new Date(start);
+        end.setDate(start.getDate() + 4); // Friday
+
+        const options = { day: 'numeric', month: 'numeric' };
+        const fmt = new Intl.DateTimeFormat(translationService.currentLanguage || 'cs-CZ', options);
+        return `${fmt.format(start)} – ${fmt.format(end)} ${start.getFullYear()}`;
+    }
+
     _formatDayName(date) {
-        return new Intl.DateTimeFormat(translationService.currentLanguage || 'cs-CZ', { weekday: 'short' }).format(date);
+        return new Intl.DateTimeFormat(translationService.currentLanguage || 'cs-CZ', { weekday: 'long' }).format(date);
     }
 
     _formatDateShort(date) {
         return new Intl.DateTimeFormat(translationService.currentLanguage || 'cs-CZ', { day: 'numeric', month: 'numeric' }).format(date);
-    }
-
-    _formatDateFull(date) {
-        return new Intl.DateTimeFormat(translationService.currentLanguage || 'cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
     }
 
     // --- Data Helpers ---
@@ -122,6 +123,10 @@ export class TimelineView extends LitElement {
 
     _getUnscheduledLessons() {
         return this.lessons.filter(l => !l.availableFrom);
+    }
+
+    _getCardClass(type) {
+        return TYPE_COLORS[type] || TYPE_COLORS.default;
     }
 
     // --- Drag & Drop ---
@@ -151,27 +156,28 @@ export class TimelineView extends LitElement {
         const lessonIndex = this.lessons.findIndex(l => l.id === lessonId);
         if (lessonIndex > -1) {
             const oldFrom = this.lessons[lessonIndex].availableFrom;
-
-            // Set time to current time or default 9:00 if it was unscheduled
             const targetDate = new Date(date);
-            targetDate.setHours(9, 0, 0, 0); // Default schedule time
+            targetDate.setHours(9, 0, 0, 0);
 
-            // Optimistic Update
-            this.lessons[lessonIndex] = {
+            // Optimistic
+            const updatedLesson = {
                 ...this.lessons[lessonIndex],
-                availableFrom: targetDate.toISOString(),
-                availableUntil: null
+                availableFrom: targetDate.toISOString()
             };
-            this.requestUpdate();
+            this.lessons = [
+                ...this.lessons.slice(0, lessonIndex),
+                updatedLesson,
+                ...this.lessons.slice(lessonIndex + 1)
+            ];
 
             const success = await this.dataService.updateLessonSchedule(lessonId, targetDate, null);
             if (!success) {
                 // Revert
-                this.lessons[lessonIndex].availableFrom = oldFrom;
+                this.lessons[lessonIndex] = { ...this.lessons[lessonIndex], availableFrom: oldFrom };
                 this.requestUpdate();
+                showToast('Chyba při plánování', 'error');
             } else {
                  showToast(translationService.t('timeline.scheduled_success') || 'Lekce naplánována', 'success');
-                 this.selectedDate = new Date(date); // Select the day we dropped onto
             }
         }
     }
@@ -184,15 +190,19 @@ export class TimelineView extends LitElement {
         const lessonIndex = this.lessons.findIndex(l => l.id === lessonId);
         if (lessonIndex > -1) {
              const oldFrom = this.lessons[lessonIndex].availableFrom;
-             if (!oldFrom) return; // Already in backlog
+             if (!oldFrom) return;
 
              // Optimistic
-             this.lessons[lessonIndex] = { ...this.lessons[lessonIndex], availableFrom: null, availableUntil: null };
-             this.requestUpdate();
+             const updatedLesson = { ...this.lessons[lessonIndex], availableFrom: null };
+             this.lessons = [
+                ...this.lessons.slice(0, lessonIndex),
+                updatedLesson,
+                ...this.lessons.slice(lessonIndex + 1)
+            ];
 
              const success = await this.dataService.updateLessonSchedule(lessonId, null, null);
              if (!success) {
-                 this.lessons[lessonIndex].availableFrom = oldFrom;
+                 this.lessons[lessonIndex] = { ...this.lessons[lessonIndex], availableFrom: oldFrom };
                  this.requestUpdate();
              } else {
                  showToast(translationService.t('timeline.unscheduled_success') || 'Lekce přesunuta do zásobníku', 'success');
@@ -200,206 +210,161 @@ export class TimelineView extends LitElement {
         }
     }
 
-    // --- Styling ---
+    // --- Rendering ---
 
-    _getCardClass(type) {
-        return TYPE_COLORS[type] || TYPE_COLORS.default;
-    }
-
-    // --- Render Methods ---
-
-    _renderBacklog() {
+    _renderSidebar() {
         const unscheduled = this._getUnscheduledLessons();
         const t = (key) => translationService.t(key);
 
         return html`
-            <div class="border-b border-slate-200 bg-slate-50 flex flex-col transition-all duration-300 ${this.isBacklogOpen ? 'h-48' : 'h-12'}">
-                <div
-                    class="px-4 h-12 flex items-center justify-between cursor-pointer hover:bg-slate-100"
-                    @click="${() => this.isBacklogOpen = !this.isBacklogOpen}"
-                >
-                    <div class="flex items-center gap-2">
-                        <span class="font-bold text-slate-700 text-sm tracking-wide uppercase">${t('timeline.backlog') || 'Zásobník'}</span>
-                        <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">${unscheduled.length}</span>
-                    </div>
-                    <div class="text-slate-400 transform transition-transform ${this.isBacklogOpen ? 'rotate-180' : ''}">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </div>
+            <div
+                class="w-80 flex-shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col h-full overflow-hidden"
+                @dragover="${this._handleDragOver}"
+                @drop="${this._handleDropOnBacklog}"
+            >
+                <div class="p-4 border-b border-slate-200 bg-white">
+                    <h2 class="font-bold text-slate-700 uppercase text-xs tracking-wider flex items-center justify-between">
+                        <span>${t('timeline.backlog') || 'Zásobník'}</span>
+                        <span class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">${unscheduled.length}</span>
+                    </h2>
                 </div>
 
-                ${this.isBacklogOpen ? html`
-                    <div
-                        class="flex-1 overflow-x-auto overflow-y-hidden flex items-center gap-3 px-4 pb-2"
-                        @dragover="${this._handleDragOver}"
-                        @drop="${this._handleDropOnBacklog}"
+                <div class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                    ${unscheduled.length === 0 ? html`
+                        <div class="text-center text-slate-400 text-sm mt-10">
+                            <p>Žádné nezařazené lekce</p>
+                        </div>
+                    ` : unscheduled.map(lesson => html`
+                        <div
+                            draggable="true"
+                            @dragstart="${(e) => this._handleDragStart(e, lesson)}"
+                            @dragend="${this._handleDragEnd}"
+                            class="bg-white p-3 rounded-lg shadow-sm border border-slate-200 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow ${this._getCardClass(lesson.contentType)}"
+                        >
+                            <div class="text-xs font-bold uppercase mb-1 opacity-70">${lesson.contentType || 'Lekce'}</div>
+                            <div class="font-medium text-slate-800 text-sm line-clamp-2">${lesson.title}</div>
+                        </div>
+                    `)}
+                </div>
+            </div>
+        `;
+    }
+
+    _renderHeader() {
+        return html`
+            <div class="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 sticky top-0 z-10">
+                <div class="flex items-center gap-4">
+                    <button
+                        @click="${this._prevWeek}"
+                        class="p-2 hover:bg-slate-100 rounded-full text-slate-600 transition-colors"
                     >
-                        ${unscheduled.length === 0 ? html`
-                            <div class="text-slate-400 text-xs italic w-full text-center">Žádné nezařazené lekce</div>
-                        ` : unscheduled.map(lesson => html`
-                            <div
-                                draggable="true"
-                                @dragstart="${(e) => this._handleDragStart(e, lesson)}"
-                                @dragend="${this._handleDragEnd}"
-                                class="flex-shrink-0 w-48 p-2 rounded bg-white shadow-sm hover:shadow-md cursor-move border border-slate-200 text-xs"
-                            >
-                                <div class="font-medium text-slate-800 truncate" title="${lesson.title}">${lesson.title}</div>
-                                <div class="text-slate-500 text-[10px] mt-1 uppercase">${lesson.contentType || 'Lekce'}</div>
-                            </div>
-                        `)}
-                    </div>
-                ` : nothing}
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+
+                    <h2 class="text-xl font-bold text-slate-800 tabular-nums">
+                        ${this._formatDateRange(this.currentWeekStart)}
+                    </h2>
+
+                    <button
+                        @click="${this._nextWeek}"
+                        class="p-2 hover:bg-slate-100 rounded-full text-slate-600 transition-colors"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+
+                    <button
+                        @click="${this._goToToday}"
+                        class="ml-2 px-3 py-1 text-sm font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                    >
+                        Dnes
+                    </button>
+                </div>
+
+                <div class="flex gap-2 text-sm text-slate-500">
+                     <!-- Legend or filters could go here -->
+                </div>
             </div>
         `;
     }
 
-    _renderDayCard(date) {
+    _renderDaySlot(date) {
         const isToday = this._isToday(date);
-        const isSelected = this._isSameDay(date, this.selectedDate);
         const lessons = this._getLessonsForDay(date);
-        const hasLessons = lessons.length > 0;
 
         return html`
             <div
-                id="${isToday ? 'day-card-today' : ''}"
-                class="flex-shrink-0 w-[180px] h-full snap-center border-r border-slate-200 p-2 flex flex-col cursor-pointer transition-colors relative
-                       ${isSelected ? 'bg-blue-50/50' : 'bg-white hover:bg-slate-50'}"
-                @click="${() => this.selectedDate = date}"
+                class="bg-white rounded-xl shadow-sm border ${isToday ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-200'} flex flex-col min-h-[200px] h-full transition-colors"
                 @dragover="${this._handleDragOver}"
                 @drop="${(e) => this._handleDropOnDay(e, date)}"
             >
-                <!-- Date Header -->
-                <div class="text-center py-2 ${isToday ? 'text-blue-600' : 'text-slate-600'}">
-                    <div class="text-xs font-bold uppercase tracking-wider mb-1">${this._formatDayName(date)}</div>
-                    <div class="text-xl font-light ${isToday ? 'font-bold' : ''}">${this._formatDateShort(date)}</div>
-                </div>
-
-                <!-- Content/Dots -->
-                <div class="flex-1 flex flex-col items-center justify-center gap-1 mt-2">
-                    ${hasLessons ? html`
-                        <div class="flex flex-wrap justify-center gap-1 max-w-[80%]">
-                            ${lessons.map(l => html`
-                                <div class="w-2 h-2 rounded-full ${this._getDotColor(l.contentType)}" title="${l.title}"></div>
-                            `)}
-                        </div>
-                        <div class="text-xs text-slate-400 mt-1">${lessons.length} lekcí</div>
-                    ` : html`
-                        <div class="text-slate-200 text-4xl leading-none select-none">&middot;</div>
-                    `}
-                </div>
-
-                ${isSelected ? html`
-                    <div class="absolute bottom-0 left-0 right-0 h-1 bg-blue-500"></div>
-                ` : nothing}
-            </div>
-        `;
-    }
-
-    _getDotColor(type) {
-        // Simplified mapping for dots
-        switch (type) {
-            case 'quiz': return 'bg-green-500';
-            case 'test': return 'bg-red-500';
-            case 'video': return 'bg-blue-500';
-            case 'audio': return 'bg-cyan-500';
-            default: return 'bg-gray-400';
-        }
-    }
-
-    _renderActiveDayDetail() {
-        const date = this.selectedDate;
-        const lessons = this._getLessonsForDay(date);
-        const t = (key) => translationService.t(key);
-
-        return html`
-            <div
-                class="h-72 border-t border-slate-200 bg-slate-50/50 flex flex-col overflow-hidden"
-                @dragover="${this._handleDragOver}"
-                @drop="${(e) => this._handleDropOnDay(e, date)}"
-            >
-                <div class="px-6 py-3 border-b border-slate-200 bg-white flex justify-between items-center shadow-sm">
-                    <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2">
-                        <span>${this._formatDateFull(date)}</span>
-                        ${this._isToday(date) ? html`<span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">Dnes</span>` : nothing}
-                    </h3>
-                    <div class="text-xs text-slate-400">
-                        ${lessons.length} naplánovaných lekcí
+                <!-- Header -->
+                <div class="p-3 border-b border-slate-100 text-center bg-slate-50/50 rounded-t-xl">
+                    <div class="text-xs font-bold uppercase tracking-wider ${isToday ? 'text-blue-600' : 'text-slate-500'}">
+                        ${this._formatDayName(date)}
+                    </div>
+                    <div class="text-lg font-light ${isToday ? 'text-blue-800 font-bold' : 'text-slate-800'}">
+                        ${this._formatDateShort(date)}
                     </div>
                 </div>
 
-                <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                    ${lessons.length === 0 ? html`
-                        <div class="h-full flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 rounded-lg">
-                            <svg class="w-8 h-8 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                            <span class="text-sm">Žádné lekce pro tento den</span>
-                            <span class="text-xs opacity-70 mt-1">Přetáhněte sem lekce ze zásobníku</span>
-                        </div>
-                    ` : html`
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            ${lessons.map(lesson => html`
-                                <div
-                                    draggable="true"
-                                    @dragstart="${(e) => this._handleDragStart(e, lesson)}"
-                                    @dragend="${this._handleDragEnd}"
-                                    class="p-4 rounded-lg shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-all ${this._getCardClass(lesson.contentType)}"
+                <!-- Body (Drop Zone) -->
+                <div class="flex-1 p-3 space-y-2 ${isToday ? 'bg-blue-50/10' : ''}">
+                    ${lessons.map(lesson => html`
+                        <div
+                            draggable="true"
+                            @dragstart="${(e) => this._handleDragStart(e, lesson)}"
+                            @dragend="${this._handleDragEnd}"
+                            class="p-2 mb-2 rounded shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md transition-all bg-white text-sm ${this._getCardClass(lesson.contentType)}"
+                        >
+                            <div class="flex justify-between items-start">
+                                <span class="text-[10px] font-bold uppercase opacity-60 mb-1 block">${lesson.contentType}</span>
+                                <button
+                                    class="text-slate-400 hover:text-red-500"
+                                    @click="${(e) => {
+                                        e.stopPropagation();
+                                        // Trigger drop on backlog logic manually
+                                        this._handleDropOnBacklog({ preventDefault:()=>{}, dataTransfer: { getData: () => lesson.id } });
+                                    }}"
                                 >
-                                    <div class="flex justify-between items-start mb-2">
-                                        <span class="text-[10px] font-bold uppercase tracking-wider opacity-60">${lesson.contentType || 'Lekce'}</span>
-                                        <div class="flex gap-1">
-                                            <!-- Optional: Add actions like remove from schedule here -->
-                                            <button
-                                                class="text-xs opacity-50 hover:opacity-100 hover:bg-black/10 rounded p-1"
-                                                title="Zrušit plánování"
-                                                @click="${(e) => {
-                                                    e.stopPropagation();
-                                                    this._handleDropOnBacklog({ preventDefault: () => {}, dataTransfer: { getData: () => lesson.id } });
-                                                }}"
-                                            >
-                                                ✕
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <h4 class="font-bold text-sm leading-tight mb-1">${lesson.title}</h4>
-                                    ${lesson.topic ? html`<p class="text-xs opacity-80 truncate">${lesson.topic}</p>` : nothing}
-                                </div>
-                            `)}
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                </button>
+                            </div>
+                            <div class="font-medium leading-tight">${lesson.title}</div>
                         </div>
-                    `}
+                    `)}
+
+                    ${lessons.length === 0 ? html`
+                        <div class="h-full flex items-center justify-center min-h-[100px] text-slate-300 text-xs italic pointer-events-none">
+                            Prázdné
+                        </div>
+                    ` : nothing}
                 </div>
             </div>
         `;
     }
 
     render() {
+        const days = this._generateWeekDays(this.currentWeekStart);
+
         return html`
-            <div class="flex flex-col h-full bg-white overflow-hidden">
-                <!-- Top Bar: Backlog -->
-                ${this._renderBacklog()}
+            <div class="flex h-full bg-slate-100 overflow-hidden font-sans">
+                <!-- Sidebar -->
+                ${this._renderSidebar()}
 
-                <!-- Middle: Infinite Timeline -->
-                <div class="flex-1 relative overflow-hidden flex flex-col">
-                    <div
-                        id="timeline-scroll-container"
-                        class="flex-1 flex overflow-x-auto snap-x scroll-smooth custom-scrollbar-hide"
-                    >
-                        ${this._days.map(date => this._renderDayCard(date))}
-                    </div>
+                <!-- Main Content -->
+                <div class="flex-1 flex flex-col h-full overflow-hidden relative">
+                    ${this._renderHeader()}
 
-                    <!-- Gradient Overlays for scroll hint (optional) -->
-                    <div class="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent pointer-events-none"></div>
-                    <div class="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none"></div>
+                    <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                            ${days.map(date => this._renderDaySlot(date))}
+                        </div>
 
-                    <div class="absolute bottom-4 right-4 z-10">
-                        <button
-                            @click="${this._scrollToToday}"
-                            class="bg-white/90 backdrop-blur shadow-lg border border-slate-200 text-blue-600 px-4 py-2 rounded-full text-sm font-bold hover:bg-blue-50 transition-colors"
-                        >
-                            Dnes
-                        </button>
+                        <div class="mt-8 text-center text-slate-400 text-xs">
+                             <!-- Optional Footer -->
+                        </div>
                     </div>
                 </div>
-
-                <!-- Bottom: Active Day Detail -->
-                ${this._renderActiveDayDetail()}
             </div>
         `;
     }
