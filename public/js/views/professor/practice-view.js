@@ -220,17 +220,18 @@ export class PracticeView extends LitElement {
     }
 
     _handleVoiceInput() {
-        if (!('webkitSpeechRecognition' in window)) {
-            alert("Váš prohlížeč nepodporuje hlasové zadávání.");
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            console.warn("Speech Recognition API not supported.");
             return;
         }
 
         if (this.isRecording) {
-            this.recognition.stop();
+            if (this.recognition) this.recognition.stop();
             return;
         }
 
-        this.recognition = new webkitSpeechRecognition();
+        this.recognition = new SpeechRecognition();
         this.recognition.lang = 'cs-CZ';
         this.recognition.continuous = false;
         this.recognition.interimResults = false;
@@ -249,7 +250,12 @@ export class PracticeView extends LitElement {
             this._updateTask();
         };
 
-        this.recognition.start();
+        try {
+            this.recognition.start();
+        } catch (e) {
+            console.error("Speech recognition start failed", e);
+            this.isRecording = false;
+        }
     }
 
     render() {
@@ -292,12 +298,14 @@ export class PracticeView extends LitElement {
                         .value="${this.activeTask}"
                         @input="${e => { this.activeTask = e.target.value; }}"
                         @blur="${this._updateTask}"
-                        placeholder="Zadejte úkol pro studenty (např. 'Svařte dva pláty k sobě tupým svarem...')"
+                        placeholder="${this._hasSpeechSupport() ? "Zadejte úkol pro studenty..." : "Type command manually (Hlasové zadávání není podporováno)"}"
                     ></textarea>
+                    ${this._hasSpeechSupport() ? html`
                     <button class="btn btn-record ${this.isRecording ? 'recording' : ''}" @click="${this._handleVoiceInput}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                         ${this.isRecording ? 'Poslouchám...' : 'Diktovat'}
                     </button>
+                    ` : ''}
                 </div>
             </div>
 
@@ -305,6 +313,10 @@ export class PracticeView extends LitElement {
                 ${this.students.map(student => this._renderStudentCard(student))}
             </div>
         `;
+    }
+
+    _hasSpeechSupport() {
+        return 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
     }
 
     _renderStudentCard(student) {

@@ -181,21 +181,18 @@ export class StudentPracticeView extends LitElement {
 
         try {
             const user = auth.currentUser;
-            // 1. Upload to Storage
-            // Path: courses/{userId}/practical_submissions/{sessionId}/{filename}
-            // Note: Cloud Function reads from storagePath.
-            // Using student's ID folder or a shared one?
-            // "courses/{ownerId}/..." structure is for professors.
-            // Students probably should upload to "students/{studentId}/..." or generic "practical_uploads/...".
-            // Let's use `practical_uploads/${sessionId}/${studentId}_${timestamp}.jpg`
 
+            // 1. Image Compression Middleware
+            const compressedBlob = await this._compressImage(file);
+
+            // 2. Upload to Storage
             const timestamp = Date.now();
             const storagePath = `practical_uploads/${this.activeSession.id}/${user.uid}_${timestamp}.jpg`;
             const storageRef = ref(storage, storagePath);
 
-            await uploadBytes(storageRef, file);
+            await uploadBytes(storageRef, compressedBlob);
 
-            // 2. Create Submission Record
+            // 3. Create Submission Record
             await addDoc(collection(db, 'practical_submissions'), {
                 sessionId: this.activeSession.id,
                 studentId: user.uid,
@@ -210,6 +207,47 @@ export class StudentPracticeView extends LitElement {
         } finally {
             this.isUploading = false;
         }
+    }
+
+    _compressImage(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 1024;
+                    const MAX_HEIGHT = 1024;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    canvas.toBlob((blob) => {
+                        resolve(blob);
+                    }, 'image/jpeg', 0.8);
+                };
+                img.onerror = (err) => reject(err);
+            };
+            reader.onerror = (err) => reject(err);
+        });
     }
 
     render() {
@@ -284,7 +322,7 @@ export class StudentPracticeView extends LitElement {
                     <p class="text-red-500">${s.error}</p>
                     <button class="btn-upload mt-4" @click="${this._handleRetry}">Zkusit znovu</button>
                 ` : html`
-                    <p class="text-gray-500 animate-pulse">Analyzuji vaši práci, chvilku strpení...</p>
+                    <p class="text-gray-500 animate-pulse">🤖 AI Majster analyzuje tvoju prácu...</p>
                 `}
             </div>
         `;
