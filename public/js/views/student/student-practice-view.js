@@ -220,20 +220,25 @@ export class StudentPracticeView extends LitElement {
 
         this.isUploading = true;
         this.uploadError = null;
+        let fileToUpload = file;
 
         try {
-            const compressedBlob = await this._compressImage(file);
-            const user = auth.currentUser;
-
             // 1. Image Compression Middleware
-            const compressedBlob = await this._compressImage(file);
+            try {
+                fileToUpload = await this._compressImage(file);
+            } catch (compressionError) {
+                console.warn("Image compression failed, proceeding with original file:", compressionError);
+            }
+
+            const user = auth.currentUser;
+            if (!user) throw new Error("User not authenticated");
 
             // 2. Upload to Storage
             const timestamp = Date.now();
             const storagePath = `practical_uploads/${this.activeSession.id}/${user.uid}_${timestamp}.jpg`;
             const storageRef = ref(storage, storagePath);
 
-            await uploadBytes(storageRef, compressedBlob);
+            await uploadBytes(storageRef, fileToUpload);
 
             // 3. Create Submission Record
             await addDoc(collection(db, 'practical_submissions'), {
@@ -250,47 +255,6 @@ export class StudentPracticeView extends LitElement {
         } finally {
             this.isUploading = false;
         }
-    }
-
-    _compressImage(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = (event) => {
-                const img = new Image();
-                img.src = event.target.result;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 1024;
-                    const MAX_HEIGHT = 1024;
-                    let width = img.width;
-                    let height = img.height;
-
-                    if (width > height) {
-                        if (width > MAX_WIDTH) {
-                            height *= MAX_WIDTH / width;
-                            width = MAX_WIDTH;
-                        }
-                    } else {
-                        if (height > MAX_HEIGHT) {
-                            width *= MAX_HEIGHT / height;
-                            height = MAX_HEIGHT;
-                        }
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-
-                    canvas.toBlob((blob) => {
-                        resolve(blob);
-                    }, 'image/jpeg', 0.8);
-                };
-                img.onerror = (err) => reject(err);
-            };
-            reader.onerror = (err) => reject(err);
-        });
     }
 
     render() {
