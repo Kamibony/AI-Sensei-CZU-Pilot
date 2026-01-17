@@ -209,7 +209,7 @@ export class PracticeView extends LitElement {
 
     async _createSession() {
         if (!this.selectedGroupId) return;
-        await this.dataService.createPracticalSession(this.selectedGroupId);
+        await this.dataService.createPracticalSession(this.selectedGroupId, this.activeTask);
     }
 
     async _endSession() {
@@ -249,7 +249,8 @@ export class PracticeView extends LitElement {
 
         this.recognition.onresult = (event) => {
             const transcript = event.results[0][0].transcript;
-            this.activeTask = transcript;
+            const current = this.activeTask ? this.activeTask.trim() + " " : "";
+            this.activeTask = current + transcript;
             this._updateTask();
         };
 
@@ -280,11 +281,31 @@ export class PracticeView extends LitElement {
     }
 
     _renderSessionControl() {
+        const inputArea = html`
+            <div class="task-input-container">
+                <textarea
+                    .value="${this.activeTask}"
+                    @input="${e => { this.activeTask = e.target.value; }}"
+                    @blur="${this._updateTask}"
+                    placeholder="${this._hasSpeechSupport() ? "Zadejte úkol pro studenty..." : "Type command manually (Hlasové zadávání není podporováno)"}"
+                ></textarea>
+                ${this.hasSpeechSupport ? html`
+                <button class="btn btn-record ${this.isRecording ? 'recording' : ''}" @click="${this._handleVoiceInput}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                    ${this.isRecording ? 'Poslouchám...' : 'Diktovat'}
+                </button>
+                ` : ''}
+            </div>
+        `;
+
         if (!this.activeSession) {
             return html`
-                <div class="card text-center">
-                    <h2 class="text-xl mb-4">Žádný aktivní výcvik</h2>
-                    <button class="btn btn-primary" @click="${this._createSession}">Zahájit výcvik</button>
+                <div class="card">
+                    <h2 class="text-xl mb-4">Nový výcvik</h2>
+                    ${inputArea}
+                    <div class="mt-4 text-center">
+                        <button class="btn btn-primary" ?disabled="${!this.activeTask || !this.activeTask.trim()}" @click="${this._createSession}">Zahájit výcvik</button>
+                    </div>
                 </div>
             `;
         }
@@ -292,24 +313,10 @@ export class PracticeView extends LitElement {
         return html`
             <div class="card">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-bold">Zadání úkolu</h2>
+                    <h2 class="text-xl font-bold">Probíhá výcvik</h2>
                     <button class="btn bg-red-600 text-white" @click="${this._endSession}">Ukončit výcvik</button>
                 </div>
-
-                <div class="task-input-container">
-                    <textarea
-                        .value="${this.activeTask}"
-                        @input="${e => { this.activeTask = e.target.value; }}"
-                        @blur="${this._updateTask}"
-                        placeholder="${this._hasSpeechSupport() ? "Zadejte úkol pro studenty..." : "Type command manually (Hlasové zadávání není podporováno)"}"
-                    ></textarea>
-                    ${this.hasSpeechSupport ? html`
-                    <button class="btn btn-record ${this.isRecording ? 'recording' : ''}" @click="${this._handleVoiceInput}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                        ${this.isRecording ? 'Poslouchám...' : 'Diktovat'}
-                    </button>
-                    ` : ''}
-                </div>
+                ${inputArea}
             </div>
 
             <div class="grid">
