@@ -89,17 +89,14 @@ export class TimelineView extends LitElement {
         // Or simply: ensure we cover full weeks.
 
         while (current <= lastDayOfMonth || current.getDay() !== 1) { // 1 is Monday. Stop when we reach a Monday AFTER end of month
-             // Only add Mon-Fri (1-5)
-             const dayOfWeek = current.getDay();
-             if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-                 days.push(new Date(current));
-             }
+             // Add all days (Mon-Sun)
+             days.push(new Date(current));
 
              // Move to next day
              current.setDate(current.getDate() + 1);
 
              // Safety break to prevent infinite loops if logic is flawed
-             if (days.length > 40) break;
+             if (days.length > 42) break;
         }
 
         return days;
@@ -397,7 +394,7 @@ export class TimelineView extends LitElement {
                     ${this._renderHeader()}
 
                     <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                        <div class="grid grid-cols-7 gap-2">
                             ${days.map(date => this._renderDaySlot(date))}
                         </div>
 

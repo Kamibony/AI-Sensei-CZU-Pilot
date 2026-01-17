@@ -121,23 +121,15 @@ export class StudentPracticeView extends LitElement {
         if (!user) return;
 
         try {
-            const studentRef = doc(db, 'students', user.uid);
-            const studentSnap = await getDoc(studentRef);
-            if (!studentSnap.exists()) return;
-
-            const groupIds = studentSnap.data().memberOfGroups || [];
-            if (groupIds.length === 0) return;
-
-            // Limit to 10 for 'in' query
+            // Updated logic: Listen for ANY active session (simplified for robustness)
             const q = query(
                 collection(db, 'practical_sessions'),
-                where('groupId', 'in', groupIds.slice(0, 10)),
-                where('status', '==', 'active')
+                where('status', '==', 'active'),
+                limit(1)
             );
 
             this._unsubscribeSession = onSnapshot(q, (snapshot) => {
                  if (!snapshot.empty) {
-                     // Sort by start time locally if needed, or just pick first
                      const doc = snapshot.docs[0];
                      this.activeSession = { id: doc.id, ...doc.data() };
                      this._checkSubmission(this.activeSession.id);
