@@ -83,6 +83,7 @@ export class ProfessorNavigation extends Localized(LitElement) {
                     </div>
 
                     ${this._renderNavItem('library', '📚', this.t('nav.library'))}
+                    ${this._renderNavItem('timeline', '📅', this.t('nav.timeline'))}
                     ${this._renderNavItem('media', '📁', this.t('nav.media'))}
                     ${this._renderNavItem('editor', '✨', this.t('nav.editor'))}
                 </div>
