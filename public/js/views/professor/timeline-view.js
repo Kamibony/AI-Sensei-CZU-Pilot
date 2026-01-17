@@ -52,7 +52,10 @@ export class TimelineView extends LitElement {
     _updateLists() {
         this._unscheduledLessons = this.lessons.filter(l => !l.availableFrom);
         if (this.items) {
-            const scheduled = this.lessons.filter(l => l.availableFrom).map(this._mapLessonToItem.bind(this));
+            const scheduled = this.lessons
+                .filter(l => l.availableFrom)
+                .map(this._mapLessonToItem.bind(this))
+                .filter(item => item !== null);
             this.items.clear();
             this.items.add(scheduled);
         }
@@ -61,6 +64,8 @@ export class TimelineView extends LitElement {
 
     _mapLessonToItem(lesson) {
         const start = new Date(lesson.availableFrom);
+        if (isNaN(start.getTime())) return null;
+
         let end = lesson.availableUntil ? new Date(lesson.availableUntil) : null;
         
         // If no end date, default to 1 week duration for visualization or point?
@@ -70,7 +75,7 @@ export class TimelineView extends LitElement {
         // Let's try point if availableUntil is null, unless we want to enforce duration.
         // But for "Interactive Lesson Planner", ranges are usually better.
         
-        if (!end) {
+        if (!end || isNaN(end.getTime())) {
              end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
         }
 
@@ -103,7 +108,8 @@ export class TimelineView extends LitElement {
 
         const scheduledLessons = this.lessons
             .filter(l => l.availableFrom)
-            .map(this._mapLessonToItem.bind(this));
+            .map(this._mapLessonToItem.bind(this))
+            .filter(item => item !== null);
 
         this.items = new DataSet(scheduledLessons);
 
