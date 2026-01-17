@@ -702,7 +702,7 @@ exports.generateComicPanelImage = onCall({
     }
 
     try {
-        const GeminiAPI = require("./gemini-api.js");
+
 
         // VISUALS ENHANCEMENT: Add style modifiers
         const enhancedPrompt = `Educational comic book style, detailed, vibrant colors, semi-realistic style. Visual context: ${panelPrompt}`;
@@ -957,7 +957,7 @@ Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
             // RAG-based response
             logger.log(`[RAG] Starting RAG process for prompt: "${finalPrompt}" with ${filePaths.length} files.`);
 
-            const GeminiAPI = require("./gemini-api.js");
+
 
             // 1. Generate embedding for the user's prompt
             const promptEmbedding = await GeminiAPI.getEmbeddings(finalPrompt);
@@ -1016,7 +1016,7 @@ Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
 
         } else {
             // Standard non-RAG response
-            const GeminiAPI = require("./gemini-api.js");
+
             return isJson
                 ? await GeminiAPI.generateJsonFromPrompt(finalPrompt, systemPrompt)
                 : { text: await GeminiAPI.generateTextFromPrompt(finalPrompt, systemPrompt) };
@@ -1049,7 +1049,7 @@ exports.generateImage = onCall({
     }
 
     try {
-        const GeminiAPI = require("./gemini-api.js");
+
         const imageBase64 = await GeminiAPI.generateImageFromPrompt(prompt);
         return { imageBase64 };
     } catch (error) {
@@ -1145,7 +1145,7 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
         // 4. Embedding Loop and Save to Firestore
         const batchSize = 5; // Process in smaller batches to avoid overwhelming the embedding API
         logger.log("[RAG] Initializing GeminiAPI...");
-        const GeminiAPI = require("./gemini-api.js");
+
 
         let chunksProcessed = 0;
         for (let i = 0; i < chunks.length; i += batchSize) {
@@ -1269,7 +1269,7 @@ exports.getAiAssistantResponse = onCall({
             User Question: "${userQuestion}"`;
         }
 
-        const GeminiAPI = require("./gemini-api.js");
+
         const answer = await GeminiAPI.generateTextFromPrompt(prompt);
         return { answer };
     } catch (error) {
@@ -1502,7 +1502,7 @@ ${promptContext}
 `;
         
         // 7. Zavolať Gemini
-        const GeminiAPI = require("./gemini-api.js");
+
         const summary = await GeminiAPI.generateTextFromPrompt(finalPrompt);
 
         // ===== NOVÝ KROK: Uloženie analýzy do profilu študenta =====
@@ -1636,7 +1636,7 @@ exports.telegramBotWebhook = onRequest({ region: DEPLOY_REGION, secrets: ["TELEG
                 }
             }
             
-            const GeminiAPI = require("./gemini-api.js");
+
             const answer = await GeminiAPI.generateTextFromPrompt(lessonContextPrompt);
 
             // Uloženie konverzácie z Telegramu do DB
@@ -2355,5 +2355,76 @@ exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (req
             throw new HttpsError("internal", `Migration failed: ${error.message}`);
         }
         throw new HttpsError("internal", "An unknown error occurred during migration.");
+    }
+});
+
+exports.evaluatePracticalSubmission = onDocumentCreated({
+    region: DEPLOY_REGION,
+    document: "practical_submissions/{submissionId}"
+}, async (event: FirestoreEvent<QueryDocumentSnapshot>) => {
+    const snapshot = event.data;
+    if (!snapshot) {
+        logger.error("No data associated with the event");
+        return;
+    }
+    const submission = snapshot.data();
+    const submissionId = snapshot.id;
+
+    if (!submission.sessionId || !submission.storagePath) {
+        logger.warn(`Submission ${submissionId} missing sessionId or storagePath.`);
+        return;
+    }
+
+    try {
+        // 1. Get the task description
+        const sessionDoc = await db.collection("practical_sessions").doc(submission.sessionId).get();
+        if (!sessionDoc.exists) {
+            logger.warn(`Session ${submission.sessionId} not found.`);
+            return;
+        }
+        const task = sessionDoc.data()?.activeTask;
+        if (!task) {
+            logger.warn(`Session ${submission.sessionId} has no active task.`);
+            return;
+        }
+
+        // 2. Download the image
+        const bucket = getStorage().bucket(STORAGE_BUCKET);
+        const file = bucket.file(submission.storagePath);
+        const [buffer] = await file.download();
+        const base64Image = buffer.toString('base64');
+
+        // Try to get mimeType from metadata, default to jpeg
+        let mimeType = "image/jpeg";
+        try {
+            const [metadata] = await file.getMetadata();
+            if (metadata.contentType) {
+                mimeType = metadata.contentType;
+            }
+        } catch (e) {
+            logger.warn(`Could not get metadata for ${submission.storagePath}, defaulting to image/jpeg`);
+        }
+
+        // 3. Call Gemini
+        const systemPrompt = `Jsi zkušený mistr odborného výcviku. Analyzuj fotografii práce studenta na základě úkolu: '${task}'. Hledej chyby, buď přísný ale spravedlivý. Vystup: JSON { grade: 'A-F', feedback: '...' }.`;
+
+        const evaluation = await GeminiAPI.generateJsonFromMultimodal(systemPrompt, base64Image, mimeType);
+
+        // 4. Update submission
+        await snapshot.ref.update({
+            grade: evaluation.grade || "N/A",
+            feedback: evaluation.feedback || "Bez hodnocení.",
+            status: "evaluated",
+            evaluatedAt: FieldValue.serverTimestamp()
+        });
+
+        logger.log(`Submission ${submissionId} evaluated: ${evaluation.grade}`);
+
+    } catch (error) {
+        logger.error(`Error evaluating submission ${submissionId}:`, error);
+        await snapshot.ref.update({
+            status: "error",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
     }
 });

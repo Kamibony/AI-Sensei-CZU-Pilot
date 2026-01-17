@@ -181,6 +181,10 @@ export class AppNavigation extends LitElement {
                             <span class="icon">📊</span>
                             <span>Analýza</span>
                         </button>
+                        <button class="nav-item ${this.activeView === 'practice' ? 'active' : ''}" @click=${() => this._navigateTo('practice')}>
+                            <span class="icon">🛠️</span>
+                            <span>Odborný výcvik</span>
+                        </button>
                     </ul>
                 </div>
 

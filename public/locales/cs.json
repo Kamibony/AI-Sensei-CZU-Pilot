@@ -653,6 +653,7 @@
     "logout": "Odhlásit se",
     "media": "Média & Soubory",
     "organization": "Organizace",
+    "practice": "Odborný výcvik",
     "settings": "Nastavení",
     "students": "Studenti"
   },
@@ -870,8 +871,10 @@
     "nav": {
       "classes": "Moje Třídy",
       "dashboard": "Přehled",
-      "lessons": "Moje Lekce"
+      "lessons": "Moje Lekce",
+      "practice": "Odborný výcvik"
     },
+    "practice": "Odborný výcvik",
     "next": "Další",
     "next_up": "Co následuje",
     "overview": "Přehled",
