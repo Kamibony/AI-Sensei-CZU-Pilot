@@ -10,7 +10,7 @@ export class ProfessorDataService {
 
     // --- PRACTICAL TRAINING ---
 
-    async createPracticalSession(groupId) {
+    async createPracticalSession(groupId, activeTask = '') {
         if (!this.db || !this.auth.currentUser) return null;
         try {
             const session = {
@@ -18,7 +18,7 @@ export class ProfessorDataService {
                 groupId: groupId,
                 startTime: serverTimestamp(),
                 status: 'active',
-                activeTask: '',
+                activeTask: activeTask,
                 createdAt: serverTimestamp()
             };
             const docRef = await addDoc(collection(this.db, 'practical_sessions'), session);
