@@ -1,4 +1,4 @@
-import { collection, getDocs, query, orderBy, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, query, orderBy, where, doc, updateDoc, addDoc, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db, auth } from '../firebase-init.js';
 import { showToast, getCollectionPath } from '../utils/utils.js';
 
@@ -6,6 +6,88 @@ export class ProfessorDataService {
     constructor() {
         this.db = db;
         this.auth = auth;
+    }
+
+    // --- PRACTICAL TRAINING ---
+
+    async createPracticalSession(groupId) {
+        if (!this.db || !this.auth.currentUser) return null;
+        try {
+            const session = {
+                professorId: this.auth.currentUser.uid,
+                groupId: groupId,
+                startTime: serverTimestamp(),
+                status: 'active',
+                activeTask: '',
+                createdAt: serverTimestamp()
+            };
+            const docRef = await addDoc(collection(this.db, 'practical_sessions'), session);
+            return docRef.id;
+        } catch (error) {
+            console.error("Error creating practical session:", error);
+            showToast("Chyba při vytváření výcviku.", "error");
+            return null;
+        }
+    }
+
+    async updateActiveTask(sessionId, task) {
+         if (!this.db) return;
+         try {
+             await updateDoc(doc(this.db, 'practical_sessions', sessionId), {
+                 activeTask: task
+             });
+         } catch (error) {
+             console.error("Error updating task:", error);
+         }
+    }
+
+    async endPracticalSession(sessionId) {
+        if (!this.db) return;
+        try {
+            await updateDoc(doc(this.db, 'practical_sessions', sessionId), {
+                status: 'completed',
+                endTime: serverTimestamp()
+            });
+        } catch (error) {
+             console.error("Error ending session:", error);
+        }
+    }
+
+    async getActiveSession(groupId) {
+        if (!this.db) return null;
+        try {
+            const q = query(
+                collection(this.db, 'practical_sessions'),
+                where('groupId', '==', groupId),
+                where('status', '==', 'active'),
+                orderBy('startTime', 'desc'),
+                limit(1)
+            );
+            const snapshot = await getDocs(q);
+            if (!snapshot.empty) {
+                return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+            }
+            return null;
+        } catch (error) {
+             console.error("Error fetching active session:", error);
+             return null;
+        }
+    }
+
+    async getStudentsByGroup(groupId) {
+        if (!this.db) return [];
+        try {
+            const studentsPath = getCollectionPath('students');
+            const q = query(
+                collection(this.db, studentsPath),
+                where('memberOfGroups', 'array-contains', groupId)
+            );
+            const snapshot = await getDocs(q);
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+            console.error("Error fetching students for group:", error);
+            return [];
+        }
     }
 
     async fetchLessonById(id) {
