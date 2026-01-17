@@ -230,7 +230,7 @@ export class PracticeView extends LitElement {
         }
 
         if (this.isRecording) {
-            this.recognition.stop();
+            if (this.recognition) this.recognition.stop();
             return;
         }
 
@@ -253,7 +253,12 @@ export class PracticeView extends LitElement {
             this._updateTask();
         };
 
-        this.recognition.start();
+        try {
+            this.recognition.start();
+        } catch (e) {
+            console.error("Speech recognition start failed", e);
+            this.isRecording = false;
+        }
     }
 
     render() {
@@ -296,7 +301,7 @@ export class PracticeView extends LitElement {
                         .value="${this.activeTask}"
                         @input="${e => { this.activeTask = e.target.value; }}"
                         @blur="${this._updateTask}"
-                        placeholder="Zadejte úkol pro studenty (např. 'Svařte dva pláty k sobě tupým svarem...')"
+                        placeholder="${this._hasSpeechSupport() ? "Zadejte úkol pro studenty..." : "Type command manually (Hlasové zadávání není podporováno)"}"
                     ></textarea>
                     ${this.hasSpeechSupport ? html`
                     <button class="btn btn-record ${this.isRecording ? 'recording' : ''}" @click="${this._handleVoiceInput}">
@@ -311,6 +316,10 @@ export class PracticeView extends LitElement {
                 ${this.students.map(student => this._renderStudentCard(student))}
             </div>
         `;
+    }
+
+    _hasSpeechSupport() {
+        return 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
     }
 
     _renderStudentCard(student) {
