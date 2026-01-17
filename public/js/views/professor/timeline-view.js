@@ -4,22 +4,24 @@ import { translationService } from '../../utils/translation-service.js';
 import { showToast } from '../../utils/utils.js';
 
 const TYPE_COLORS = {
-    quiz: 'border-l-4 border-green-500 bg-green-50 text-green-900',
-    test: 'border-l-4 border-red-500 bg-red-50 text-red-900',
-    video: 'border-l-4 border-blue-500 bg-blue-50 text-blue-900',
-    audio: 'border-l-4 border-cyan-500 bg-cyan-50 text-cyan-900',
-    presentation: 'border-l-4 border-orange-500 bg-orange-50 text-orange-900',
-    text: 'border-l-4 border-slate-500 bg-slate-50 text-slate-900',
-    mindmap: 'border-l-4 border-pink-500 bg-pink-50 text-pink-900',
-    comic: 'border-l-4 border-yellow-500 bg-yellow-50 text-yellow-900',
-    default: 'border-l-4 border-gray-500 bg-gray-50 text-gray-900'
+    quiz: 'border-l-4 border-green-500 bg-green-100 text-green-800',
+    test: 'border-l-4 border-red-500 bg-red-100 text-red-800',
+    video: 'border-l-4 border-blue-500 bg-blue-100 text-blue-800',
+    audio: 'border-l-4 border-cyan-500 bg-cyan-100 text-cyan-800',
+    presentation: 'border-l-4 border-orange-500 bg-orange-100 text-orange-800',
+    text: 'border-l-4 border-slate-500 bg-slate-100 text-slate-800',
+    mindmap: 'border-l-4 border-pink-500 bg-pink-100 text-pink-800',
+    comic: 'border-l-4 border-yellow-500 bg-yellow-100 text-yellow-800',
+    lecture: 'border-l-4 border-blue-500 bg-blue-100 text-blue-800',
+    practice: 'border-l-4 border-purple-500 bg-purple-100 text-purple-800',
+    default: 'border-l-4 border-gray-500 bg-gray-100 text-gray-800'
 };
 
 export class TimelineView extends LitElement {
     static properties = {
         lessons: { state: true },
         isLoading: { state: true },
-        currentWeekStart: { state: true },
+        currentMonthStart: { state: true },
         _draggedLessonId: { state: true }
     };
 
@@ -32,8 +34,8 @@ export class TimelineView extends LitElement {
         this.dataService = new ProfessorDataService();
         this._draggedLessonId = null;
 
-        // Initialize to current week's Monday
-        this.currentWeekStart = this._getStartOfWeek(new Date());
+        // Initialize to current month's first day
+        this.currentMonthStart = this._getStartOfMonth(new Date());
     }
 
     connectedCallback() {
@@ -49,39 +51,74 @@ export class TimelineView extends LitElement {
 
     // --- Date Logic ---
 
-    _getStartOfWeek(date) {
+    _getStartOfMonth(date) {
         const d = new Date(date);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
-        d.setDate(diff);
+        d.setDate(1);
         d.setHours(0, 0, 0, 0);
         return d;
     }
 
-    _generateWeekDays(startOfWeek) {
+    _generateMonthDays(startOfMonth) {
         const days = [];
-        for (let i = 0; i < 5; i++) { // Mon-Fri
-            const d = new Date(startOfWeek);
-            d.setDate(startOfWeek.getDate() + i);
-            days.push(d);
+        const year = startOfMonth.getFullYear();
+        const month = startOfMonth.getMonth();
+
+        // Find the Monday of the week that the month starts in
+        // (If month starts on Wed, we show Mon-Tue of prev month as empty or just start grid?
+        // Requirement: "render all weeks of the current month vertically"
+        // Let's iterate through all days of the month, and pad with Mon-Fri logic)
+
+        // Strategy:
+        // 1. Get first day of month.
+        // 2. Backtrack to Monday of that week.
+        // 3. Iterate week by week until we are past the end of the month.
+
+        const firstDayOfMonth = new Date(year, month, 1);
+        const startDayOfWeek = firstDayOfMonth.getDay(); // 0 = Sun, 1 = Mon, ...
+
+        // Monday based calculation: Mon=1 ... Sun=7 (0 in JS Date)
+        const diffToMonday = (startDayOfWeek === 0 ? 6 : startDayOfWeek - 1);
+        const calendarStartDate = new Date(firstDayOfMonth);
+        calendarStartDate.setDate(firstDayOfMonth.getDate() - diffToMonday);
+
+        const lastDayOfMonth = new Date(year, month + 1, 0);
+
+        const current = new Date(calendarStartDate);
+
+        // Loop until we pass the last day of the month AND finish the week (reach Saturday)
+        // Or simply: ensure we cover full weeks.
+
+        while (current <= lastDayOfMonth || current.getDay() !== 1) { // 1 is Monday. Stop when we reach a Monday AFTER end of month
+             // Only add Mon-Fri (1-5)
+             const dayOfWeek = current.getDay();
+             if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+                 days.push(new Date(current));
+             }
+
+             // Move to next day
+             current.setDate(current.getDate() + 1);
+
+             // Safety break to prevent infinite loops if logic is flawed
+             if (days.length > 40) break;
         }
+
         return days;
     }
 
-    _nextWeek() {
-        const next = new Date(this.currentWeekStart);
-        next.setDate(next.getDate() + 7);
-        this.currentWeekStart = next;
+    _nextMonth() {
+        const next = new Date(this.currentMonthStart);
+        next.setMonth(next.getMonth() + 1);
+        this.currentMonthStart = next;
     }
 
-    _prevWeek() {
-        const prev = new Date(this.currentWeekStart);
-        prev.setDate(prev.getDate() - 7);
-        this.currentWeekStart = prev;
+    _prevMonth() {
+        const prev = new Date(this.currentMonthStart);
+        prev.setMonth(prev.getMonth() - 1);
+        this.currentMonthStart = prev;
     }
 
     _goToToday() {
-        this.currentWeekStart = this._getStartOfWeek(new Date());
+        this.currentMonthStart = this._getStartOfMonth(new Date());
     }
 
     _isSameDay(d1, d2) {
@@ -95,12 +132,12 @@ export class TimelineView extends LitElement {
     }
 
     _formatDateRange(start) {
-        const end = new Date(start);
-        end.setDate(start.getDate() + 4); // Friday
-
-        const options = { day: 'numeric', month: 'numeric' };
+        // Format: "Září 2025"
+        const options = { month: 'long', year: 'numeric' };
         const fmt = new Intl.DateTimeFormat(translationService.currentLanguage || 'cs-CZ', options);
-        return `${fmt.format(start)} – ${fmt.format(end)} ${start.getFullYear()}`;
+        // Capitalize first letter
+        const s = fmt.format(start);
+        return s.charAt(0).toUpperCase() + s.slice(1);
     }
 
     _formatDayName(date) {
@@ -126,7 +163,8 @@ export class TimelineView extends LitElement {
     }
 
     _getCardClass(type) {
-        return TYPE_COLORS[type] || TYPE_COLORS.default;
+        if (!type) return TYPE_COLORS.default;
+        return TYPE_COLORS[type.toLowerCase()] || TYPE_COLORS.default;
     }
 
     // --- Drag & Drop ---
@@ -239,7 +277,7 @@ export class TimelineView extends LitElement {
                             draggable="true"
                             @dragstart="${(e) => this._handleDragStart(e, lesson)}"
                             @dragend="${this._handleDragEnd}"
-                            class="bg-white p-3 rounded-lg shadow-sm border border-slate-200 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow ${this._getCardClass(lesson.contentType)}"
+                            class="mb-3 p-3 rounded-lg shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow ${this._getCardClass(lesson.contentType)}"
                         >
                             <div class="text-xs font-bold uppercase mb-1 opacity-70">${lesson.contentType || 'Lekce'}</div>
                             <div class="font-medium text-slate-800 text-sm line-clamp-2">${lesson.title}</div>
@@ -255,19 +293,21 @@ export class TimelineView extends LitElement {
             <div class="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 sticky top-0 z-10">
                 <div class="flex items-center gap-4">
                     <button
-                        @click="${this._prevWeek}"
+                        @click="${this._prevMonth}"
                         class="p-2 hover:bg-slate-100 rounded-full text-slate-600 transition-colors"
+                        title="Předchozí měsíc"
                     >
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                     </button>
 
-                    <h2 class="text-xl font-bold text-slate-800 tabular-nums">
-                        ${this._formatDateRange(this.currentWeekStart)}
+                    <h2 class="text-xl font-bold text-slate-800 tabular-nums min-w-[200px] text-center">
+                        ${this._formatDateRange(this.currentMonthStart)}
                     </h2>
 
                     <button
-                        @click="${this._nextWeek}"
+                        @click="${this._nextMonth}"
                         class="p-2 hover:bg-slate-100 rounded-full text-slate-600 transition-colors"
+                        title="Další měsíc"
                     >
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                     </button>
@@ -291,52 +331,53 @@ export class TimelineView extends LitElement {
         const isToday = this._isToday(date);
         const lessons = this._getLessonsForDay(date);
 
+        // Ensure date is valid before checking month
+        const isCurrentMonth = date.getMonth() === this.currentMonthStart.getMonth();
+
         return html`
             <div
-                class="bg-white rounded-xl shadow-sm border ${isToday ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-200'} flex flex-col min-h-[200px] h-full transition-colors"
+                class="rounded-xl shadow-sm border ${isToday ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-200'} flex flex-col min-h-[150px] h-full transition-colors ${isCurrentMonth ? 'bg-white' : 'bg-slate-50 opacity-75'}"
                 @dragover="${this._handleDragOver}"
                 @drop="${(e) => this._handleDropOnDay(e, date)}"
             >
                 <!-- Header -->
-                <div class="p-3 border-b border-slate-100 text-center bg-slate-50/50 rounded-t-xl">
-                    <div class="text-xs font-bold uppercase tracking-wider ${isToday ? 'text-blue-600' : 'text-slate-500'}">
+                <div class="p-2 border-b border-slate-100 text-center rounded-t-xl ${isToday ? 'bg-blue-50/50' : 'bg-slate-50/50'}">
+                    <div class="text-[10px] font-bold uppercase tracking-wider ${isToday ? 'text-blue-600' : 'text-slate-500'}">
                         ${this._formatDayName(date)}
                     </div>
-                    <div class="text-lg font-light ${isToday ? 'text-blue-800 font-bold' : 'text-slate-800'}">
+                    <div class="text-base font-light ${isToday ? 'text-blue-800 font-bold' : 'text-slate-800'}">
                         ${this._formatDateShort(date)}
                     </div>
                 </div>
 
                 <!-- Body (Drop Zone) -->
-                <div class="flex-1 p-3 space-y-2 ${isToday ? 'bg-blue-50/10' : ''}">
+                <div class="flex-1 p-2 space-y-2 ${isToday ? 'bg-blue-50/10' : ''}">
                     ${lessons.map(lesson => html`
                         <div
                             draggable="true"
                             @dragstart="${(e) => this._handleDragStart(e, lesson)}"
                             @dragend="${this._handleDragEnd}"
-                            class="p-2 mb-2 rounded shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md transition-all bg-white text-sm ${this._getCardClass(lesson.contentType)}"
+                            class="p-2 rounded shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-all text-sm ${this._getCardClass(lesson.contentType)}"
                         >
                             <div class="flex justify-between items-start">
-                                <span class="text-[10px] font-bold uppercase opacity-60 mb-1 block">${lesson.contentType}</span>
+                                <span class="text-[10px] font-bold uppercase opacity-80 mb-1 block">${lesson.contentType}</span>
                                 <button
-                                    class="text-slate-400 hover:text-red-500"
+                                    class="text-slate-600 hover:text-red-600 opacity-60 hover:opacity-100 transition-opacity"
                                     @click="${(e) => {
                                         e.stopPropagation();
-                                        // Trigger drop on backlog logic manually
                                         this._handleDropOnBacklog({ preventDefault:()=>{}, dataTransfer: { getData: () => lesson.id } });
                                     }}"
+                                    title="Přesunout do zásobníku"
                                 >
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                 </button>
                             </div>
-                            <div class="font-medium leading-tight">${lesson.title}</div>
+                            <div class="font-medium leading-tight line-clamp-2">${lesson.title}</div>
                         </div>
                     `)}
 
-                    ${lessons.length === 0 ? html`
-                        <div class="h-full flex items-center justify-center min-h-[100px] text-slate-300 text-xs italic pointer-events-none">
-                            Prázdné
-                        </div>
+                    ${lessons.length === 0 && isCurrentMonth ? html`
+                         <div class="h-full min-h-[50px] "></div>
                     ` : nothing}
                 </div>
             </div>
@@ -344,7 +385,7 @@ export class TimelineView extends LitElement {
     }
 
     render() {
-        const days = this._generateWeekDays(this.currentWeekStart);
+        const days = this._generateMonthDays(this.currentMonthStart);
 
         return html`
             <div class="flex h-full bg-slate-100 overflow-hidden font-sans">

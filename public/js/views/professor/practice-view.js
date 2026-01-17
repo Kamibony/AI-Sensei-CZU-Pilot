@@ -172,21 +172,26 @@ export class PracticeView extends LitElement {
         this.selectedGroupId = groupId;
         this.students = await this.dataService.getStudentsByGroup(groupId);
 
+        // Reset task when switching groups
+        this.activeTask = "";
+
         // Listen for active session
         if (this._unsubscribeSession) this._unsubscribeSession();
 
         const sessionsRef = collection(db, 'practical_sessions');
-        const q = query(sessionsRef, where('groupId', '==', groupId), where('status', '==', 'active'), orderBy('startTime', 'desc')); // limit 1 not supported in snapshot listener directly easily with ordering? Actually it is.
+        const q = query(sessionsRef, where('groupId', '==', groupId), where('status', '==', 'active'), orderBy('startTime', 'desc'));
 
         this._unsubscribeSession = onSnapshot(q, (snapshot) => {
             if (!snapshot.empty) {
                 const doc = snapshot.docs[0];
                 this.activeSession = { id: doc.id, ...doc.data() };
+                // If there is an active session, sync the task from it
                 this.activeTask = this.activeSession.activeTask || "";
                 this._listenForSubmissions(this.activeSession.id);
             } else {
                 this.activeSession = null;
-                this.activeTask = "";
+                // DO NOT clear activeTask here, as it wipes manual input if snapshot fires empty
+                // this.activeTask = "";
                 this.submissions = {};
             }
         });
