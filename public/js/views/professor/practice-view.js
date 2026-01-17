@@ -11,7 +11,8 @@ export class PracticeView extends LitElement {
         students: { type: Array },
         submissions: { type: Object }, // Map: studentId -> submission
         activeTask: { type: String },
-        isRecording: { type: Boolean }
+        isRecording: { type: Boolean },
+        hasSpeechSupport: { state: true }
     };
 
     static styles = css`
@@ -129,11 +130,13 @@ export class PracticeView extends LitElement {
         this.submissions = {};
         this.activeTask = "";
         this.isRecording = false;
+        this.hasSpeechSupport = false;
         this._unsubscribeSession = null;
         this._unsubscribeSubmissions = null;
     }
 
     async firstUpdated() {
+        this.hasSpeechSupport = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
         await this._fetchGroups();
     }
 
@@ -220,7 +223,8 @@ export class PracticeView extends LitElement {
     }
 
     _handleVoiceInput() {
-        if (!('webkitSpeechRecognition' in window)) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
             alert("Váš prohlížeč nepodporuje hlasové zadávání.");
             return;
         }
@@ -230,7 +234,7 @@ export class PracticeView extends LitElement {
             return;
         }
 
-        this.recognition = new webkitSpeechRecognition();
+        this.recognition = new SpeechRecognition();
         this.recognition.lang = 'cs-CZ';
         this.recognition.continuous = false;
         this.recognition.interimResults = false;
@@ -294,10 +298,12 @@ export class PracticeView extends LitElement {
                         @blur="${this._updateTask}"
                         placeholder="Zadejte úkol pro studenty (např. 'Svařte dva pláty k sobě tupým svarem...')"
                     ></textarea>
+                    ${this.hasSpeechSupport ? html`
                     <button class="btn btn-record ${this.isRecording ? 'recording' : ''}" @click="${this._handleVoiceInput}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                         ${this.isRecording ? 'Poslouchám...' : 'Diktovat'}
                     </button>
+                    ` : ''}
                 </div>
             </div>
 
