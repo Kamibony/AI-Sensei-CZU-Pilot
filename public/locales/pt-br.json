@@ -672,6 +672,7 @@
     "logout": "Sair",
     "media": "Mídia & Arquivos",
     "organization": "Organização",
+    "practice": "Treinamento Prático",
     "settings": "Configurações",
     "students": "Alunos"
   },
@@ -901,8 +902,10 @@
     "nav": {
       "classes": "Turmas",
       "dashboard": "Painel",
-      "lessons": "Lições"
+      "lessons": "Lições",
+      "practice": "Treinamento Prático"
     },
+    "practice": "Treinamento Prático",
     "next": "Prox.",
     "next_up": "A seguir",
     "overview": "Visão Geral",
