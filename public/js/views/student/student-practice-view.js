@@ -8,7 +8,8 @@ export class StudentPracticeView extends LitElement {
         activeSession: { type: Object },
         submission: { type: Object },
         isUploading: { type: Boolean },
-        uploadError: { type: String }
+        uploadError: { type: String },
+        hasNoGroups: { type: Boolean }
     };
 
     static styles = css`
@@ -102,6 +103,7 @@ export class StudentPracticeView extends LitElement {
         this.submission = null;
         this.isUploading = false;
         this.uploadError = null;
+        this.hasNoGroups = false;
         this._unsubscribeSession = null;
         this._unsubscribeSubmission = null;
     }
@@ -121,10 +123,31 @@ export class StudentPracticeView extends LitElement {
         if (!user) return;
 
         try {
-            // Updated logic: Listen for ANY active session (simplified for robustness)
+            // 1. Fetch user profile to get memberOfGroups
+            const userDocRef = doc(db, 'users', user.uid);
+            const userDoc = await getDoc(userDocRef);
+
+            // Check if user has groups
+            const groups = userDoc.exists() ? (userDoc.data().memberOfGroups || []) : [];
+
+            if (groups.length === 0) {
+                this.hasNoGroups = true;
+                this.activeSession = null;
+                this.submission = null;
+                return;
+            }
+            this.hasNoGroups = false;
+
+            // 2. Query for active sessions in user's groups
+            // Note: Firestore limits 'in' queries to 30 items.
+            // Assuming student is not in >30 groups. If so, we'd need to batch or just take first 30.
+            const searchGroups = groups.slice(0, 30);
+
             const q = query(
                 collection(db, 'practical_sessions'),
+                where('groupId', 'in', searchGroups),
                 where('status', '==', 'active'),
+                orderBy('startTime', 'desc'),
                 limit(1)
             );
 
@@ -140,6 +163,7 @@ export class StudentPracticeView extends LitElement {
             });
         } catch (e) {
             console.error("Error fetching session:", e);
+            // Fallback?
         }
     }
 
@@ -250,6 +274,17 @@ export class StudentPracticeView extends LitElement {
     }
 
     render() {
+        if (this.hasNoGroups) {
+             return html`
+                <div class="container">
+                    <div class="card">
+                        <h2 class="text-xl">Žádná třída</h2>
+                        <p class="text-gray-500 mt-2">Nie ste zaradený do žiadnej triedy. Kontaktujte učiteľa.</p>
+                    </div>
+                </div>
+            `;
+        }
+
         if (!this.activeSession) {
             return html`
                 <div class="container">
