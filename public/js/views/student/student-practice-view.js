@@ -201,24 +201,39 @@ export class StudentPracticeView extends LitElement {
 
             this._unsubscribeSession = onSnapshot(sessionQuery, (snapshot) => {
                  if (!snapshot.empty) {
-                     // 1. Convert to array
-                     const sessions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                     // 1. Convert to array & Defensive Filter (exclude stale/ended sessions that leaked through query)
+                     let sessions = snapshot.docs
+                        .map(doc => ({ id: doc.id, ...doc.data() }))
+                        .filter(s => s.status === 'active');
+
+                     if (sessions.length === 0) {
+                         this.activeSession = null;
+                         this.submission = null;
+                         return;
+                     }
 
                      // 2. Client-side sort (Latest Wins)
+                     // FIX: Handle pending/null timestamps as "Future" to ensure new sessions win over old ones
+                     const MAX_DATE = new Date(8640000000000000);
+
                      sessions.sort((a, b) => {
-                         const timeA = a.startTime?.toDate?.() || new Date(0);
-                         const timeB = b.startTime?.toDate?.() || new Date(0);
+                         const timeA = a.startTime?.toDate?.() || MAX_DATE;
+                         const timeB = b.startTime?.toDate?.() || MAX_DATE;
                          return timeB - timeA; // Descending
                      });
 
                      // 3. Conflict Detection
                      if (sessions.length > 1) {
-                         console.warn(`[Conflict Detected] Found ${sessions.length} active sessions. Selecting newest:`, sessions[0].id);
+                         console.warn(`[Conflict Detected] Found ${sessions.length} active sessions. Selecting newest:`, sessions[0].id, sessions);
                      }
 
                      const newestSession = sessions[0];
 
-                     console.log(`%c[Tracepoint C] Receiver Layer: Received Snapshot ID: ${newestSession.id}`, "color: green; font-weight: bold", { content: newestSession });
+                     console.log(`%c[Tracepoint C] Receiver Layer: Received Snapshot ID: ${newestSession.id}`, "color: green; font-weight: bold", {
+                        content: newestSession,
+                        startTime: newestSession.startTime?.toDate?.() || 'PENDING (treated as Future)'
+                     });
+
                      this.activeSession = newestSession;
                      this._checkSubmission(this.activeSession.id);
                  } else {
