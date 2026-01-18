@@ -1,4 +1,4 @@
-import { collection, getDocs, query, orderBy, where, doc, updateDoc, addDoc, serverTimestamp, limit, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, query, orderBy, where, doc, updateDoc, addDoc, serverTimestamp, limit, writeBatch, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db, auth } from '../firebase-init.js';
 import { showToast, getCollectionPath } from '../utils/utils.js';
 
@@ -47,7 +47,14 @@ export class ProfessorDataService {
             // Step 5: Queue the set
             batch.set(newSessionRef, session);
 
-            // Step 6: Commit
+            // Step 6: Update Group Pointer (The Single Source of Truth)
+            const groupRef = doc(this.db, 'groups', groupId);
+            batch.update(groupRef, {
+                activeSessionId: newSessionRef.id,
+                sessionStatus: 'active'
+            });
+
+            // Step 7: Commit
             await batch.commit();
 
             return newSessionRef.id;
@@ -73,10 +80,30 @@ export class ProfessorDataService {
     async endPracticalSession(sessionId) {
         if (!this.db) return;
         try {
-            await updateDoc(doc(this.db, 'practical_sessions', sessionId), {
-                status: 'completed',
-                endTime: serverTimestamp()
-            });
+            const sessionRef = doc(this.db, 'practical_sessions', sessionId);
+            const sessionSnap = await getDoc(sessionRef);
+
+            if (sessionSnap.exists()) {
+                const { groupId } = sessionSnap.data();
+                const batch = writeBatch(this.db);
+
+                // 1. End the session
+                batch.update(sessionRef, {
+                    status: 'completed',
+                    endTime: serverTimestamp()
+                });
+
+                // 2. Clear the Group Pointer
+                if (groupId) {
+                    const groupRef = doc(this.db, 'groups', groupId);
+                    batch.update(groupRef, {
+                        activeSessionId: null,
+                        sessionStatus: 'ended'
+                    });
+                }
+
+                await batch.commit();
+            }
         } catch (error) {
              console.error("Error ending session:", error);
         }

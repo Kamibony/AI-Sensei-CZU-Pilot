@@ -1,5 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { collection, query, where, onSnapshot, orderBy, limit, addDoc, serverTimestamp, doc, getDoc, updateDoc, arrayUnion, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, query, where, onSnapshot, orderBy, limit, addDoc, serverTimestamp, doc, getDoc, updateDoc, arrayUnion, getDocs, setDoc, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { db, auth, storage } from "../../firebase-init.js";
 
@@ -117,6 +117,7 @@ export class StudentPracticeView extends LitElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         if (this._unsubscribeSession) this._unsubscribeSession();
+        if (this._unsubscribeRealSession) this._unsubscribeRealSession();
         if (this._unsubscribeSubmission) this._unsubscribeSubmission();
     }
 
@@ -185,66 +186,63 @@ export class StudentPracticeView extends LitElement {
             }
             this.hasNoGroups = false;
 
-            // 2. Query for active sessions in user's groups
-            // Note: Firestore limits 'in' queries to 30 items.
-            // Assuming student is not in >30 groups. If so, we'd need to batch or just take first 30.
+            // 2. Pointer Pattern: Listen to Group Documents
             const searchGroups = groups.slice(0, 30);
 
-            // Enforce Latest-Wins Strategy (Client-Side Resolution)
-            const sessionQuery = query(
-                collection(db, 'practical_sessions'),
-                where('groupId', 'in', searchGroups),
-                where('status', '==', 'active')
-                // orderBy removed to avoid stale index read
-                // limit(1) removed to fetch all potential zombies
+            const groupsQuery = query(
+                collection(db, 'groups'),
+                where(documentId(), 'in', searchGroups)
             );
 
-            this._unsubscribeSession = onSnapshot(sessionQuery, (snapshot) => {
-                 if (!snapshot.empty) {
-                     // 1. Convert to array & Defensive Filter (exclude stale/ended sessions that leaked through query)
-                     let sessions = snapshot.docs
-                        .map(doc => ({ id: doc.id, ...doc.data() }))
-                        .filter(s => s.status === 'active');
+            this._unsubscribeSession = onSnapshot(groupsQuery, (snapshot) => {
+                let foundSessionId = null;
 
-                     if (sessions.length === 0) {
-                         this.activeSession = null;
-                         this.submission = null;
-                         return;
-                     }
+                // Find the first group that points to an active session
+                for (const doc of snapshot.docs) {
+                    const data = doc.data();
+                    if (data.activeSessionId && data.sessionStatus === 'active') {
+                        foundSessionId = data.activeSessionId;
+                        break; // Found a valid pointer
+                    }
+                }
 
-                     // 2. Client-side sort (Latest Wins)
-                     // FIX: Handle pending/null timestamps as "Future" to ensure new sessions win over old ones
-                     const MAX_DATE = new Date(8640000000000000);
-
-                     sessions.sort((a, b) => {
-                         const timeA = a.startTime?.toDate?.() || MAX_DATE;
-                         const timeB = b.startTime?.toDate?.() || MAX_DATE;
-                         return timeB - timeA; // Descending
-                     });
-
-                     // 3. Conflict Detection
-                     if (sessions.length > 1) {
-                         console.warn(`[Conflict Detected] Found ${sessions.length} active sessions. Selecting newest:`, sessions[0].id, sessions);
-                     }
-
-                     const newestSession = sessions[0];
-
-                     console.log(`%c[Tracepoint C] Receiver Layer: Received Snapshot ID: ${newestSession.id}`, "color: green; font-weight: bold", {
-                        content: newestSession,
-                        startTime: newestSession.startTime?.toDate?.() || 'PENDING (treated as Future)'
-                     });
-
-                     this.activeSession = newestSession;
-                     this._checkSubmission(this.activeSession.id);
-                 } else {
-                     console.log(`%c[Tracepoint C] Receiver Layer: Snapshot Empty`, "color: green; font-weight: bold");
-                     this.activeSession = null;
-                     this.submission = null;
-                 }
+                if (foundSessionId) {
+                    // Only re-subscribe if the session ID has changed
+                    if (this.activeSession?.id !== foundSessionId) {
+                        console.log(`%c[Tracepoint C] Receiver Layer: Followed Pointer to Session ID: ${foundSessionId}`, "color: green; font-weight: bold");
+                        this._subscribeToSession(foundSessionId);
+                    }
+                } else {
+                    console.log(`%c[Tracepoint C] Receiver Layer: No Active Session Pointer Found`, "color: gray");
+                    this._clearSession();
+                }
             });
         } catch (e) {
             console.error("Error fetching session:", e);
             // Fallback?
+        }
+    }
+
+    _subscribeToSession(sessionId) {
+        if (this._unsubscribeRealSession) this._unsubscribeRealSession();
+
+        this._unsubscribeRealSession = onSnapshot(doc(db, 'practical_sessions', sessionId), (docSnap) => {
+            if (docSnap.exists() && docSnap.data().status === 'active') {
+                this.activeSession = { id: docSnap.id, ...docSnap.data() };
+                this._checkSubmission(this.activeSession.id);
+            } else {
+                // If session is deleted or not active, clear state
+                this._clearSession();
+            }
+        });
+    }
+
+    _clearSession() {
+        this.activeSession = null;
+        this.submission = null;
+        if (this._unsubscribeRealSession) {
+            this._unsubscribeRealSession();
+            this._unsubscribeRealSession = null;
         }
     }
 
