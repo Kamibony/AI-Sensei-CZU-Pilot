@@ -120,17 +120,19 @@ export class StudentPracticeView extends LitElement {
         if (this._unsubscribeSubmission) this._unsubscribeSubmission();
     }
 
-    async _fetchActiveSession() {
+    async _fetchActiveSession(injectedGroups = null) {
         const user = auth.currentUser;
         if (!user) return;
 
         try {
             // 1. Fetch user profile to get memberOfGroups
+            let groups = injectedGroups;
             const userDocRef = doc(db, 'users', user.uid);
-            const userDoc = await getDoc(userDocRef);
 
-            // Check if user has groups
-            const groups = userDoc.exists() ? (userDoc.data().memberOfGroups || []) : [];
+            if (!groups) {
+                const userDoc = await getDoc(userDocRef);
+                groups = userDoc.exists() ? (userDoc.data().memberOfGroups || []) : [];
+            }
 
             if (groups.length === 0) {
                 // Auto-Enrollment Fallback
@@ -168,7 +170,7 @@ export class StudentPracticeView extends LitElement {
                             }
 
                             this.isAutoJoining = false;
-                            return this._fetchActiveSession();
+                            return this._fetchActiveSession([sessionData.groupId]);
                         }
                     }
                 } catch (e) {
