@@ -1,5 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { collection, query, where, onSnapshot, orderBy, limit, addDoc, serverTimestamp, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, query, where, onSnapshot, orderBy, limit, addDoc, serverTimestamp, doc, getDoc, updateDoc, arrayUnion, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { db, auth, storage } from "../../firebase-init.js";
 
@@ -9,7 +9,8 @@ export class StudentPracticeView extends LitElement {
         submission: { type: Object },
         isUploading: { type: Boolean },
         uploadError: { type: String },
-        hasNoGroups: { type: Boolean }
+        hasNoGroups: { type: Boolean },
+        isAutoJoining: { type: Boolean }
     };
 
     static styles = css`
@@ -104,6 +105,7 @@ export class StudentPracticeView extends LitElement {
         this.isUploading = false;
         this.uploadError = null;
         this.hasNoGroups = false;
+        this.isAutoJoining = false;
         this._unsubscribeSession = null;
         this._unsubscribeSubmission = null;
     }
@@ -131,6 +133,32 @@ export class StudentPracticeView extends LitElement {
             const groups = userDoc.exists() ? (userDoc.data().memberOfGroups || []) : [];
 
             if (groups.length === 0) {
+                // Auto-Enrollment Fallback
+                this.isAutoJoining = true;
+                try {
+                    const qAny = query(
+                        collection(db, 'practical_sessions'),
+                        where('status', '==', 'active'),
+                        orderBy('startTime', 'desc'),
+                        limit(1)
+                    );
+                    const snapshot = await getDocs(qAny);
+
+                    if (!snapshot.empty) {
+                        const sessionData = snapshot.docs[0].data();
+                        if (sessionData.groupId) {
+                            await updateDoc(userDocRef, {
+                                memberOfGroups: arrayUnion(sessionData.groupId)
+                            });
+                            this.isAutoJoining = false;
+                            return this._fetchActiveSession();
+                        }
+                    }
+                } catch (e) {
+                    console.error("Auto-enrollment failed:", e);
+                }
+
+                this.isAutoJoining = false;
                 this.hasNoGroups = true;
                 this.activeSession = null;
                 this.submission = null;
@@ -274,6 +302,17 @@ export class StudentPracticeView extends LitElement {
     }
 
     render() {
+        if (this.isAutoJoining) {
+            return html`
+                <div class="container">
+                    <div class="card">
+                        <h2 class="text-xl animate-pulse">Automatické pripájanie k triede...</h2>
+                        <p class="text-gray-500 mt-2">Prosím čakajte, hľadáme aktívnu lekciu.</p>
+                    </div>
+                </div>
+            `;
+        }
+
         if (this.hasNoGroups) {
              return html`
                 <div class="container">
