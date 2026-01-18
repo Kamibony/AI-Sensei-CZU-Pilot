@@ -1,4 +1,4 @@
-import { collection, getDocs, query, orderBy, where, doc, updateDoc, addDoc, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, query, orderBy, where, doc, updateDoc, addDoc, serverTimestamp, limit, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db, auth } from '../firebase-init.js';
 import { showToast, getCollectionPath } from '../utils/utils.js';
 
@@ -13,6 +13,28 @@ export class ProfessorDataService {
     async createPracticalSession(groupId, activeTask = '') {
         if (!this.db || !this.auth.currentUser) return null;
         try {
+            // Step 1: Query existing active sessions
+            const q = query(
+                collection(this.db, 'practical_sessions'),
+                where('groupId', '==', groupId),
+                where('status', '==', 'active')
+            );
+            const snapshot = await getDocs(q);
+
+            // Step 2: Initialize batch
+            const batch = writeBatch(this.db);
+
+            // Step 3: End existing sessions
+            snapshot.forEach(docSnap => {
+                batch.update(docSnap.ref, {
+                    status: 'ended',
+                    endedAt: serverTimestamp()
+                });
+            });
+
+            // Step 4: Create new session ref
+            const newSessionRef = doc(collection(this.db, 'practical_sessions'));
+
             const session = {
                 professorId: this.auth.currentUser.uid,
                 groupId: groupId,
@@ -21,8 +43,14 @@ export class ProfessorDataService {
                 task: activeTask,
                 createdAt: serverTimestamp()
             };
-            const docRef = await addDoc(collection(this.db, 'practical_sessions'), session);
-            return docRef.id;
+
+            // Step 5: Queue the set
+            batch.set(newSessionRef, session);
+
+            // Step 6: Commit
+            await batch.commit();
+
+            return newSessionRef.id;
         } catch (error) {
             console.error("Error creating practical session:", error);
             showToast("Chyba při vytváření výcviku.", "error");
