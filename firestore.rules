@@ -36,35 +36,33 @@ service cloud.firestore {
     match /users/{userId} {
       // Admin (profesor@profesor.cz) môže čítať zoznam všetkých používateľov
       allow list: if isProfessor();
-      
       // 1. Povol 'get' pre vlastníka (aby si mohol načítať profil)
       allow get: if isOwner(userId);
-
       // 2. Explicitne povoľ 'create' a 'update' pre vlastníka (Self-Provisioning).
       // Zaisťuje, že používateľ môže vytvoriť (create) a upraviť (update) LEN svoj vlastný dokument.
       allow create, update: if isOwner(userId);
-
       // 3. Ponechaj 'update' aj pre profesora (administratívne zásahy).
       allow update: if isProfessor();
-
       // 4. Ponechaj 'delete' prísne (len starý admin).
       allow delete: if isProfessor();
     }
 
     // Lekcie
     match /lessons/{lessonId} {
-      allow read: if (resource.data.ownerId == request.auth.uid) ||
-                     isProfessor() || 
+      allow read: if (resource.data.ownerId == request.auth.uid) || isProfessor() || 
                      (isStudentRole() && resource.data.assignedToGroups.hasAny(get(/databases/$(database)/documents/students/$(request.auth.uid)).data.memberOfGroups));
       
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if (resource.data.ownerId == request.auth.uid) || isProfessor();
     }
 
-    // Skupiny (triedy) pre študentov
+    // Skupiny (triedy) pre študentov - OPRAVENÉ PRE POINTER PATTERN
     match /groups/{groupId} {
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow read: if (resource.data.ownerId == request.auth.uid) || (request.auth.uid in resource.data.studentIds);
+      
+      // ZMENA: Povolíme čítanie skupiny každému prihlásenému používateľovi.
+      // Toto je nutné, aby študent videl "nástenku" (activeSessionId) aj keď nie je v zozname studentIds.
+      allow read: if isSignedIn();
       
       allow update, delete: if isSignedIn() && request.auth.uid == resource.data.ownerId;
     }
@@ -113,7 +111,7 @@ service cloud.firestore {
       allow update: if (isSignedIn() && resource.data.ownerId == request.auth.uid);
     }
 
-    // Systémové nastavenia (AI Config) - OPRAVENÉ
+    // Systémové nastavenia (AI Config)
     match /system_settings/{settingId} {
       // Čítať môže každý profesor (aby generátor vedel, aké sú nastavenia)
       allow read: if isProfessor() || isProfessorRole();
