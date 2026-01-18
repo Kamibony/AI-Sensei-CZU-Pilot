@@ -190,20 +190,36 @@ export class StudentPracticeView extends LitElement {
             // Assuming student is not in >30 groups. If so, we'd need to batch or just take first 30.
             const searchGroups = groups.slice(0, 30);
 
-            // Enforce Latest-Wins Strategy
+            // Enforce Latest-Wins Strategy (Client-Side Resolution)
             const sessionQuery = query(
                 collection(db, 'practical_sessions'),
                 where('groupId', 'in', searchGroups),
                 where('status', '==', 'active'),
-                orderBy('startTime', 'desc'), // Sort by latest
-                limit(1) // Take only one
+                orderBy('startTime', 'desc')
+                // limit(1) REMOVED to fetch all potential zombies
             );
 
             this._unsubscribeSession = onSnapshot(sessionQuery, (snapshot) => {
                  if (!snapshot.empty) {
-                     const doc = snapshot.docs[0];
-                     console.log(`%c[Tracepoint C] Receiver Layer: Received Snapshot ID: ${doc.id}`, "color: green; font-weight: bold", { content: doc.data() });
-                     this.activeSession = { id: doc.id, ...doc.data() };
+                     // 1. Convert to array
+                     const sessions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                     // 2. Client-side sort (Latest Wins)
+                     sessions.sort((a, b) => {
+                         const timeA = a.startTime?.toDate?.() || new Date(0);
+                         const timeB = b.startTime?.toDate?.() || new Date(0);
+                         return timeB - timeA; // Descending
+                     });
+
+                     // 3. Conflict Detection
+                     if (sessions.length > 1) {
+                         console.warn(`[Conflict Detected] Found ${sessions.length} active sessions. Selecting newest:`, sessions[0].id);
+                     }
+
+                     const newestSession = sessions[0];
+
+                     console.log(`%c[Tracepoint C] Receiver Layer: Received Snapshot ID: ${newestSession.id}`, "color: green; font-weight: bold", { content: newestSession });
+                     this.activeSession = newestSession;
                      this._checkSubmission(this.activeSession.id);
                  } else {
                      console.log(`%c[Tracepoint C] Receiver Layer: Snapshot Empty`, "color: green; font-weight: bold");
