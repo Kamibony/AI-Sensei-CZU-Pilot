@@ -33,6 +33,7 @@ export class ProfessorDataService {
     async updateActiveTask(sessionId, task) {
          if (!this.db) return;
          try {
+             console.log(`%c[Tracepoint B] Service Layer: Writing to Firestore path 'practical_sessions/${sessionId}'`, "color: orange; font-weight: bold", { activeTask: task });
              await updateDoc(doc(this.db, 'practical_sessions', sessionId), {
                  activeTask: task
              });
