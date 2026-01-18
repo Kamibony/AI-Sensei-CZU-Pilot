@@ -201,9 +201,11 @@ export class StudentPracticeView extends LitElement {
             this._unsubscribeSession = onSnapshot(q, (snapshot) => {
                  if (!snapshot.empty) {
                      const doc = snapshot.docs[0];
+                     console.log(`%c[Tracepoint C] Receiver Layer: Received Snapshot ID: ${doc.id}`, "color: green; font-weight: bold", { content: doc.data() });
                      this.activeSession = { id: doc.id, ...doc.data() };
                      this._checkSubmission(this.activeSession.id);
                  } else {
+                     console.log(`%c[Tracepoint C] Receiver Layer: Snapshot Empty`, "color: green; font-weight: bold");
                      this.activeSession = null;
                      this.submission = null;
                  }

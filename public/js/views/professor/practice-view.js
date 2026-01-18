@@ -12,13 +12,28 @@ export class PracticeView extends LitElement {
         submissions: { type: Object }, // Map: studentId -> submission
         activeTask: { type: String },
         isRecording: { type: Boolean },
-        hasSpeechSupport: { state: true }
+        hasSpeechSupport: { state: true },
+        saveStatus: { type: String }
     };
 
     static styles = css`
         :host {
             display: block;
             padding: 24px;
+        }
+        .status-indicator {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-top: 4px;
+            font-style: italic;
+            transition: color 0.3s;
+        }
+        .status-indicator.synced {
+            color: #22c55e;
+            font-style: normal;
+        }
+        .status-indicator.saving {
+            color: #eab308;
         }
         .container {
             max-width: 1200px;
@@ -131,8 +146,10 @@ export class PracticeView extends LitElement {
         this.activeTask = "";
         this.isRecording = false;
         this.hasSpeechSupport = false;
+        this.saveStatus = 'Synced';
         this._unsubscribeSession = null;
         this._unsubscribeSubmissions = null;
+        this._debounceTimer = null;
     }
 
     async firstUpdated() {
@@ -224,7 +241,34 @@ export class PracticeView extends LitElement {
 
     async _updateTask() {
         if (!this.activeSession) return;
+        this.saveStatus = 'Saving...';
         await this.dataService.updateActiveTask(this.activeSession.id, this.activeTask);
+        this.saveStatus = 'Synced';
+    }
+
+    _handleInput(e) {
+        if (this._debounceTimer) clearTimeout(this._debounceTimer);
+
+        const newValue = e.target.value;
+        this.activeTask = newValue;
+        this.saveStatus = 'Typing...';
+
+        console.log(`%c[Tracepoint A] View Layer: User typed '${newValue.substring(0, 20)}...'`, "color: blue; font-weight: bold");
+
+        this._debounceTimer = setTimeout(() => {
+             this._triggerAutoSave();
+        }, 1000);
+    }
+
+    async _triggerAutoSave() {
+        console.log(`%c[Tracepoint A] View Layer: Auto-Save Triggered`, "color: blue; font-weight: bold");
+        await this._updateTask();
+    }
+
+    async _handleManualSave() {
+        console.log(`%c[Tracepoint A] View Layer: Manual Save Triggered`, "color: blue; font-weight: bold");
+        if (this._debounceTimer) clearTimeout(this._debounceTimer);
+        await this._updateTask();
     }
 
     _handleVoiceInput() {
@@ -290,8 +334,7 @@ export class PracticeView extends LitElement {
             <div class="task-input-container">
                 <textarea
                     .value="${this.activeTask}"
-                    @input="${e => { this.activeTask = e.target.value; }}"
-                    @blur="${this._updateTask}"
+                    @input="${this._handleInput}"
                     placeholder="${this._hasSpeechSupport() ? "Zadejte úkol pro studenty..." : "Type command manually (Hlasové zadávání není podporováno)"}"
                 ></textarea>
                 ${this.hasSpeechSupport ? html`
@@ -300,6 +343,12 @@ export class PracticeView extends LitElement {
                     ${this.isRecording ? 'Poslouchám...' : 'Diktovat'}
                 </button>
                 ` : ''}
+            </div>
+            <div class="flex justify-between items-center mt-2">
+                 <div class="status-indicator ${this.saveStatus === 'Synced' ? 'synced' : this.saveStatus === 'Saving...' ? 'saving' : ''}">
+                    ${this.saveStatus === 'Synced' ? '✓ Uloženo' : this.saveStatus}
+                 </div>
+                 <button class="btn btn-primary text-sm py-1 px-3" ?disabled="${this.saveStatus === 'Synced' || this.saveStatus === 'Saving...'}" @click="${this._handleManualSave}">Uložit změny</button>
             </div>
         `;
 
