@@ -203,7 +203,7 @@ export class PracticeView extends LitElement {
                 const doc = snapshot.docs[0];
                 this.activeSession = { id: doc.id, ...doc.data() };
                 // If there is an active session, sync the task from it
-                this.activeTask = this.activeSession.activeTask || "";
+                this.activeTask = this.activeSession.task || "";
                 this._listenForSubmissions(this.activeSession.id);
             } else {
                 this.activeSession = null;

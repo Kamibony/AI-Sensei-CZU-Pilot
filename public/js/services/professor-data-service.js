@@ -18,7 +18,7 @@ export class ProfessorDataService {
                 groupId: groupId,
                 startTime: serverTimestamp(),
                 status: 'active',
-                activeTask: activeTask,
+                task: activeTask,
                 createdAt: serverTimestamp()
             };
             const docRef = await addDoc(collection(this.db, 'practical_sessions'), session);
@@ -33,9 +33,9 @@ export class ProfessorDataService {
     async updateActiveTask(sessionId, task) {
          if (!this.db) return;
          try {
-             console.log(`%c[Tracepoint B] Service Layer: Writing to Firestore path 'practical_sessions/${sessionId}'`, "color: orange; font-weight: bold", { activeTask: task });
+             console.log(`%c[Tracepoint B] Service Layer: Writing to Firestore path 'practical_sessions/${sessionId}'`, "color: orange; font-weight: bold", { task: task });
              await updateDoc(doc(this.db, 'practical_sessions', sessionId), {
-                 activeTask: task
+                 task: task
              });
          } catch (error) {
              console.error("Error updating task:", error);
