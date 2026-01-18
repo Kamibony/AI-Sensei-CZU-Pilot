@@ -1,5 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { collection, query, where, onSnapshot, orderBy, limit, addDoc, serverTimestamp, doc, getDoc, updateDoc, arrayUnion, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, query, where, onSnapshot, orderBy, limit, addDoc, serverTimestamp, doc, getDoc, updateDoc, arrayUnion, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { db, auth, storage } from "../../firebase-init.js";
 
@@ -147,9 +147,26 @@ export class StudentPracticeView extends LitElement {
                     if (!snapshot.empty) {
                         const sessionData = snapshot.docs[0].data();
                         if (sessionData.groupId) {
-                            await updateDoc(userDocRef, {
-                                memberOfGroups: arrayUnion(sessionData.groupId)
-                            });
+                            try {
+                                await updateDoc(userDocRef, {
+                                    memberOfGroups: arrayUnion(sessionData.groupId)
+                                });
+                            } catch (err) {
+                                // Self-Healing Strategy: Recovery for Ghost Users
+                                if (err.code === 'not-found') {
+                                    console.warn("Ghost User detected. Initiating profile recovery...");
+                                    await setDoc(userDocRef, {
+                                        email: user.email,
+                                        role: 'student',
+                                        memberOfGroups: [sessionData.groupId],
+                                        createdAt: serverTimestamp(),
+                                        updatedAt: serverTimestamp()
+                                    });
+                                } else {
+                                    throw err; // Re-throw other errors to be handled by outer catch
+                                }
+                            }
+
                             this.isAutoJoining = false;
                             return this._fetchActiveSession();
                         }
