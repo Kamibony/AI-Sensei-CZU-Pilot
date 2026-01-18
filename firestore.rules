@@ -39,10 +39,14 @@ service cloud.firestore {
       
       // 1. Povol 'get' pre vlastníka (aby si mohol načítať profil)
       allow get: if isOwner(userId);
-      // 2. Explicitne povoľ 'create' iba pre vlastníka.
-      allow create: if isOwner(userId);
-      // 3. Ponechaj 'update' prísne (len vlastník alebo starý admin).
-      allow update: if isOwner(userId) || isProfessor();
+
+      // 2. Explicitne povoľ 'create' a 'update' pre vlastníka (Self-Provisioning).
+      // Zaisťuje, že používateľ môže vytvoriť (create) a upraviť (update) LEN svoj vlastný dokument.
+      allow create, update: if isOwner(userId);
+
+      // 3. Ponechaj 'update' aj pre profesora (administratívne zásahy).
+      allow update: if isProfessor();
+
       // 4. Ponechaj 'delete' prísne (len starý admin).
       allow delete: if isProfessor();
     }
