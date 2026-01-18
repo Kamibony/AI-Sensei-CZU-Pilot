@@ -194,9 +194,9 @@ export class StudentPracticeView extends LitElement {
             const sessionQuery = query(
                 collection(db, 'practical_sessions'),
                 where('groupId', 'in', searchGroups),
-                where('status', '==', 'active'),
-                orderBy('startTime', 'desc')
-                // limit(1) REMOVED to fetch all potential zombies
+                where('status', '==', 'active')
+                // orderBy removed to avoid stale index read
+                // limit(1) removed to fetch all potential zombies
             );
 
             this._unsubscribeSession = onSnapshot(sessionQuery, (snapshot) => {

@@ -1,0 +1,78 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zombie Session Verification</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js": "./js/mock-zombie-deps.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js": "./js/mock-zombie-deps.js",
+            "../../firebase-init.js": "./js/mock-zombie-deps.js"
+        }
+    }
+    </script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto space-y-8">
+        <div class="card bg-white p-6 rounded shadow">
+            <h1 class="text-2xl font-bold mb-4">Zombie Session Verification</h1>
+            <p class="mb-4">This test simulates fetching 2 active sessions: an old "Zombie" one and a new one.</p>
+            <p class="mb-4">We expect the view to pick the <strong>New Active Task (Fresh)</strong>.</p>
+            <div id="app"></div>
+        </div>
+
+        <div class="card bg-black text-green-400 p-6 rounded shadow font-mono text-sm">
+            <h2 class="text-white font-bold mb-2">Console Output Monitor</h2>
+            <div id="console-out"></div>
+        </div>
+    </div>
+
+    <script>
+        // Intercept console log to show on screen
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        const logDiv = document.getElementById('console-out');
+
+        function appendLog(type, args) {
+            const line = document.createElement('div');
+            line.textContent = `[${type}] ` + args.map(a => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ');
+            if (type === 'ERROR' || args[0]?.toString().includes('[FAIL]')) line.style.color = 'red';
+            if (args[0]?.toString().includes('[PASS]')) line.style.color = '#4ade80'; // bright green
+            logDiv.appendChild(line);
+        }
+
+        console.log = (...args) => { originalLog(...args); appendLog('LOG', args); };
+        console.warn = (...args) => { originalWarn(...args); appendLog('WARN', args); };
+        console.error = (...args) => { originalError(...args); appendLog('ERROR', args); };
+    </script>
+
+    <script type="module">
+        import './js/views/student/student-practice-view.js';
+
+        const el = document.createElement('student-practice-view');
+        document.getElementById('app').appendChild(el);
+
+        // Wait and check result
+        setTimeout(() => {
+            const taskBox = el.shadowRoot.querySelector('.task-box');
+            if (taskBox) {
+                const text = taskBox.textContent.trim();
+                console.log("Rendered Task Text:", text);
+                if (text.includes("New Active Task")) {
+                    console.log("%c[SUCCESS] Correctly picked the new session!", "color: green; font-weight: bold; font-size: 1.2em");
+                } else {
+                    console.error("%c[FAILURE] Picked the wrong session (Zombie?)", "font-weight: bold; font-size: 1.2em");
+                }
+            } else {
+                console.warn("Task box not found yet.");
+            }
+        }, 1500);
+    </script>
+</body>
+</html>
