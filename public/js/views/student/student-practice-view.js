@@ -190,15 +190,16 @@ export class StudentPracticeView extends LitElement {
             // Assuming student is not in >30 groups. If so, we'd need to batch or just take first 30.
             const searchGroups = groups.slice(0, 30);
 
-            const q = query(
+            // Enforce Latest-Wins Strategy
+            const sessionQuery = query(
                 collection(db, 'practical_sessions'),
                 where('groupId', 'in', searchGroups),
                 where('status', '==', 'active'),
-                orderBy('startTime', 'desc'),
-                limit(1)
+                orderBy('startTime', 'desc'), // Sort by latest
+                limit(1) // Take only one
             );
 
-            this._unsubscribeSession = onSnapshot(q, (snapshot) => {
+            this._unsubscribeSession = onSnapshot(sessionQuery, (snapshot) => {
                  if (!snapshot.empty) {
                      const doc = snapshot.docs[0];
                      console.log(`%c[Tracepoint C] Receiver Layer: Received Snapshot ID: ${doc.id}`, "color: green; font-weight: bold", { content: doc.data() });
@@ -362,7 +363,7 @@ export class StudentPracticeView extends LitElement {
                     <h1 class="text-2xl font-bold mb-4">Odborný Výcvik</h1>
 
                     <div class="task-box">
-                        ${this.activeSession.activeTask || "Čekejte na zadání úkolu..."}
+                        ${this.activeSession.task || "Čekejte na zadání úkolu..."}
                     </div>
 
                     ${this.submission ? this._renderSubmissionStatus() : this._renderUploadForm()}
@@ -383,7 +384,7 @@ export class StudentPracticeView extends LitElement {
                 >
                 <button
                     class="btn-upload"
-                    ?disabled="${this.isUploading || !this.activeSession.activeTask}"
+                    ?disabled="${this.isUploading || !this.activeSession.task}"
                     @click="${() => this.shadowRoot.getElementById('cameraInput').click()}"
                 >
                     ${this.isUploading ? 'Nahrávám...' : html`
