@@ -203,8 +203,8 @@ export class StudentPracticeView extends LitElement {
             }
             this.hasNoGroups = false;
 
-            // 2. DEDICATED SIGNAL CHANNEL Pattern
-            // Listen directly to the 'live_status/current' document for each group.
+            // 2. HYBRID SYNC Pattern (Robust + Legacy Support)
+            // Listen to both 'groups/{groupId}' (New) and 'live_status/current' (Legacy).
             this.hasNoGroups = false;
 
             // Clear existing listeners
@@ -215,43 +215,79 @@ export class StudentPracticeView extends LitElement {
 
             const searchGroups = groups.slice(0, 10); // Limit listeners
 
-            searchGroups.forEach(groupId => {
-                const signalRef = doc(db, 'groups', groupId, 'live_status', 'current');
+            // Local state to merge sources for this batch of groups
+            // Map<groupId, { group: SessionData, signal: SessionData }>
+            const sessionMap = new Map();
 
-                const unsub = onSnapshot(signalRef, (docSnap) => {
+            const updateConsolidatedState = (groupId, source, data) => {
+                if (!sessionMap.has(groupId)) sessionMap.set(groupId, { group: null, signal: null });
+                const entry = sessionMap.get(groupId);
+                entry[source] = data;
+
+                // Resolution Logic: Group takes precedence, fallback to Signal
+                const active = entry.group || entry.signal;
+
+                if (active) {
+                    // Avoid redundant updates if possible, but safe to set
+                    if (!this.activeSession || this.activeSession.id !== active.id) {
+                         console.log(`%c[Tracepoint C] Receiver: Active Session from ${source} for Group ${groupId}`, "color: green");
+                         this.activeSession = {
+                             id: active.id,
+                             task: active.task || "Načítám zadání...",
+                             groupId: groupId
+                         };
+                         this._checkSubmission(this.activeSession.id);
+                    } else if (this.activeSession.task !== active.task) {
+                         // Update task text if changed
+                         this.activeSession = { ...this.activeSession, task: active.task };
+                    }
+                } else {
+                    // If this group was the active one, and now both sources say null, clear it.
+                    if (this.activeSession && this.activeSession.groupId === groupId) {
+                         console.log(`%c[Tracepoint C] Receiver: Session Ended for Group ${groupId}`, "color: gray");
+                         this._clearSession();
+                    }
+                }
+            };
+
+            searchGroups.forEach(groupId => {
+                // A. Group Listener (Primary - Embedded Payload)
+                const groupRef = doc(db, 'groups', groupId);
+                const unsubGroup = onSnapshot(groupRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
-
-                        // Check if session is active
-                        if (data.status === 'active' && data.activeSessionId) {
-                            console.log(`%c[Tracepoint C] Receiver Layer: Signal Received from Group ${groupId}`, "color: green; font-weight: bold");
-
-                            // Only update if we don't have a session or if it's the same one updating,
-                            // or if we switch to a new one (ignoring race conditions for now, prioritizing last received active)
-                            this.activeSession = {
+                        if (data.sessionStatus === 'active' && data.activeSessionId) {
+                            updateConsolidatedState(groupId, 'group', {
                                 id: data.activeSessionId,
-                                task: data.task || "Načítám zadání...",
-                                groupId: groupId
-                            };
-                            this._checkSubmission(this.activeSession.id);
+                                task: data.activeTask
+                            });
                         } else {
-                            // If this group was the active one, clear it
-                            if (this.activeSession && this.activeSession.groupId === groupId) {
-                                console.log(`%c[Tracepoint C] Receiver Layer: Session Ended for Group ${groupId}`, "color: gray");
-                                this._clearSession();
-                            }
+                            updateConsolidatedState(groupId, 'group', null);
                         }
                     } else {
-                        // Document deleted or missing
-                        if (this.activeSession && this.activeSession.groupId === groupId) {
-                            this._clearSession();
-                        }
+                        updateConsolidatedState(groupId, 'group', null);
                     }
-                }, (error) => {
-                    console.warn("Signal Channel Listener Error:", error);
-                });
+                }, err => console.warn("Group listener error", err));
+                this._sessionListeners.push(unsubGroup);
 
-                this._sessionListeners.push(unsub);
+                // B. Signal Listener (Legacy / Fallback)
+                const signalRef = doc(db, 'groups', groupId, 'live_status', 'current');
+                const unsubSignal = onSnapshot(signalRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        if (data.status === 'active' && data.activeSessionId) {
+                            updateConsolidatedState(groupId, 'signal', {
+                                id: data.activeSessionId,
+                                task: data.task
+                            });
+                        } else {
+                            updateConsolidatedState(groupId, 'signal', null);
+                        }
+                    } else {
+                        updateConsolidatedState(groupId, 'signal', null);
+                    }
+                }, err => console.warn("Signal listener error", err));
+                this._sessionListeners.push(unsubSignal);
             });
 
             // Override _unsubscribeSession to clear the array

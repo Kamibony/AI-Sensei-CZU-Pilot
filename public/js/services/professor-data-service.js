@@ -47,7 +47,7 @@ export class ProfessorDataService {
             // Step 5: Queue the set
             batch.set(newSessionRef, session);
 
-            // Step 6: Update Dedicated Signal Channel (The New Single Source of Truth)
+            // Step 6: Update Dedicated Signal Channel (Legacy / Signal)
             const signalRef = doc(this.db, 'groups', groupId, 'live_status', 'current');
             // Use set (overwrite) to ensure clean state
             batch.set(signalRef, {
@@ -55,6 +55,15 @@ export class ProfessorDataService {
                 task: activeTask,
                 status: 'active',
                 startTime: serverTimestamp()
+            });
+
+            // Step 6b: Update Group Document (Embedded Payload Pattern)
+            const groupRef = doc(this.db, 'groups', groupId);
+            batch.update(groupRef, {
+                activeSessionId: newSessionRef.id,
+                activeTask: activeTask,
+                sessionStatus: 'active',
+                sessionStartTime: serverTimestamp()
             });
 
             // Step 7: Commit
@@ -79,14 +88,18 @@ export class ProfessorDataService {
              const sessionRef = doc(this.db, 'practical_sessions', sessionId);
              await updateDoc(sessionRef, { task: task });
 
-             // 2. Propagate to Dedicated Signal Channel
+             // 2. Propagate to Dedicated Signal Channel & Group Document
              const sessionSnap = await getDoc(sessionRef);
              if (sessionSnap.exists()) {
                  const { groupId } = sessionSnap.data();
                  if (groupId) {
+                     // Legacy Signal Channel
                      const signalRef = doc(this.db, 'groups', groupId, 'live_status', 'current');
-                     // Use set with merge to create if missing (though it should exist)
                      await setDoc(signalRef, { task: task }, { merge: true });
+
+                     // Embedded Payload Pattern
+                     const groupRef = doc(this.db, 'groups', groupId);
+                     await updateDoc(groupRef, { activeTask: task });
                  }
              }
          } catch (error) {
@@ -110,13 +123,22 @@ export class ProfessorDataService {
                     endTime: serverTimestamp()
                 });
 
-                // 2. Update Signal Channel to 'ended'
+                // 2. Update Signal Channel & Group Document to 'ended'
                 if (groupId) {
+                    // Legacy Signal
                     const signalRef = doc(this.db, 'groups', groupId, 'live_status', 'current');
                     batch.update(signalRef, {
                         status: 'ended',
                         activeSessionId: null,
                         task: null
+                    });
+
+                    // Embedded Payload Pattern
+                    const groupRef = doc(this.db, 'groups', groupId);
+                    batch.update(groupRef, {
+                        sessionStatus: 'ended',
+                        activeSessionId: null,
+                        activeTask: null
                     });
                 }
 
