@@ -108,6 +108,7 @@ export class StudentPracticeView extends LitElement {
         this.isAutoJoining = false;
         this._unsubscribeSession = null;
         this._unsubscribeSubmission = null;
+        this._sessionListeners = [];
     }
 
     async firstUpdated() {
@@ -185,44 +186,62 @@ export class StudentPracticeView extends LitElement {
             }
             this.hasNoGroups = false;
 
-            // 2. Pointer Pattern: Listen to Group Documents
-            const searchGroups = groups.slice(0, 30);
+            // 2. DEDICATED SIGNAL CHANNEL Pattern
+            // Listen directly to the 'live_status/current' document for each group.
+            this.hasNoGroups = false;
 
-            const groupsQuery = query(
-                collection(db, 'groups'),
-                where(documentId(), 'in', searchGroups)
-            );
+            // Clear existing listeners
+            if (this._sessionListeners.length > 0) {
+                this._sessionListeners.forEach(unsub => unsub());
+                this._sessionListeners = [];
+            }
 
-            this._unsubscribeSession = onSnapshot(groupsQuery, (snapshot) => {
-                let activeGroupData = null;
-                let activeGroupId = null;
+            const searchGroups = groups.slice(0, 10); // Limit listeners
 
-                // Robust Embedded Pattern:
-                // We trust the data IN the group document.
-                for (const doc of snapshot.docs) {
-                    const data = doc.data();
-                    // Check for embedded status AND pointer
-                    if (data.activeSessionId && data.sessionStatus === 'active') {
-                        activeGroupData = data;
-                        activeGroupId = doc.id;
-                        console.log(`%c[Tracepoint C] Receiver Layer: Found Embedded Session in Group ${doc.id}`, "color: green; font-weight: bold");
-                        break;
+            searchGroups.forEach(groupId => {
+                const signalRef = doc(db, 'groups', groupId, 'live_status', 'current');
+
+                const unsub = onSnapshot(signalRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+
+                        // Check if session is active
+                        if (data.status === 'active' && data.activeSessionId) {
+                            console.log(`%c[Tracepoint C] Receiver Layer: Signal Received from Group ${groupId}`, "color: green; font-weight: bold");
+
+                            // Only update if we don't have a session or if it's the same one updating,
+                            // or if we switch to a new one (ignoring race conditions for now, prioritizing last received active)
+                            this.activeSession = {
+                                id: data.activeSessionId,
+                                task: data.task || "Načítám zadání...",
+                                groupId: groupId
+                            };
+                            this._checkSubmission(this.activeSession.id);
+                        } else {
+                            // If this group was the active one, clear it
+                            if (this.activeSession && this.activeSession.groupId === groupId) {
+                                console.log(`%c[Tracepoint C] Receiver Layer: Session Ended for Group ${groupId}`, "color: gray");
+                                this._clearSession();
+                            }
+                        }
+                    } else {
+                        // Document deleted or missing
+                        if (this.activeSession && this.activeSession.groupId === groupId) {
+                            this._clearSession();
+                        }
                     }
-                }
+                }, (error) => {
+                    console.warn("Signal Channel Listener Error:", error);
+                });
 
-                if (activeGroupData) {
-                    // Construct session object from Group data directly
-                    this.activeSession = {
-                        id: activeGroupData.activeSessionId,
-                        task: activeGroupData.activeTask || "Načítám zadání...", // Fallback if data is propagating
-                        groupId: activeGroupId
-                    };
-                    this._checkSubmission(this.activeSession.id);
-                } else {
-                    console.log(`%c[Tracepoint C] Receiver Layer: No Active Session Found`, "color: gray");
-                    this._clearSession();
-                }
+                this._sessionListeners.push(unsub);
             });
+
+            // Override _unsubscribeSession to clear the array
+            this._unsubscribeSession = () => {
+                this._sessionListeners.forEach(unsub => unsub());
+                this._sessionListeners = [];
+            };
         } catch (e) {
             console.error("Error fetching session:", e);
         }
