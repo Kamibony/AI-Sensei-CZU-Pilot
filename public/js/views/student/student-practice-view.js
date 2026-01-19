@@ -134,6 +134,18 @@ export class StudentPracticeView extends LitElement {
                 groups = userDoc.exists() ? (userDoc.data().memberOfGroups || []) : [];
             }
 
+            // [FIX] Include groups owned by the user (Professor/Owner Testing Support)
+            // This solves the "Ghost Writer" paradox where an Owner creates a session but can't see it because they aren't a member.
+            try {
+                const ownedGroupsQuery = query(collection(db, 'groups'), where('ownerId', '==', user.uid));
+                const ownedDocs = await getDocs(ownedGroupsQuery);
+                const ownedIds = ownedDocs.docs.map(d => d.id);
+                // Merge and deduplicate
+                groups = [...new Set([...groups, ...ownedIds])];
+            } catch (err) {
+                console.warn("Failed to fetch owned groups:", err);
+            }
+
             if (groups.length === 0) {
                 // Auto-Enrollment Fallback
                 this.isAutoJoining = true;
