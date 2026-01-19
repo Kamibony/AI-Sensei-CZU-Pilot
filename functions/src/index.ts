@@ -2376,21 +2376,31 @@ exports.evaluatePracticalSubmission = onDocumentCreated({
     }
 
     try {
-        // 1. Get the task description
+        // 1. Get the task description from the parent Session
         const sessionDoc = await db.collection("practical_sessions").doc(submission.sessionId).get();
         if (!sessionDoc.exists) {
             logger.warn(`Session ${submission.sessionId} not found.`);
             return;
         }
-        const task = sessionDoc.data()?.activeTask;
+        // Standardized schema uses 'task' field (replaces legacy activeTask)
+        const task = sessionDoc.data()?.task || sessionDoc.data()?.activeTask;
         if (!task) {
-            logger.warn(`Session ${submission.sessionId} has no active task.`);
+            logger.warn(`Session ${submission.sessionId} has no task description.`);
             return;
         }
 
-        // 2. Download the image
+        // 2. Securely access the file & Generate Signed URL
         const bucket = getStorage().bucket(STORAGE_BUCKET);
         const file = bucket.file(submission.storagePath);
+
+        // Generate a long-lived Signed URL for the Professor View
+        // (This acts as the "Keymaster" allowing the frontend to view the private file)
+        const [signedUrl] = await file.getSignedUrl({
+            action: 'read',
+            expires: Date.now() + 7 * 24 * 60 * 60 * 1000 // Valid for 7 days
+        });
+
+        // Download for analysis
         const [buffer] = await file.download();
         const base64Image = buffer.toString('base64');
 
@@ -2405,20 +2415,34 @@ exports.evaluatePracticalSubmission = onDocumentCreated({
             logger.warn(`Could not get metadata for ${submission.storagePath}, defaulting to image/jpeg`);
         }
 
-        // 3. Call Gemini
-        const systemPrompt = `Jsi zkušený mistr odborného výcviku. Analyzuj fotografii práce studenta na základě úkolu: '${task}'. Hledej chyby, buď přísný ale spravedlivý. Vystup: JSON { grade: 'A-F', feedback: '...' }.`;
+        // 3. Construct Context-Aware Prompt for Gemini
+        const systemPrompt = `
+        ROLE: You are an expert practical instructor evaluating student work.
+        TASK: "${task}"
+
+        INSTRUCTIONS:
+        1. Analyze the image to verify if it demonstrates the completion of the task.
+        2. CHECK FOR INVALID CONTENT: If the image is blurry, black, irrelevant (e.g., a selfie, meme, random object), or does not match the task, you MUST fail it.
+        3. If the task is completed, evaluate the quality.
+
+        OUTPUT: Return structured JSON with:
+        - "grade": A letter grade (A, B, C, D, F) or "N/A" if invalid.
+        - "feedback": Constructive feedback (1-2 sentences). Explain why it passed or failed.
+        - "status": "pass" or "fail".
+        `;
 
         const evaluation = await GeminiAPI.generateJsonFromMultimodal(systemPrompt, base64Image, mimeType);
 
-        // 4. Update submission
+        // 4. Atomic Update of the Submission Document
         await snapshot.ref.update({
             grade: evaluation.grade || "N/A",
-            feedback: evaluation.feedback || "Bez hodnocení.",
-            status: "evaluated",
+            feedback: evaluation.feedback || "Evaluation failed.",
+            status: evaluation.status || (evaluation.grade === 'F' ? 'fail' : 'pass'), // Fallback logic
+            imageUrl: signedUrl, // The Keymaster's link
             evaluatedAt: FieldValue.serverTimestamp()
         });
 
-        logger.log(`Submission ${submissionId} evaluated: ${evaluation.grade}`);
+        logger.log(`Submission ${submissionId} evaluated. Status: ${evaluation.status}, Grade: ${evaluation.grade}`);
 
     } catch (error) {
         logger.error(`Error evaluating submission ${submissionId}:`, error);
