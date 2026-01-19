@@ -74,6 +74,13 @@ service cloud.firestore {
       allow update: if (isSignedIn() && request.auth.uid == resource.data.ownerId) || isProfessor();
       
       allow delete: if isSignedIn() && request.auth.uid == resource.data.ownerId;
+
+      // --- DEDICATED SIGNAL CHANNEL (Live Status) ---
+      // This allows ANY Professor to update the live signal, bypassing group ownership locks.
+      match /live_status/current {
+        allow read: if isSignedIn();
+        allow write: if isProfessor();
+      }
     }
 
     // Konverzácie

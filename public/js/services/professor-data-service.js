@@ -1,4 +1,4 @@
-import { collection, getDocs, query, orderBy, where, doc, updateDoc, addDoc, serverTimestamp, limit, writeBatch, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, query, orderBy, where, doc, updateDoc, addDoc, serverTimestamp, limit, writeBatch, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db, auth } from '../firebase-init.js';
 import { showToast, getCollectionPath } from '../utils/utils.js';
 
@@ -47,13 +47,14 @@ export class ProfessorDataService {
             // Step 5: Queue the set
             batch.set(newSessionRef, session);
 
-            // Step 6: Update Group Pointer (The Single Source of Truth)
-            const groupRef = doc(this.db, 'groups', groupId);
-            batch.update(groupRef, {
+            // Step 6: Update Dedicated Signal Channel (The New Single Source of Truth)
+            const signalRef = doc(this.db, 'groups', groupId, 'live_status', 'current');
+            // Use set (overwrite) to ensure clean state
+            batch.set(signalRef, {
                 activeSessionId: newSessionRef.id,
-                activeTask: activeTask, // Embedded payload for robust sync
-                sessionStatus: 'active',
-                sessionStartTime: serverTimestamp()
+                task: activeTask,
+                status: 'active',
+                startTime: serverTimestamp()
             });
 
             // Step 7: Commit
@@ -78,15 +79,14 @@ export class ProfessorDataService {
              const sessionRef = doc(this.db, 'practical_sessions', sessionId);
              await updateDoc(sessionRef, { task: task });
 
-             // 2. Propagate to Group Document (Live View)
-             // We need to fetch the session first to get the groupId
+             // 2. Propagate to Dedicated Signal Channel
              const sessionSnap = await getDoc(sessionRef);
              if (sessionSnap.exists()) {
                  const { groupId } = sessionSnap.data();
                  if (groupId) {
-                     await updateDoc(doc(this.db, 'groups', groupId), {
-                         activeTask: task
-                     });
+                     const signalRef = doc(this.db, 'groups', groupId, 'live_status', 'current');
+                     // Use set with merge to create if missing (though it should exist)
+                     await setDoc(signalRef, { task: task }, { merge: true });
                  }
              }
          } catch (error) {
@@ -110,14 +110,13 @@ export class ProfessorDataService {
                     endTime: serverTimestamp()
                 });
 
-                // 2. Clear the Group Pointer
+                // 2. Update Signal Channel to 'ended'
                 if (groupId) {
-                    const groupRef = doc(this.db, 'groups', groupId);
-                    batch.update(groupRef, {
+                    const signalRef = doc(this.db, 'groups', groupId, 'live_status', 'current');
+                    batch.update(signalRef, {
+                        status: 'ended',
                         activeSessionId: null,
-                        activeTask: null,
-                        sessionStatus: 'ended',
-                        sessionStartTime: null
+                        task: null
                     });
                 }
 
