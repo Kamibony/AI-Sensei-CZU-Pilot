@@ -10,8 +10,16 @@ export class EditorViewAudio extends Localized(LitElement) {
         lesson: { type: Object },
         isSaving: { type: Boolean },
         files: { type: Array },
-        isGeneratingAudio: { type: Boolean, state: true }
+        isGeneratingAudio: { type: Boolean, state: true },
+        isDialogueMode: { type: Boolean, state: true },
+        voiceGender: { type: String, state: true }
     };
+
+    constructor() {
+        super();
+        this.isDialogueMode = true;
+        this.voiceGender = 'male';
+    }
 
     createRenderRoot() { return this; }
 
@@ -120,10 +128,18 @@ export class EditorViewAudio extends Localized(LitElement) {
             return;
         }
 
-        // Construct text in format: "[Speaker]: Text..."
-        let fullText = script
-            .map(line => `[${line.speaker}]: ${line.text}`)
-            .join('\n');
+        // Construct text based on mode
+        let fullText = "";
+        if (this.isDialogueMode) {
+            fullText = script
+                .map(line => `[${line.speaker}]: ${line.text}`)
+                .join('\n');
+        } else {
+            // Monologue: Just text, no tags
+            fullText = script
+                .map(line => line.text)
+                .join('\n');
+        }
 
         // SAFETY GUARD: Check length limit for Google TTS (approx 5000 bytes, safe limit 4500 chars)
         if (fullText.length > 4500) {
@@ -159,7 +175,8 @@ export class EditorViewAudio extends Localized(LitElement) {
             const result = await generateAudio({
                 lessonId: this.lesson.id,
                 text: fullText,
-                language: targetLang
+                language: targetLang,
+                voiceGender: this.voiceGender
             });
 
             if (result.data && result.data.audioUrl) {
@@ -239,9 +256,46 @@ export class EditorViewAudio extends Localized(LitElement) {
                                         </div>
                                     ` : nothing}
 
+                                    <div class="mb-6 flex flex-wrap items-center gap-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                        <!-- Mode Toggle -->
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-sm font-medium text-slate-700">Režim:</span>
+                                            <div class="flex bg-slate-100 p-1 rounded-lg">
+                                                <button
+                                                    @click="${() => this.isDialogueMode = true}"
+                                                    class="px-3 py-1.5 text-sm font-medium rounded-md transition-all ${this.isDialogueMode ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
+                                                >
+                                                    Dialog
+                                                </button>
+                                                <button
+                                                    @click="${() => this.isDialogueMode = false}"
+                                                    class="px-3 py-1.5 text-sm font-medium rounded-md transition-all ${!this.isDialogueMode ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
+                                                >
+                                                    Monolog
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Voice Gender (Only in Monologue) -->
+                                        ${!this.isDialogueMode ? html`
+                                            <div class="flex items-center gap-3 animate-fade-in">
+                                                <span class="text-sm font-medium text-slate-700">Hlas:</span>
+                                                <select
+                                                    .value="${this.voiceGender}"
+                                                    @change="${e => this.voiceGender = e.target.value}"
+                                                    class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2"
+                                                >
+                                                    <option value="male">Mužský</option>
+                                                    <option value="female">Ženský</option>
+                                                </select>
+                                            </div>
+                                        ` : nothing}
+                                    </div>
+
                                     <div class="space-y-4">
                                         ${script.map((line, index) => html`
                                             <div class="flex gap-4 group">
+                                                ${this.isDialogueMode ? html`
                                                 <div class="w-32 flex-shrink-0 pt-1">
                                                     <select
                                                         .value="${line.speaker}"
@@ -252,6 +306,7 @@ export class EditorViewAudio extends Localized(LitElement) {
                                                         <option value="Guest">Guest</option>
                                                     </select>
                                                 </div>
+                                                ` : nothing}
                                                 <div class="flex-1 relative">
                                                     <textarea
                                                         .value="${line.text || ''}"

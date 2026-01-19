@@ -555,7 +555,7 @@ exports.generatePodcastAudio = onCall({
         throw new HttpsError("unauthenticated", "Len profesor môže generovať audio.");
     }
 
-    const { lessonId, text, language, episodeIndex } = request.data;
+    const { lessonId, text, language, episodeIndex, voiceGender } = request.data;
     if (!lessonId || !text) {
         throw new HttpsError("invalid-argument", "Chýba ID lekcie alebo text.");
     }
@@ -602,7 +602,16 @@ exports.generatePodcastAudio = onCall({
             }
 
             // Je to text segmentu
-            const voiceName = (currentSpeaker === "Sarah") ? femaleVoiceName : maleVoiceName;
+            // Determine voice based on speaker tag OR global voiceGender preference for Monologues
+            let voiceName;
+            if (currentSpeaker === "Sarah") {
+                voiceName = femaleVoiceName;
+            } else if (currentSpeaker === "Alex") {
+                voiceName = maleVoiceName;
+            } else {
+                // Default / Monologue mode
+                voiceName = (voiceGender === 'female') ? femaleVoiceName : maleVoiceName;
+            }
 
             logger.log(`Synthesizing segment for ${currentSpeaker} (${voiceName}): "${part.substring(0, 20)}..."`);
 
@@ -1277,6 +1286,9 @@ exports.getAiAssistantResponse = onCall({
             STRICT INSTRUCTIONS (Anti-Hallucination):
             You are an educational assistant. You must answer strictly based ONLY on the provided Context Data.
             Do not use outside knowledge to answer curriculum-specific questions.
+
+            LANGUAGE INSTRUCTION:
+            You must answer in the same language as the user's question.
 
             Fallback Protocol:
             If the answer is not found in the provided context, you must explicitly state:
