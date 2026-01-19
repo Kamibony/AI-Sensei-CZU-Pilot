@@ -113,10 +113,11 @@ User Question: "${text}"
 `;
 
             // 3. Call AI API
-            const response = await getAiAssistantResponse({
+            const result = await getAiAssistantResponse({
                 lessonId: 'guide-bot',
                 userQuestion: systemPrompt
             });
+            const response = result.data;
 
             // 4. Add AI Response
             let aiText = translationService.t('guide_bot.error_response');
