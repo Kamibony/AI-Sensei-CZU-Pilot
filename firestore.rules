@@ -8,11 +8,16 @@ service cloud.firestore {
     }
     function isProfessor() {
       // Skontroluje či je email admina ALEBO či má custom claim 'role' nastavený na 'professor'
-      return isSignedIn() && (request.auth.token.email == 'profesor@profesor.cz' || request.auth.token.role == 'professor');
+      // ALEBO či má v databáze rolu 'professor' (Fallback pre chýbajúce claims)
+      return isSignedIn() && (
+        (request.auth.token.get('email', '') == 'profesor@profesor.cz') ||
+        (request.auth.token.get('role', '') == 'professor') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor')
+      );
     }
     // Pre istotu, ak by sa 'role' volalo inak v tokenoch
     function isProfessorRole() {
-       return isSignedIn() && request.auth.token.role == 'professor';
+       return isSignedIn() && request.auth.token.get('role', '') == 'professor';
     }
     
     function isStudentRole() {
@@ -108,7 +113,7 @@ service cloud.firestore {
     // Kolekcia pre metadáta súborov (index pre Storage)
     match /fileMetadata/{fileId} {
       allow create: if isProfessor() && request.resource.data.ownerId == request.auth.uid;
-      allow read, delete: if (isSignedIn() && resource.data.ownerId == request.auth.uid) || request.auth.token.email == 'profesor@profesor.cz';
+      allow read, delete: if (isSignedIn() && resource.data.ownerId == request.auth.uid) || request.auth.token.get('email', '') == 'profesor@profesor.cz';
       allow update: if (isSignedIn() && resource.data.ownerId == request.auth.uid);
     }
 

@@ -57,9 +57,11 @@ export class ProfessorDataService {
             // Step 7: Commit
             await batch.commit();
 
+            console.log(`%c[Tracepoint B] Service Layer: Session Created & Pointer Updated for Group ${groupId}`, "color: orange; font-weight: bold");
+
             return newSessionRef.id;
         } catch (error) {
-            console.error("Error creating practical session:", error);
+            console.error(`%c[Tracepoint B] Service Layer: Error creating practical session:`, "color: red; font-weight: bold", error);
             showToast("Chyba při vytváření výcviku.", "error");
             return null;
         }
