@@ -582,7 +582,7 @@ exports.generatePodcastAudio = onCall({
 
         // 2. Parsovanie vstupu na segmenty
         // Rozdelí text podľa [Speaker]:, ponechá oddelovače, a odstráni prázdne stringy
-        const parts = text.split(/(\[(?:Alex|Sarah)\]:)/).filter((p: string) => p && p.trim().length > 0);
+        const parts = text.split(/(\[(?:Alex|Sarah|Host|Guest)\]:)/).filter((p: string) => p && p.trim().length > 0);
 
         const audioBuffers: Buffer[] = [];
         let currentSpeaker = "default"; // Default to female/sarah if no tag found initially? Or use male? Let's use Male as fallback or default.
@@ -590,11 +590,13 @@ exports.generatePodcastAudio = onCall({
 
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i].trim();
-            if (part === "[Alex]:") {
+
+            // Map [Host] -> Alex, [Guest] -> Sarah
+            if (part === "[Alex]:" || part === "[Host]:") {
                 currentSpeaker = "Alex";
                 continue;
             }
-            if (part === "[Sarah]:") {
+            if (part === "[Sarah]:" || part === "[Guest]:") {
                 currentSpeaker = "Sarah";
                 continue;
             }
@@ -1214,8 +1216,10 @@ exports.getAiAssistantResponse = onCall({
     memory: "1GiB"
 }, async (request: CallableRequest) => {
     const { lessonId, userQuestion } = request.data;
-    if (!lessonId || !userQuestion) {
-        throw new HttpsError("invalid-argument", "Missing lessonId or userQuestion");
+
+    // Only userQuestion is mandatory now
+    if (!userQuestion) {
+        throw new HttpsError("invalid-argument", "Missing userQuestion");
     }
 
     // 1. Context Awareness: Get User Info
@@ -1232,6 +1236,14 @@ exports.getAiAssistantResponse = onCall({
         // Special case for Guide Bot
         if (lessonId === 'guide-bot') {
             prompt = `${systemContext}\n\nUser Question: ${userQuestion}`;
+        } else if (!lessonId || lessonId === "general") {
+             // FALLBACK: General Assistant Mode (No specific lesson context)
+             prompt = `${systemContext}
+
+             INSTRUCTIONS:
+             You are a general educational assistant. Since no specific lesson context is provided, answer general questions about the platform or study tips.
+
+             User Question: "${userQuestion}"`;
         } else {
             // 2. Context Awareness: Fetch Latest Lesson Data
             const lessonRef = db.collection("lessons").doc(lessonId);
@@ -1259,12 +1271,16 @@ exports.getAiAssistantResponse = onCall({
 
             prompt = `${systemContext}
 
-            CONTEXT (Current Lesson):
+            CONTEXT (Current Lesson Data):
             ${contextString}
 
-            INSTRUCTIONS:
-            Answer the user's question based strictly on the provided lesson context.
-            If the answer is not in the lesson, say you don't know but suggest asking the professor.
+            STRICT INSTRUCTIONS (Anti-Hallucination):
+            You are an educational assistant. You must answer strictly based ONLY on the provided Context Data.
+            Do not use outside knowledge to answer curriculum-specific questions.
+
+            Fallback Protocol:
+            If the answer is not found in the provided context, you must explicitly state:
+            "I cannot find this information in the current lesson materials. Please check with your professor."
 
             User Question: "${userQuestion}"`;
         }
