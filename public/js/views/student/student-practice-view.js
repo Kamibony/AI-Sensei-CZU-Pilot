@@ -117,7 +117,6 @@ export class StudentPracticeView extends LitElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         if (this._unsubscribeSession) this._unsubscribeSession();
-        if (this._unsubscribeRealSession) this._unsubscribeRealSession();
         if (this._unsubscribeSubmission) this._unsubscribeSubmission();
     }
 
@@ -195,57 +194,43 @@ export class StudentPracticeView extends LitElement {
             );
 
             this._unsubscribeSession = onSnapshot(groupsQuery, (snapshot) => {
-                let foundSessionId = null;
+                let activeGroupData = null;
+                let activeGroupId = null;
 
-                // Find the first group that points to an active session
+                // Robust Embedded Pattern:
+                // We trust the data IN the group document.
                 for (const doc of snapshot.docs) {
                     const data = doc.data();
-                    // Relaxed Check: We trust activeSessionId if present.
-                    // The _subscribeToSession method validates the actual session status.
-                    if (data.activeSessionId) {
-                        foundSessionId = data.activeSessionId;
-                        console.log(`%c[Tracepoint C] Receiver Layer: Found Pointer in Group ${doc.id} -> Session ${foundSessionId}`, "color: green; font-weight: bold");
-                        break; // Found a valid pointer
+                    // Check for embedded status AND pointer
+                    if (data.activeSessionId && data.sessionStatus === 'active') {
+                        activeGroupData = data;
+                        activeGroupId = doc.id;
+                        console.log(`%c[Tracepoint C] Receiver Layer: Found Embedded Session in Group ${doc.id}`, "color: green; font-weight: bold");
+                        break;
                     }
                 }
 
-                if (foundSessionId) {
-                    // Only re-subscribe if the session ID has changed
-                    if (this.activeSession?.id !== foundSessionId) {
-                        this._subscribeToSession(foundSessionId);
-                    }
+                if (activeGroupData) {
+                    // Construct session object from Group data directly
+                    this.activeSession = {
+                        id: activeGroupData.activeSessionId,
+                        task: activeGroupData.activeTask || "Načítám zadání...", // Fallback if data is propagating
+                        groupId: activeGroupId
+                    };
+                    this._checkSubmission(this.activeSession.id);
                 } else {
-                    console.log(`%c[Tracepoint C] Receiver Layer: No Active Session Pointer Found`, "color: gray");
+                    console.log(`%c[Tracepoint C] Receiver Layer: No Active Session Found`, "color: gray");
                     this._clearSession();
                 }
             });
         } catch (e) {
             console.error("Error fetching session:", e);
-            // Fallback?
         }
-    }
-
-    _subscribeToSession(sessionId) {
-        if (this._unsubscribeRealSession) this._unsubscribeRealSession();
-
-        this._unsubscribeRealSession = onSnapshot(doc(db, 'practical_sessions', sessionId), (docSnap) => {
-            if (docSnap.exists() && docSnap.data().status === 'active') {
-                this.activeSession = { id: docSnap.id, ...docSnap.data() };
-                this._checkSubmission(this.activeSession.id);
-            } else {
-                // If session is deleted or not active, clear state
-                this._clearSession();
-            }
-        });
     }
 
     _clearSession() {
         this.activeSession = null;
         this.submission = null;
-        if (this._unsubscribeRealSession) {
-            this._unsubscribeRealSession();
-            this._unsubscribeRealSession = null;
-        }
     }
 
     _checkSubmission(sessionId) {
