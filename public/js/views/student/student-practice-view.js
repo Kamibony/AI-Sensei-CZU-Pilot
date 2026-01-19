@@ -130,7 +130,7 @@ export class StudentPracticeView extends LitElement {
         try {
             // 1. Fetch user profile to get memberOfGroups
             let groups = injectedGroups;
-            const userDocRef = doc(db, 'users', user.uid);
+            const userDocRef = doc(db, 'students', user.uid);
 
             if (!groups) {
                 const userDoc = await getDoc(userDocRef);
