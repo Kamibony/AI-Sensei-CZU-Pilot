@@ -51,7 +51,9 @@ export class ProfessorDataService {
             const groupRef = doc(this.db, 'groups', groupId);
             batch.update(groupRef, {
                 activeSessionId: newSessionRef.id,
-                sessionStatus: 'active'
+                activeTask: activeTask, // Embedded payload for robust sync
+                sessionStatus: 'active',
+                sessionStartTime: serverTimestamp()
             });
 
             // Step 7: Commit
@@ -71,9 +73,22 @@ export class ProfessorDataService {
          if (!this.db) return;
          try {
              console.log(`%c[Tracepoint B] Service Layer: Writing to Firestore path 'practical_sessions/${sessionId}'`, "color: orange; font-weight: bold", { task: task });
-             await updateDoc(doc(this.db, 'practical_sessions', sessionId), {
-                 task: task
-             });
+
+             // 1. Update the Session Document (Archive)
+             const sessionRef = doc(this.db, 'practical_sessions', sessionId);
+             await updateDoc(sessionRef, { task: task });
+
+             // 2. Propagate to Group Document (Live View)
+             // We need to fetch the session first to get the groupId
+             const sessionSnap = await getDoc(sessionRef);
+             if (sessionSnap.exists()) {
+                 const { groupId } = sessionSnap.data();
+                 if (groupId) {
+                     await updateDoc(doc(this.db, 'groups', groupId), {
+                         activeTask: task
+                     });
+                 }
+             }
          } catch (error) {
              console.error("Error updating task:", error);
          }
@@ -100,7 +115,9 @@ export class ProfessorDataService {
                     const groupRef = doc(this.db, 'groups', groupId);
                     batch.update(groupRef, {
                         activeSessionId: null,
-                        sessionStatus: 'ended'
+                        activeTask: null,
+                        sessionStatus: 'ended',
+                        sessionStartTime: null
                     });
                 }
 
