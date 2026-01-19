@@ -10,7 +10,8 @@ export class StudentPracticeView extends LitElement {
         isUploading: { type: Boolean },
         uploadError: { type: String },
         hasNoGroups: { type: Boolean },
-        isAutoJoining: { type: Boolean }
+        isAutoJoining: { type: Boolean },
+        userGroups: { type: Array }
     };
 
     static styles = css`
@@ -106,6 +107,7 @@ export class StudentPracticeView extends LitElement {
         this.uploadError = null;
         this.hasNoGroups = false;
         this.isAutoJoining = false;
+        this.userGroups = [];
         this._unsubscribeSession = null;
         this._unsubscribeSubmission = null;
         this._sessionListeners = [];
@@ -146,6 +148,9 @@ export class StudentPracticeView extends LitElement {
             } catch (err) {
                 console.warn("Failed to fetch owned groups:", err);
             }
+
+            // [FIX] State Amnesia: Persist groups to component state
+            this.userGroups = groups;
 
             if (groups.length === 0) {
                 // Auto-Enrollment Fallback
