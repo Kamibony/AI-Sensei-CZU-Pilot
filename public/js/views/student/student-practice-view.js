@@ -200,8 +200,11 @@ export class StudentPracticeView extends LitElement {
                 // Find the first group that points to an active session
                 for (const doc of snapshot.docs) {
                     const data = doc.data();
-                    if (data.activeSessionId && data.sessionStatus === 'active') {
+                    // Relaxed Check: We trust activeSessionId if present.
+                    // The _subscribeToSession method validates the actual session status.
+                    if (data.activeSessionId) {
                         foundSessionId = data.activeSessionId;
+                        console.log(`%c[Tracepoint C] Receiver Layer: Found Pointer in Group ${doc.id} -> Session ${foundSessionId}`, "color: green; font-weight: bold");
                         break; // Found a valid pointer
                     }
                 }
@@ -209,7 +212,6 @@ export class StudentPracticeView extends LitElement {
                 if (foundSessionId) {
                     // Only re-subscribe if the session ID has changed
                     if (this.activeSession?.id !== foundSessionId) {
-                        console.log(`%c[Tracepoint C] Receiver Layer: Followed Pointer to Session ID: ${foundSessionId}`, "color: green; font-weight: bold");
                         this._subscribeToSession(foundSessionId);
                     }
                 } else {
