@@ -56,7 +56,9 @@ export class ChatPanel extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         // Začneme počúvať na zmeny v chate
-        this._loadChatHistory();
+        if (this.currentUserData?.id && this.lessonId) {
+            this._loadChatHistory();
+        }
         this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
@@ -70,6 +72,12 @@ export class ChatPanel extends LitElement {
         }
         if (this._langUnsubscribe) {
             this._langUnsubscribe();
+        }
+    }
+
+    updated(changedProperties) {
+        if (changedProperties.has('currentUserData') || changedProperties.has('lessonId')) {
+            this._loadChatHistory();
         }
     }
 
@@ -241,6 +249,8 @@ export class ChatPanel extends LitElement {
     }
 
     async _loadChatHistory() {
+        if (!this.currentUserData?.id || !this.lessonId) return;
+
         // Pôvodná logika z `loadChatHistory`
         if (this.chatUnsubscribe) { // Zastavíme starý listener, ak existuje
             this.chatUnsubscribe();
