@@ -2388,7 +2388,9 @@ exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (req
 
 exports.evaluatePracticalSubmission = onDocumentCreated({
     region: DEPLOY_REGION,
-    document: "practical_submissions/{submissionId}"
+    document: "practical_submissions/{submissionId}",
+    memory: "2GiB",
+    timeoutSeconds: 300
 }, async (event: FirestoreEvent<QueryDocumentSnapshot>) => {
     const snapshot = event.data;
     if (!snapshot) {
