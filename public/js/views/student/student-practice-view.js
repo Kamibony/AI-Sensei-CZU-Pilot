@@ -2,6 +2,7 @@ import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/co
 import { collection, query, where, onSnapshot, orderBy, limit, addDoc, serverTimestamp, doc, getDoc, updateDoc, arrayUnion, getDocs, setDoc, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { db, auth, storage } from "../../firebase-init.js";
+import { SUBMISSION_STATUS, SUBMISSION_OUTCOME } from "../../shared-constants.js";
 
 export class StudentPracticeView extends LitElement {
     static properties = {
@@ -404,7 +405,7 @@ export class StudentPracticeView extends LitElement {
                 studentId: user.uid,
                 storagePath: storagePath,
                 submittedAt: serverTimestamp(),
-                status: 'pending' // Cloud function will pick this up
+                status: SUBMISSION_STATUS.PENDING // Cloud function will pick this up
             });
 
         } catch (error) {
@@ -494,17 +495,17 @@ export class StudentPracticeView extends LitElement {
         let badgeClass = 'status-evaluating';
         let badgeText = 'AI hodnotí...';
 
-        if (s.status === 'evaluated') {
+        if (s.status === SUBMISSION_STATUS.EVALUATED) {
             badgeText = 'Hodnoceno';
             // Use result field if available (pass/fail), otherwise fallback to success style
-            if (s.result === 'fail' || s.grade === 'F') {
+            if (s.result === SUBMISSION_OUTCOME.FAIL || s.grade === 'F') {
                 badgeClass = 'status-fail';
                 badgeText = 'Neprošlo';
             } else {
                 badgeClass = 'status-done';
                 badgeText = 'Splněno';
             }
-        } else if (s.status === 'error') {
+        } else if (s.status === SUBMISSION_STATUS.ERROR) {
             badgeClass = 'status-fail';
             badgeText = 'Chyba';
         }
@@ -513,13 +514,13 @@ export class StudentPracticeView extends LitElement {
             <div class="mt-6">
                 <span class="status-badge ${badgeClass}">${badgeText}</span>
 
-                ${s.status === 'evaluated' ? html`
+                ${s.status === SUBMISSION_STATUS.EVALUATED ? html`
                     <div class="grade">${s.grade}</div>
                     <div class="feedback-card">
                         <h3 class="font-bold mb-2">Hodnocení AI:</h3>
                         <p class="text-gray-700 whitespace-pre-wrap">${s.feedback}</p>
                     </div>
-                ` : s.status === 'error' ? html`
+                ` : s.status === SUBMISSION_STATUS.ERROR ? html`
                     <p class="text-red-500">${s.error}</p>
                     <button class="btn-upload mt-4" @click="${this._handleRetry}">Zkusit znovu</button>
                 ` : html`
