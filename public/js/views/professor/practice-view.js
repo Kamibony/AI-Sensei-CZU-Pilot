@@ -2,6 +2,7 @@ import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/co
 import { ProfessorDataService } from "../../services/professor-data-service.js";
 import { collection, query, where, onSnapshot, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../../firebase-init.js";
+import { SUBMISSION_STATUS } from "../../shared-constants.js";
 
 export class PracticeView extends LitElement {
     static properties = {
@@ -387,8 +388,8 @@ export class PracticeView extends LitElement {
         const sub = this.submissions[student.id];
         let statusClass = "";
         if (sub) {
-            if (sub.status === 'evaluated') statusClass = 'done';
-            else if (sub.status === 'error') statusClass = 'error'; // Add error style
+            if (sub.status === SUBMISSION_STATUS.EVALUATED) statusClass = 'done';
+            else if (sub.status === SUBMISSION_STATUS.ERROR) statusClass = 'error'; // Add error style
             else statusClass = 'evaluating';
         }
 
@@ -397,10 +398,10 @@ export class PracticeView extends LitElement {
                 <div class="font-bold text-lg">${student.name}</div>
                 ${sub ? html`
                     ${sub.storagePath ? html`<p class="text-xs text-gray-500">Obrázek nahrán</p>` : ''} <!-- We might want to show the image if we have a URL, but storagePath needs fetching. For now keep simple -->
-                    ${sub.status === 'evaluated' ? html`
+                    ${sub.status === SUBMISSION_STATUS.EVALUATED ? html`
                         <div class="grade">Známka: ${sub.grade}</div>
                         <div class="feedback">${sub.feedback}</div>
-                    ` : sub.status === 'error' ? html`
+                    ` : sub.status === SUBMISSION_STATUS.ERROR ? html`
                         <div class="text-red-500">Chyba: ${sub.error}</div>
                     ` : html`
                         <div class="text-blue-500 flex items-center gap-2">

@@ -16,6 +16,7 @@ const textToSpeech = require("@google-cloud/text-to-speech"); // Import pre TTS
 
 // Import local API using TypeScript syntax
 import * as GeminiAPI from './gemini-api';
+import { SUBMISSION_STATUS, SUBMISSION_OUTCOME } from './shared-constants';
 
 // Lazy load heavy dependencies
 // const pdf = require("pdf-parse");
@@ -2464,13 +2465,13 @@ exports.evaluatePracticalSubmission = onDocumentCreated({
         const evaluation = await GeminiAPI.generateJsonFromMultimodal(systemPrompt, base64Image, mimeType);
 
         // 4. Atomic Update of the Submission Document
-        const outcome = evaluation.status || (evaluation.grade === 'F' ? 'fail' : 'pass');
+        const outcome = evaluation.status || (evaluation.grade === 'F' ? SUBMISSION_OUTCOME.FAIL : SUBMISSION_OUTCOME.PASS);
 
         await snapshot.ref.update({
             grade: evaluation.grade || "N/A",
             feedback: evaluation.feedback || "Evaluation failed.",
             result: outcome, // Pass/Fail outcome
-            status: 'evaluated', // Lifecycle status: Always 'evaluated' on success
+            status: SUBMISSION_STATUS.EVALUATED, // Lifecycle status: Always 'evaluated' on success
             imageUrl: signedUrl, // The Keymaster's link
             evaluatedAt: FieldValue.serverTimestamp()
         });
@@ -2480,7 +2481,7 @@ exports.evaluatePracticalSubmission = onDocumentCreated({
     } catch (error) {
         logger.error(`Error evaluating submission ${submissionId}:`, error);
         await snapshot.ref.update({
-            status: "error",
+            status: SUBMISSION_STATUS.ERROR,
             error: error instanceof Error ? error.message : "Unknown error"
         });
     }
