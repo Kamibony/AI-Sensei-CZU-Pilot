@@ -1,5 +1,5 @@
 import type { CallableRequest, Request } from "firebase-functions/v2/https";
-import type { FirestoreEvent, QueryDocumentSnapshot } from "firebase-functions/v2/firestore";
+import type { Change, FirestoreEvent, QueryDocumentSnapshot } from "firebase-functions/v2/firestore";
 
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -7,7 +7,7 @@ const { getAuth } = require("firebase-admin/auth");
 const { getStorage } = require("firebase-admin/storage");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onRequest } = require("firebase-functions/v2/https");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const functions = require("firebase-functions/v1"); // Import v1 for triggers
 const logger = require("firebase-functions/logger");
 const cors = require("cors");
@@ -2387,19 +2387,31 @@ exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (req
     }
 });
 
-exports.evaluatePracticalSubmission = onDocumentCreated({
+exports.evaluatePracticalSubmission = onDocumentWritten({
     region: DEPLOY_REGION,
     document: "practical_submissions/{submissionId}",
     memory: "2GiB",
     timeoutSeconds: 300
-}, async (event: FirestoreEvent<QueryDocumentSnapshot>) => {
-    const snapshot = event.data;
-    if (!snapshot) {
+}, async (event: FirestoreEvent<Change<QueryDocumentSnapshot> | undefined>) => {
+    // 1. Idempotency Guard & Data Retrieval
+    if (!event.data) {
         logger.error("No data associated with the event");
         return;
     }
+
+    // EXIT IF: Document was deleted (!event.data.after.exists).
+    if (!event.data.after.exists) {
+        return;
+    }
+
+    const snapshot = event.data.after;
     const submission = snapshot.data();
-    const submissionId = snapshot.id;
+    const submissionId = event.params.submissionId;
+
+    // EXIT IF: data.status is NOT 'pending'. (Only process if the status explicitly requests evaluation).
+    if (submission.status !== SUBMISSION_STATUS.PENDING) {
+        return;
+    }
 
     if (!submission.sessionId || !submission.storagePath) {
         logger.warn(`Submission ${submissionId} missing sessionId or storagePath.`);
