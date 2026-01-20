@@ -2464,15 +2464,18 @@ exports.evaluatePracticalSubmission = onDocumentCreated({
         const evaluation = await GeminiAPI.generateJsonFromMultimodal(systemPrompt, base64Image, mimeType);
 
         // 4. Atomic Update of the Submission Document
+        const outcome = evaluation.status || (evaluation.grade === 'F' ? 'fail' : 'pass');
+
         await snapshot.ref.update({
             grade: evaluation.grade || "N/A",
             feedback: evaluation.feedback || "Evaluation failed.",
-            status: evaluation.status || (evaluation.grade === 'F' ? 'fail' : 'pass'), // Fallback logic
+            result: outcome, // Pass/Fail outcome
+            status: 'evaluated', // Lifecycle status: Always 'evaluated' on success
             imageUrl: signedUrl, // The Keymaster's link
             evaluatedAt: FieldValue.serverTimestamp()
         });
 
-        logger.log(`Submission ${submissionId} evaluated. Status: ${evaluation.status}, Grade: ${evaluation.grade}`);
+        logger.log(`Submission ${submissionId} evaluated. Result: ${outcome}, Grade: ${evaluation.grade}`);
 
     } catch (error) {
         logger.error(`Error evaluating submission ${submissionId}:`, error);

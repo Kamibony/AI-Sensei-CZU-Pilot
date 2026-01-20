@@ -90,6 +90,10 @@ export class StudentPracticeView extends LitElement {
             background: #f0fdf4;
             color: #166534;
         }
+        .status-fail {
+            background: #fef2f2;
+            color: #991b1b;
+        }
         .preview-image {
             max-width: 100%;
             height: auto;
@@ -487,9 +491,23 @@ export class StudentPracticeView extends LitElement {
 
     _renderSubmissionStatus() {
         const s = this.submission;
-        let badgeClass = s.status === 'evaluated' ? 'status-done' : 'status-evaluating';
-        let badgeText = s.status === 'evaluated' ? 'Hodnoceno' : s.status === 'error' ? 'Chyba' : 'AI hodnotí...';
-        if (s.status === 'error') badgeClass = 'bg-red-100 text-red-800';
+        let badgeClass = 'status-evaluating';
+        let badgeText = 'AI hodnotí...';
+
+        if (s.status === 'evaluated') {
+            badgeText = 'Hodnoceno';
+            // Use result field if available (pass/fail), otherwise fallback to success style
+            if (s.result === 'fail' || s.grade === 'F') {
+                badgeClass = 'status-fail';
+                badgeText = 'Neprošlo';
+            } else {
+                badgeClass = 'status-done';
+                badgeText = 'Splněno';
+            }
+        } else if (s.status === 'error') {
+            badgeClass = 'status-fail';
+            badgeText = 'Chyba';
+        }
 
         return html`
             <div class="mt-6">
