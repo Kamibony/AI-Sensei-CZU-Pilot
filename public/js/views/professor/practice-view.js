@@ -397,7 +397,12 @@ export class PracticeView extends LitElement {
             <div class="student-card ${statusClass}">
                 <div class="font-bold text-lg">${student.name}</div>
                 ${sub ? html`
-                    ${sub.storagePath ? html`<p class="text-xs text-gray-500">Obrázek nahrán</p>` : ''} <!-- We might want to show the image if we have a URL, but storagePath needs fetching. For now keep simple -->
+                    ${sub.imageUrl ? html`
+                        <a href="${sub.imageUrl}" target="_blank" class="block mt-2 mb-2 text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                            Zobrazit foto
+                        </a>
+                    ` : sub.storagePath ? html`<p class="text-xs text-gray-500">Obrázek nahrán (Zpracovává se...)</p>` : ''}
                     ${sub.status === SUBMISSION_STATUS.EVALUATED ? html`
                         <div class="grade">Známka: ${sub.grade}</div>
                         <div class="feedback">${sub.feedback}</div>

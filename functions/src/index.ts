@@ -2467,6 +2467,7 @@ exports.evaluatePracticalSubmission = onDocumentWritten({
         1. Analyze the image to verify if it demonstrates the completion of the task.
         2. CHECK FOR INVALID CONTENT: If the image is blurry, black, irrelevant (e.g., a selfie, meme, random object), or does not match the task, you MUST fail it.
         3. If the task is completed, evaluate the quality.
+        4. CRITICAL: The 'feedback' field MUST be written in the CZECH language, regardless of the prompt language.
 
         OUTPUT: Return structured JSON with:
         - "grade": A letter grade (A, B, C, D, F) or "N/A" if invalid.
