@@ -514,6 +514,13 @@ export class StudentPracticeView extends LitElement {
             <div class="mt-6">
                 <span class="status-badge ${badgeClass}">${badgeText}</span>
 
+                ${s.imageUrl ? html`
+                    <a href="${s.imageUrl}" target="_blank" class="inline-block mt-4 mb-2 text-blue-600 hover:text-blue-800 font-medium flex items-center justify-center gap-2 border border-blue-200 rounded-lg p-2 bg-blue-50">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        Zobrazit odevzdané foto
+                    </a>
+                ` : ''}
+
                 ${s.status === SUBMISSION_STATUS.EVALUATED ? html`
                     <div class="grade">${s.grade}</div>
                     <div class="feedback-card">
