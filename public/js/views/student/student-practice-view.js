@@ -1,4 +1,4 @@
-import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { LitElement, html } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { collection, query, where, onSnapshot, orderBy, limit, addDoc, serverTimestamp, doc, getDoc, updateDoc, arrayUnion, getDocs, setDoc, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { db, auth, storage } from "../../firebase-init.js";
@@ -15,94 +15,7 @@ export class StudentPracticeView extends LitElement {
         userGroups: { type: Array }
     };
 
-    static styles = css`
-        :host {
-            display: block;
-            padding: 16px;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            margin-bottom: 24px;
-            text-align: center;
-        }
-        .task-box {
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            border-radius: 8px;
-            padding: 16px;
-            margin: 16px 0;
-            font-size: 1.25rem;
-            font-weight: 500;
-            color: #0369a1;
-        }
-        .btn-upload {
-            background: #2563eb;
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 1rem;
-            border: none;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .btn-upload:disabled {
-            background: #94a3b8;
-            cursor: not-allowed;
-        }
-        input[type="file"] {
-            display: none;
-        }
-        .feedback-card {
-            border: 1px solid #e2e8f0;
-            padding: 16px;
-            border-radius: 8px;
-            margin-top: 16px;
-            text-align: left;
-        }
-        .grade {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #2563eb;
-            text-align: center;
-            margin-bottom: 12px;
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 99px;
-            font-size: 0.875rem;
-            font-weight: 500;
-            margin-bottom: 12px;
-        }
-        .status-evaluating {
-            background: #fefce8;
-            color: #854d0e;
-        }
-        .status-done {
-            background: #f0fdf4;
-            color: #166534;
-        }
-        .status-fail {
-            background: #fef2f2;
-            color: #991b1b;
-        }
-        .preview-image {
-            max-width: 100%;
-            height: auto;
-            border-radius: 8px;
-            margin-top: 16px;
-            max-height: 300px;
-        }
-    `;
+    createRenderRoot() { return this; }
 
     constructor() {
         super();
@@ -133,7 +46,6 @@ export class StudentPracticeView extends LitElement {
         if (!user) return;
 
         try {
-            // 1. Fetch user profile to get memberOfGroups
             let groups = injectedGroups;
             const userDocRef = doc(db, 'students', user.uid);
 
@@ -142,23 +54,18 @@ export class StudentPracticeView extends LitElement {
                 groups = userDoc.exists() ? (userDoc.data().memberOfGroups || []) : [];
             }
 
-            // [FIX] Include groups owned by the user (Professor/Owner Testing Support)
-            // This solves the "Ghost Writer" paradox where an Owner creates a session but can't see it because they aren't a member.
             try {
                 const ownedGroupsQuery = query(collection(db, 'groups'), where('ownerId', '==', user.uid));
                 const ownedDocs = await getDocs(ownedGroupsQuery);
                 const ownedIds = ownedDocs.docs.map(d => d.id);
-                // Merge and deduplicate
                 groups = [...new Set([...groups, ...ownedIds])];
             } catch (err) {
                 console.warn("Failed to fetch owned groups:", err);
             }
 
-            // [FIX] State Amnesia: Persist groups to component state
             this.userGroups = groups;
 
             if (groups.length === 0) {
-                // Auto-Enrollment Fallback
                 this.isAutoJoining = true;
                 try {
                     const qAny = query(
@@ -177,7 +84,6 @@ export class StudentPracticeView extends LitElement {
                                     memberOfGroups: arrayUnion(sessionData.groupId)
                                 });
                             } catch (err) {
-                                // Self-Healing Strategy: Recovery for Ghost Users
                                 if (err.code === 'not-found') {
                                     console.warn("Ghost User detected. Initiating profile recovery...");
                                     await setDoc(userDocRef, {
@@ -188,7 +94,7 @@ export class StudentPracticeView extends LitElement {
                                         updatedAt: serverTimestamp()
                                     });
                                 } else {
-                                    throw err; // Re-throw other errors to be handled by outer catch
+                                    throw err;
                                 }
                             }
 
@@ -208,20 +114,12 @@ export class StudentPracticeView extends LitElement {
             }
             this.hasNoGroups = false;
 
-            // 2. HYBRID SYNC Pattern (Robust + Legacy Support)
-            // Listen to both 'groups/{groupId}' (New) and 'live_status/current' (Legacy).
-            this.hasNoGroups = false;
-
-            // Clear existing listeners
             if (this._sessionListeners.length > 0) {
                 this._sessionListeners.forEach(unsub => unsub());
                 this._sessionListeners = [];
             }
 
-            const searchGroups = groups.slice(0, 10); // Limit listeners
-
-            // Local state to merge sources for this batch of groups
-            // Map<groupId, { group: SessionData, signal: SessionData }>
+            const searchGroups = groups.slice(0, 10);
             const sessionMap = new Map();
 
             const updateConsolidatedState = (groupId, source, data) => {
@@ -229,11 +127,9 @@ export class StudentPracticeView extends LitElement {
                 const entry = sessionMap.get(groupId);
                 entry[source] = data;
 
-                // Resolution Logic: Group takes precedence, fallback to Signal
                 const active = entry.group || entry.signal;
 
                 if (active) {
-                    // Avoid redundant updates if possible, but safe to set
                     if (!this.activeSession || this.activeSession.id !== active.id) {
                          console.log(`%c[Tracepoint C] Receiver: Active Session from ${source} for Group ${groupId}`, "color: green");
                          this.activeSession = {
@@ -243,11 +139,9 @@ export class StudentPracticeView extends LitElement {
                          };
                          this._checkSubmission(this.activeSession.id);
                     } else if (this.activeSession.task !== active.task) {
-                         // Update task text if changed
                          this.activeSession = { ...this.activeSession, task: active.task };
                     }
                 } else {
-                    // If this group was the active one, and now both sources say null, clear it.
                     if (this.activeSession && this.activeSession.groupId === groupId) {
                          console.log(`%c[Tracepoint C] Receiver: Session Ended for Group ${groupId}`, "color: gray");
                          this._clearSession();
@@ -256,7 +150,6 @@ export class StudentPracticeView extends LitElement {
             };
 
             searchGroups.forEach(groupId => {
-                // A. Group Listener (Primary - Embedded Payload)
                 const groupRef = doc(db, 'groups', groupId);
                 const unsubGroup = onSnapshot(groupRef, (docSnap) => {
                     if (docSnap.exists()) {
@@ -275,7 +168,6 @@ export class StudentPracticeView extends LitElement {
                 }, err => console.warn("Group listener error", err));
                 this._sessionListeners.push(unsubGroup);
 
-                // B. Signal Listener (Legacy / Fallback)
                 const signalRef = doc(db, 'groups', groupId, 'live_status', 'current');
                 const unsubSignal = onSnapshot(signalRef, (docSnap) => {
                     if (docSnap.exists()) {
@@ -295,7 +187,6 @@ export class StudentPracticeView extends LitElement {
                 this._sessionListeners.push(unsubSignal);
             });
 
-            // Override _unsubscribeSession to clear the array
             this._unsubscribeSession = () => {
                 this._sessionListeners.forEach(unsub => unsub());
                 this._sessionListeners = [];
@@ -382,7 +273,6 @@ export class StudentPracticeView extends LitElement {
         let fileToUpload = file;
 
         try {
-            // 1. Image Compression Middleware
             try {
                 fileToUpload = await this._compressImage(file);
             } catch (compressionError) {
@@ -392,20 +282,18 @@ export class StudentPracticeView extends LitElement {
             const user = auth.currentUser;
             if (!user) throw new Error("User not authenticated");
 
-            // 2. Upload to Storage
             const timestamp = Date.now();
             const storagePath = `practical_uploads/${this.activeSession.id}/${user.uid}_${timestamp}.jpg`;
             const storageRef = ref(storage, storagePath);
 
             await uploadBytes(storageRef, fileToUpload);
 
-            // 3. Create Submission Record
             await addDoc(collection(db, 'practical_submissions'), {
                 sessionId: this.activeSession.id,
                 studentId: user.uid,
                 storagePath: storagePath,
                 submittedAt: serverTimestamp(),
-                status: SUBMISSION_STATUS.PENDING // Cloud function will pick this up
+                status: SUBMISSION_STATUS.PENDING
             });
 
         } catch (error) {
@@ -419,10 +307,13 @@ export class StudentPracticeView extends LitElement {
     render() {
         if (this.isAutoJoining) {
             return html`
-                <div class="container">
-                    <div class="card">
-                        <h2 class="text-xl animate-pulse">Automatické pripájanie k triede...</h2>
-                        <p class="text-gray-500 mt-2">Prosím čakajte, hľadáme aktívnu lekciu.</p>
+                <div class="max-w-2xl mx-auto p-6 h-screen flex flex-col justify-center items-center">
+                    <div class="bg-white rounded-2xl shadow-xl p-8 text-center animate-pulse border border-slate-100">
+                        <div class="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                            <svg class="w-8 h-8 text-blue-600 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        </div>
+                        <h2 class="text-xl font-bold text-slate-800">Připojování k výcviku...</h2>
+                        <p class="text-slate-500 mt-2">Hledáme aktivní lekci vaší třídy.</p>
                     </div>
                 </div>
             `;
@@ -430,10 +321,13 @@ export class StudentPracticeView extends LitElement {
 
         if (this.hasNoGroups) {
              return html`
-                <div class="container">
-                    <div class="card">
-                        <h2 class="text-xl">Žádná třída</h2>
-                        <p class="text-gray-500 mt-2">Nie ste zaradený do žiadnej triedy. Kontaktujte učiteľa.</p>
+                <div class="max-w-2xl mx-auto p-6 mt-12">
+                    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 text-center">
+                        <div class="mx-auto w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-6">
+                            <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        </div>
+                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Žádná třída</h2>
+                        <p class="text-slate-600">Nejste zařazeni do žádné třídy. Požádejte učitele o přidání.</p>
                     </div>
                 </div>
             `;
@@ -441,25 +335,41 @@ export class StudentPracticeView extends LitElement {
 
         if (!this.activeSession) {
             return html`
-                <div class="container">
-                    <div class="card">
-                        <h2 class="text-xl">Žádný aktivní výcvik</h2>
-                        <p class="text-gray-500 mt-2">V tuto chvíli neprobíhá žádný odborný výcvik.</p>
+                <div class="max-w-2xl mx-auto p-6 mt-12">
+                    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 text-center">
+                        <div class="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-6">
+                            <svg class="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                        </div>
+                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Žádný aktivní výcvik</h2>
+                        <p class="text-slate-600">V tuto chvíli neprobíhá žádný odborný výcvik. Počkejte na pokyn mistra.</p>
                     </div>
                 </div>
             `;
         }
 
         return html`
-            <div class="container">
-                <div class="card">
-                    <h1 class="text-2xl font-bold mb-4">Odborný Výcvik</h1>
-
-                    <div class="task-box">
-                        ${this.activeSession.task || "Čekejte na zadání úkolu..."}
+            <div class="max-w-2xl mx-auto p-4 md:p-6">
+                <div class="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+                    <div class="bg-slate-900 px-6 py-4">
+                        <h1 class="text-lg font-bold text-white flex items-center gap-2">
+                            <span class="flex h-3 w-3 relative">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                            </span>
+                            Odborný Výcvik
+                        </h1>
                     </div>
 
-                    ${this.submission ? this._renderSubmissionStatus() : this._renderUploadForm()}
+                    <div class="p-6 md:p-8">
+                        <div class="bg-gradient-to-br from-sky-50 to-blue-50 border border-blue-100 rounded-2xl p-6 mb-8 shadow-inner text-center">
+                            <p class="text-sm font-bold text-blue-600 uppercase tracking-wide mb-2">Aktuální Úkol</p>
+                            <div class="text-xl md:text-2xl font-medium text-slate-900">
+                                ${this.activeSession.task || "Čekejte na zadání úkolu..."}
+                            </div>
+                        </div>
+
+                        ${this.submission ? this._renderSubmissionStatus() : this._renderUploadForm()}
+                    </div>
                 </div>
             </div>
         `;
@@ -467,90 +377,135 @@ export class StudentPracticeView extends LitElement {
 
     _renderUploadForm() {
         return html`
-            <div class="mt-8">
+            <div class="flex flex-col items-center">
                 <input
                     type="file"
                     id="cameraInput"
                     accept="image/*"
                     capture="environment"
                     @change="${this._handleFileUpload}"
+                    class="hidden"
                 >
                 <button
-                    class="btn-upload"
+                    class="group relative w-full py-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-2xl font-bold text-lg shadow-lg hover:shadow-blue-500/30 transition-all transform active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                     ?disabled="${this.isUploading || !this.activeSession.task}"
                     @click="${() => this.shadowRoot.getElementById('cameraInput').click()}"
                 >
-                    ${this.isUploading ? 'Nahrávám...' : html`
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    ${this.isUploading ? html`
+                        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Nahrávám foto...
+                    ` : html`
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                         Vyfotit splněný úkol
                     `}
                 </button>
-                ${this.uploadError ? html`<p class="text-red-500 mt-2">${this.uploadError}</p>` : ''}
+                <p class="text-sm text-slate-400 mt-4 text-center">Kliknutím otevřete kameru nebo galerii</p>
+                ${this.uploadError ? html`<div class="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm font-medium border border-red-100 w-full text-center">${this.uploadError}</div>` : ''}
             </div>
         `;
     }
 
     _renderSubmissionStatus() {
         const s = this.submission;
-        let badgeClass = 'status-evaluating';
-        let badgeText = 'AI hodnotí...';
+        let themeClass = "bg-yellow-50 border-yellow-200";
+        let titleColor = "text-yellow-800";
+        let icon = html`<svg class="w-12 h-12 text-yellow-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+        let statusText = "AI hodnotí tvou práci...";
+        let isDone = false;
+        let isFail = false;
 
         if (s.status === SUBMISSION_STATUS.EVALUATED) {
-            badgeText = 'Hodnoceno';
-            // Use result field if available (pass/fail), otherwise fallback to success style
             if (s.result === SUBMISSION_OUTCOME.FAIL || s.grade === 'F') {
-                badgeClass = 'status-fail';
-                badgeText = 'Neprošlo';
+                themeClass = "bg-red-50 border-red-200";
+                titleColor = "text-red-800";
+                icon = html`<svg class="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`;
+                statusText = "Je třeba opravit";
+                isDone = true;
+                isFail = true;
             } else {
-                badgeClass = 'status-done';
-                badgeText = 'Splněno';
+                themeClass = "bg-green-50 border-green-200";
+                titleColor = "text-green-800";
+                icon = html`<svg class="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+                statusText = "Splněno";
+                isDone = true;
             }
         } else if (s.status === SUBMISSION_STATUS.ERROR) {
-            badgeClass = 'status-fail';
-            badgeText = 'Chyba';
+            themeClass = "bg-red-50 border-red-200";
+            titleColor = "text-red-800";
+            icon = html`<svg class="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+            statusText = "Chyba při zpracování";
+            isFail = true;
+            isDone = true;
         }
 
         return html`
-            <div class="mt-6">
-                <span class="status-badge ${badgeClass}">${badgeText}</span>
+            <div class="border-2 ${themeClass} rounded-2xl p-6 text-center transition-all">
+                <div class="flex justify-center mb-4">
+                    ${icon}
+                </div>
+
+                <h2 class="text-2xl font-bold ${titleColor} mb-2">${statusText}</h2>
 
                 ${s.imageUrl ? html`
-                    <a href="${s.imageUrl}" target="_blank" class="inline-block mt-4 mb-2 text-blue-600 hover:text-blue-800 font-medium flex items-center justify-center gap-2 border border-blue-200 rounded-lg p-2 bg-blue-50">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                        Zobrazit odevzdané foto
-                    </a>
+                    <div class="relative group mt-6 mb-6">
+                        <img
+                            src="${s.imageUrl}"
+                            alt="Odevzdaná práce"
+                            class="w-full max-h-[400px] object-cover rounded-xl shadow-lg ring-1 ring-slate-900/5 bg-white"
+                        >
+                    </div>
                 ` : ''}
 
-                ${s.status === SUBMISSION_STATUS.EVALUATED ? html`
-                    <div class="grade">${s.grade}</div>
-                    <div class="feedback-card">
-                        <h3 class="font-bold mb-2">Hodnocení AI:</h3>
-                        <p class="text-gray-700 whitespace-pre-wrap">${s.feedback}</p>
+                ${isDone ? html`
+                    <div class="bg-white rounded-xl border border-slate-100 p-6 shadow-sm text-left">
+                        ${s.status === SUBMISSION_STATUS.EVALUATED ? html`
+                            <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-4">
+                                <span class="text-sm font-bold text-slate-500 uppercase">Známka</span>
+                                <span class="text-3xl font-extrabold ${isFail ? 'text-red-600' : 'text-green-600'}">${s.grade}</span>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900 mb-2 flex items-center gap-2">
+                                    <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path></svg>
+                                    Hodnocení mistra (AI):
+                                </h3>
+                                <div class="prose prose-sm text-slate-600 italic bg-slate-50 p-4 rounded-lg border border-slate-100 relative">
+                                    <span class="absolute top-2 left-2 text-3xl text-slate-200 leading-none">"</span>
+                                    <p class="relative z-10 whitespace-pre-wrap">${s.feedback}</p>
+                                    <span class="absolute bottom-[-10px] right-2 text-3xl text-slate-200 leading-none">"</span>
+                                </div>
+                            </div>
+                        ` : html`
+                            <p class="text-red-600 font-medium">${s.error || "Nastala neočekávaná chyba."}</p>
+                        `}
                     </div>
-                ` : s.status === SUBMISSION_STATUS.ERROR ? html`
-                    <p class="text-red-500">${s.error}</p>
-                    <button class="btn-upload mt-4" @click="${this._handleRetry}">Zkusit znovu</button>
+
+                    ${isFail ? html`
+                        <div class="mt-6">
+                            <button
+                                @click="${this._handleRetry}"
+                                class="w-full py-3 bg-white border-2 border-red-100 text-red-600 hover:bg-red-50 hover:border-red-200 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                            >
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                Zkusit to znovu
+                            </button>
+                            <p class="text-xs text-red-400 mt-2">Předchozí pokus bude smazán.</p>
+                        </div>
+                    ` : ''}
                 ` : html`
-                    <p class="text-gray-500 animate-pulse">🤖 AI Majster analyzuje tvoju prácu...</p>
+                    <p class="text-slate-500 text-sm mt-4 animate-pulse">Analyzuji fotografii, vydrž chvilku...</p>
                 `}
             </div>
         `;
     }
 
     async _handleRetry() {
-        // Delete submission to allow retry? Or update existing?
-        // Updating existing might trigger cloud function again if configured onUpdate, but mine is onDocumentCreated.
-        // So I should delete and re-create.
         if (this.submission) {
+            if(!confirm("Opravdu chcete smazat tento pokus a začít znovu?")) return;
             try {
-                // Warning: Security rules might prevent delete.
-                // Assuming students can delete their own pending/error submissions.
-                // If not, we just reset local state and allow upload (creating new doc).
-                // Ideally backend handles clean up.
-                // For now, let's try to delete.
                 await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js").then(m => m.deleteDoc(doc(db, 'practical_submissions', this.submission.id)));
             } catch (e) {
                 console.error("Delete failed", e);
+                alert("Nepodařilo se restartovat úkol.");
             }
         }
     }
