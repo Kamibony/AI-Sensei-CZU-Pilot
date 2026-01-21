@@ -376,8 +376,24 @@ export class StudentPracticeView extends LitElement {
     }
 
     _renderUploadForm() {
+        if (this.isUploading) {
+            return html`
+                <div class="flex flex-col items-center py-8">
+                    <div class="relative">
+                        <div class="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                        <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                        </div>
+                    </div>
+                    <p class="text-blue-800 font-bold mt-4 text-lg">Nahrávám fotografii...</p>
+                    <p class="text-slate-500 text-sm">Prosím nezavírejte okno</p>
+                </div>
+            `;
+        }
+
         return html`
-            <div class="flex flex-col items-center">
+            <div class="flex flex-col items-center w-full">
+                <!-- Camera Input (Direct Capture) -->
                 <input
                     type="file"
                     id="cameraInput"
@@ -386,21 +402,41 @@ export class StudentPracticeView extends LitElement {
                     @change="${this._handleFileUpload}"
                     class="hidden"
                 >
-                <button
-                    class="group relative w-full py-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-2xl font-bold text-lg shadow-lg hover:shadow-blue-500/30 transition-all transform active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                    ?disabled="${this.isUploading || !this.activeSession.task}"
-                    @click="${() => this.shadowRoot.getElementById('cameraInput').click()}"
+
+                <!-- Gallery Input (File Selection) -->
+                <input
+                    type="file"
+                    id="fileInput"
+                    accept="image/*"
+                    @change="${this._handleFileUpload}"
+                    class="hidden"
                 >
-                    ${this.isUploading ? html`
-                        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        Nahrávám foto...
-                    ` : html`
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                        Vyfotit splněný úkol
-                    `}
-                </button>
-                <p class="text-sm text-slate-400 mt-4 text-center">Kliknutím otevřete kameru nebo galerii</p>
-                ${this.uploadError ? html`<div class="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm font-medium border border-red-100 w-full text-center">${this.uploadError}</div>` : ''}
+
+                <div class="grid grid-cols-1 gap-4 w-full">
+                    <button
+                        class="group relative w-full py-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-2xl font-bold text-lg shadow-lg hover:shadow-blue-500/30 transition-all transform active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                        ?disabled="${!this.activeSession.task}"
+                        @click="${() => this.shadowRoot.getElementById('cameraInput').click()}"
+                    >
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        Vyfotit
+                    </button>
+
+                    <button
+                        class="group relative w-full py-4 bg-white border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-2xl font-bold text-lg transition-all transform active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                        ?disabled="${!this.activeSession.task}"
+                        @click="${() => this.shadowRoot.getElementById('fileInput').click()}"
+                    >
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        Vybrat z galerie
+                    </button>
+                </div>
+
+                <p class="text-sm text-slate-400 mt-6 text-center">
+                    Pro splnění úkolu vyfoťte svou práci nebo nahrajte fotku.
+                </p>
+
+                ${this.uploadError ? html`<div class="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm font-medium border border-red-100 w-full text-center flex items-center justify-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>${this.uploadError}</div>` : ''}
             </div>
         `;
     }
