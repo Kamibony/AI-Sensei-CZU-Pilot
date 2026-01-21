@@ -235,7 +235,9 @@
     "text": "Textový obsah",
     "text_desc": "Studijní materiály ke čtení",
     "video": "Video lekce",
-    "video_desc": "YouTube nebo odkaz"
+    "video_desc": "YouTube nebo odkaz",
+    "whiteboard": "Tabule",
+    "whiteboard_desc": "Interaktivní diagramy"
   },
   "dashboard": {
     "active_lessons": "Aktivní lekce",
@@ -610,6 +612,22 @@
     "upload_uploading": "Nahrávám...",
     "visible_tooltip": "Viditelné pro studenty"
   },
+  "whiteboard": {
+    "title": "Interaktivní Tabule",
+    "description": "Kreslete nebo generujte diagramy pomocí AI.",
+    "toolbar": {
+      "pencil": "Tužka",
+      "rectangle": "Obdélník",
+      "circle": "Kruh",
+      "text": "Text",
+      "clear": "Vymazat",
+      "save": "Uložit"
+    },
+    "magic_btn": "✨ Magie",
+    "ai_prompt_placeholder": "Popište diagram...",
+    "ai_generating": "Generuji...",
+    "saved": "Uloženo"
+  },
   "library": {
     "add_new": "Přidat novou lekci",
     "assign_hint": "Přiřadit lekci třídě",
@@ -908,13 +926,15 @@
       "desc_quiz": "Procvičení",
       "desc_study": "Text a materiály",
       "desc_test": "Ověření znalostí",
+      "desc_whiteboard": "Interaktivní tabule",
       "flashcards": "Kartičky",
       "mindmap": "Myšlenková mapa",
       "podcast": "Podcast",
       "presentation": "Prezentace",
       "quiz": "Kvíz",
       "study": "Studovna",
-      "test": "Test"
+      "test": "Test",
+      "whiteboard": "Tabule"
     },
     "typing": "píše...",
     "welcome": "Vítejte"

@@ -20,6 +20,7 @@ import './editor/editor-view-comic.js';
 import './editor/editor-view-flashcards.js';
 import './editor/editor-view-mindmap.js';
 import './editor/editor-view-audio.js';
+import './editor/editor-view-whiteboard.js';
 import './editor/ai-generator-panel.js';
 import './editor/professor-header-editor.js';
 
@@ -1215,6 +1216,9 @@ export class LessonEditor extends BaseView {
                if (code && code.length > 10 && !code.includes("Error[")) return true;
                break;
 
+          case 'whiteboard':
+               return false; // Requires checking subcollection, assuming false for now
+
           default:
               break;
       }
@@ -1478,6 +1482,7 @@ export class LessonEditor extends BaseView {
                       ${this._renderContentCard('comic', '💬', translationService.t('content_types.comic'), this._hasMeaningfulContent('comic'))}
                       ${this._renderContentCard('flashcards', '🃏', translationService.t('content_types.flashcards'), this._hasMeaningfulContent('flashcards'))}
                       ${this._renderContentCard('mindmap', '🧠', translationService.t('content_types.mindmap'), this._hasMeaningfulContent('mindmap'))}
+                      ${this._renderContentCard('whiteboard', '🎨', translationService.t('content_types.whiteboard'), this._hasMeaningfulContent('whiteboard'))}
                   </div>
               </div>
 
@@ -1636,6 +1641,11 @@ export class LessonEditor extends BaseView {
                   .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
                   @lesson-updated=${handleUpdate}
                   id="active-editor" class="w-full h-full block"></editor-view-audio>`;
+
+          case 'whiteboard':
+              return html`<editor-view-whiteboard @back=${this._handleBackToHub}
+                  .lesson=${this.lesson} .isSaving=${this.isSaving}
+                  id="active-editor" class="w-full h-full block"></editor-view-whiteboard>`;
                   
           default: return html`<div class="p-4 text-center text-red-500">${translationService.t('common.unknown_type')}</div>`;
       }

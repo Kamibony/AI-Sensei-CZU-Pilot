@@ -2387,6 +2387,50 @@ exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (req
     }
 });
 
+exports.generateDiagramElement = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can generate diagrams.");
+    }
+
+    const { prompt } = request.data;
+    if (!prompt) {
+        throw new HttpsError("invalid-argument", "Missing prompt.");
+    }
+
+    try {
+        const instruction = `
+        ROLE: You are an expert Fabric.js developer and diagram designer.
+        TASK: Generate a valid Fabric.js JSON object based on the user's description.
+
+        INSTRUCTIONS:
+        1. Return ONLY valid JSON.
+        2. The JSON must have a top-level "objects" array containing Fabric.js object definitions.
+        3. Use standard Fabric.js types: 'rect', 'circle', 'triangle', 'line', 'text', 'path', 'group'.
+        4. Ensure all objects have 'left', 'top', 'width', 'height' (if applicable), 'fill', 'stroke' properties set to reasonable values to form a coherent diagram.
+        5. Position objects so they don't overlap chaotically (unless requested).
+        6. If the user asks for a flowchart, use rectangles/diamonds connected by lines.
+        7. If the user asks for a mind map, use a central ellipse connected to outer nodes.
+        8. Default font size for text should be 20.
+
+        OUTPUT FORMAT:
+        {
+          "objects": [ ... ]
+        }
+        `;
+
+        const result = await GeminiAPI.generateJsonFromPrompt(prompt, instruction);
+        return result;
+
+    } catch (error) {
+        logger.error("Error generating diagram:", error);
+        throw new HttpsError("internal", "Failed to generate diagram.");
+    }
+});
+
 exports.evaluatePracticalSubmission = onDocumentWritten({
     region: DEPLOY_REGION,
     document: "practical_submissions/{submissionId}",
