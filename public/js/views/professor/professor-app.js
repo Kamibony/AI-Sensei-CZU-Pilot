@@ -15,6 +15,7 @@ import './professor-analytics-view.js';
 import './admin-user-management-view.js';
 import './admin-settings-view.js';
 import './admin-dashboard-view.js';
+import './practice-view.js';
 
 // Guide Bot
 import '../../components/guide-bot.js';
@@ -242,7 +243,7 @@ export class ProfessorApp extends LitElement {
                     </lesson-editor>
                 `;
             case 'timeline':
-                return html`<timeline-view .lesson="${this._currentData}"></timeline-view>`;
+                return html`<timeline-view></timeline-view>`;
             case 'students':
                 return html`<professor-students-view></professor-students-view>`;
             case 'student-profile':
@@ -251,6 +252,8 @@ export class ProfessorApp extends LitElement {
                 return html`<professor-interactions-view></professor-interactions-view>`;
             case 'analytics':
                 return html`<professor-analytics-view></professor-analytics-view>`;
+            case 'practice':
+                return html`<practice-view></practice-view>`;
             case 'admin-users':
                 return html`<admin-user-management-view></admin-user-management-view>`;
             case 'admin-settings':

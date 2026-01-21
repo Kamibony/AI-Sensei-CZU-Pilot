@@ -73,6 +73,7 @@ export class ProfessorNavigation extends Localized(LitElement) {
                     ${this._renderNavItem('students', '👥', this.t('nav.students'))}
                     ${this._renderNavItem('interactions', '💬', this.t('nav.interactions'))}
                     ${this._renderNavItem('analytics', '📊', this.t('nav.analytics'))}
+                    ${this._renderNavItem('practice', '🛠️', this.t('nav.practice') || 'Odborný výcvik')}
 
                     <div class="my-4 border-t border-slate-100 mx-3"></div>
 
@@ -83,6 +84,7 @@ export class ProfessorNavigation extends Localized(LitElement) {
                     </div>
 
                     ${this._renderNavItem('library', '📚', this.t('nav.library'))}
+                    ${this._renderNavItem('timeline', '📅', this.t('nav.timeline'))}
                     ${this._renderNavItem('media', '📁', this.t('nav.media'))}
                     ${this._renderNavItem('editor', '✨', this.t('nav.editor'))}
                 </div>

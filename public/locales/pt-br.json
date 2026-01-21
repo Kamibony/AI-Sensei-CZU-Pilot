@@ -97,6 +97,16 @@
     "welcome_back": "Bem-vindo de volta",
     "welcome_desc": "Entre para continuar."
   },
+  "chat": {
+    "ai_guide": "Guia de IA",
+    "ask_anything": "Pergunte qualquer coisa...",
+    "error_ai": "Erro IA:",
+    "error_notify_prof": "Falha ao notificar o professor.",
+    "error_send": "ERRO: Falha ao enviar mensagem.",
+    "placeholder": "Pergunte ao assistente de IA...",
+    "placeholder_message": "Mensagem",
+    "placeholder_professor": "Digite sua pergunta para o professor..."
+  },
   "class": {
     "actions": "Ações",
     "assign_lesson_btn": "Atribuir",
@@ -515,6 +525,14 @@
     }
   },
   "generate_presentation_first": "Gere a apresentação primeiro.",
+  "guide_bot": {
+    "error_generic": "Ocorreu um erro de comunicação com a IA.",
+    "error_response": "Desculpe, não consigo responder no momento.",
+    "placeholder": "Pergunte qualquer coisa...",
+    "system_instruction": "Você é o guia de IA da plataforma educacional 'AI Sensei'. Ajude alunos e professores a navegar na interface. Responda brevemente e de forma útil em português.",
+    "title": "Guia de IA",
+    "welcome_ai": "Olá! Sou seu guia de IA. Como posso ajudá-lo hoje?"
+  },
   "header": {
     "brand": "AI Sensei",
     "logout": "Sair",
@@ -650,11 +668,23 @@
     "editor": "Editor de Lições",
     "interactions": "Interações",
     "library": "Biblioteca de Lições",
+    "timeline": "Planejador",
     "logout": "Sair",
     "media": "Mídia & Arquivos",
     "organization": "Organização",
+    "practice": "Treinamento Prático",
     "settings": "Configurações",
     "students": "Alunos"
+  },
+  "podcast": {
+    "audio_unavailable": "Áudio sendo gerado ou indisponível",
+    "error_loading": "Falha ao carregar o arquivo de áudio.",
+    "loading": "Carregando áudio...",
+    "not_ready": "Podcast não preparado",
+    "not_ready_desc": "O professor ainda não gerou o áudio ou o roteiro.",
+    "playing_not_available": "Reprodução indisponível",
+    "professional_audio": "Áudio Profissional",
+    "read_transcript": "Leia a transcrição abaixo"
   },
   "professor": {
     "active_in_classes": "Ativos nas turmas",
@@ -872,8 +902,10 @@
     "nav": {
       "classes": "Turmas",
       "dashboard": "Painel",
-      "lessons": "Lições"
+      "lessons": "Lições",
+      "practice": "Treinamento Prático"
     },
+    "practice": "Treinamento Prático",
     "next": "Prox.",
     "next_up": "A seguir",
     "overview": "Visão Geral",
@@ -960,33 +992,5 @@
     "subtitle": "Arraste as lições.",
     "title": "Plano de Ensino",
     "week": "Semana"
-  },
-  "guide_bot": {
-    "system_instruction": "Você é um guia de IA para a plataforma educacional AI Sensei. Ajude os usuários (alunos e professores) a navegar na interface. Responda de forma breve e útil em português.",
-    "title": "Guia de IA",
-    "welcome_ai": "Olá! Sou seu guia de IA. Como posso ajudá-lo hoje?",
-    "error_response": "Desculpe, não consigo responder no momento.",
-    "error_generic": "Ocorreu um erro de comunicação com a IA.",
-    "placeholder": "Pergunte qualquer coisa..."
-  },
-  "podcast": {
-    "audio_unavailable": "Áudio indisponível ou sendo gerado",
-    "read_transcript": "Leia a transcrição abaixo",
-    "playing_not_available": "Reprodução indisponível",
-    "not_ready": "Podcast não preparado",
-    "not_ready_desc": "O professor ainda não gerou o áudio ou o roteiro.",
-    "loading": "Carregando áudio...",
-    "professional_audio": "Áudio Profissional",
-    "error_loading": "Falha ao carregar o arquivo de áudio."
-  },
-  "chat": {
-    "placeholder": "Pergunte...",
-    "placeholder_message": "Mensagem",
-    "placeholder_professor": "Digite sua pergunta para o professor...",
-    "ai_guide": "Guia de IA",
-    "ask_anything": "Pergunte qualquer coisa...",
-    "error_ai": "Erro IA:",
-    "error_send": "ERRO: Falha ao enviar mensagem.",
-    "error_notify_prof": "Falha ao notificar o professor."
   }
 }

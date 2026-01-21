@@ -1,4 +1,4 @@
-import { collection, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, query, orderBy, where, doc, updateDoc, addDoc, serverTimestamp, limit, writeBatch, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db, auth } from '../firebase-init.js';
 import { showToast, getCollectionPath } from '../utils/utils.js';
 
@@ -6,6 +6,184 @@ export class ProfessorDataService {
     constructor() {
         this.db = db;
         this.auth = auth;
+    }
+
+    // --- PRACTICAL TRAINING ---
+
+    async createPracticalSession(groupId, activeTask = '') {
+        if (!this.db || !this.auth.currentUser) return null;
+        try {
+            // Step 1: Query existing active sessions
+            const q = query(
+                collection(this.db, 'practical_sessions'),
+                where('groupId', '==', groupId),
+                where('status', '==', 'active')
+            );
+            const snapshot = await getDocs(q);
+
+            // Step 2: Initialize batch
+            const batch = writeBatch(this.db);
+
+            // Step 3: End existing sessions
+            snapshot.forEach(docSnap => {
+                batch.update(docSnap.ref, {
+                    status: 'ended',
+                    endedAt: serverTimestamp()
+                });
+            });
+
+            // Step 4: Create new session ref
+            const newSessionRef = doc(collection(this.db, 'practical_sessions'));
+
+            const session = {
+                professorId: this.auth.currentUser.uid,
+                groupId: groupId,
+                startTime: serverTimestamp(),
+                status: 'active',
+                task: activeTask,
+                createdAt: serverTimestamp()
+            };
+
+            // Step 5: Queue the set
+            batch.set(newSessionRef, session);
+
+            // Step 6: Update Dedicated Signal Channel (Legacy / Signal)
+            const signalRef = doc(this.db, 'groups', groupId, 'live_status', 'current');
+            // Use set (overwrite) to ensure clean state
+            batch.set(signalRef, {
+                activeSessionId: newSessionRef.id,
+                task: activeTask,
+                status: 'active',
+                startTime: serverTimestamp()
+            });
+
+            // Step 6b: Update Group Document (Embedded Payload Pattern)
+            const groupRef = doc(this.db, 'groups', groupId);
+            batch.update(groupRef, {
+                activeSessionId: newSessionRef.id,
+                activeTask: activeTask,
+                sessionStatus: 'active',
+                sessionStartTime: serverTimestamp()
+            });
+
+            // Step 7: Commit
+            await batch.commit();
+
+            console.log(`%c[Tracepoint B] Service Layer: Session Created & Pointer Updated for Group ${groupId}`, "color: orange; font-weight: bold");
+
+            return newSessionRef.id;
+        } catch (error) {
+            console.error(`%c[Tracepoint B] Service Layer: Error creating practical session:`, "color: red; font-weight: bold", error);
+            showToast("Chyba při vytváření výcviku.", "error");
+            return null;
+        }
+    }
+
+    async updateActiveTask(sessionId, task) {
+         if (!this.db) return;
+         try {
+             console.log(`%c[Tracepoint B] Service Layer: Writing to Firestore path 'practical_sessions/${sessionId}'`, "color: orange; font-weight: bold", { task: task });
+
+             // 1. Update the Session Document (Archive)
+             const sessionRef = doc(this.db, 'practical_sessions', sessionId);
+             await updateDoc(sessionRef, { task: task });
+
+             // 2. Propagate to Dedicated Signal Channel & Group Document
+             const sessionSnap = await getDoc(sessionRef);
+             if (sessionSnap.exists()) {
+                 const { groupId } = sessionSnap.data();
+                 if (groupId) {
+                     // Legacy Signal Channel
+                     const signalRef = doc(this.db, 'groups', groupId, 'live_status', 'current');
+                     await setDoc(signalRef, { task: task }, { merge: true });
+
+                     // Embedded Payload Pattern
+                     const groupRef = doc(this.db, 'groups', groupId);
+                     await updateDoc(groupRef, { activeTask: task });
+                 }
+             }
+         } catch (error) {
+             console.error("Error updating task:", error);
+         }
+    }
+
+    async endPracticalSession(sessionId) {
+        if (!this.db) return;
+        try {
+            const sessionRef = doc(this.db, 'practical_sessions', sessionId);
+            const sessionSnap = await getDoc(sessionRef);
+
+            if (sessionSnap.exists()) {
+                const { groupId } = sessionSnap.data();
+                const batch = writeBatch(this.db);
+
+                // 1. End the session
+                batch.update(sessionRef, {
+                    status: 'completed',
+                    endTime: serverTimestamp()
+                });
+
+                // 2. Update Signal Channel & Group Document to 'ended'
+                if (groupId) {
+                    // Legacy Signal
+                    const signalRef = doc(this.db, 'groups', groupId, 'live_status', 'current');
+                    batch.update(signalRef, {
+                        status: 'ended',
+                        activeSessionId: null,
+                        task: null
+                    });
+
+                    // Embedded Payload Pattern
+                    const groupRef = doc(this.db, 'groups', groupId);
+                    batch.update(groupRef, {
+                        sessionStatus: 'ended',
+                        activeSessionId: null,
+                        activeTask: null
+                    });
+                }
+
+                await batch.commit();
+            }
+        } catch (error) {
+             console.error("Error ending session:", error);
+        }
+    }
+
+    async getActiveSession(groupId) {
+        if (!this.db) return null;
+        try {
+            const q = query(
+                collection(this.db, 'practical_sessions'),
+                where('groupId', '==', groupId),
+                where('status', '==', 'active'),
+                orderBy('startTime', 'desc'),
+                limit(1)
+            );
+            const snapshot = await getDocs(q);
+            if (!snapshot.empty) {
+                return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+            }
+            return null;
+        } catch (error) {
+             console.error("Error fetching active session:", error);
+             return null;
+        }
+    }
+
+    async getStudentsByGroup(groupId) {
+        if (!this.db) return [];
+        try {
+            const studentsPath = getCollectionPath('students');
+            const q = query(
+                collection(this.db, studentsPath),
+                where('memberOfGroups', 'array-contains', groupId)
+            );
+            const snapshot = await getDocs(q);
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+            console.error("Error fetching students for group:", error);
+            return [];
+        }
     }
 
     async fetchLessonById(id) {
@@ -31,6 +209,24 @@ export class ProfessorDataService {
         } catch (error) {
             console.warn("Lekcia sa nenašla alebo chýbajú práva:", error);
             return null;
+        }
+    }
+
+    async updateLessonSchedule(lessonId, availableFrom, availableUntil) {
+        try {
+            if (!this.db || !this.auth.currentUser) return false;
+
+            const lessonRef = doc(this.db, 'lessons', lessonId);
+            await updateDoc(lessonRef, {
+                availableFrom: availableFrom ? new Date(availableFrom) : null,
+                availableUntil: availableUntil ? new Date(availableUntil) : null,
+                isScheduled: !!availableFrom
+            });
+            return true;
+        } catch (error) {
+            console.error("Error updating lesson schedule:", error);
+            showToast("Chyba při plánování lekce.", "error");
+            return false;
         }
     }
 

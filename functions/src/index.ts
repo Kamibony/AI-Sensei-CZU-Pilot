@@ -1,5 +1,5 @@
 import type { CallableRequest, Request } from "firebase-functions/v2/https";
-import type { FirestoreEvent, QueryDocumentSnapshot } from "firebase-functions/v2/firestore";
+import type { Change, FirestoreEvent, QueryDocumentSnapshot } from "firebase-functions/v2/firestore";
 
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -7,7 +7,7 @@ const { getAuth } = require("firebase-admin/auth");
 const { getStorage } = require("firebase-admin/storage");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onRequest } = require("firebase-functions/v2/https");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const functions = require("firebase-functions/v1"); // Import v1 for triggers
 const logger = require("firebase-functions/logger");
 const cors = require("cors");
@@ -16,6 +16,7 @@ const textToSpeech = require("@google-cloud/text-to-speech"); // Import pre TTS
 
 // Import local API using TypeScript syntax
 import * as GeminiAPI from './gemini-api';
+import { SUBMISSION_STATUS, SUBMISSION_OUTCOME } from './shared-constants';
 
 // Lazy load heavy dependencies
 // const pdf = require("pdf-parse");
@@ -555,7 +556,7 @@ exports.generatePodcastAudio = onCall({
         throw new HttpsError("unauthenticated", "Len profesor môže generovať audio.");
     }
 
-    const { lessonId, text, language, episodeIndex } = request.data;
+    const { lessonId, text, language, episodeIndex, voiceGender } = request.data;
     if (!lessonId || !text) {
         throw new HttpsError("invalid-argument", "Chýba ID lekcie alebo text.");
     }
@@ -582,7 +583,7 @@ exports.generatePodcastAudio = onCall({
 
         // 2. Parsovanie vstupu na segmenty
         // Rozdelí text podľa [Speaker]:, ponechá oddelovače, a odstráni prázdne stringy
-        const parts = text.split(/(\[(?:Alex|Sarah)\]:)/).filter((p: string) => p && p.trim().length > 0);
+        const parts = text.split(/(\[(?:Alex|Sarah|Host|Guest)\]:)/).filter((p: string) => p && p.trim().length > 0);
 
         const audioBuffers: Buffer[] = [];
         let currentSpeaker = "default"; // Default to female/sarah if no tag found initially? Or use male? Let's use Male as fallback or default.
@@ -590,17 +591,28 @@ exports.generatePodcastAudio = onCall({
 
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i].trim();
-            if (part === "[Alex]:") {
+
+            // Map [Host] -> Alex, [Guest] -> Sarah
+            if (part === "[Alex]:" || part === "[Host]:") {
                 currentSpeaker = "Alex";
                 continue;
             }
-            if (part === "[Sarah]:") {
+            if (part === "[Sarah]:" || part === "[Guest]:") {
                 currentSpeaker = "Sarah";
                 continue;
             }
 
             // Je to text segmentu
-            const voiceName = (currentSpeaker === "Sarah") ? femaleVoiceName : maleVoiceName;
+            // Determine voice based on speaker tag OR global voiceGender preference for Monologues
+            let voiceName;
+            if (currentSpeaker === "Sarah") {
+                voiceName = femaleVoiceName;
+            } else if (currentSpeaker === "Alex") {
+                voiceName = maleVoiceName;
+            } else {
+                // Default / Monologue mode
+                voiceName = (voiceGender === 'female') ? femaleVoiceName : maleVoiceName;
+            }
 
             logger.log(`Synthesizing segment for ${currentSpeaker} (${voiceName}): "${part.substring(0, 20)}..."`);
 
@@ -702,7 +714,7 @@ exports.generateComicPanelImage = onCall({
     }
 
     try {
-        const GeminiAPI = require("./gemini-api.js");
+
 
         // VISUALS ENHANCEMENT: Add style modifiers
         const enhancedPrompt = `Educational comic book style, detailed, vibrant colors, semi-realistic style. Visual context: ${panelPrompt}`;
@@ -957,7 +969,7 @@ Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
             // RAG-based response
             logger.log(`[RAG] Starting RAG process for prompt: "${finalPrompt}" with ${filePaths.length} files.`);
 
-            const GeminiAPI = require("./gemini-api.js");
+
 
             // 1. Generate embedding for the user's prompt
             const promptEmbedding = await GeminiAPI.getEmbeddings(finalPrompt);
@@ -1016,7 +1028,7 @@ Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
 
         } else {
             // Standard non-RAG response
-            const GeminiAPI = require("./gemini-api.js");
+
             return isJson
                 ? await GeminiAPI.generateJsonFromPrompt(finalPrompt, systemPrompt)
                 : { text: await GeminiAPI.generateTextFromPrompt(finalPrompt, systemPrompt) };
@@ -1049,7 +1061,7 @@ exports.generateImage = onCall({
     }
 
     try {
-        const GeminiAPI = require("./gemini-api.js");
+
         const imageBase64 = await GeminiAPI.generateImageFromPrompt(prompt);
         return { imageBase64 };
     } catch (error) {
@@ -1145,7 +1157,7 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
         // 4. Embedding Loop and Save to Firestore
         const batchSize = 5; // Process in smaller batches to avoid overwhelming the embedding API
         logger.log("[RAG] Initializing GeminiAPI...");
-        const GeminiAPI = require("./gemini-api.js");
+
 
         let chunksProcessed = 0;
         for (let i = 0; i < chunks.length; i += batchSize) {
@@ -1214,8 +1226,10 @@ exports.getAiAssistantResponse = onCall({
     memory: "1GiB"
 }, async (request: CallableRequest) => {
     const { lessonId, userQuestion } = request.data;
-    if (!lessonId || !userQuestion) {
-        throw new HttpsError("invalid-argument", "Missing lessonId or userQuestion");
+
+    // Only userQuestion is mandatory now
+    if (!userQuestion) {
+        throw new HttpsError("invalid-argument", "Missing userQuestion");
     }
 
     // 1. Context Awareness: Get User Info
@@ -1232,6 +1246,14 @@ exports.getAiAssistantResponse = onCall({
         // Special case for Guide Bot
         if (lessonId === 'guide-bot') {
             prompt = `${systemContext}\n\nUser Question: ${userQuestion}`;
+        } else if (!lessonId || lessonId === "general") {
+             // FALLBACK: General Assistant Mode (No specific lesson context)
+             prompt = `${systemContext}
+
+             INSTRUCTIONS:
+             You are a general educational assistant. Since no specific lesson context is provided, answer general questions about the platform or study tips.
+
+             User Question: "${userQuestion}"`;
         } else {
             // 2. Context Awareness: Fetch Latest Lesson Data
             const lessonRef = db.collection("lessons").doc(lessonId);
@@ -1259,17 +1281,24 @@ exports.getAiAssistantResponse = onCall({
 
             prompt = `${systemContext}
 
-            CONTEXT (Current Lesson):
+            CONTEXT (Current Lesson Data):
             ${contextString}
 
-            INSTRUCTIONS:
-            Answer the user's question based strictly on the provided lesson context.
-            If the answer is not in the lesson, say you don't know but suggest asking the professor.
+            STRICT INSTRUCTIONS (Anti-Hallucination):
+            You are an educational assistant. You must answer strictly based ONLY on the provided Context Data.
+            Do not use outside knowledge to answer curriculum-specific questions.
+
+            LANGUAGE INSTRUCTION:
+            You must answer in the same language as the user's question.
+
+            Fallback Protocol:
+            If the answer is not found in the provided context, you must explicitly state:
+            "I cannot find this information in the current lesson materials. Please check with your professor."
 
             User Question: "${userQuestion}"`;
         }
 
-        const GeminiAPI = require("./gemini-api.js");
+
         const answer = await GeminiAPI.generateTextFromPrompt(prompt);
         return { answer };
     } catch (error) {
@@ -1502,7 +1531,7 @@ ${promptContext}
 `;
         
         // 7. Zavolať Gemini
-        const GeminiAPI = require("./gemini-api.js");
+
         const summary = await GeminiAPI.generateTextFromPrompt(finalPrompt);
 
         // ===== NOVÝ KROK: Uloženie analýzy do profilu študenta =====
@@ -1636,7 +1665,7 @@ exports.telegramBotWebhook = onRequest({ region: DEPLOY_REGION, secrets: ["TELEG
                 }
             }
             
-            const GeminiAPI = require("./gemini-api.js");
+
             const answer = await GeminiAPI.generateTextFromPrompt(lessonContextPrompt);
 
             // Uloženie konverzácie z Telegramu do DB
@@ -2355,5 +2384,118 @@ exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (req
             throw new HttpsError("internal", `Migration failed: ${error.message}`);
         }
         throw new HttpsError("internal", "An unknown error occurred during migration.");
+    }
+});
+
+exports.evaluatePracticalSubmission = onDocumentWritten({
+    region: DEPLOY_REGION,
+    document: "practical_submissions/{submissionId}",
+    memory: "2GiB",
+    timeoutSeconds: 300
+}, async (event: FirestoreEvent<Change<QueryDocumentSnapshot> | undefined>) => {
+    // 1. Idempotency Guard & Data Retrieval
+    if (!event.data) {
+        logger.error("No data associated with the event");
+        return;
+    }
+
+    // EXIT IF: Document was deleted (!event.data.after.exists).
+    if (!event.data.after.exists) {
+        return;
+    }
+
+    const snapshot = event.data.after;
+    const submission = snapshot.data();
+    const submissionId = event.params.submissionId;
+
+    // EXIT IF: data.status is NOT 'pending'. (Only process if the status explicitly requests evaluation).
+    if (submission.status !== SUBMISSION_STATUS.PENDING) {
+        return;
+    }
+
+    if (!submission.sessionId || !submission.storagePath) {
+        logger.warn(`Submission ${submissionId} missing sessionId or storagePath.`);
+        return;
+    }
+
+    try {
+        // 1. Get the task description from the parent Session
+        const sessionDoc = await db.collection("practical_sessions").doc(submission.sessionId).get();
+        if (!sessionDoc.exists) {
+            logger.warn(`Session ${submission.sessionId} not found.`);
+            return;
+        }
+        // Standardized schema uses 'task' field (replaces legacy activeTask)
+        const task = sessionDoc.data()?.task || sessionDoc.data()?.activeTask;
+        if (!task) {
+            logger.warn(`Session ${submission.sessionId} has no task description.`);
+            return;
+        }
+
+        // 2. Securely access the file & Generate Signed URL
+        const bucket = getStorage().bucket(STORAGE_BUCKET);
+        const file = bucket.file(submission.storagePath);
+
+        // Generate a long-lived Signed URL for the Professor View
+        // (This acts as the "Keymaster" allowing the frontend to view the private file)
+        const [signedUrl] = await file.getSignedUrl({
+            action: 'read',
+            expires: Date.now() + 7 * 24 * 60 * 60 * 1000 // Valid for 7 days
+        });
+
+        // Download for analysis
+        const [buffer] = await file.download();
+        const base64Image = buffer.toString('base64');
+
+        // Try to get mimeType from metadata, default to jpeg
+        let mimeType = "image/jpeg";
+        try {
+            const [metadata] = await file.getMetadata();
+            if (metadata.contentType) {
+                mimeType = metadata.contentType;
+            }
+        } catch (e) {
+            logger.warn(`Could not get metadata for ${submission.storagePath}, defaulting to image/jpeg`);
+        }
+
+        // 3. Construct Context-Aware Prompt for Gemini
+        const systemPrompt = `
+        ROLE: You are an expert practical instructor evaluating student work.
+        TASK: "${task}"
+
+        INSTRUCTIONS:
+        1. Analyze the image to verify if it demonstrates the completion of the task.
+        2. CHECK FOR INVALID CONTENT: If the image is blurry, black, irrelevant (e.g., a selfie, meme, random object), or does not match the task, you MUST fail it.
+        3. If the task is completed, evaluate the quality.
+        4. CRITICAL: The 'feedback' field MUST be written in the CZECH language, regardless of the prompt language.
+
+        OUTPUT: Return structured JSON with:
+        - "grade": A letter grade (A, B, C, D, F) or "N/A" if invalid.
+        - "feedback": Constructive feedback (1-2 sentences). Explain why it passed or failed.
+        - "status": "pass" or "fail".
+        `;
+
+        const evaluation = await GeminiAPI.generateJsonFromMultimodal(systemPrompt, base64Image, mimeType);
+
+        // 4. Atomic Update of the Submission Document
+        const outcome = evaluation.status || (evaluation.grade === 'F' ? SUBMISSION_OUTCOME.FAIL : SUBMISSION_OUTCOME.PASS);
+
+        await snapshot.ref.update({
+            grade: evaluation.grade || "N/A",
+            feedback: evaluation.feedback || "Evaluation failed.",
+            result: outcome, // Pass/Fail outcome
+            status: SUBMISSION_STATUS.EVALUATED, // Lifecycle status: Always 'evaluated' on success
+            imageUrl: signedUrl, // The Keymaster's link
+            evaluatedAt: FieldValue.serverTimestamp()
+        });
+
+        logger.log(`Submission ${submissionId} evaluated. Result: ${outcome}, Grade: ${evaluation.grade}`);
+
+    } catch (error) {
+        logger.error(`Error evaluating submission ${submissionId}:`, error);
+        await snapshot.ref.update({
+            status: SUBMISSION_STATUS.ERROR,
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
     }
 });

@@ -535,6 +535,46 @@ async function generateTextFromMultimodal(prompt: string, base64Data: string, mi
     return text || "";
 }
 
+async function generateJsonFromMultimodal(prompt: string, base64Data: string, mimeType: string): Promise<any> {
+    const model = await getGenerativeModel();
+    const jsonPrompt = `${prompt}\n\nPlease provide the response in a valid JSON format.`;
+
+    const result = await model.generateContent({
+        contents: [{
+            role: 'user',
+            parts: [
+                { text: jsonPrompt },
+                {
+                    inlineData: {
+                        mimeType: mimeType,
+                        data: base64Data
+                    }
+                }
+            ]
+        }],
+        generationConfig: {
+            responseMimeType: "application/json",
+        },
+    });
+
+    const response = await result.response;
+    const rawJsonText = response.candidates?.[0].content.parts[0].text || "";
+    const sanitizedJsonText = sanitizeJsonOutput(rawJsonText);
+
+    try {
+        const parsedJson = JSON.parse(sanitizedJsonText);
+        return parsedJson;
+    }
+    catch (e) {
+        logger.error("[gemini-api:generateJsonFromMultimodal] Failed to parse JSON from Gemini response:", sanitizedJsonText, e);
+        return {
+            error: true,
+            message: "Model returned a malformed JSON string.",
+            raw: rawJsonText
+        };
+    }
+}
+
 export {
     getEmbeddings,
     calculateCosineSimilarity,
@@ -544,6 +584,7 @@ export {
     generateJsonFromDocuments,
     generateImageFromPrompt,
     generateTextFromMultimodal,
+    generateJsonFromMultimodal,
     downloadFileWithRetries,
     sanitizeStoragePath
 };

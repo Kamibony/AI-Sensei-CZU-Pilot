@@ -7,12 +7,19 @@ service cloud.firestore {
       return request.auth != null;
     }
     function isProfessor() {
-      return isSignedIn() && request.auth.token.email == 'profesor@profesor.cz';
+      // Skontroluje či je email admina ALEBO či má custom claim 'role' nastavený na 'professor'
+      // ALEBO či má v databáze rolu 'professor' (Fallback pre chýbajúce claims)
+      return isSignedIn() && (
+        (request.auth.token.get('email', '') == 'profesor@profesor.cz') ||
+        (request.auth.token.get('role', '') == 'professor') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor')
+      );
     }
+    // Pre istotu, ak by sa 'role' volalo inak v tokenoch
     function isProfessorRole() {
-      return isSignedIn() && request.auth.token.role == 'professor';
+       return isSignedIn() && request.auth.token.get('role', '') == 'professor';
     }
-    // --- NOVÁ FUNKCIA PRE ŠTUDENTA ---
+    
     function isStudentRole() {
       return isSignedIn() && request.auth.token.role == 'student';
     }
@@ -23,7 +30,7 @@ service cloud.firestore {
 
     // Kolekcia pre študentov (zjednotená)
     match /students/{studentId} {
-      allow read: if isProfessor() || isProfessorRole() || isOwner(studentId);
+      allow read: if isProfessor() || isOwner(studentId);
       allow create, update: if isOwner(studentId);
 
       // Povol read/write pre subkolekciu progress pre vlastníka
@@ -34,40 +41,51 @@ service cloud.firestore {
 
     // Pravidlá pre správu používateľov
     match /users/{userId} {
-      // Admin (profesor@profesor.cz) môže čítať zoznam všetkých používateľov
+      // Admin/Profesor môže čítať zoznam všetkých používateľov
       allow list: if isProfessor();
-      
       // 1. Povol 'get' pre vlastníka (aby si mohol načítať profil)
       allow get: if isOwner(userId);
-      // 2. Explicitne povoľ 'create' iba pre vlastníka.
-      allow create: if isOwner(userId);
-      // 3. Ponechaj 'update' prísne (len vlastník alebo starý admin).
-      allow update: if isOwner(userId) || isProfessor();
+      // 2. Explicitne povoľ 'create' a 'update' pre vlastníka (Self-Provisioning).
+      allow create, update: if isOwner(userId);
+      // 3. Ponechaj 'update' aj pre profesora (administratívne zásahy).
+      allow update: if isProfessor();
       // 4. Ponechaj 'delete' prísne (len starý admin).
       allow delete: if isProfessor();
     }
 
     // Lekcie
     match /lessons/{lessonId} {
-      allow read: if (resource.data.ownerId == request.auth.uid) ||
-                     isProfessor() || 
+      allow read: if (resource.data.ownerId == request.auth.uid) || isProfessor() || 
                      (isStudentRole() && resource.data.assignedToGroups.hasAny(get(/databases/$(database)/documents/students/$(request.auth.uid)).data.memberOfGroups));
       
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if (resource.data.ownerId == request.auth.uid) || isProfessor();
     }
 
-    // Skupiny (triedy) pre študentov
+    // --- KĽÚČOVÁ OPRAVA: SKUPINY (TRIEDY) ---
     match /groups/{groupId} {
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow read: if (resource.data.ownerId == request.auth.uid) || (request.auth.uid in resource.data.studentIds);
       
-      allow update, delete: if isSignedIn() && request.auth.uid == resource.data.ownerId;
+      // 1. ČÍTANIE: Každý prihlásený (aby študent videl "Pointer" activeSessionId)
+      allow read: if isSignedIn();
+      
+      // 2. UPDATE (Zápis Pointera): Povolíme Vlastníkovi ALEBO Profesorovi.
+      // Toto je nutné, aby profesor mohol zapísať ID hodiny do skupiny, aj keď ju nevytvoril.
+      allow update: if (isSignedIn() && request.auth.uid == resource.data.ownerId) || isProfessor();
+      
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.ownerId;
+
+      // --- DEDICATED SIGNAL CHANNEL (Live Status) ---
+      // This allows ANY Professor to update the live signal, bypassing group ownership locks.
+      match /live_status/current {
+        allow read: if isSignedIn();
+        allow write: if isProfessor();
+      }
     }
 
     // Konverzácie
     match /conversations/{studentId}/{document=**} {
-      allow read, write: if isProfessor() || isProfessorRole() || isOwner(studentId);
+      allow read, write: if isProfessor() || isOwner(studentId);
     }
     
     // Timeline (každý profesor vlastní svoje eventy)
@@ -80,30 +98,35 @@ service cloud.firestore {
     // Kvízy a testy
     match /quiz_submissions/{submissionId} {
       allow create: if isOwner(request.resource.data.studentId);
-      allow read: if isOwner(resource.data.studentId) || isProfessor() || isProfessorRole();
+      allow read: if isOwner(resource.data.studentId) || isProfessor();
     }
     match /test_submissions/{submissionId} {
        allow create: if isOwner(request.resource.data.studentId);
-       allow read: if isProfessor() || isProfessorRole() || isOwner(resource.data.studentId);
+       allow read: if isProfessor() || isOwner(resource.data.studentId);
+    }
+
+    // Odborný výcvik (Praxe)
+    match /practical_sessions/{sessionId} {
+      // Študent musí vedieť prečítať session, na ktorú ukazuje Pointer
+      allow read: if isSignedIn(); 
+      allow create, update, delete: if isProfessor();
+    }
+    match /practical_submissions/{submissionId} {
+      allow read: if (resource.data.studentId == request.auth.uid) || isProfessor();
+      allow create: if isSignedIn(); // Students create submissions
+      allow update: if isProfessor(); // Professor grades it
     }
 
     // Kolekcia pre metadáta súborov (index pre Storage)
     match /fileMetadata/{fileId} {
-      // Vytvoriť záznam môže len používateľ s rolou 'profesor', a to iba ak je 'ownerId' v dokumente jeho vlastné UID.
-      allow create: if isProfessorRole() && request.resource.data.ownerId == request.auth.uid;
-
-      // Čítať a mazať záznam môže iba vlastník alebo hlavný admin.
-      allow read, delete: if (isSignedIn() && resource.data.ownerId == request.auth.uid) || request.auth.token.email == 'profesor@profesor.cz';
-      // Aktualizovať záznam môže iba jeho vlastník (potrebné pre dokončenie uploadu).
+      allow create: if isProfessor() && request.resource.data.ownerId == request.auth.uid;
+      allow read, delete: if (isSignedIn() && resource.data.ownerId == request.auth.uid) || request.auth.token.get('email', '') == 'profesor@profesor.cz';
       allow update: if (isSignedIn() && resource.data.ownerId == request.auth.uid);
     }
 
-    // Systémové nastavenia (AI Config) - OPRAVENÉ
+    // Systémové nastavenia (AI Config)
     match /system_settings/{settingId} {
-      // Čítať môže každý profesor (aby generátor vedel, aké sú nastavenia)
-      allow read: if isProfessor() || isProfessorRole();
-      
-      // Zapisovať/meniť môže iba hlavný admin (profesor@profesor.cz)
+      allow read: if isProfessor();
       allow write: if isProfessor();
     }
   }
