@@ -115,6 +115,7 @@ service cloud.firestore {
       allow read: if (resource.data.studentId == request.auth.uid) || isProfessor();
       allow create: if isSignedIn(); // Students create submissions
       allow update: if isProfessor(); // Professor grades it
+      allow delete: if request.auth != null && request.auth.uid == resource.data.studentId;
     }
 
     // Kolekcia pre metadáta súborov (index pre Storage)
