@@ -3,12 +3,14 @@ import { collection, query, where, onSnapshot, orderBy, limit, addDoc, serverTim
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { db, auth, storage } from "../../firebase-init.js";
 import { SUBMISSION_STATUS, SUBMISSION_OUTCOME } from "../../shared-constants.js";
+import { compressImage } from "../../utils/image-utils.js";
 
 export class StudentPracticeView extends LitElement {
     static properties = {
         activeSession: { type: Object },
         submission: { type: Object },
         isUploading: { type: Boolean },
+        isProcessing: { type: Boolean },
         uploadError: { type: String },
         hasNoGroups: { type: Boolean },
         isAutoJoining: { type: Boolean },
@@ -22,6 +24,7 @@ export class StudentPracticeView extends LitElement {
         this.activeSession = null;
         this.submission = null;
         this.isUploading = false;
+        this.isProcessing = false;
         this.uploadError = null;
         this.hasNoGroups = false;
         this.isAutoJoining = false;
@@ -222,62 +225,23 @@ export class StudentPracticeView extends LitElement {
         });
     }
 
-    async _compressImage(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = (event) => {
-                const img = new Image();
-                img.src = event.target.result;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width;
-                    let height = img.height;
-                    const maxDim = 1024;
-
-                    if (width > maxDim || height > maxDim) {
-                        if (width > height) {
-                            height = Math.round((height * maxDim) / width);
-                            width = maxDim;
-                        } else {
-                            width = Math.round((width * maxDim) / height);
-                            height = maxDim;
-                        }
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-
-                    canvas.toBlob((blob) => {
-                        if (blob) {
-                            resolve(blob);
-                        } else {
-                            reject(new Error("Canvas toBlob failed"));
-                        }
-                    }, 'image/jpeg', 0.7);
-                };
-                img.onerror = (e) => reject(e);
-            };
-            reader.onerror = (e) => reject(e);
-        });
-    }
-
     async _handleFileUpload(e) {
         const file = e.target.files[0];
         if (!file) return;
 
-        this.isUploading = true;
+        this.isProcessing = true;
         this.uploadError = null;
         let fileToUpload = file;
 
         try {
             try {
-                fileToUpload = await this._compressImage(file);
+                fileToUpload = await compressImage(file);
             } catch (compressionError) {
                 console.warn("Image compression failed, proceeding with original file:", compressionError);
             }
+
+            this.isProcessing = false;
+            this.isUploading = true;
 
             const user = auth.currentUser;
             if (!user) throw new Error("User not authenticated");
@@ -376,6 +340,21 @@ export class StudentPracticeView extends LitElement {
     }
 
     _renderUploadForm() {
+        if (this.isProcessing) {
+             return html`
+                <div class="flex flex-col items-center py-8">
+                    <div class="relative">
+                        <div class="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+                        <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+                            <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                    </div>
+                    <p class="text-indigo-800 font-bold mt-4 text-lg">Zpracovávám fotku...</p>
+                    <p class="text-slate-500 text-sm">Optimalizuji velikost obrázku</p>
+                </div>
+            `;
+        }
+
         if (this.isUploading) {
             return html`
                 <div class="flex flex-col items-center py-8">
