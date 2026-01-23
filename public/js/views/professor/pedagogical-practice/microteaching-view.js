@@ -1,6 +1,7 @@
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { Localized } from '../../../utils/localization-mixin.js';
 import { PracticeService } from '../../../services/practice-service.js';
+import { auth } from '../../../firebase-init.js';
 
 export class MicroteachingView extends Localized(LitElement) {
     static properties = {
@@ -84,7 +85,8 @@ export class MicroteachingView extends Localized(LitElement) {
             const initialData = {
                 criteria: {},
                 goalFormulation: "",
-                status: 'draft'
+                status: 'draft',
+                studentId: auth.currentUser?.uid
             };
             const id = await this.practiceService.createAnalysis(initialData);
             this.lessonId = id; // Set ID

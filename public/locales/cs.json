@@ -1089,5 +1089,33 @@
       "no": "NE",
       "na": "N/A"
     }
+  },
+  "portfolio": {
+    "title": "Reflexe (Portfólio)",
+    "subtitle": "Finální agregace dat pro zápočet. Zde se vygeneruje portfolio z vašich náslechů a rozborů, doplněné o SWOT analýzu a sebereflexi.",
+    "export_btn": "Stáhnout Portfólio (PDF)",
+    "export_title": "Pedagogické Portfolio",
+    "generated_on": "Vygenerováno",
+    "dashboard": {
+      "total_observations": "Absolvované náslechy",
+      "records_count": "záznamů v systému",
+      "teaching_hours": "Odučené hodiny",
+      "teaching_hours_desc": "hodin (čistého času výkladu)"
+    },
+    "swot": {
+      "title": "SWOT Analýza",
+      "strengths": "Silné stránky (Strengths)",
+      "strengths_ph": "V čem jste dobří?",
+      "weaknesses": "Slabé stránky (Weaknesses)",
+      "weaknesses_ph": "Kde máte rezervy?",
+      "opportunities": "Příležitosti (Opportunities)",
+      "opportunities_ph": "Co vám může pomoci růst?",
+      "threats": "Hrozby (Threats)",
+      "threats_ph": "Co vás může ohrozit?"
+    },
+    "reflection": {
+      "title": "Celkové zhodnocení praxe",
+      "placeholder": "Popište celkový průběh vaší praxe, co vám dala, co byste udělali jinak..."
+    }
   }
 }

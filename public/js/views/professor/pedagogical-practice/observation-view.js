@@ -2,6 +2,7 @@ import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@
 import { Localized } from '../../../utils/localization-mixin.js';
 import { PracticeService } from '../../../services/practice-service.js';
 import { TIMELINE_EVENT_TYPES, OBSERVATION_QUESTIONS } from '../../../shared-constants.js';
+import { auth } from '../../../firebase-init.js';
 
 export class ObservationView extends Localized(LitElement) {
     static properties = {
@@ -34,7 +35,8 @@ export class ObservationView extends Localized(LitElement) {
             const data = {
                 startTime: Date.now(),
                 status: 'recording',
-                questions: {} // Initialize answers
+                questions: {}, // Initialize answers
+                studentId: auth.currentUser?.uid
             };
             const id = await this.practiceService.createObservation(data);
             this.currentSession = { id, ...data, timeline: [] };
