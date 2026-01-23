@@ -10,7 +10,8 @@ export class ObservationView extends Localized(LitElement) {
         currentSession: { type: Object },
         elapsedTime: { type: String },
         // Internal state for stats
-        stats: { type: Object }
+        stats: { type: Object },
+        studentId: { type: String }
     };
 
     constructor() {
@@ -36,7 +37,7 @@ export class ObservationView extends Localized(LitElement) {
                 startTime: Date.now(),
                 status: 'recording',
                 questions: {}, // Initialize answers
-                studentId: auth.currentUser?.uid
+                studentId: this.studentId || auth.currentUser?.uid
             };
             const id = await this.practiceService.createObservation(data);
             this.currentSession = { id, ...data, timeline: [] };

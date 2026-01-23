@@ -5,6 +5,7 @@ import { auth } from '../../../firebase-init.js';
 import { TIMELINE_EVENT_TYPES } from '../../../shared-constants.js';
 import { jsPDF } from 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm';
 import autoTable from 'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/+esm';
+import { addCzechFont } from '../../../utils/pdf-font-utils.js';
 
 export class PortfolioView extends Localized(LitElement) {
     static properties = {
@@ -13,7 +14,8 @@ export class PortfolioView extends Localized(LitElement) {
         analyses: { type: Array },
         loading: { type: Boolean },
         stats: { type: Object },
-        isSaving: { type: Boolean }
+        isSaving: { type: Boolean },
+        studentId: { type: String }
     };
 
     constructor() {
@@ -37,7 +39,9 @@ export class PortfolioView extends Localized(LitElement) {
         super.connectedCallback();
         // Wait for auth to be ready if needed, or assume parent handles it.
         // Better to wait a bit or check auth state.
-        if (auth.currentUser) {
+        if (this.studentId) {
+            this._loadData(this.studentId);
+        } else if (auth.currentUser) {
             this._loadData(auth.currentUser.uid);
         } else {
             // Wait for auth state change
@@ -49,6 +53,12 @@ export class PortfolioView extends Localized(LitElement) {
                 }
             });
         }
+    }
+
+    willUpdate(changedProperties) {
+         if (changedProperties.has('studentId') && this.studentId) {
+             this._loadData(this.studentId);
+         }
     }
 
     async _loadData(uid) {
@@ -143,29 +153,13 @@ export class PortfolioView extends Localized(LitElement) {
     }
 
     async _generatePDF() {
-        const doc = new jsPDF();
-
-        // Load font for Czech support
-        try {
-            // Using a CDN that provides base64 or fetching a font file
-            // Since we can't easily fetch and convert in browser without CORS issues sometimes,
-            // we will try to use a standard font or add one.
-            // A common workaround is to use a font that supports Latin Extended.
-            // However, jsPDF standard fonts (Helvetica) don't support utf-8 well.
-            // We'll fetch Roboto-Regular.ttf from a CDN.
-            const response = await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Regular.ttf');
-            if (response.ok) {
-                const buffer = await response.arrayBuffer();
-                // Convert to base64
-                const base64String = btoa(new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-
-                doc.addFileToVFS('Roboto-Regular.ttf', base64String);
-                doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
-                doc.setFont('Roboto');
-            }
-        } catch (e) {
-            console.warn("Failed to load Czech font, falling back to default.", e);
+        // Fix for autoTable not being applied automatically in some ESM environments
+        if (typeof autoTable === 'object' && autoTable.applyPlugin) {
+            autoTable.applyPlugin(jsPDF);
         }
+
+        const doc = new jsPDF();
+        addCzechFont(doc);
 
         const margin = 20;
         let y = margin;
@@ -192,7 +186,7 @@ export class PortfolioView extends Localized(LitElement) {
             obs.id.substring(0, 8) // Short ID as placeholder for class/school if missing
         ]);
 
-        autoTable(doc, {
+        doc.autoTable({
             startY: y,
             head: [['Datum', 'Čas', 'ID / Třída']],
             body: summaryData,
@@ -234,7 +228,7 @@ export class PortfolioView extends Localized(LitElement) {
             ];
         });
 
-        autoTable(doc, {
+        doc.autoTable({
             startY: y,
             head: [['Datum', 'Čas učitele', 'Čas žáků']],
             body: statsData,
@@ -254,7 +248,7 @@ export class PortfolioView extends Localized(LitElement) {
              analysis.id.substring(0, 8)
         ]);
 
-        autoTable(doc, {
+        doc.autoTable({
             startY: y,
             head: [['Formulace cíle', 'ID']],
             body: microteachingData,
@@ -282,7 +276,7 @@ export class PortfolioView extends Localized(LitElement) {
             ['Hrozby', swot.threats || '']
         ];
 
-        autoTable(doc, {
+        doc.autoTable({
             startY: y,
             body: swotData,
             theme: 'grid',
