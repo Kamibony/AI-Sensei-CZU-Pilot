@@ -105,6 +105,13 @@ service cloud.firestore {
        allow read: if isProfessor() || isOwner(resource.data.studentId);
     }
 
+    // Pedagogická praxe (Observations, Microteaching, Portfolio)
+    match /pedagogical_practice/{docId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if (resource.data.studentId == request.auth.uid);
+      allow read, update: if isProfessor();
+    }
+
     // Odborný výcvik (Praxe)
     match /practical_sessions/{sessionId} {
       // Študent musí vedieť prečítať session, na ktorú ukazuje Pointer

@@ -6,12 +6,14 @@ import './portfolio-view.js';
 
 export class PedagogicalPracticeView extends Localized(LitElement) {
     static properties = {
-        activeTab: { type: String }
+        activeTab: { type: String },
+        studentId: { type: String }
     };
 
     constructor() {
         super();
         this.activeTab = 'observations'; // Default tab
+        this.studentId = null;
     }
 
     createRenderRoot() { return this; }
@@ -64,13 +66,13 @@ export class PedagogicalPracticeView extends Localized(LitElement) {
     _renderContent() {
         switch (this.activeTab) {
             case 'observations':
-                return html`<observation-view></observation-view>`;
+                return html`<observation-view .studentId="${this.studentId}"></observation-view>`;
             case 'microteaching':
-                return html`<microteaching-view></microteaching-view>`;
+                return html`<microteaching-view .studentId="${this.studentId}"></microteaching-view>`;
             case 'portfolio':
-                return html`<portfolio-view></portfolio-view>`;
+                return html`<portfolio-view .studentId="${this.studentId}"></portfolio-view>`;
             default:
-                return html`<observation-view></observation-view>`;
+                return html`<observation-view .studentId="${this.studentId}"></observation-view>`;
         }
     }
 }
