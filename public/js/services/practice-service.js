@@ -42,6 +42,25 @@ export class PracticeService {
     }
 
     /**
+     * Updates an existing Observation record.
+     * @param {string} observationId
+     * @param {Object} data
+     */
+    async updateObservation(observationId, data) {
+        try {
+            const observationRef = doc(db, this.collectionName, observationId);
+            await updateDoc(observationRef, {
+                ...data,
+                updatedAt: serverTimestamp()
+            });
+            console.log("Observation updated: ", observationId);
+        } catch (e) {
+            console.error("Error updating observation: ", e);
+            throw e;
+        }
+    }
+
+    /**
      * Logs a timeline event to an existing observation in real-time.
      * @param {string} observationId
      * @param {string} type - One of TIMELINE_EVENT_TYPES

@@ -1009,5 +1009,42 @@
     "error_ai": "Chyba AI:",
     "error_send": "CHYBA: Zprávu se nepodařilo odeslat.",
     "error_notify_prof": "Nepodařilo se upozornit profesora na zprávu."
+  },
+  "observation": {
+    "new_btn": "Zaznamenat nový náslech",
+    "timer": "Čas:",
+    "status": {
+      "recording": "Nahrávání",
+      "paused": "Pozastaveno",
+      "finished": "Dokončeno"
+    },
+    "btn": {
+      "teacher_activity": "Výklad",
+      "student_activity": "Aktivita žáků",
+      "admin": "Administrativa"
+    },
+    "chart": {
+      "title": "Analýza času",
+      "teacher": "Učitel",
+      "student": "Studenti",
+      "other": "Ostatní"
+    },
+    "questions": {
+      "title": "Didaktická reflexe",
+      "goals": "Cíle vyučovací hodiny",
+      "methods": "Vyučovací metody a formy",
+      "structure": "Struktura hodiny",
+      "teacher_activity": "Činnost učitele",
+      "student_activity": "Činnost žáků",
+      "materials": "Materiální podpora",
+      "assessment": "Hodnocení a zpětná vazba"
+    },
+    "timeline": {
+      "title": "Časová osa",
+      "note_placeholder": "Poznámka k události..."
+    },
+    "save_btn": "Uložit",
+    "saving": "Ukládám...",
+    "saved": "Uloženo"
   }
 }

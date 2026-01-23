@@ -21,7 +21,10 @@ export const TIMELINE_EVENT_TYPES = {
     DISCUSSION: 'discussion',
     GROUP_WORK: 'group_work',
     ADMINISTRATION: 'administration',
-    OTHER: 'other'
+    OTHER: 'other',
+    TEACHER_ACTIVITY: 'teacher_activity',
+    STUDENT_ACTIVITY: 'student_activity',
+    ADMIN: 'admin'
 };
 
 export const EVALUATION_CHECKLIST_PHASES = {
@@ -37,3 +40,13 @@ export const EVALUATION_STATUS = {
     NO: 'no',
     PARTIAL: 'partial'
 };
+
+export const OBSERVATION_QUESTIONS = [
+    'goals',
+    'structure',
+    'methods',
+    'teacher_activity',
+    'student_activity',
+    'materials',
+    'assessment'
+];
