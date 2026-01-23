@@ -245,7 +245,9 @@
     "text": "Texto",
     "text_desc": "Leitura",
     "video": "Vídeo",
-    "video_desc": "YouTube"
+    "video_desc": "YouTube",
+    "whiteboard": "Quadro",
+    "whiteboard_desc": "Diagramas interativos"
   },
   "dashboard": {
     "active_lessons": "Ativas",
@@ -628,6 +630,22 @@
     "upload_uploading": "Enviando...",
     "visible_tooltip": "Visível"
   },
+  "whiteboard": {
+    "title": "Quadro Interativo",
+    "description": "Desenhe ou gere diagramas com IA.",
+    "toolbar": {
+      "pencil": "Lápis",
+      "rectangle": "Retângulo",
+      "circle": "Círculo",
+      "text": "Texto",
+      "clear": "Limpar",
+      "save": "Salvar"
+    },
+    "magic_btn": "✨ Magia",
+    "ai_prompt_placeholder": "Descreva o diagrama...",
+    "ai_generating": "Gerando...",
+    "saved": "Salvo"
+  },
   "library": {
     "add_new": "Nova Lição",
     "assign_hint": "Atribuir lição à turma",
@@ -939,13 +957,15 @@
       "desc_quiz": "Teste rápido",
       "desc_study": "Texto e materiais",
       "desc_test": "Avaliação final",
+      "desc_whiteboard": "Quadro interativo",
       "flashcards": "Flashcards",
       "mindmap": "Mapa Mental",
       "podcast": "Podcast",
       "presentation": "Apresentação",
       "quiz": "Quiz",
       "study": "Estudo",
-      "test": "Teste"
+      "test": "Teste",
+      "whiteboard": "Quadro"
     },
     "typing": "digitando...",
     "welcome": "Bem-vindo"

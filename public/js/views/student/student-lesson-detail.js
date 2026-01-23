@@ -13,6 +13,7 @@ import './chat-panel.js';
 import './flashcards-component.js';
 import './mindmap-component.js';
 import './comic-component.js'; // Import Comic Component
+import '../../components/magic-board-view.js';
 
 function normalizeLessonData(rawData) {
     const normalized = { ...rawData };
@@ -265,6 +266,9 @@ export class StudentLessonDetail extends LitElement {
             tabs.push({ id: 'test', label: translationService.t('student.tabs.test'), icon: '📝', desc: translationService.t('student.tabs.desc_test') });
         }
 
+        // 8. Whiteboard
+        tabs.push({ id: 'whiteboard', label: translationService.t('student.tabs.whiteboard'), icon: '🎨', desc: translationService.t('student.tabs.desc_whiteboard') });
+
         // Always available tools
         tabs.push({ id: 'ai-assistant', label: translationService.t('student.tabs.ai_assistant'), icon: '🤖', desc: translationService.t('student.tabs.desc_ai_assistant') });
 
@@ -427,6 +431,11 @@ export class StudentLessonDetail extends LitElement {
                     <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 sm:p-8">
                         <student-comic .comicData=${this.lessonData.comic}></student-comic>
                         ${this._renderCompletionButton('comic', 'Přečteno')}
+                    </div>`;
+            case 'whiteboard':
+                return html`
+                    <div class="h-[calc(100vh-200px)] bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                        <magic-board-view .lessonId=${this.lessonId} .readOnly=${true}></magic-board-view>
                     </div>`;
             case 'ai-assistant':
                 return html`
