@@ -74,6 +74,7 @@ export class ProfessorNavigation extends Localized(LitElement) {
                     ${this._renderNavItem('interactions', '💬', this.t('nav.interactions'))}
                     ${this._renderNavItem('analytics', '📊', this.t('nav.analytics'))}
                     ${this._renderNavItem('practice', '🛠️', this.t('nav.practice') || 'Odborný výcvik')}
+                    ${this._renderNavItem('pedagogical-practice', '🎓', 'Pedagogická praxe')}
 
                     <div class="my-4 border-t border-slate-100 mx-3"></div>
 

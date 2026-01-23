@@ -1009,5 +1009,113 @@
     "error_ai": "Chyba AI:",
     "error_send": "CHYBA: Zprávu se nepodařilo odeslat.",
     "error_notify_prof": "Nepodařilo se upozornit profesora na zprávu."
+  },
+  "observation": {
+    "new_btn": "Zaznamenat nový náslech",
+    "timer": "Čas:",
+    "status": {
+      "recording": "Nahrávání",
+      "paused": "Pozastaveno",
+      "finished": "Dokončeno"
+    },
+    "btn": {
+      "teacher_activity": "Výklad",
+      "student_activity": "Aktivita žáků",
+      "admin": "Administrativa"
+    },
+    "chart": {
+      "title": "Analýza času",
+      "teacher": "Učitel",
+      "student": "Studenti",
+      "other": "Ostatní"
+    },
+    "questions": {
+      "title": "Didaktická reflexe",
+      "goals": "Cíle vyučovací hodiny",
+      "methods": "Vyučovací metody a formy",
+      "structure": "Struktura hodiny",
+      "teacher_activity": "Činnost učitele",
+      "student_activity": "Činnost žáků",
+      "materials": "Materiální podpora",
+      "assessment": "Hodnocení a zpětná vazba"
+    },
+    "timeline": {
+      "title": "Časová osa",
+      "note_placeholder": "Poznámka k události..."
+    },
+    "save_btn": "Uložit",
+    "saving": "Ukládám...",
+    "saved": "Uloženo"
+  },
+  "microteaching": {
+    "title": "Mikrovýstupy (Evaluace)",
+    "subtitle": "Hodnotící formulář pro cvičné výstupy.",
+    "new_evaluation": "Nové hodnocení",
+    "start_btn": "Začít nové hodnocení",
+    "empty_desc": "Zde můžete hodnotit své výstupy nebo výstupy kolegů.",
+    "save_btn": "Uložit",
+    "sections": {
+      "goals": "Cíle a struktura",
+      "flow": "Průběh hodiny",
+      "materials": "Materiální prostředky",
+      "personality": "Osobnost učitele"
+    },
+    "criteria": {
+      "active_verbs": "Využil aktivní slovesa?",
+      "smart_goals": "Jsou cíle SMART?",
+      "structure_clear": "Je struktura hodiny jasná?",
+      "intro_engaging": "Byl úvod motivující?",
+      "methods_varied": "Byly metody pestré?",
+      "student_interaction": "Byli žáci aktivně zapojeni?",
+      "tech_usage": "Byly pomůcky využity efektivně?",
+      "materials_quality": "Byla kvalita materiálů dostatečná?",
+      "voice_modulation": "Práce s hlasem a tempem",
+      "nonverbal": "Nonverbální komunikace",
+      "feedback_given": "Poskytl zpětnou vazbu žákům?"
+    },
+    "labels": {
+      "goal_formulation": "Formulace cíle",
+      "analyze_verb_btn": "🤖 Analyzovat sloveso",
+      "comment_placeholder": "Poznámka..."
+    },
+    "alerts": {
+      "passive_verb_warning": "Pozor: 'Rozumět' není měřitelné. Zkuste 'Vysvětlit'.",
+      "analysis_valid": "Výborně! Cíl je formulován aktivně.",
+      "loading": "Načítám analýzu..."
+    },
+    "status": {
+      "yes": "ANO",
+      "partial": "ČÁSTEČNĚ",
+      "no": "NE",
+      "na": "N/A"
+    }
+  },
+  "portfolio": {
+    "title": "Reflexe (Portfólio)",
+    "subtitle": "Finální agregace dat pro zápočet. Zde se vygeneruje portfolio z vašich náslechů a rozborů, doplněné o SWOT analýzu a sebereflexi.",
+    "export_btn": "Stáhnout Portfólio (PDF)",
+    "export_title": "Pedagogické Portfolio",
+    "generated_on": "Vygenerováno",
+    "dashboard": {
+      "total_observations": "Absolvované náslechy",
+      "records_count": "záznamů v systému",
+      "teaching_hours": "Odučené hodiny",
+      "teaching_hours_desc": "hodin (čistého času výkladu)"
+    },
+    "swot": {
+      "title": "SWOT Analýza",
+      "strengths": "Silné stránky (Strengths)",
+      "strengths_ph": "V čem jste dobří?",
+      "weaknesses": "Slabé stránky (Weaknesses)",
+      "weaknesses_ph": "Kde máte rezervy?",
+      "opportunities": "Příležitosti (Opportunities)",
+      "opportunities_ph": "Co vám může pomoci růst?",
+      "threats": "Hrozby (Threats)",
+      "threats_ph": "Co vás může ohrozit?"
+    },
+    "reflection": {
+      "title": "Celkové zhodnocení praxe",
+      "placeholder": "Popište celkový průběh vaší praxe, co vám dala, co byste udělali jinak..."
+    }
   }
 }
