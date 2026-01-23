@@ -221,4 +221,74 @@ export class PracticeService {
         if (snapshot.empty) return null;
         return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
     }
+
+    /**
+     * Fetches an analysis document by its ID.
+     * @param {string} id - The ID of the analysis document.
+     */
+    async getAnalysis(id) {
+        try {
+            const docRef = doc(db, this.collectionName, id);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                // We check type just to be safe, though ID is unique
+                const data = docSnap.data();
+                if (data.type === 'analysis') {
+                    return { id: docSnap.id, ...data };
+                }
+            }
+            return null;
+        } catch (e) {
+            console.error("Error fetching analysis: ", e);
+            throw e;
+        }
+    }
+
+    /**
+     * Updates an existing Analysis record.
+     * @param {string} id
+     * @param {Object} data
+     */
+    async updateAnalysis(id, data) {
+        try {
+            const docRef = doc(db, this.collectionName, id);
+            await updateDoc(docRef, {
+                ...data,
+                updatedAt: serverTimestamp()
+            });
+            console.log("Analysis updated: ", id);
+        } catch (e) {
+            console.error("Error updating analysis: ", e);
+            throw e;
+        }
+    }
+
+    /**
+     * Analyzes a pedagogical goal for active vs passive verbs.
+     * @param {string} text - The goal text.
+     * @returns {Object} - Analysis result { valid: boolean, feedback: string, passiveVerbs: string[] }
+     */
+    analyzeGoal(text) {
+        if (!text) return { valid: false, feedback: "Text chybí.", passiveVerbs: [] };
+
+        const passiveVerbs = ['rozumět', 'vědět', 'chápat', 'znát', 'osvojit si', 'porozumět', 'naučit se'];
+        const activeVerbsSuggestions = ['popsat', 'vysvětlit', 'navrhnout', 'analyzovat', 'aplikovat', 'demonstrovat', 'vytvořit'];
+
+        const lowerText = text.toLowerCase();
+        const foundPassive = passiveVerbs.filter(verb => lowerText.includes(verb));
+
+        if (foundPassive.length > 0) {
+            return {
+                valid: false,
+                feedback: `Pozor: Nalezená pasivní slovesa: '${foundPassive.join(", ")}'. Tato slovesa nejsou měřitelná. Zkuste místo nich použít aktivní slovesa, např.: ${activeVerbsSuggestions.join(", ")}.`,
+                passiveVerbs: foundPassive
+            };
+        }
+
+        return {
+            valid: true,
+            feedback: "Výborně! Cíl je formulován pomocí aktivních sloves.",
+            passiveVerbs: []
+        };
+    }
 }
