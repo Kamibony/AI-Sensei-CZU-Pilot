@@ -13,7 +13,8 @@ export class PortfolioView extends Localized(LitElement) {
         analyses: { type: Array },
         loading: { type: Boolean },
         stats: { type: Object },
-        isSaving: { type: Boolean }
+        isSaving: { type: Boolean },
+        studentId: { type: String }
     };
 
     constructor() {
@@ -37,7 +38,9 @@ export class PortfolioView extends Localized(LitElement) {
         super.connectedCallback();
         // Wait for auth to be ready if needed, or assume parent handles it.
         // Better to wait a bit or check auth state.
-        if (auth.currentUser) {
+        if (this.studentId) {
+            this._loadData(this.studentId);
+        } else if (auth.currentUser) {
             this._loadData(auth.currentUser.uid);
         } else {
             // Wait for auth state change
@@ -49,6 +52,12 @@ export class PortfolioView extends Localized(LitElement) {
                 }
             });
         }
+    }
+
+    willUpdate(changedProperties) {
+         if (changedProperties.has('studentId') && this.studentId) {
+             this._loadData(this.studentId);
+         }
     }
 
     async _loadData(uid) {

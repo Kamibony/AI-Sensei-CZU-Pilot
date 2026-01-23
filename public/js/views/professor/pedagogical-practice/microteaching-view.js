@@ -10,7 +10,8 @@ export class MicroteachingView extends Localized(LitElement) {
         isLoading: { type: Boolean },
         openSections: { type: Object }, // Track open accordion sections
         analysisFeedback: { type: Object }, // Feedback from "Analyze Verb"
-        isSaving: { type: Boolean }
+        isSaving: { type: Boolean },
+        studentId: { type: String }
     };
 
     constructor() {
@@ -86,7 +87,7 @@ export class MicroteachingView extends Localized(LitElement) {
                 criteria: {},
                 goalFormulation: "",
                 status: 'draft',
-                studentId: auth.currentUser?.uid
+                studentId: this.studentId || auth.currentUser?.uid
             };
             const id = await this.practiceService.createAnalysis(initialData);
             this.lessonId = id; // Set ID
