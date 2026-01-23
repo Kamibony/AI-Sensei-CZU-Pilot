@@ -264,6 +264,25 @@ export class PracticeService {
     }
 
     /**
+     * Updates an existing Portfolio record.
+     * @param {string} id
+     * @param {Object} data
+     */
+    async updatePortfolio(id, data) {
+        try {
+            const docRef = doc(db, this.collectionName, id);
+            await updateDoc(docRef, {
+                ...data,
+                updatedAt: serverTimestamp()
+            });
+            console.log("Portfolio updated: ", id);
+        } catch (e) {
+            console.error("Error updating portfolio: ", e);
+            throw e;
+        }
+    }
+
+    /**
      * Analyzes a pedagogical goal for active vs passive verbs.
      * @param {string} text - The goal text.
      * @returns {Object} - Analysis result { valid: boolean, feedback: string, passiveVerbs: string[] }
