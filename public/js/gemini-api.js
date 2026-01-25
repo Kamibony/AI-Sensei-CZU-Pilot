@@ -15,3 +15,8 @@ export const getAiAssistantResponse = async (data) => {
     const getResponse = httpsCallable(functions, 'getAiAssistantResponse');
     return await getResponse(data);
 };
+
+export const generatePortfolioFeedback = async (data) => {
+    const generateFeedback = httpsCallable(functions, 'generatePortfolioFeedback');
+    return await generateFeedback(data);
+};

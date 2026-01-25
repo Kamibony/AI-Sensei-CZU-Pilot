@@ -6,6 +6,7 @@ import { TIMELINE_EVENT_TYPES } from '../../../shared-constants.js';
 import { jsPDF } from 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm';
 import autoTable from 'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/+esm';
 import { addCzechFont } from '../../../utils/pdf-font-utils.js';
+import { generatePortfolioFeedback } from '../../../gemini-api.js';
 
 export class PortfolioView extends Localized(LitElement) {
     static properties = {
@@ -15,7 +16,9 @@ export class PortfolioView extends Localized(LitElement) {
         loading: { type: Boolean },
         stats: { type: Object },
         isSaving: { type: Boolean },
-        studentId: { type: String }
+        studentId: { type: String },
+        aiFeedback: { type: Object },
+        isGeneratingFeedback: { type: Boolean }
     };
 
     constructor() {
@@ -30,6 +33,8 @@ export class PortfolioView extends Localized(LitElement) {
             totalObservations: 0,
             teachingHours: 0
         };
+        this.aiFeedback = null;
+        this.isGeneratingFeedback = false;
         this._saveDebounceTimer = null;
     }
 
@@ -77,6 +82,10 @@ export class PortfolioView extends Localized(LitElement) {
             this.portfolio = portfolio;
             this.observations = observations || [];
             this.analyses = analyses || [];
+
+            // Restore AI Feedback if saved (assuming we might save it in portfolio later, but for now it's transient or we could save it)
+            // If we wanted to persist it, we'd add it to the portfolio object in Firestore.
+            // For now, let's keep it transient as requested ("Generate" button implies on-demand).
 
             this._calculateStats();
         } catch (e) {
@@ -152,6 +161,73 @@ export class PortfolioView extends Localized(LitElement) {
         }, 1000);
     }
 
+    // --- AI Supervisor Logic ---
+
+    _extractWeaknesses() {
+        if (!this.analyses || this.analyses.length === 0) return "Žádné mikrovýstupy k analýze.";
+        const weaknesses = [];
+        this.analyses.forEach(analysis => {
+            if (analysis.criteria) {
+                Object.entries(analysis.criteria).forEach(([key, data]) => {
+                    if (data.value === 'no' || data.value === 'partial') {
+                        // Use translation key or fallback
+                        const label = this.t(`microteaching.criteria.${key}`, key);
+                        weaknesses.push(`${label} (${data.value === 'no' ? 'Ne' : 'Částečně'})`);
+                    }
+                });
+            }
+        });
+        return weaknesses.length > 0 ? weaknesses.join(", ") : "Nebyly zjištěny žádné specifické slabiny.";
+    }
+
+    _getRatioText() {
+        if (!this.observations || this.observations.length === 0) return "Žádná data z náslechů.";
+        let totalTeacher = 0;
+        let totalStudent = 0;
+
+        this.observations.forEach(obs => {
+            if (obs.timeline) {
+                const endTime = obs.endTime || (obs.timeline.length > 0 ? obs.timeline[obs.timeline.length-1].timestamp : obs.startTime);
+                for (let i = 0; i < obs.timeline.length; i++) {
+                    const event = obs.timeline[i];
+                    const nextTime = (i < obs.timeline.length - 1) ? obs.timeline[i+1].timestamp : endTime;
+                    const duration = nextTime - event.timestamp;
+                    if (event.type === TIMELINE_EVENT_TYPES.TEACHER_ACTIVITY) totalTeacher += duration;
+                    else if (event.type === TIMELINE_EVENT_TYPES.STUDENT_ACTIVITY) totalStudent += duration;
+                }
+            }
+        });
+
+        const total = totalTeacher + totalStudent;
+        if (total === 0) return "Nedostatek dat pro výpočet poměru.";
+
+        const teacherPct = Math.round((totalTeacher / total) * 100);
+        const studentPct = Math.round((totalStudent / total) * 100);
+
+        return `Učitel ${teacherPct}% vs Žáci ${studentPct}%`;
+    }
+
+    async _generateAiFeedback() {
+        this.isGeneratingFeedback = true;
+        try {
+            const data = {
+                ratios: this._getRatioText(),
+                weaknesses: this._extractWeaknesses(),
+                swot: this.portfolio?.swot || {}
+            };
+
+            const result = await generatePortfolioFeedback(data);
+            this.aiFeedback = result.data; // Callable returns { data: ... }
+        } catch (e) {
+            console.error("AI Feedback failed", e);
+            alert("Nepodařilo se vygenerovat zpětnou vazbu. Zkuste to prosím později.");
+        } finally {
+            this.isGeneratingFeedback = false;
+        }
+    }
+
+    // ---------------------------
+
     async _generatePDF() {
         // Fix for autoTable not being applied automatically in some ESM environments
         if (typeof autoTable === 'object' && autoTable.applyPlugin) {
@@ -174,6 +250,37 @@ export class PortfolioView extends Localized(LitElement) {
         y += 10;
         doc.text(`Student: ${auth.currentUser?.displayName || auth.currentUser?.email}`, margin, y);
         y += 20;
+
+        // AI Feedback Section in PDF
+        if (this.aiFeedback) {
+             doc.setFillColor(240, 253, 244); // Light green background
+             doc.rect(margin, y, 170, 45, 'F');
+
+             doc.setFontSize(14);
+             doc.setTextColor(22, 101, 52); // Green text
+             doc.text("🤖 Hodnocení AI Mentora", margin + 5, y + 10);
+
+             doc.setFontSize(11);
+             doc.setTextColor(0, 0, 0);
+
+             doc.setFont("Roboto", "bold");
+             doc.text("Kritický postřeh:", margin + 5, y + 20);
+             doc.setFont("Roboto", "normal");
+             const obsText = doc.splitTextToSize(this.aiFeedback.criticalObservation, 160);
+             doc.text(obsText, margin + 5, y + 25);
+
+             // Calculate Y offset based on text lines
+             const tipY = y + 25 + (obsText.length * 5);
+
+             doc.setFont("Roboto", "bold");
+             doc.text("Doporučení:", margin + 5, tipY);
+             doc.setFont("Roboto", "normal");
+             const tipText = doc.splitTextToSize(this.aiFeedback.actionableTip, 160);
+             doc.text(tipText, margin + 5, tipY + 5);
+
+             y += 55; // Move down past the box
+             doc.setTextColor(0, 0, 0); // Reset color
+        }
 
         // Section 1: Summary Table
         doc.setFontSize(16);
@@ -338,6 +445,49 @@ export class PortfolioView extends Localized(LitElement) {
                         class="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-bold">
                         <span>📄</span> ${this.t('portfolio.export_btn', 'Stáhnout Portfólio (PDF)')}
                     </button>
+                </div>
+
+                <!-- AI Insight Section -->
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            🤖 Hodnocení AI Mentora
+                        </h2>
+                        <button
+                            @click="${this._generateAiFeedback}"
+                            ?disabled="${this.isGeneratingFeedback}"
+                            class="text-sm bg-white border border-slate-300 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                            ${this.isGeneratingFeedback ? 'Analyzuji data...' : 'Vygenerovat zpětnou vazbu'}
+                        </button>
+                    </div>
+
+                    ${this.aiFeedback ? html`
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Critical Observation -->
+                            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                <div class="font-bold text-amber-800 mb-2 flex items-center gap-2">
+                                    <span>🔍</span> Kritický postřeh
+                                </div>
+                                <p class="text-amber-900 text-sm leading-relaxed">
+                                    ${this.aiFeedback.criticalObservation}
+                                </p>
+                            </div>
+
+                            <!-- Actionable Tip -->
+                            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                                <div class="font-bold text-green-800 mb-2 flex items-center gap-2">
+                                    <span>💡</span> Doporučení pro příště
+                                </div>
+                                <p class="text-green-900 text-sm leading-relaxed">
+                                    ${this.aiFeedback.actionableTip}
+                                </p>
+                            </div>
+                        </div>
+                    ` : html`
+                        <div class="text-slate-500 text-sm italic text-center py-4">
+                            Klikněte na tlačítko výše pro získání kvalitativního hodnocení vaší dosavadní praxe na základě dat.
+                        </div>
+                    `}
                 </div>
 
                 <!-- Dashboard Cards -->
