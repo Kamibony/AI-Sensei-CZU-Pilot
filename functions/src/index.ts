@@ -1322,6 +1322,52 @@ exports.getAiAssistantResponse = onCall({
     }
 });
 
+// --- NEW FEATURE: AI PORTFOLIO FEEDBACK ---
+exports.generatePortfolioFeedback = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+    const { ratios, weaknesses, swot } = request.data;
+
+    // 2. Prompt Construction
+    const systemPrompt = `
+    ROLE: You are a senior pedagogical supervisor (mentor).
+    TASK: Analyze the student's teaching practice data and provide constructive feedback.
+
+    DATA:
+    - Teacher vs Student Talk Ratio: ${ratios || "Data unavailable"}
+    - Microteaching Weaknesses/Notes: ${weaknesses || "None detected"}
+    - SWOT Self-reflection: ${JSON.stringify(swot || {})}
+
+    INSTRUCTIONS:
+    1. Analyze the balance of talking time.
+    2. Look for patterns in microteaching weaknesses.
+    3. Correlate with the student's own SWOT analysis.
+    4. Provide ONE "Critical Observation" (identifying a gap or pattern).
+    5. Provide ONE "Actionable Tip" (concrete advice for the next lesson).
+    6. Language: Czech (Čeština).
+
+    OUTPUT FORMAT (JSON ONLY):
+    {
+      "criticalObservation": "...",
+      "actionableTip": "..."
+    }
+    `;
+
+    try {
+        const feedback = await GeminiAPI.generateJsonFromPrompt(systemPrompt);
+        return feedback;
+    } catch (error: any) {
+        logger.error("Error generating portfolio feedback:", error);
+        throw new HttpsError("internal", "Failed to generate feedback.");
+    }
+});
+
 exports.sendMessageFromStudent = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen.");
