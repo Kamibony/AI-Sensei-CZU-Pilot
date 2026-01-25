@@ -595,6 +595,28 @@ async function generateCompetencyGraph(text: string): Promise<any> {
     return await generateJsonFromPrompt(text, systemInstruction);
 }
 
+async function generateAudioAnalysis(base64Data: string, mimeType: string): Promise<any> {
+    const prompt = `
+    ROLE: You are an expert pedagogical supervisor (The Observer).
+    TASK: Analyze the provided classroom audio recording.
+
+    ANALYSIS DIMENSIONS:
+    1. Talk Ratio: Estimate the percentage of time the Teacher speaks vs. Students.
+    2. Emotional Tone: Describe the overall vibe (e.g., Enthusiastic, Monotone, chaotic, Strict).
+    3. Methodology: Identify teaching methods used (e.g., Lecture, Socratic questioning, Group work).
+    4. Suggestions: Provide 2-3 concrete, actionable tips for improvement.
+
+    OUTPUT FORMAT (JSON):
+    {
+      "talkRatio": { "teacher": number, "student": number },
+      "emotionalTone": "string",
+      "methodology": ["string", "string"],
+      "suggestions": ["string", "string"]
+    }
+    `;
+    return await generateJsonFromMultimodal(prompt, base64Data, mimeType);
+}
+
 export {
     getEmbeddings,
     generateEmbeddings,
@@ -608,5 +630,6 @@ export {
     generateJsonFromMultimodal,
     downloadFileWithRetries,
     sanitizeStoragePath,
-    generateCompetencyGraph
+    generateCompetencyGraph,
+    generateAudioAnalysis
 };
