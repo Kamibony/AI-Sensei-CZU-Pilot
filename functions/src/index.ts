@@ -776,13 +776,22 @@ exports.generateContent = onCall({
 
         let finalPrompt = promptData.userPrompt;
         const language = promptData.language || "cs";
+
+        // Step 1: Implement Language Mapping
+        let targetLangName = "Czech";
+        switch (language) {
+            case "cs": targetLangName = "Czech"; break;
+            case "sk": targetLangName = "Slovak"; break;
+            case "pt-br": targetLangName = "Portuguese"; break;
+            case "en": targetLangName = "English"; break;
+            default: targetLangName = "Czech"; break;
+        }
+
         const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap", "podcast", "audio"].includes(contentType);
 
         // Add language instruction
-    // DYNAMIC LANGUAGE DETECTION UPDATE:
-    // Explicitly force the target language provided in promptData.language
-    const targetLanguage = promptData.language || "cs";
-    const langInstruction = `Generate the output strictly in the '${targetLanguage}' language. Do NOT translate technical terms if they are standard, but ensure the surrounding text is in ${targetLanguage}. Do not output in English unless the requested language is 'en'.`;
+        // Step 2: Rewrite langInstruction to strictly enforce the user's requested language.
+        const langInstruction = `OUTPUT LANGUAGE RULE: The user has explicitly requested the output to be in ${targetLangName}. Regardless of the language of the input PDF or text, you MUST translate and generate the final content in ${targetLangName}. Do NOT output in English unless ${targetLangName} is 'English'.`;
         finalPrompt += `\n\n${langInstruction}`;
 
         // STRICT SYSTEM INSTRUCTION to silence conversational filler
