@@ -54,7 +54,11 @@
     "upload_zone_title": "Znalostní báze",
     "upload_drop_text": "Nahrát sylabus nebo učebnici (PDF)",
     "map_placeholder": "Zde se zobrazí vygenerovaná mapa předmětu",
-    "processing_status": "Analyzuji a vektorizuji dokument..."
+    "processing_status": "Analyzuji a vektorizuji dokument...",
+    "generate_map": "Generovat mapu kompetencí",
+    "analyzing": "AI architekt analyzuje strukturu předmětu...",
+    "map_legend": "Úroveň Bloomovy taxonomie",
+    "error_analysis": "Nepodařilo se analyzovat sylabus. Zkuste to prosím znovu."
   },
   "auth": {
     "back_to_roles": "Zpět na výběr role",

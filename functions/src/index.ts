@@ -2636,3 +2636,80 @@ exports.generateEmbeddings = onCall({
         throw new HttpsError("internal", "Failed to generate embeddings.");
     }
 });
+
+exports.analyzeSyllabus = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can analyze syllabus.");
+    }
+    const { knowledgeBaseId } = request.data;
+    if (!knowledgeBaseId) {
+        throw new HttpsError("invalid-argument", "Missing knowledgeBaseId.");
+    }
+
+    try {
+        const docRef = db.collection("knowledge_base").doc(knowledgeBaseId);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            throw new HttpsError("not-found", "Document not found.");
+        }
+
+        const data = doc.data();
+        if (data.ownerId !== request.auth.uid) {
+             throw new HttpsError("permission-denied", "You do not own this document.");
+        }
+
+        const text = data.text;
+        if (!text) {
+             throw new HttpsError("failed-precondition", "Document has no text.");
+        }
+
+        // 2. AI Analysis
+        const systemPrompt = `
+        ROLE: Expert Curriculum Designer.
+        TASK: Deconstruct the provided syllabus text into a directed graph of concepts based on Bloom's Taxonomy.
+
+        INPUT TEXT:
+        ${text.substring(0, 20000)}
+
+        OUTPUT SCHEMA (Strict JSON):
+        {
+          "nodes": [
+            { "id": "string", "label": "Concept Name", "bloomLevel": number (1-6), "category": "theory" | "practice" | "history" }
+          ],
+          "edges": [
+            { "source": "nodeId", "target": "nodeId", "type": "prerequisite" | "related" }
+          ]
+        }
+        `;
+
+        // We use a generic prompt for the generateJsonFromPrompt function, as the context is in the systemPrompt.
+        const graphData = await GeminiAPI.generateJsonFromPrompt("Analyze this syllabus and generate the graph.", systemPrompt);
+
+        // 3. Save Result (Additive Update)
+        await docRef.set({
+            competencyMap: graphData,
+            analysisStatus: 'completed',
+            analyzedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        return { success: true, data: graphData };
+
+    } catch (error: any) {
+        logger.error("Error in analyzeSyllabus:", error);
+         // Update status to error
+        try {
+            await db.collection("knowledge_base").doc(knowledgeBaseId).set({
+                analysisStatus: 'error',
+                lastError: error.message
+            }, { merge: true });
+        } catch (e) { console.error("Failed to update error status", e); }
+
+        throw new HttpsError("internal", "Failed to analyze syllabus.");
+    }
+});

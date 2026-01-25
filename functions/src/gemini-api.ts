@@ -272,7 +272,15 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest, systemI
                     { question: "What is 2+2?", options: ["3", "4", "5", "6"], correctAnswer: 1 }
                 ],
                 // Mock for Mindmap
-                mermaid: "graph TD; A-->B;"
+                mermaid: "graph TD; A-->B;",
+                // Mock for Syllabus Graph
+                nodes: [
+                    { id: "n1", label: "Mock Concept 1", bloomLevel: 1, category: "theory" },
+                    { id: "n2", label: "Mock Concept 2", bloomLevel: 3, category: "practice" }
+                ],
+                edges: [
+                    { source: "n1", target: "n2", type: "prerequisite" }
+                ]
             });
         }
         return "This is a mock response from the emulator for a text prompt.";
