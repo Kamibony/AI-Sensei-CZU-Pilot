@@ -2,6 +2,7 @@ import { html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.j
 import { BaseView } from './base-view.js';
 import { Localized } from '../../utils/localization-mixin.js';
 import * as firebaseInit from '../../firebase-init.js';
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
 export class ArchitectView extends Localized(BaseView) {
     static properties = {
@@ -38,7 +39,7 @@ export class ArchitectView extends Localized(BaseView) {
             console.log('Extracted text length:', text.length);
 
             // Call Backend
-            const generateEmbeddings = firebaseInit.functions.httpsCallable('generateEmbeddings');
+            const generateEmbeddings = httpsCallable(firebaseInit.functions, 'generateEmbeddings');
             const result = await generateEmbeddings({
                 text: text,
                 title: file.name
@@ -79,7 +80,7 @@ export class ArchitectView extends Localized(BaseView) {
         this._statusMessage = this.t('architect.analyzing');
 
         try {
-            const analyzeSyllabus = firebaseInit.functions.httpsCallable('analyzeSyllabus');
+            const analyzeSyllabus = httpsCallable(firebaseInit.functions, 'analyzeSyllabus');
             const result = await analyzeSyllabus({ knowledgeBaseId: this._knowledgeBaseId });
 
             this._graphData = result.data.data;
