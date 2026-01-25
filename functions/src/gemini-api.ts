@@ -590,6 +590,11 @@ async function generateJsonFromMultimodal(prompt: string, base64Data: string, mi
     }
 }
 
+async function generateCompetencyGraph(text: string): Promise<any> {
+    const systemInstruction = "Analyze the provided syllabus text. Output a JSON object containing 'nodes' (id, label, bloom_level 1-6) and 'edges' (source, target) representing a dependency graph based on Bloom's Taxonomy.";
+    return await generateJsonFromPrompt(text, systemInstruction);
+}
+
 export {
     getEmbeddings,
     generateEmbeddings,
@@ -602,5 +607,6 @@ export {
     generateTextFromMultimodal,
     generateJsonFromMultimodal,
     downloadFileWithRetries,
-    sanitizeStoragePath
+    sanitizeStoragePath,
+    generateCompetencyGraph
 };
