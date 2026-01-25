@@ -113,7 +113,7 @@ export class ArchitectView extends Localized(BaseView) {
             // Transform data for Cytoscape
             const elements = [
                 ...this._graphData.nodes.map(n => ({
-                    data: { ...n, id: n.id, label: n.label }
+                    data: { ...n, id: n.id, label: n.label, bloomLevel: n.bloom_level || n.bloomLevel }
                 })),
                 ...this._graphData.edges.map(e => ({
                     data: { source: e.source, target: e.target }

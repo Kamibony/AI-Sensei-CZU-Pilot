@@ -2670,26 +2670,7 @@ exports.analyzeSyllabus = onCall({
         }
 
         // 2. AI Analysis
-        const systemPrompt = `
-        ROLE: Expert Curriculum Designer.
-        TASK: Deconstruct the provided syllabus text into a directed graph of concepts based on Bloom's Taxonomy.
-
-        INPUT TEXT:
-        ${text.substring(0, 20000)}
-
-        OUTPUT SCHEMA (Strict JSON):
-        {
-          "nodes": [
-            { "id": "string", "label": "Concept Name", "bloomLevel": number (1-6), "category": "theory" | "practice" | "history" }
-          ],
-          "edges": [
-            { "source": "nodeId", "target": "nodeId", "type": "prerequisite" | "related" }
-          ]
-        }
-        `;
-
-        // We use a generic prompt for the generateJsonFromPrompt function, as the context is in the systemPrompt.
-        const graphData = await GeminiAPI.generateJsonFromPrompt("Analyze this syllabus and generate the graph.", systemPrompt);
+        const graphData = await GeminiAPI.generateCompetencyGraph(text);
 
         // 3. Save Result (Additive Update)
         await docRef.set({
