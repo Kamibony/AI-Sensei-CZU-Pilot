@@ -780,8 +780,9 @@ exports.generateContent = onCall({
 
         // Add language instruction
     // DYNAMIC LANGUAGE DETECTION UPDATE:
-    // Instead of hardcoding, we instruct the model to match the input language.
-    const langInstruction = "Analyze the language of the provided 'topic' and 'content'. Generate the output (script/dialogue/text) strictly in the SAME LANGUAGE as the input content. If the input is mixed, prioritize the language of the 'content'.";
+    // Explicitly force the target language provided in promptData.language
+    const targetLanguage = promptData.language || "cs";
+    const langInstruction = `Generate the output strictly in the '${targetLanguage}' language. Do NOT translate technical terms if they are standard, but ensure the surrounding text is in ${targetLanguage}. Do not output in English unless the requested language is 'en'.`;
         finalPrompt += `\n\n${langInstruction}`;
 
         // STRICT SYSTEM INSTRUCTION to silence conversational filler
