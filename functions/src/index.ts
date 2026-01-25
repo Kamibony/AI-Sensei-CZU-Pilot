@@ -2599,3 +2599,40 @@ exports.evaluatePracticalSubmission = onDocumentWritten({
         });
     }
 });
+
+// ARCHITECT MODULE: Embeddings Generation
+exports.generateEmbeddings = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can generate embeddings.");
+    }
+    const { text, title } = request.data;
+    if (!text) {
+        throw new HttpsError("invalid-argument", "Missing text.");
+    }
+
+    try {
+        // 2. Generate Embeddings using Helper (which handles truncation)
+        const embedding = await GeminiAPI.generateEmbeddings(text);
+
+        // 3. Save to Firestore Knowledge Base
+        const docRef = db.collection("knowledge_base").doc();
+        await docRef.set({
+            text: text.substring(0, 10000), // Store first 10k chars of text for reference
+            embedding: embedding,
+            title: title || "Untitled Document",
+            ownerId: request.auth.uid,
+            createdAt: FieldValue.serverTimestamp(),
+            type: "text_upload"
+        });
+
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        logger.error("Error in generateEmbeddings:", error);
+        throw new HttpsError("internal", "Failed to generate embeddings.");
+    }
+});

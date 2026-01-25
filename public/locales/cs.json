@@ -48,6 +48,14 @@
     "description": "Inteligentní vzdělávací platforma",
     "title": "AI Sensei"
   },
+  "architect": {
+    "title": "Architekt předmětu",
+    "description": "Inteligentní mapa kompetencí a znalostní báze",
+    "upload_zone_title": "Znalostní báze",
+    "upload_drop_text": "Nahrát sylabus nebo učebnici (PDF)",
+    "map_placeholder": "Zde se zobrazí vygenerovaná mapa předmětu",
+    "processing_status": "Analyzuji a vektorizuji dokument..."
+  },
   "auth": {
     "back_to_roles": "Zpět na výběr role",
     "branding_desc": "AI Sensei je inteligentní platforma spojující učitele a studenty. Vytvářejte interaktivní lekce, sledujte pokrok a využijte sílu AI.",
@@ -661,6 +669,7 @@
   "nav": {
     "admin": "Administrace",
     "analytics": "Analytika",
+    "architect": "Architekt",
     "classes": "Moje třídy",
     "creative_studio": "Tvůrčí studio",
     "dashboard": "Nástěnka",

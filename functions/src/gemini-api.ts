@@ -173,6 +173,13 @@ async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<
     throw new Error(`Failed to download file '${cleanPath}' after trying candidates: ${uniqueCandidates.join(', ')}`);
 }
 
+async function generateEmbeddings(text: string): Promise<number[]> {
+    // Truncate to ensure we stay within token limits (MVP approach)
+    // 2048 tokens is roughly 6000-8000 chars. We use a safe limit of 6000.
+    const safeText = text.substring(0, 6000);
+    return await getEmbeddings(safeText);
+}
+
 async function getEmbeddings(text: string): Promise<number[]> {
     if (process.env.FUNCTIONS_EMULATOR === "true") {
         console.log("EMULATOR_MOCK for getEmbeddings: Returning a mock vector.");
@@ -577,6 +584,7 @@ async function generateJsonFromMultimodal(prompt: string, base64Data: string, mi
 
 export {
     getEmbeddings,
+    generateEmbeddings,
     calculateCosineSimilarity,
     generateTextFromPrompt,
     generateJsonFromPrompt,
