@@ -222,6 +222,43 @@ export class EditorViewAudio extends Localized(LitElement) {
                     <div class="absolute inset-0 overflow-y-auto custom-scrollbar p-6">
                         <div class="max-w-5xl mx-auto space-y-6">
 
+                            <!-- GLOBAL PODCAST CONTROLS (ALWAYS VISIBLE) -->
+                            <div class="mb-6 flex flex-wrap items-center gap-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                <!-- Mode Toggle -->
+                                <div class="flex items-center gap-3">
+                                    <span class="text-sm font-medium text-slate-700">Režim:</span>
+                                    <div class="flex bg-slate-100 p-1 rounded-lg">
+                                        <button
+                                            @click="${() => this.isDialogueMode = true}"
+                                            class="px-3 py-1.5 text-sm font-medium rounded-md transition-all ${this.isDialogueMode ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
+                                        >
+                                            Dialog
+                                        </button>
+                                        <button
+                                            @click="${() => this.isDialogueMode = false}"
+                                            class="px-3 py-1.5 text-sm font-medium rounded-md transition-all ${!this.isDialogueMode ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
+                                        >
+                                            Monolog
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Voice Gender (Only in Monologue) -->
+                                ${!this.isDialogueMode ? html`
+                                    <div class="flex items-center gap-3 animate-fade-in">
+                                        <span class="text-sm font-medium text-slate-700">Hlas:</span>
+                                        <select
+                                            .value="${this.voiceGender}"
+                                            @change="${e => this.voiceGender = e.target.value}"
+                                            class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2"
+                                        >
+                                            <option value="male">Mužský</option>
+                                            <option value="female">Ženský</option>
+                                        </select>
+                                    </div>
+                                ` : nothing}
+                            </div>
+
                             ${hasContent ? html`
                                 <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8">
                                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -255,42 +292,6 @@ export class EditorViewAudio extends Localized(LitElement) {
                                             <audio controls class="w-full" src="${audioUrl}"></audio>
                                         </div>
                                     ` : nothing}
-
-                                    <div class="mb-6 flex flex-wrap items-center gap-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                        <!-- Mode Toggle -->
-                                        <div class="flex items-center gap-3">
-                                            <span class="text-sm font-medium text-slate-700">Režim:</span>
-                                            <div class="flex bg-slate-100 p-1 rounded-lg">
-                                                <button
-                                                    @click="${() => this.isDialogueMode = true}"
-                                                    class="px-3 py-1.5 text-sm font-medium rounded-md transition-all ${this.isDialogueMode ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
-                                                >
-                                                    Dialog
-                                                </button>
-                                                <button
-                                                    @click="${() => this.isDialogueMode = false}"
-                                                    class="px-3 py-1.5 text-sm font-medium rounded-md transition-all ${!this.isDialogueMode ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
-                                                >
-                                                    Monolog
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <!-- Voice Gender (Only in Monologue) -->
-                                        ${!this.isDialogueMode ? html`
-                                            <div class="flex items-center gap-3 animate-fade-in">
-                                                <span class="text-sm font-medium text-slate-700">Hlas:</span>
-                                                <select
-                                                    .value="${this.voiceGender}"
-                                                    @change="${e => this.voiceGender = e.target.value}"
-                                                    class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2"
-                                                >
-                                                    <option value="male">Mužský</option>
-                                                    <option value="female">Ženský</option>
-                                                </select>
-                                            </div>
-                                        ` : nothing}
-                                    </div>
 
                                     <div class="space-y-4">
                                         ${script.map((line, index) => html`
@@ -354,6 +355,7 @@ export class EditorViewAudio extends Localized(LitElement) {
                                     .lesson="${this.lesson}"
                                     .files="${this.files}"
                                     .context="${aiContext}"
+                                    .extraData="${{ mode: this.isDialogueMode ? 'dialogue' : 'monologue', voice: this.voiceGender }}"
                                     viewTitle="${this.t('editor.audio.title')}"
                                     contentType="podcast"
                                     fieldToUpdate="podcast_script"
