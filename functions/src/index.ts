@@ -2443,6 +2443,30 @@ exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (req
     }
 });
 
+exports.analyzeClassroomAudio = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "2GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can use the Observer.");
+    }
+    const { audioData, mimeType } = request.data;
+    if (!audioData || !mimeType) {
+        throw new HttpsError("invalid-argument", "Missing audioData or mimeType.");
+    }
+
+    try {
+        // 2. Call Gemini
+        const result = await GeminiAPI.generateAudioAnalysis(audioData, mimeType);
+        return result;
+    } catch (error: any) {
+        logger.error("Error in analyzeClassroomAudio:", error);
+        throw new HttpsError("internal", "Failed to analyze audio: " + error.message);
+    }
+});
+
 exports.generateDiagramElement = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
