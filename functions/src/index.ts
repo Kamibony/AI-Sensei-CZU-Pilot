@@ -955,7 +955,19 @@ Each card object must have: 'front' (pojem/otázka), 'back' (definice/odpověď)
 
                 case "podcast":
                 case "audio":
-                    finalPrompt = `Vytvoř scénář pro audio podcast na téma "${promptData.userPrompt}".
+                    const mode = promptData.mode || "dialogue";
+                    if (mode === 'monologue') {
+                        finalPrompt = `Vytvoř monolog (jednolitý text) na téma "${promptData.userPrompt}".
+${langInstruction}
+Do NOT use speaker tags like [Host] or [Guest].
+
+FORMAT: JSON
+{
+  "script": [ { "text": "Paragraph 1..." }, { "text": "Paragraph 2..." } ] (MANDATORY: Generate a script. Empty array is a failure.)
+}
+Each script object must have: 'text' (string). The 'speaker' field is optional or can be empty.`;
+                    } else {
+                        finalPrompt = `Vytvoř scénář pro audio podcast na téma "${promptData.userPrompt}".
 ${langInstruction}
 
 FORMAT: JSON
@@ -963,6 +975,7 @@ FORMAT: JSON
   "script": [ ... ] (MANDATORY: Generate a dialogue script. Empty array is a failure.)
 }
 Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
+                    }
                     break;
             }
         }

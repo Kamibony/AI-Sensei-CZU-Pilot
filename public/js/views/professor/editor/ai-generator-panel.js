@@ -26,6 +26,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         description: { type: String },
         context: { type: Object },
         inputsConfig: { type: Array },
+        extraData: { type: Object },
         _generationOutput: { state: true },
         _isLoading: { state: true, type: Boolean },
         _isSaving: { state: true, type: Boolean },
@@ -49,6 +50,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         this.promptPlaceholder = "";
         this.description = this.t('editor.ai.missing_description') || "Popis chybí.";
         this.inputsConfig = []; 
+        this.extraData = {};
         this._generationOutput = null;
         this._isLoading = false; 
         this._isSaving = false;
@@ -190,7 +192,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         this._generationOutput = null;
 
         // --- 1. Unified Data Gathering (Hybrid Strategy) ---
-        const promptData = {};
+        const promptData = { ...this.extraData };
 
         // A) Internal Config (Shadow DOM / Local)
         if (this.inputsConfig) {
