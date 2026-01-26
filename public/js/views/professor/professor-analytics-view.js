@@ -189,7 +189,7 @@ export class ProfessorAnalyticsView extends Localized(LitElement) {
                     <div class="max-w-7xl mx-auto w-full">
                         <div class="flex justify-between items-end">
                             <div>
-                                <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight" data-tour="analytics-title">Přehled a Analytika</h1>
+                                <h1 data-tour="analytics-title" class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Přehled a Analytika</h1>
                                 <p class="text-slate-500 mt-1 font-medium text-sm">
                                     Expertní pohled na výkonnost vašich tříd a studentů.
                                     <span class="text-slate-400 text-xs ml-2 font-normal">Aktualizováno: ${new Date(meta.lastUpdated).toLocaleTimeString('cs-CZ', {hour:'2-digit', minute:'2-digit'})}</span>

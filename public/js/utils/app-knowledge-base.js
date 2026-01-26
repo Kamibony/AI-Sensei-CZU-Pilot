@@ -81,9 +81,30 @@ export const APP_KNOWLEDGE_BASE = {
 - **Profile**: Click a student to see their detailed progress and portfolio.
         `,
         tour_steps: [
-            { element: '[data-tour="students-title"]', popover: { title: 'Students', description: 'Overview of all enrolled students.' } },
-            { element: '[data-tour="students-search"]', popover: { title: 'Search', description: 'Quickly find students by name or email.' } },
-            { element: '[data-tour="students-list"]', popover: { title: 'Student List', description: 'Click on a student to view their detailed profile.' } }
+            { element: '[data-tour="students-title"]', popover: { title: 'Students', description: 'Manage your student roster here.' } }
+        ]
+    },
+    analytics: {
+        context_hint: "Analytics view for tracking student and class performance.",
+        user_guide: `
+**Analytics Guide**
+- **Charts**: View activity and grade distributions.
+- **Metrics**: Track reach, engagement, and knowledge mastery.
+- **Insights**: Identify students who need help or are excelling.
+        `,
+        tour_steps: [
+            { element: '[data-tour="analytics-title"]', popover: { title: 'Analytics', description: 'View insights about class performance.' } }
+        ]
+    },
+    media: {
+        context_hint: "Media management view for uploading and managing course files.",
+        user_guide: `
+**Media Guide**
+- **Upload**: Drag and drop files to upload.
+- **Manage**: View, delete, and organize your uploaded files.
+        `,
+        tour_steps: [
+            { element: '[data-tour="media-title"]', popover: { title: 'Media', description: 'Upload and manage course files.' } }
         ]
     },
     practice: {
@@ -94,38 +115,7 @@ export const APP_KNOWLEDGE_BASE = {
 - **Feedback**: Receive AI or Professor feedback.
         `,
         tour_steps: [
-            { element: '[data-tour="practice-title"]', popover: { title: 'Vocational Training', description: 'Manage real-time practical sessions.' } },
-            { element: '[data-tour="practice-class-select"]', popover: { title: 'Select Class', description: 'Choose a class to start a training session.' } },
-            { element: '[data-tour="practice-session-control"]', popover: { title: 'Session Control', description: 'Define tasks and monitor active sessions.' } },
-            { element: '[data-tour="practice-student-grid"]', popover: { title: 'Student Progress', description: 'Watch student submissions in real-time.' } }
-        ]
-    },
-    analytics: {
-        context_hint: "Analytics view showing class performance.",
-        user_guide: `
-**Analytics Guide**
-- **Metrics**: High-level overview of class performance.
-- **Charts**: Visual trends over time.
-- **Insights**: AI-driven suggestions for student improvement.
-        `,
-        tour_steps: [
-             { element: '[data-tour="analytics-title"]', popover: { title: 'Analytics', description: 'Deep dive into student performance.' } },
-             { element: '[data-tour="analytics-metrics"]', popover: { title: 'Key Metrics', description: 'High-level stats on engagement and progress.' } },
-             { element: '[data-tour="analytics-charts"]', popover: { title: 'Charts', description: 'Visual trends of activity and grades.' } },
-             { element: '[data-tour="analytics-insights"]', popover: { title: 'AI Insights', description: 'Auto-generated tips on who needs attention.' } }
-        ]
-    },
-    media: {
-        context_hint: "Media file management.",
-        user_guide: `
-**Media Guide**
-- **Upload**: Upload PDF files for use in lessons.
-- **Gallery**: View and manage your uploaded files.
-        `,
-        tour_steps: [
-             { element: '[data-tour="media-title"]', popover: { title: 'Media Files', description: 'Manage your course materials (PDFs).' } },
-             { element: '[data-tour="media-upload"]', popover: { title: 'Upload Area', description: 'Drag and drop files here.' } },
-             { element: '[data-tour="media-files"]', popover: { title: 'File Gallery', description: 'View and manage uploaded files.' } }
+             { element: '[data-tour="practice-title"]', popover: { title: 'Vocational Training', description: 'Manage and review student practice submissions.' } }
         ]
     },
     "pedagogical-practice": {

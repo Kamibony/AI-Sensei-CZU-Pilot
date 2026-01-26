@@ -3,6 +3,7 @@ import { getAiAssistantResponse } from '../gemini-api.js';
 import { APP_KNOWLEDGE_BASE, APP_KNOWLEDGE_BASE_TEXT } from '../utils/app-knowledge-base.js';
 import { translationService } from '../utils/translation-service.js';
 import { TourGuide } from '../utils/tour-guide.js';
+import { showToast } from '../utils/utils.js';
 
 export class GuideBot extends LitElement {
     static properties = {
@@ -89,9 +90,12 @@ export class GuideBot extends LitElement {
     }
 
     startTour() {
-        const viewKey = this.currentView || 'general';
-        // Try exact match first, then fallback to general
-        const knowledge = APP_KNOWLEDGE_BASE[viewKey] || APP_KNOWLEDGE_BASE['general'];
+        const rawView = this.currentView || 'general';
+        // Smart Resolution: Normalize view name (e.g. professor-students-view -> students)
+        const normalizedView = rawView.replace('professor-', '').replace('-view', '');
+
+        // Try exact match first, then normalized, then fallback to general
+        const knowledge = APP_KNOWLEDGE_BASE[rawView] || APP_KNOWLEDGE_BASE[normalizedView] || APP_KNOWLEDGE_BASE['general'];
 
         if (knowledge && knowledge.tour_steps && knowledge.tour_steps.length > 0) {
             this.tourGuide.start(knowledge.tour_steps);
@@ -101,24 +105,27 @@ export class GuideBot extends LitElement {
         } else {
             // Check if there are any general steps if specific ones are missing?
             // Or just alert.
-             alert(translationService.t('guide_bot.no_tour', 'Interactive tour is not available for this view yet.'));
+             const msg = translationService.t('guide_bot.no_tour', 'Interactive tour is not available for this view yet.');
+             showToast(msg, true);
         }
     }
 
     _getRelevantKnowledge() {
-        const viewKey = this.currentView || 'general';
-        const section = APP_KNOWLEDGE_BASE[viewKey] || APP_KNOWLEDGE_BASE.general;
+        const rawView = this.currentView || 'general';
+        const normalizedView = rawView.replace('professor-', '').replace('-view', '');
+
+        const section = APP_KNOWLEDGE_BASE[rawView] || APP_KNOWLEDGE_BASE[normalizedView] || APP_KNOWLEDGE_BASE.general;
 
         // If we are in a specific view, we might want to include general info as well,
         // but the prompt asks to "inject only the relevant section".
         // However, context_hint should be helpful.
 
-        let content = `View: ${viewKey}\n`;
+        let content = `View: ${normalizedView} (Raw: ${rawView})\n`;
         content += `Context Hint: ${section.context_hint}\n`;
         content += `Guide:\n${section.user_guide}\n`;
 
         // If the view is not general, maybe add the general section's key rules?
-        if (viewKey !== 'general') {
+        if (normalizedView !== 'general') {
              content += `\n--- General Rules ---\n${APP_KNOWLEDGE_BASE.general.user_guide}`;
         }
 
