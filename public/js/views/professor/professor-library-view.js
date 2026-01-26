@@ -132,12 +132,12 @@ export class ProfessorLibraryView extends LitElement {
         return html`
             <div class="h-full flex flex-col bg-slate-50/50">
                 <!-- Header -->
-                <div class="px-8 py-6 flex justify-between items-center border-b border-slate-200 bg-white">
+                <div class="px-8 py-6 flex justify-between items-center border-b border-slate-200 bg-white" data-tour="library-header">
                     <div>
                         <h1 data-tour="library-title" class="text-2xl font-bold text-slate-800">${translationService.t('nav.library') || 'Knihovna lekcí'}</h1>
                         <p class="text-slate-500 text-sm mt-1">${translationService.t('library.subtitle') || 'Spravujte všechny své výukové materiály na jednom místě'}</p>
                     </div>
-                    <button @click="${this._handleNewLesson}" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-2">
+                    <button data-tour="new-lesson-btn" @click="${this._handleNewLesson}" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-2">
                         <span>✨</span> ${translationService.t('lesson.new') || 'Nová lekce'}
                     </button>
                 </div>
@@ -155,7 +155,7 @@ export class ProfessorLibraryView extends LitElement {
                              <button @click="${this._handleNewLesson}" class="mt-4 text-indigo-600 font-semibold hover:underline">${translationService.t('library.create_first')}</button>
                         </div>
                     ` : html`
-                        <div class="space-y-8">
+                        <div class="space-y-8" data-tour="library-grid">
                             ${Object.entries(this._groupedLessons).map(([subject, lessons]) => html`
                                 <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
                                     <h2 class="text-xl font-bold text-slate-800 mb-4 px-2 border-l-4 border-indigo-500 pl-3">${subject}</h2>

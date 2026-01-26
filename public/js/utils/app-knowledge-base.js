@@ -55,7 +55,9 @@ export const APP_KNOWLEDGE_BASE = {
 - **Status**: Icons indicate if a lesson is Draft or Published.
         `,
         tour_steps: [
-            { element: '[data-tour="library-title"]', popover: { title: 'Library', description: 'Your collection of lessons.' } }
+            { element: '[data-tour="library-title"]', popover: { title: 'Library', description: 'Your collection of lessons.' } },
+            { element: '[data-tour="new-lesson-btn"]', popover: { title: 'New Lesson', description: 'Create a new lesson using AI or manually.' } },
+            { element: '[data-tour="library-grid"]', popover: { title: 'Lesson Grid', description: 'View and manage all your lessons here.' } }
         ]
     },
     editor: {
@@ -78,7 +80,11 @@ export const APP_KNOWLEDGE_BASE = {
 - **List**: View all students across all classes.
 - **Profile**: Click a student to see their detailed progress and portfolio.
         `,
-        tour_steps: []
+        tour_steps: [
+            { element: '[data-tour="students-title"]', popover: { title: 'Students', description: 'Overview of all enrolled students.' } },
+            { element: '[data-tour="students-search"]', popover: { title: 'Search', description: 'Quickly find students by name or email.' } },
+            { element: '[data-tour="students-list"]', popover: { title: 'Student List', description: 'Click on a student to view their detailed profile.' } }
+        ]
     },
     practice: {
         context_hint: "Vocational Training / Practice view.",
@@ -87,7 +93,40 @@ export const APP_KNOWLEDGE_BASE = {
 - **Submissions**: Upload photos of your work.
 - **Feedback**: Receive AI or Professor feedback.
         `,
-        tour_steps: []
+        tour_steps: [
+            { element: '[data-tour="practice-title"]', popover: { title: 'Vocational Training', description: 'Manage real-time practical sessions.' } },
+            { element: '[data-tour="practice-class-select"]', popover: { title: 'Select Class', description: 'Choose a class to start a training session.' } },
+            { element: '[data-tour="practice-session-control"]', popover: { title: 'Session Control', description: 'Define tasks and monitor active sessions.' } },
+            { element: '[data-tour="practice-student-grid"]', popover: { title: 'Student Progress', description: 'Watch student submissions in real-time.' } }
+        ]
+    },
+    analytics: {
+        context_hint: "Analytics view showing class performance.",
+        user_guide: `
+**Analytics Guide**
+- **Metrics**: High-level overview of class performance.
+- **Charts**: Visual trends over time.
+- **Insights**: AI-driven suggestions for student improvement.
+        `,
+        tour_steps: [
+             { element: '[data-tour="analytics-title"]', popover: { title: 'Analytics', description: 'Deep dive into student performance.' } },
+             { element: '[data-tour="analytics-metrics"]', popover: { title: 'Key Metrics', description: 'High-level stats on engagement and progress.' } },
+             { element: '[data-tour="analytics-charts"]', popover: { title: 'Charts', description: 'Visual trends of activity and grades.' } },
+             { element: '[data-tour="analytics-insights"]', popover: { title: 'AI Insights', description: 'Auto-generated tips on who needs attention.' } }
+        ]
+    },
+    media: {
+        context_hint: "Media file management.",
+        user_guide: `
+**Media Guide**
+- **Upload**: Upload PDF files for use in lessons.
+- **Gallery**: View and manage your uploaded files.
+        `,
+        tour_steps: [
+             { element: '[data-tour="media-title"]', popover: { title: 'Media Files', description: 'Manage your course materials (PDFs).' } },
+             { element: '[data-tour="media-upload"]', popover: { title: 'Upload Area', description: 'Drag and drop files here.' } },
+             { element: '[data-tour="media-files"]', popover: { title: 'File Gallery', description: 'View and manage uploaded files.' } }
+        ]
     },
     "pedagogical-practice": {
         context_hint: "Pedagogical Practice Portfolio.",
