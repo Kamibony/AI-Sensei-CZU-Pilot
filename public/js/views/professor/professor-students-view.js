@@ -207,7 +207,7 @@ export class ProfessorStudentsView extends Localized(LitElement) {
             <div class="h-full flex flex-col bg-slate-50">
                 <header class="bg-white p-6 border-b border-slate-200">
                     <div>
-                        <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${this.t('students_view.title')}</h1>
+                        <h1 data-tour="students-title" class="text-3xl font-extrabold text-slate-800 tracking-tight">${this.t('students_view.title')}</h1>
                         <p class="text-slate-500 mt-1 font-medium">${this.t('students_view.subtitle')}</p>
                     </div>
                 </header>

@@ -203,7 +203,7 @@ export class PracticeView extends LitElement {
         return html`
             <div class="max-w-7xl mx-auto p-6 space-y-8">
                 <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-                    <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Odborný Výcvik (AI Mistr)</h1>
+                    <h1 data-tour="practice-title" class="text-3xl font-extrabold text-slate-900 tracking-tight">Odborný Výcvik (AI Mistr)</h1>
                     <div class="relative">
                         <select @change="${e => this._selectGroup(e.target.value)}" class="appearance-none bg-white border border-slate-300 text-slate-700 py-2 px-4 pr-8 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium">
                             <option value="">Vyberte třídu</option>

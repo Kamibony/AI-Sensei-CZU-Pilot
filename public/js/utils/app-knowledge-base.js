@@ -78,7 +78,32 @@ export const APP_KNOWLEDGE_BASE = {
 - **List**: View all students across all classes.
 - **Profile**: Click a student to see their detailed progress and portfolio.
         `,
-        tour_steps: []
+        tour_steps: [
+            { element: '[data-tour="students-title"]', popover: { title: 'Students', description: 'Manage your student roster here.' } }
+        ]
+    },
+    analytics: {
+        context_hint: "Analytics view for tracking student and class performance.",
+        user_guide: `
+**Analytics Guide**
+- **Charts**: View activity and grade distributions.
+- **Metrics**: Track reach, engagement, and knowledge mastery.
+- **Insights**: Identify students who need help or are excelling.
+        `,
+        tour_steps: [
+            { element: '[data-tour="analytics-title"]', popover: { title: 'Analytics', description: 'View insights about class performance.' } }
+        ]
+    },
+    media: {
+        context_hint: "Media management view for uploading and managing course files.",
+        user_guide: `
+**Media Guide**
+- **Upload**: Drag and drop files to upload.
+- **Manage**: View, delete, and organize your uploaded files.
+        `,
+        tour_steps: [
+            { element: '[data-tour="media-title"]', popover: { title: 'Media', description: 'Upload and manage course files.' } }
+        ]
     },
     practice: {
         context_hint: "Vocational Training / Practice view.",
@@ -87,7 +112,9 @@ export const APP_KNOWLEDGE_BASE = {
 - **Submissions**: Upload photos of your work.
 - **Feedback**: Receive AI or Professor feedback.
         `,
-        tour_steps: []
+        tour_steps: [
+             { element: '[data-tour="practice-title"]', popover: { title: 'Vocational Training', description: 'Manage and review student practice submissions.' } }
+        ]
     },
     "pedagogical-practice": {
         context_hint: "Pedagogical Practice Portfolio.",
