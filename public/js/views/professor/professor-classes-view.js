@@ -149,7 +149,7 @@ export class ProfessorClassesView extends LitElement {
             <div class="h-full flex flex-col bg-slate-50 relative">
                 <header class="bg-white p-6 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
-                        <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${t('classes.manage_title')}</h1>
+                        <h1 data-tour="classes-title" class="text-3xl font-extrabold text-slate-800 tracking-tight">${t('classes.manage_title')}</h1>
                         <p class="text-slate-500 mt-1 font-medium">${t('classes.manage_desc')}</p>
                     </div>
                     <button @click=${this._openCreateModal} class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-6 rounded-full flex items-center shadow-lg shadow-indigo-200 transition-all transform hover:scale-105">

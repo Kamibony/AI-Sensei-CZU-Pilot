@@ -134,7 +134,7 @@ export class ProfessorLibraryView extends LitElement {
                 <!-- Header -->
                 <div class="px-8 py-6 flex justify-between items-center border-b border-slate-200 bg-white">
                     <div>
-                        <h1 class="text-2xl font-bold text-slate-800">${translationService.t('nav.library') || 'Knihovna lekcí'}</h1>
+                        <h1 data-tour="library-title" class="text-2xl font-bold text-slate-800">${translationService.t('nav.library') || 'Knihovna lekcí'}</h1>
                         <p class="text-slate-500 text-sm mt-1">${translationService.t('library.subtitle') || 'Spravujte všechny své výukové materiály na jednom místě'}</p>
                     </div>
                     <button @click="${this._handleNewLesson}" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-2">
