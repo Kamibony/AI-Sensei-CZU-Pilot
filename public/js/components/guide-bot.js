@@ -78,6 +78,16 @@ export class GuideBot extends LitElement {
         }
     }
 
+    updateContext(view, data = {}) {
+        this.currentView = view;
+        this.contextData = data;
+        if (data.role) {
+            this.userRole = data.role;
+        }
+        // Force update to ensure new state is reflected immediately if needed
+        this.requestUpdate();
+    }
+
     startTour() {
         const viewKey = this.currentView || 'general';
         // Try exact match first, then fallback to general
