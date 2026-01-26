@@ -447,12 +447,50 @@ export class StudentLessonDetail extends LitElement {
         }
     }
 
+    _getNormalizedContent(content) {
+        // Defensive Programming: Handle Null/Undefined
+        if (!content) {
+            return "";
+        }
+
+        // IF String: Proceed as normal
+        if (typeof content === 'string') {
+            return content;
+        }
+
+        // IF Object: Parse object back into a String
+        if (typeof content === 'object') {
+            // Scenario A: AI Schema (has sections array)
+            if (Array.isArray(content.sections)) {
+                return content.sections.map(section => {
+                    const title = section.title ? `## ${section.title}` : '';
+                    const body = section.content || '';
+                    return `${title}\n\n${body}`;
+                }).join('\n\n');
+            }
+
+            // Scenario B: Generic Object -> Safe Serialization
+            try {
+                return JSON.stringify(content, null, 2);
+            } catch (e) {
+                console.error("Error serializing content object:", e);
+                return "Error displaying content.";
+            }
+        }
+
+        // Fallback
+        return String(content);
+    }
+
     _renderStudyRoom() {
+        // Content Normalization Layer
+        const safeContent = this._getNormalizedContent(this.lessonData.text_content);
+
         return html`
             <div class="space-y-8 max-w-4xl mx-auto">
 
                 <!-- 1. Text Content -->
-                ${this.lessonData.text_content ? html`
+                ${safeContent ? html`
                     <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 sm:p-12 relative overflow-hidden">
                         <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
                         <h2 class="text-3xl font-extrabold text-slate-900 mb-8 flex items-center gap-3">
@@ -460,8 +498,8 @@ export class StudentLessonDetail extends LitElement {
                         </h2>
                         <div class="prose prose-lg prose-indigo max-w-none text-slate-600 leading-relaxed">
                             ${(typeof marked !== 'undefined')
-                                ? html`<div .innerHTML=${marked.parse(this.lessonData.text_content)}></div>`
-                                : html`<p>${this.lessonData.text_content}</p>`}
+                                ? html`<div .innerHTML=${marked.parse(safeContent)}></div>`
+                                : html`<p>${safeContent}</p>`}
                         </div>
                     </div>
                 ` : ''}
