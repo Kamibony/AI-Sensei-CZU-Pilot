@@ -10,7 +10,8 @@ export class ArchitectView extends Localized(BaseView) {
         _isAnalyzing: { state: true },
         _statusMessage: { state: true },
         _knowledgeBaseId: { state: true },
-        _graphData: { state: true }
+        _graphData: { state: true },
+        _selectedNode: { state: true }
     };
 
     constructor() {
@@ -20,6 +21,7 @@ export class ArchitectView extends Localized(BaseView) {
         this._statusMessage = '';
         this._knowledgeBaseId = null;
         this._graphData = null;
+        this._selectedNode = null;
     }
 
     async _handleFileUpload(e) {
@@ -114,7 +116,13 @@ export class ArchitectView extends Localized(BaseView) {
             // Transform data for Cytoscape
             const elements = [
                 ...this._graphData.nodes.map(n => ({
-                    data: { ...n, id: n.id, label: n.label, bloomLevel: n.bloom_level || n.bloomLevel }
+                    data: {
+                        ...n,
+                        id: n.id,
+                        label: n.label,
+                        bloomLevel: n.bloom_level || n.bloomLevel,
+                        eqfLevel: n.eqf_level || n.eqfLevel
+                    }
                 })),
                 ...this._graphData.edges.map(e => ({
                     data: { source: e.source, target: e.target }
@@ -131,7 +139,7 @@ export class ArchitectView extends Localized(BaseView) {
                 6: '#f97316'  // Orange-500
             };
 
-            cytoscape({
+            this._cy = cytoscape({
                 container: container,
                 elements: elements,
                 style: [
@@ -172,9 +180,37 @@ export class ArchitectView extends Localized(BaseView) {
                     spacingFactor: 1.25
                 }
             });
+
+            // Add Event Listeners
+            this._cy.on('tap', 'node', (evt) => {
+                this._selectedNode = evt.target.data();
+                this.requestUpdate();
+            });
+
+            this._cy.on('tap', (evt) => {
+                if (evt.target === this._cy) {
+                    this._selectedNode = null;
+                    this.requestUpdate();
+                }
+            });
+
         } catch (e) {
             console.error("Failed to load or init Cytoscape:", e);
         }
+    }
+
+    _getEqfDescription(level) {
+        const levels = {
+            1: "basic general knowledge.",
+            2: "basic factual knowledge of a field of work or study.",
+            3: "knowledge of facts, principles, processes and general concepts.",
+            4: "factual and theoretical knowledge in broad contexts.",
+            5: "comprehensive, specialised, factual and theoretical knowledge.",
+            6: "advanced knowledge of a field of work or study.",
+            7: "highly specialised knowledge, some of which is at the forefront of knowledge.",
+            8: "knowledge at the most advanced frontier of a field of work or study."
+        };
+        return levels[level] || "autonomy and responsibility.";
     }
 
     _showToast(message, type = 'info') {
@@ -247,6 +283,46 @@ export class ArchitectView extends Localized(BaseView) {
                     <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-6 min-h-[600px] flex flex-col relative h-[600px]">
                          ${this._graphData ? html`
                             <div id="competency-map" class="absolute inset-0 w-full h-full rounded-2xl overflow-hidden z-0"></div>
+
+                            <!-- Detail Card Overlay -->
+                            ${this._selectedNode ? html`
+                                <div class="absolute top-4 left-4 z-20 w-80 bg-white/90 backdrop-blur-md rounded-2xl shadow-xl border border-white/50 p-6 transition-all animate-fade-in-up">
+                                    <div class="flex flex-col gap-4">
+                                        <!-- Header -->
+                                        <div>
+                                            <h3 class="text-lg font-bold text-slate-800 leading-tight">${this._selectedNode.label}</h3>
+                                            <p class="text-xs text-slate-500 mt-1 uppercase tracking-wider font-bold">Competency Node</p>
+                                        </div>
+
+                                        <!-- Badges -->
+                                        <div class="flex flex-wrap gap-2">
+                                            <!-- Bloom Badge -->
+                                            <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700">
+                                                <span class="text-xs font-bold">Bloom Lvl ${this._selectedNode.bloomLevel}</span>
+                                            </div>
+
+                                            <!-- EQF Badge -->
+                                            <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700">
+                                                <span class="text-xs font-bold">
+                                                    ${this._selectedNode.eqfLevel ? `EQF Lvl ${this._selectedNode.eqfLevel}` : 'EQF N/A'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <p class="text-sm text-slate-600 italic">
+                                            ${this._selectedNode.eqfLevel ?
+                                                `Level ${this._selectedNode.eqfLevel} indicates ${this._getEqfDescription(this._selectedNode.eqfLevel)}`
+                                                : 'Standard Bloom-based competency node.'}
+                                        </p>
+
+                                        <button
+                                            @click=${() => { this._selectedNode = null; this.requestUpdate(); }}
+                                            class="text-xs text-slate-400 hover:text-slate-600 underline self-start">
+                                            Close details
+                                        </button>
+                                    </div>
+                                </div>
+                            ` : ''}
 
                             <!-- Legend overlay -->
                             <div class="absolute bottom-4 right-4 bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow border border-slate-100 text-xs z-10">

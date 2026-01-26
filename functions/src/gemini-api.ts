@@ -591,7 +591,7 @@ async function generateJsonFromMultimodal(prompt: string, base64Data: string, mi
 }
 
 async function generateCompetencyGraph(text: string): Promise<any> {
-    const systemInstruction = "Analyze the provided syllabus text. Output a JSON object containing 'nodes' (id, label, bloom_level 1-6) and 'edges' (source, target) representing a dependency graph based on Bloom's Taxonomy.";
+    const systemInstruction = "Analyze the provided syllabus text. Output a JSON object containing 'nodes' (id, label, bloom_level 1-6, eqf_level 1-8) and 'edges' (source, target) representing a dependency graph based on Bloom's Taxonomy and the European Qualifications Framework (EQF). For eqf_level, focus on autonomy and responsibility.";
     return await generateJsonFromPrompt(text, systemInstruction);
 }
 
