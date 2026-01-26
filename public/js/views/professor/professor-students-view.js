@@ -205,9 +205,9 @@ export class ProfessorStudentsView extends Localized(LitElement) {
 
         return html`
             <div class="h-full flex flex-col bg-slate-50">
-                <header class="bg-white p-6 border-b border-slate-200">
+                <header class="bg-white p-6 border-b border-slate-200" data-tour="students-header">
                     <div>
-                        <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${this.t('students_view.title')}</h1>
+                        <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight" data-tour="students-title">${this.t('students_view.title')}</h1>
                         <p class="text-slate-500 mt-1 font-medium">${this.t('students_view.subtitle')}</p>
                     </div>
                 </header>
@@ -216,7 +216,7 @@ export class ProfessorStudentsView extends Localized(LitElement) {
                     <div class="space-y-8">
 
                         <!-- Search Bar (Floating) -->
-                        <div class="sticky top-0 z-10 -mt-2 mb-8 pt-2">
+                        <div class="sticky top-0 z-10 -mt-2 mb-8 pt-2" data-tour="students-search">
                              <div class="relative max-w-2xl mx-auto">
                                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                     <svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
@@ -230,7 +230,7 @@ export class ProfessorStudentsView extends Localized(LitElement) {
                              </div>
                         </div>
 
-                        <div id="students-list-container">
+                        <div id="students-list-container" data-tour="students-list">
                             ${content}
                         </div>
                     </div>

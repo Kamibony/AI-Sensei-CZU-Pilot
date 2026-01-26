@@ -185,11 +185,11 @@ export class ProfessorAnalyticsView extends Localized(LitElement) {
         return html`
             <div class="h-full flex flex-col bg-slate-50 overflow-hidden">
                 <!-- Header -->
-                <header class="bg-white p-6 md:px-8 md:py-6 border-b border-slate-200 flex-shrink-0">
+                <header class="bg-white p-6 md:px-8 md:py-6 border-b border-slate-200 flex-shrink-0" data-tour="analytics-header">
                     <div class="max-w-7xl mx-auto w-full">
                         <div class="flex justify-between items-end">
                             <div>
-                                <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Přehled a Analytika</h1>
+                                <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight" data-tour="analytics-title">Přehled a Analytika</h1>
                                 <p class="text-slate-500 mt-1 font-medium text-sm">
                                     Expertní pohled na výkonnost vašich tříd a studentů.
                                     <span class="text-slate-400 text-xs ml-2 font-normal">Aktualizováno: ${new Date(meta.lastUpdated).toLocaleTimeString('cs-CZ', {hour:'2-digit', minute:'2-digit'})}</span>
@@ -207,7 +207,7 @@ export class ProfessorAnalyticsView extends Localized(LitElement) {
                     <div class="max-w-7xl mx-auto space-y-8">
 
                         <!-- 1. Metrics Cards -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" data-tour="analytics-metrics">
                             ${this._renderMetricCard(
                                 'Celkový Dosah',
                                 metrics.totalReach.value,
@@ -235,7 +235,7 @@ export class ProfessorAnalyticsView extends Localized(LitElement) {
                         </div>
 
                         <!-- 2. Charts Section -->
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-96">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-96" data-tour="analytics-charts">
                             <!-- Activity Heatmap -->
                             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-2 flex flex-col">
                                 <h3 class="text-lg font-bold text-slate-800 mb-1">Aktivita Studentů</h3>
@@ -256,7 +256,7 @@ export class ProfessorAnalyticsView extends Localized(LitElement) {
                         </div>
 
                         <!-- 3. Insights Panel -->
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" data-tour="analytics-insights">
 
                             <!-- Needs Attention -->
                             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
