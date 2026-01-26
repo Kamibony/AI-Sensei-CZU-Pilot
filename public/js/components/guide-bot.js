@@ -1,6 +1,6 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { getAiAssistantResponse } from '../gemini-api.js';
-import { APP_KNOWLEDGE_BASE, KNOWLEDGE_BASE } from '../utils/app-knowledge-base.js';
+import { APP_KNOWLEDGE_BASE, APP_KNOWLEDGE_BASE_TEXT } from '../utils/app-knowledge-base.js';
 import { translationService } from '../utils/translation-service.js';
 import { TourGuide } from '../utils/tour-guide.js';
 
@@ -81,7 +81,7 @@ export class GuideBot extends LitElement {
     startTour() {
         const viewKey = this.currentView || 'general';
         // Try exact match first, then fallback to general
-        const knowledge = KNOWLEDGE_BASE[viewKey] || KNOWLEDGE_BASE['general'];
+        const knowledge = APP_KNOWLEDGE_BASE[viewKey] || APP_KNOWLEDGE_BASE['general'];
 
         if (knowledge && knowledge.tour_steps && knowledge.tour_steps.length > 0) {
             this.tourGuide.start(knowledge.tour_steps);
@@ -97,7 +97,7 @@ export class GuideBot extends LitElement {
 
     _getRelevantKnowledge() {
         const viewKey = this.currentView || 'general';
-        const section = KNOWLEDGE_BASE[viewKey] || KNOWLEDGE_BASE.general;
+        const section = APP_KNOWLEDGE_BASE[viewKey] || APP_KNOWLEDGE_BASE.general;
 
         // If we are in a specific view, we might want to include general info as well,
         // but the prompt asks to "inject only the relevant section".
@@ -109,7 +109,7 @@ export class GuideBot extends LitElement {
 
         // If the view is not general, maybe add the general section's key rules?
         if (viewKey !== 'general') {
-             content += `\n--- General Rules ---\n${KNOWLEDGE_BASE.general.user_guide}`;
+             content += `\n--- General Rules ---\n${APP_KNOWLEDGE_BASE.general.user_guide}`;
         }
 
         return content;
