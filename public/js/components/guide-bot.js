@@ -5,6 +5,16 @@ import { translationService } from '../utils/translation-service.js';
 import { TourGuide } from '../utils/tour-guide.js';
 import { showToast } from '../utils/utils.js';
 
+// Phase 1: Intelligent Translation Layer
+const VIEW_TO_TOPIC_MAP = {
+    'lesson-editor': 'editor',
+    'class-detail': 'classes',
+    'student-detail': 'students',
+    'practice-detail': 'practice',
+    'submission-detail': 'practice',
+    'pedagogical-detail': 'pedagogical-practice'
+};
+
 export class GuideBot extends LitElement {
     static properties = {
         isOpen: { state: true },
@@ -94,8 +104,9 @@ export class GuideBot extends LitElement {
         // Smart Resolution: Normalize view name (e.g. professor-students-view -> students)
         const normalizedView = rawView.replace('professor-', '').replace('-view', '');
 
-        // Try exact match first, then normalized, then fallback to general
-        const knowledge = APP_KNOWLEDGE_BASE[rawView] || APP_KNOWLEDGE_BASE[normalizedView] || APP_KNOWLEDGE_BASE['general'];
+        // Try exact match first, then lookup map, then normalized, then fallback to general
+        const topicKey = VIEW_TO_TOPIC_MAP[normalizedView] || normalizedView;
+        const knowledge = APP_KNOWLEDGE_BASE[rawView] || APP_KNOWLEDGE_BASE[topicKey] || APP_KNOWLEDGE_BASE['general'];
 
         if (knowledge && knowledge.tour_steps && knowledge.tour_steps.length > 0) {
             this.tourGuide.start(knowledge.tour_steps);
@@ -114,7 +125,8 @@ export class GuideBot extends LitElement {
         const rawView = this.currentView || 'general';
         const normalizedView = rawView.replace('professor-', '').replace('-view', '');
 
-        const section = APP_KNOWLEDGE_BASE[rawView] || APP_KNOWLEDGE_BASE[normalizedView] || APP_KNOWLEDGE_BASE.general;
+        const topicKey = VIEW_TO_TOPIC_MAP[normalizedView] || normalizedView;
+        const section = APP_KNOWLEDGE_BASE[rawView] || APP_KNOWLEDGE_BASE[topicKey] || APP_KNOWLEDGE_BASE.general;
 
         // If we are in a specific view, we might want to include general info as well,
         // but the prompt asks to "inject only the relevant section".
