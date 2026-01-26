@@ -57,7 +57,7 @@ Do NOT refuse to generate content. Always find the most relevant educational val
 function sanitizeStoragePath(path: string, bucketName: string): string {
     if (!path) return "";
 
-    path = decodeURIComponent(path).normalize('NFC'); // SYSTEMIC FIX for special chars
+    path = decodeURIComponent(path).normalize("NFC"); // SYSTEMIC FIX for special chars
 
     // 1. Remove gs:// prefix
     let clean = path.replace(/^gs:\/\//, "");
@@ -80,8 +80,8 @@ function sanitizeJsonOutput(text: string): string {
     clean = clean.replace(/```json/gi, "").replace(/```/g, "");
 
     // Remove conversational preamble if any (simple heuristic: find first { or [)
-    const firstBrace = clean.indexOf('{');
-    const firstBracket = clean.indexOf('[');
+    const firstBrace = clean.indexOf("{");
+    const firstBracket = clean.indexOf("[");
 
     let startIndex = -1;
     if (firstBrace !== -1 && firstBracket !== -1) {
@@ -97,8 +97,8 @@ function sanitizeJsonOutput(text: string): string {
     }
 
     // Also try to cut off after the last } or ]
-    const lastBrace = clean.lastIndexOf('}');
-    const lastBracket = clean.lastIndexOf(']');
+    const lastBrace = clean.lastIndexOf("}");
+    const lastBracket = clean.lastIndexOf("]");
     let endIndex = -1;
      if (lastBrace !== -1 && lastBracket !== -1) {
         endIndex = Math.max(lastBrace, lastBracket);
@@ -122,8 +122,8 @@ async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<
 
     // 1. Primary Path (as provided, sanitized) - Try NFC first (canonical), then NFD (Mac upload)
     const primaryPath = cleanPath;
-    candidates.push(primaryPath.normalize('NFC'));
-    candidates.push(primaryPath.normalize('NFD'));
+    candidates.push(primaryPath.normalize("NFC"));
+    candidates.push(primaryPath.normalize("NFD"));
 
     // 2. Legacy/Alternative Path (toggle /media/)
     let alternativePath: string | null = null;
@@ -136,17 +136,17 @@ async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<
     }
 
     if (alternativePath && alternativePath !== primaryPath) {
-         candidates.push(alternativePath.normalize('NFC'));
-         candidates.push(alternativePath.normalize('NFD'));
+         candidates.push(alternativePath.normalize("NFC"));
+         candidates.push(alternativePath.normalize("NFD"));
     }
 
     // 3. URI Encoded Path (for files uploaded with %20 instead of spaces)
     // Sometimes storage tools upload 'File Name.pdf' as 'File%20Name.pdf' literal object name.
     if (primaryPath.includes(" ")) {
-        candidates.push(primaryPath.replace(/ /g, '%20'));
+        candidates.push(primaryPath.replace(/ /g, "%20"));
     }
     if (alternativePath && alternativePath.includes(" ")) {
-        candidates.push(alternativePath.replace(/ /g, '%20'));
+        candidates.push(alternativePath.replace(/ /g, "%20"));
     }
 
     // Deduplicate candidates
@@ -160,7 +160,7 @@ async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<
             const file = bucket.file(path);
             const [buffer] = await file.download();
             if (buffer && buffer.length > 0) {
-                 if (path !== primaryPath.normalize('NFC')) {
+                 if (path !== primaryPath.normalize("NFC")) {
                      logger.info(`[gemini-api] Recovered file using alternative path/normalization: '${path}' (Original: '${cleanPath}')`);
                  }
                  return { buffer, finalPath: path };
@@ -170,7 +170,7 @@ async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<
         }
     }
 
-    throw new Error(`Failed to download file '${cleanPath}' after trying candidates: ${uniqueCandidates.join(', ')}`);
+    throw new Error(`Failed to download file '${cleanPath}' after trying candidates: ${uniqueCandidates.join(", ")}`);
 }
 
 async function generateEmbeddings(text: string): Promise<number[]> {
@@ -375,7 +375,7 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string, sy
     }
     
     if (loadedFiles === 0) {
-        throw new HttpsError('not-found', 'Backend could not read any source files. Please check file paths. Attempted path example: ' + (filePaths[0] || 'none'));
+        throw new HttpsError("not-found", "Backend could not read any source files. Please check file paths. Attempted path example: " + (filePaths[0] || "none"));
     }
 
     parts.push({ text: prompt });
@@ -532,7 +532,7 @@ async function generateTextFromMultimodal(prompt: string, base64Data: string, mi
     const model = await getGenerativeModel();
     const result = await model.generateContent({
         contents: [{
-            role: 'user',
+            role: "user",
             parts: [
                 { text: prompt },
                 {
@@ -556,7 +556,7 @@ async function generateJsonFromMultimodal(prompt: string, base64Data: string, mi
 
     const result = await model.generateContent({
         contents: [{
-            role: 'user',
+            role: "user",
             parts: [
                 { text: jsonPrompt },
                 {

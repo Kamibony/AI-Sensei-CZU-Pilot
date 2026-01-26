@@ -42,6 +42,17 @@ jobs:
           npm run build
           cd ..
 
+      # --- Securely Encode GCP Key (Raw JSON -> Base64) ---
+      - name: Encode GCP Key
+        id: encode_key
+        shell: bash
+        env:
+          RAW_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          # Encode the secret to Base64 (single line) to satisfy w9jds/firebase-action requirements
+          echo "$RAW_KEY" | base64 -w 0 > gcp_key_b64.txt
+          echo "GCP_SA_KEY_B64=$(cat gcp_key_b64.txt)" >> $GITHUB_ENV
+
       # --- Nasadenie na DEV (vetva main) -> ai-sensei-czu-pilot ---
       - name: Deploy to DEV (ai-sensei-czu-pilot)
         if: github.ref == 'refs/heads/main'
@@ -49,7 +60,7 @@ jobs:
         with:
           args: deploy --project dev --force
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GCP_SA_KEY: ${{ env.GCP_SA_KEY_B64 }}
 
       # --- Nasadenie na NOVÝ PROD (vetva release) -> ai-sensei-prod ---
       - name: Deploy to PROD (ai-sensei-prod)
@@ -58,7 +69,7 @@ jobs:
         with:
           args: deploy --project prod --force
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GCP_SA_KEY: ${{ env.GCP_SA_KEY_B64 }}
 
       # --- Nasadenie na LEGACY (vetva legacy-v1) -> via-academy-prod ---
       - name: Deploy to LEGACY (via-academy-prod)
@@ -67,4 +78,4 @@ jobs:
         with:
           args: deploy --project legacy --force
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GCP_SA_KEY: ${{ env.GCP_SA_KEY_B64 }}

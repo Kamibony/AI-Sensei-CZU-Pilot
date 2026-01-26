@@ -15,8 +15,8 @@ const fetch = require("node-fetch");
 const textToSpeech = require("@google-cloud/text-to-speech"); // Import pre TTS
 
 // Import local API using TypeScript syntax
-import * as GeminiAPI from './gemini-api';
-import { SUBMISSION_STATUS, SUBMISSION_OUTCOME } from './shared-constants';
+import * as GeminiAPI from "./gemini-api";
+import { SUBMISSION_STATUS, SUBMISSION_OUTCOME } from "./shared-constants";
 
 // Lazy load heavy dependencies
 // const pdf = require("pdf-parse");
@@ -35,15 +35,15 @@ function loadPdfParser(): (buffer: Buffer, options?: any) => Promise<any> {
         throw new Error(`Failed to require('${packageName}'): ${e.message}`);
     }
     // 1. Direct function export (Standard CJS)
-    if (typeof parser === 'function') return parser;
+    if (typeof parser === "function") return parser;
     // 2. Default export (ESM interop)
-    if (parser && typeof parser.default === 'function') return parser.default;
+    if (parser && typeof parser.default === "function") return parser.default;
     // 3. Nested default (Double interop edge case)
-    if (parser && parser.default && typeof parser.default.default === 'function') return parser.default.default;
+    if (parser && parser.default && typeof parser.default.default === "function") return parser.default.default;
 
     // 4. Class-based export (Version 2.x+)
     // If the export is an object containing a 'PDFParse' class, we wrap it to match the v1.x API.
-    if (typeof parser === 'object' && parser !== null && typeof parser.PDFParse === 'function') {
+    if (typeof parser === "object" && parser !== null && typeof parser.PDFParse === "function") {
         const PDFParseClass = parser.PDFParse;
         // Return a wrapper function that mimics standard v1 behavior: (buffer) => Promise<{ text: string }>
         return async (buffer: Buffer) => {
@@ -54,12 +54,12 @@ function loadPdfParser(): (buffer: Buffer, options?: any) => Promise<any> {
              // result is likely an object { text: "...", ... } or just a string?
              // Based on testing: { text: "...", pages: [...] }
              // We ensure we return an object with a .text property.
-             return typeof result === 'string' ? { text: result } : result;
+             return typeof result === "string" ? { text: result } : result;
         };
     }
 
     const type = typeof parser;
-    const keys = (typeof parser === 'object' && parser !== null) ? Object.keys(parser).join(", ") : "null";
+    const keys = (typeof parser === "object" && parser !== null) ? Object.keys(parser).join(", ") : "null";
     throw new Error(
         `Dependency Adapter Error: '${packageName}' did not export a function. ` +
         `Received type: '${type}'. Keys: [${keys}].`
@@ -153,7 +153,7 @@ exports.startMagicGeneration = onCall({
             for (const rawPath of filePaths) {
                 try {
                      // --- ENFORCE STRICT DATA OWNERSHIP ---
-                     const fileName = rawPath.split('/').pop();
+                     const fileName = rawPath.split("/").pop();
                      const ownerId = request.auth.uid;
 
                      // 1. Construct Strict Path (courses/{userId}/media/{fileName})
@@ -201,7 +201,7 @@ exports.startMagicGeneration = onCall({
                          if (text.trim().length < 100) {
                              log(`[Magic] Low text detected in ${finalPath}. Attempting Vision OCR...`);
                              // Convert PDF buffer to Base64
-                             const pdfBase64 = buffer.toString('base64');
+                             const pdfBase64 = buffer.toString("base64");
                              // Call Gemini Flash (cheaper/faster) to extract text
                              const visionPrompt = "Extract all readable text from this document verbatim.";
                              const visionText = await GeminiAPI.generateTextFromMultimodal(visionPrompt, pdfBase64, "application/pdf");
@@ -497,8 +497,8 @@ CRITICAL OUTPUT INSTRUCTIONS:
                              const fileName = `magic_slide_${lessonId}_${index}.png`;
                              const storagePath = `courses/${request.auth!.uid}/media/generated/${fileName}`;
                              const file = bucket.file(storagePath);
-                             await file.save(Buffer.from(imageBase64, 'base64'), { metadata: { contentType: 'image/png' } });
-                             const [url] = await file.getSignedUrl({ action: 'read', expires: '01-01-2030' });
+                             await file.save(Buffer.from(imageBase64, "base64"), { metadata: { contentType: "image/png" } });
+                             const [url] = await file.getSignedUrl({ action: "read", expires: "01-01-2030" });
                              return url;
                          } catch (err: any) {
                              throw new Error(`Image gen failed for slide ${index}: ${err.message}`);
@@ -515,7 +515,7 @@ CRITICAL OUTPUT INSTRUCTIONS:
             // --- PHASE 3: Merge & Save ---
             results.forEach((result, index) => {
                 const slide = slides[index];
-                if (result.status === 'fulfilled') {
+                if (result.status === "fulfilled") {
                     slide.imageUrl = result.value; // URL or null
                 } else {
                     log(`Phase 2 (Image ${index}) failed: ${result.reason}`);
@@ -611,7 +611,7 @@ exports.generatePodcastAudio = onCall({
                 voiceName = maleVoiceName;
             } else {
                 // Default / Monologue mode
-                voiceName = (voiceGender === 'female') ? femaleVoiceName : maleVoiceName;
+                voiceName = (voiceGender === "female") ? femaleVoiceName : maleVoiceName;
             }
 
             logger.log(`Synthesizing segment for ${currentSpeaker} (${voiceName}): "${part.substring(0, 20)}..."`);
@@ -685,8 +685,8 @@ exports.generatePodcastAudio = onCall({
             publicUrl = `http://${storageHost}/v0/b/${bucket.name}/o/${encodeURIComponent(filePath)}?alt=media`;
         } else {
             const [signedUrl] = await file.getSignedUrl({
-                action: 'read',
-                expires: '01-01-2050' // Long expiration
+                action: "read",
+                expires: "01-01-2050" // Long expiration
             });
             publicUrl = signedUrl;
         }
@@ -709,7 +709,7 @@ exports.generateComicPanelImage = onCall({
     }
 
     const { lessonId, panelIndex, panelPrompt } = request.data;
-    if (!lessonId || typeof panelIndex === 'undefined' || !panelPrompt) {
+    if (!lessonId || typeof panelIndex === "undefined" || !panelPrompt) {
         throw new HttpsError("invalid-argument", "Missing lessonId, panelIndex, or panelPrompt.");
     }
 
@@ -726,9 +726,9 @@ exports.generateComicPanelImage = onCall({
         const storagePath = `courses/${request.auth.uid}/media/generated/${fileName}`;
         const file = bucket.file(storagePath);
 
-        await file.save(Buffer.from(imageBase64, 'base64'), {
+        await file.save(Buffer.from(imageBase64, "base64"), {
             metadata: {
-                contentType: 'image/png',
+                contentType: "image/png",
                 metadata: {
                     lessonId: lessonId,
                     panelIndex: String(panelIndex),
@@ -743,8 +743,8 @@ exports.generateComicPanelImage = onCall({
             imageUrl = `http://${storageHost}/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media`;
         } else {
             const [signedUrl] = await file.getSignedUrl({
-                action: 'read',
-                expires: '01-01-2050'
+                action: "read",
+                expires: "01-01-2050"
             });
             imageUrl = signedUrl;
         }
@@ -956,7 +956,7 @@ Each card object must have: 'front' (pojem/otázka), 'back' (definice/odpověď)
                 case "podcast":
                 case "audio":
                     const mode = promptData.mode || "dialogue";
-                    if (mode === 'monologue') {
+                    if (mode === "monologue") {
                         finalPrompt = `Vytvoř monolog (jednolitý text) na téma "${promptData.userPrompt}".
 ${langInstruction}
 Do NOT use speaker tags like [Host] or [Guest].
@@ -1007,11 +1007,11 @@ Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
                 // Extract fileId from storage path `courses/{courseId}/media/{fileId}`
                 // Previously, we assumed fileId matches docId exactly.
                 // Now, storage path might be `.../docId.pdf`. We need to strip extension to find Firestore doc.
-                let rawFileId = filePath.split("/").pop();
+                const rawFileId = filePath.split("/").pop();
                 if (!rawFileId) continue;
 
                 // Odstránime príponu (napr. .pdf, .txt), aby sme získali čisté ID dokumentu
-                const fileId = rawFileId.includes('.') ? rawFileId.split('.').shift() : rawFileId;
+                const fileId = rawFileId.includes(".") ? rawFileId.split(".").shift() : rawFileId;
 
                 const chunksSnapshot = await db.collection(`fileMetadata/${fileId}/chunks`).get();
                 chunksSnapshot.forEach((doc: QueryDocumentSnapshot) => {
@@ -1261,13 +1261,13 @@ exports.getAiAssistantResponse = onCall({
 
     try {
         let prompt;
-        let systemContext = `You are a helpful AI Assistant for the 'AI Sensei' education platform.
+        const systemContext = `You are a helpful AI Assistant for the 'AI Sensei' education platform.
         Current User Role: ${userRole}.
-        Language: ${userLanguage === 'cs' ? 'Czech' : 'English'}.
+        Language: ${userLanguage === "cs" ? "Czech" : "English"}.
         `;
 
         // Special case for Guide Bot
-        if (lessonId === 'guide-bot') {
+        if (lessonId === "guide-bot") {
             prompt = `${systemContext}\n\nUser Question: ${userQuestion}`;
         } else if (!lessonId || lessonId === "general") {
              // FALLBACK: General Assistant Mode (No specific lesson context)
@@ -2036,7 +2036,7 @@ exports.getSecureUploadUrl = onCall({ region: DEPLOY_REGION }, async (request: C
         const docId = db.collection("fileMetadata").doc().id;
         
         // --- OPRAVA: Pridáme príponu k ID ---
-        const extension = fileName.includes('.') ? fileName.split('.').pop() : "";
+        const extension = fileName.includes(".") ? fileName.split(".").pop() : "";
         const finalFileName = extension ? `${docId}.${extension}` : docId;
 
         // --- SECURITY FIX: MANDATORY USER ID IN PATH ---
@@ -2576,13 +2576,13 @@ exports.evaluatePracticalSubmission = onDocumentWritten({
         // Generate a long-lived Signed URL for the Professor View
         // (This acts as the "Keymaster" allowing the frontend to view the private file)
         const [signedUrl] = await file.getSignedUrl({
-            action: 'read',
+            action: "read",
             expires: Date.now() + 7 * 24 * 60 * 60 * 1000 // Valid for 7 days
         });
 
         // Download for analysis
         const [buffer] = await file.download();
-        const base64Image = buffer.toString('base64');
+        const base64Image = buffer.toString("base64");
 
         // Try to get mimeType from metadata, default to jpeg
         let mimeType = "image/jpeg";
@@ -2615,7 +2615,7 @@ exports.evaluatePracticalSubmission = onDocumentWritten({
         const evaluation = await GeminiAPI.generateJsonFromMultimodal(systemPrompt, base64Image, mimeType);
 
         // 4. Atomic Update of the Submission Document
-        const outcome = evaluation.status || (evaluation.grade === 'F' ? SUBMISSION_OUTCOME.FAIL : SUBMISSION_OUTCOME.PASS);
+        const outcome = evaluation.status || (evaluation.grade === "F" ? SUBMISSION_OUTCOME.FAIL : SUBMISSION_OUTCOME.PASS);
 
         await snapshot.ref.update({
             grade: evaluation.grade || "N/A",
@@ -2712,7 +2712,7 @@ exports.analyzeSyllabus = onCall({
         // 3. Save Result (Additive Update)
         await docRef.set({
             competencyMap: graphData,
-            analysisStatus: 'completed',
+            analysisStatus: "completed",
             analyzedAt: FieldValue.serverTimestamp()
         }, { merge: true });
 
@@ -2723,7 +2723,7 @@ exports.analyzeSyllabus = onCall({
          // Update status to error
         try {
             await db.collection("knowledge_base").doc(knowledgeBaseId).set({
-                analysisStatus: 'error',
+                analysisStatus: "error",
                 lastError: error.message
             }, { merge: true });
         } catch (e) { console.error("Failed to update error status", e); }
