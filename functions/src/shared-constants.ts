@@ -1,41 +1,41 @@
 export const SUBMISSION_STATUS = {
-    PENDING: 'pending',
-    PROCESSING: 'processing',
-    EVALUATED: 'evaluated',
-    ERROR: 'error'
+    PENDING: "pending",
+    PROCESSING: "processing",
+    EVALUATED: "evaluated",
+    ERROR: "error"
 };
 
 export const SUBMISSION_OUTCOME = {
-    PASS: 'pass',
-    FAIL: 'fail'
+    PASS: "pass",
+    FAIL: "fail"
 };
 
 export const TASK_TYPE = {
-    PRACTICAL: 'practical',
-    THEORETICAL: 'theoretical'
+    PRACTICAL: "practical",
+    THEORETICAL: "theoretical"
 };
 
 export const TIMELINE_EVENT_TYPES = {
-    TEACHER_TALK: 'teacher_talk',
-    STUDENT_WORK: 'student_work',
-    DISCUSSION: 'discussion',
-    GROUP_WORK: 'group_work',
-    ADMINISTRATION: 'administration',
-    OTHER: 'other'
+    TEACHER_TALK: "teacher_talk",
+    STUDENT_WORK: "student_work",
+    DISCUSSION: "discussion",
+    GROUP_WORK: "group_work",
+    ADMINISTRATION: "administration",
+    OTHER: "other"
 };
 
 export const EVALUATION_CHECKLIST_PHASES = {
-    INTRO: 'intro',
-    GOALS: 'goals',
-    METHODS: 'methods',
-    MATERIALS: 'materials',
-    CONCLUSION: 'conclusion'
+    INTRO: "intro",
+    GOALS: "goals",
+    METHODS: "methods",
+    MATERIALS: "materials",
+    CONCLUSION: "conclusion"
 };
 
 export const EVALUATION_STATUS = {
-    YES: 'yes',
-    NO: 'no',
-    PARTIAL: 'partial'
+    YES: "yes",
+    NO: "no",
+    PARTIAL: "partial"
 };
 
 // TypeScript Interfaces
@@ -60,7 +60,7 @@ export interface ObservationMetadata {
 export interface Observation {
     id?: string;
     studentId: string;
-    type: 'observation'; // Discriminator
+    type: "observation"; // Discriminator
     metadata: ObservationMetadata;
     qualitative_answers: {
         [questionId: string]: string; // 7 didactic questions
@@ -81,7 +81,7 @@ export interface Analysis {
     id?: string;
     studentId: string;
     observationId?: string; // Link to the observation being analyzed (optional if standalone)
-    type: 'analysis'; // Discriminator
+    type: "analysis"; // Discriminator
     checklist: EvaluationChecklist;
     bloomsTaxonomyVerbs: string[]; // List of identified verbs
     bloomsLevelEvaluation: string; // Qualitative assessment of Bloom's level
@@ -92,7 +92,7 @@ export interface Analysis {
 export interface Portfolio {
     id?: string;
     studentId: string;
-    type: 'portfolio';
+    type: "portfolio";
     linkedObservationIds: string[];
     linkedAnalysisIds: string[];
     swot: {

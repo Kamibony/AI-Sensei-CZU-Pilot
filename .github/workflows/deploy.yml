@@ -49,7 +49,7 @@ jobs:
         with:
           args: deploy --project dev --force
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
 
       # --- Nasadenie na NOVÝ PROD (vetva release) -> ai-sensei-prod ---
       - name: Deploy to PROD (ai-sensei-prod)
@@ -58,7 +58,7 @@ jobs:
         with:
           args: deploy --project prod --force
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
 
       # --- Nasadenie na LEGACY (vetva legacy-v1) -> via-academy-prod ---
       - name: Deploy to LEGACY (via-academy-prod)
@@ -67,4 +67,4 @@ jobs:
         with:
           args: deploy --project legacy --force
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
