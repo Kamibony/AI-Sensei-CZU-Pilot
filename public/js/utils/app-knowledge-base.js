@@ -43,7 +43,7 @@ export const APP_KNOWLEDGE_BASE = {
 - **Manage**: Click a class to see details or remove it.
         `,
         tour_steps: [
-            { element: 'professor-classes-view h2', popover: { title: 'Classes', description: 'Manage all your student groups here.' } }
+            { element: '[data-tour="classes-title"]', popover: { title: 'Classes', description: 'Manage all your student groups here.' } }
         ]
     },
     library: {
@@ -55,7 +55,7 @@ export const APP_KNOWLEDGE_BASE = {
 - **Status**: Icons indicate if a lesson is Draft or Published.
         `,
         tour_steps: [
-            { element: 'professor-library-view h2', popover: { title: 'Library', description: 'Your collection of lessons.' } }
+            { element: '[data-tour="library-title"]', popover: { title: 'Library', description: 'Your collection of lessons.' } }
         ]
     },
     editor: {
@@ -68,7 +68,7 @@ export const APP_KNOWLEDGE_BASE = {
 - **Content Types**: Text, Presentation, Quiz, Test, Podcast, Comic, Flashcards, Mindmap.
         `,
         tour_steps: [
-            { element: 'lesson-editor header', popover: { title: 'Editor Toolbar', description: 'Manage lesson settings and publish status.' } }
+            { element: '[data-tour="editor-header"]', popover: { title: 'Editor Toolbar', description: 'Manage lesson settings and publish status.' } }
         ]
     },
     students: {

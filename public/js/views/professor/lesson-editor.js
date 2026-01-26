@@ -108,6 +108,8 @@ export class LessonEditor extends BaseView {
     this._saveTimeout = null;
   }
 
+  createRenderRoot() { return this; }
+
   // --- NOVÁ OCHRANA (Fix pre miznutie obsahu) ---
   willUpdate(changedProperties) {
       if (changedProperties.has('lesson')) {
@@ -1523,7 +1525,7 @@ export class LessonEditor extends BaseView {
 
   _renderHeader() {
     return html`
-      <div class="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+      <div data-tour="editor-header" class="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 sticky top-0 z-30 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex flex-col md:flex-row justify-between items-center py-4 gap-4">
 
