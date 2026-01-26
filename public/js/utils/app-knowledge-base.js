@@ -1,4 +1,4 @@
-export const KNOWLEDGE_BASE = {
+export const APP_KNOWLEDGE_BASE = {
     general: {
         context_hint: "General overview of the AI Sensei application, roles, and navigation.",
         user_guide: `
@@ -28,9 +28,10 @@ export const KNOWLEDGE_BASE = {
 - **Student View**: See your streak, last lesson, and quick links to join classes.
         `,
         tour_steps: [
-            { element: 'header h1', popover: { title: 'Dashboard', description: 'Welcome to your command center.' } },
+            { element: '[data-tour="dashboard-header"]', popover: { title: 'Dashboard', description: 'Welcome to your command center.' } },
             { element: '[data-tour="creative-studio"]', popover: { title: 'Creative Studio', description: 'Create lessons and media here.' } },
-            { element: '[data-tour="stats-overview"]', popover: { title: 'Statistics', description: 'Quick view of your students and classes.' } }
+            { element: '[data-tour="stats-overview"]', popover: { title: 'Statistics', description: 'Quick view of your students and classes.' } },
+            { element: '[data-tour="new-class-btn"]', popover: { title: 'New Class', description: 'Quickly create a new class from here.' } }
         ]
     },
     classes: {
@@ -99,15 +100,11 @@ export const KNOWLEDGE_BASE = {
     }
 };
 
-// Backward compatibility: maintain the original string export but populate it from the object to keep it "living"
-// or just re-export the original static text if we want to be strictly non-destructive to the *value*
-// (though the prompt implies "Convert this", so changing the value is expected).
-// We will construct a string that mimics the old one plus new info.
-
-export const APP_KNOWLEDGE_BASE = `
+// Backward compatibility: export the full text representation for AI context injection
+export const APP_KNOWLEDGE_BASE_TEXT = `
 AI Sensei App Knowledge Base:
 
-${Object.entries(KNOWLEDGE_BASE).map(([key, section]) => `
+${Object.entries(APP_KNOWLEDGE_BASE).map(([key, section]) => `
 --- VIEW: ${key.toUpperCase()} ---
 ${section.user_guide}
 Context Hint: ${section.context_hint}

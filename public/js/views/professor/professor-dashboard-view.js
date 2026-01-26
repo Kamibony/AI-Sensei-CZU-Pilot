@@ -147,7 +147,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
         return html`
             <div class="w-full p-6 md:p-8 space-y-8 h-full overflow-y-auto custom-scrollbar">
                 
-                <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <header class="flex flex-col md:flex-row md:items-center justify-between gap-4" data-tour="dashboard-header">
                     <div>
                         <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">${t('professor.dashboard_title')}</h1>
                         <p class="text-slate-500 mt-1">${t('professor.welcome_back')}, ${userName} 👋</p>
@@ -185,7 +185,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                         ${t('professor.creative_studio')}
                     </h2>
 
-                    <div class="bg-white rounded-3xl p-1 shadow-sm border border-slate-200">
+                    <div class="bg-white rounded-3xl p-1 shadow-sm border border-slate-200" data-tour="creative-studio">
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                             
                             <div class="p-6 hover:bg-purple-50/50 transition-colors cursor-pointer group rounded-l-3xl"
@@ -237,14 +237,14 @@ export class ProfessorDashboardView extends Localized(LitElement) {
                             <span class="bg-blue-100 text-blue-600 p-1.5 rounded-lg">👥</span>
                             ${t('professor.management_overview')}
                         </h2>
-                        <button class="text-sm font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors" @click=${() => this._showCreateClassModal = true}>
+                        <button class="text-sm font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors" @click=${() => this._showCreateClassModal = true} data-tour="new-class-btn">
                             + ${t('professor.new_class')}
                         </button>
                     </div>
 
                     ${emptyStateBanner}
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6" data-tour="stats-overview">
                         <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group"
                                 @click=${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'students' }, bubbles: true, composed: true }))}>
                             <div class="flex justify-between items-start mb-4">
