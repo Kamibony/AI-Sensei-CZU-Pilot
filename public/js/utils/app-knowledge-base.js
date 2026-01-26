@@ -55,7 +55,9 @@ export const APP_KNOWLEDGE_BASE = {
 - **Status**: Icons indicate if a lesson is Draft or Published.
         `,
         tour_steps: [
-            { element: '[data-tour="library-title"]', popover: { title: 'Library', description: 'Your collection of lessons.' } }
+            { element: '[data-tour="library-title"]', popover: { title: 'Library', description: 'Your collection of lessons.' } },
+            { element: '[data-tour="new-lesson-btn"]', popover: { title: 'New Lesson', description: 'Create a new lesson using AI or manually.' } },
+            { element: '[data-tour="library-grid"]', popover: { title: 'Lesson Grid', description: 'View and manage all your lessons here.' } }
         ]
     },
     editor: {

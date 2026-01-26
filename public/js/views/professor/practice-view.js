@@ -260,7 +260,7 @@ export class PracticeView extends LitElement {
 
         if (!this.activeSession) {
             return html`
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mb-8">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mb-8" data-tour="practice-session-control">
                     <h2 class="text-2xl font-bold text-slate-800 mb-6">Nový výcvik</h2>
                     ${inputArea}
                     <div class="mt-8 text-center">
@@ -273,7 +273,7 @@ export class PracticeView extends LitElement {
         }
 
         return html`
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8 ring-1 ring-blue-100">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8 ring-1 ring-blue-100" data-tour="practice-session-control">
                 <div class="flex justify-between items-center mb-6">
                     <div class="flex items-center gap-3">
                         <span class="relative flex h-3 w-3">
@@ -289,7 +289,7 @@ export class PracticeView extends LitElement {
                 ${inputArea}
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-tour="practice-student-grid">
                 ${this.students.map(student => this._renderStudentCard(student))}
             </div>
         `;
