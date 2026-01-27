@@ -22,7 +22,7 @@ export class EditorViewFlashcards extends Localized(LitElement) {
         this._isGenerating = false;
     }
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson') && this.lesson) {

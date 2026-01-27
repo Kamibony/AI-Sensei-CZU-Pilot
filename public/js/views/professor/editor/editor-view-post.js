@@ -10,7 +10,7 @@ export class EditorViewPost extends Localized(LitElement) {
         files: { type: Array }
     };
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     _updatePost(newPost) {
         this.dispatchEvent(new CustomEvent('lesson-updated', {

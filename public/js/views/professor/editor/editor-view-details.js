@@ -48,7 +48,7 @@ export class EditorViewDetails extends Localized(LitElement) {
         }
     }
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     // === ZMENA: updated() namiesto firstUpdated() pre RAG ===
     updated(changedProperties) {

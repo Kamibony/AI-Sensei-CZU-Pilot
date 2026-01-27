@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script type="importmap">
+    {
+      "imports": {
+        "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js": "/js/lit-core-mock.js",
+        "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js": "/js/firebase-mock.js",
+        "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js": "/js/firebase-mock.js",
+        "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js": "/js/firebase-mock.js",
+        "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js": "/js/firebase-mock.js",
+        "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js": "/js/firebase-mock.js",
+        "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js": "/js/firebase-mock.js",
+        "/js/firebase-init.js": "/js/firebase-init-mock.js"
+      }
+    }
+  </script>
+  <script type="module">
+      import { GuideBot } from '/js/components/guide-bot.js';
+      import { LessonEditor } from '/js/views/professor/lesson-editor.js';
+
+      window.GuideBot = GuideBot;
+      window.LessonEditor = LessonEditor;
+      console.log("Modules Loaded");
+  </script>
+  <style>
+      body { font-family: sans-serif; padding: 20px; }
+      lesson-editor, guide-bot { display: block; border: 1px solid #ccc; padding: 10px; margin-top: 10px; min-height: 100px; }
+  </style>
+</head>
+<body>
+    <h1>Verification Rendering</h1>
+    <p>Components should appear below:</p>
+    <guide-bot id="bot"></guide-bot>
+    <lesson-editor id="editor"></lesson-editor>
+</body>
+</html>

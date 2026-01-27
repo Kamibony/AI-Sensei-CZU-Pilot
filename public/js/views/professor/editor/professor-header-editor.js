@@ -7,7 +7,7 @@ export class ProfessorHeaderEditor extends Localized(LitElement) {
         isSaving: { type: Boolean }
     };
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     _dispatchBack() {
         // Dispatch with bubbles: true to ensure it reaches the parent (LessonEditor)

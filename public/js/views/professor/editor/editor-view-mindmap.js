@@ -23,7 +23,7 @@ export class EditorViewMindmap extends Localized(LitElement) {
         this._zoomLevel = 1.0;
     }
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {

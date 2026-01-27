@@ -17,7 +17,7 @@ export class EditorViewPresentation extends Localized(LitElement) {
         this._slideCount = '5';
     }
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     _onSlideCountChange(e) {
         this._slideCount = e.target.value;

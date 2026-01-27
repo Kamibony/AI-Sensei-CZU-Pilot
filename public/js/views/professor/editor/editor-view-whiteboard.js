@@ -9,7 +9,7 @@ export class EditorViewWhiteboard extends Localized(LitElement) {
         isSaving: { type: Boolean }
     };
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     render() {
         return html`
