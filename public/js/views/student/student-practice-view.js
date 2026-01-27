@@ -8,6 +8,7 @@ import { compressImage } from "../../utils/image-utils.js";
 export class StudentPracticeView extends LitElement {
     static properties = {
         activeSession: { type: Object },
+        selectedGroupId: { type: String },
         submission: { type: Object },
         isUploading: { type: Boolean },
         isProcessing: { type: Boolean },
@@ -22,6 +23,8 @@ export class StudentPracticeView extends LitElement {
     constructor() {
         super();
         this.activeSession = null;
+        this.selectedGroupId = null;
+        this.sessionsMap = new Map();
         this.submission = null;
         this.isUploading = false;
         this.isProcessing = false;
@@ -123,33 +126,34 @@ export class StudentPracticeView extends LitElement {
             }
 
             const searchGroups = groups.slice(0, 10);
-            const sessionMap = new Map();
+            const localStateMap = new Map();
 
             const updateConsolidatedState = (groupId, source, data) => {
-                if (!sessionMap.has(groupId)) sessionMap.set(groupId, { group: null, signal: null });
-                const entry = sessionMap.get(groupId);
+                if (!localStateMap.has(groupId)) localStateMap.set(groupId, { group: null, signal: null, groupName: '' });
+                const entry = localStateMap.get(groupId);
+
+                if (data && data.groupName) {
+                    entry.groupName = data.groupName;
+                }
+
                 entry[source] = data;
 
                 const active = entry.group || entry.signal;
 
                 if (active) {
-                    if (!this.activeSession || this.activeSession.id !== active.id) {
-                         console.log(`%c[Tracepoint C] Receiver: Active Session from ${source} for Group ${groupId}`, "color: green");
-                         this.activeSession = {
-                             id: active.id,
-                             task: active.task || "Načítám zadání...",
-                             groupId: groupId
-                         };
-                         this._checkSubmission(this.activeSession.id);
-                    } else if (this.activeSession.task !== active.task) {
-                         this.activeSession = { ...this.activeSession, task: active.task };
-                    }
+                    this.sessionsMap.set(groupId, {
+                        id: active.id,
+                        task: active.task || "Načítám zadání...",
+                        groupId: groupId,
+                        groupName: entry.groupName || `Třída ${groupId}`
+                    });
                 } else {
-                    if (this.activeSession && this.activeSession.groupId === groupId) {
-                         console.log(`%c[Tracepoint C] Receiver: Session Ended for Group ${groupId}`, "color: gray");
-                         this._clearSession();
+                    if (this.sessionsMap.has(groupId)) {
+                        this.sessionsMap.delete(groupId);
                     }
                 }
+
+                this._recalculateActiveSession();
             };
 
             searchGroups.forEach(groupId => {
@@ -157,13 +161,18 @@ export class StudentPracticeView extends LitElement {
                 const unsubGroup = onSnapshot(groupRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
+                        const groupName = data.name || "Třída";
+
                         if (data.sessionStatus === 'active' && data.activeSessionId) {
                             updateConsolidatedState(groupId, 'group', {
                                 id: data.activeSessionId,
-                                task: data.activeTask
+                                task: data.activeTask,
+                                groupName: groupName
                             });
                         } else {
                             updateConsolidatedState(groupId, 'group', null);
+                             if (!localStateMap.has(groupId)) localStateMap.set(groupId, { group: null, signal: null, groupName: '' });
+                             localStateMap.get(groupId).groupName = groupName;
                         }
                     } else {
                         updateConsolidatedState(groupId, 'group', null);
@@ -199,9 +208,44 @@ export class StudentPracticeView extends LitElement {
         }
     }
 
-    _clearSession() {
-        this.activeSession = null;
-        this.submission = null;
+    _recalculateActiveSession() {
+        const activeSessionsList = Array.from(this.sessionsMap.values());
+
+        if (activeSessionsList.length === 0) {
+            this.activeSession = null;
+            this.submission = null;
+            this.requestUpdate();
+            return;
+        }
+
+        if (activeSessionsList.length === 1) {
+            const session = activeSessionsList[0];
+            if (!this.activeSession || this.activeSession.id !== session.id) {
+                this.selectedGroupId = session.groupId;
+                this.activeSession = session;
+                this._checkSubmission(session.id);
+            } else if (JSON.stringify(this.activeSession) !== JSON.stringify(session)) {
+                 this.activeSession = session;
+            }
+             this.requestUpdate();
+            return;
+        }
+
+        if (this.selectedGroupId && this.sessionsMap.has(this.selectedGroupId)) {
+            const session = this.sessionsMap.get(this.selectedGroupId);
+             if (!this.activeSession || JSON.stringify(this.activeSession) !== JSON.stringify(session)) {
+                this.activeSession = session;
+                if (this.activeSession.id !== session.id) {
+                    this._checkSubmission(session.id);
+                }
+             }
+        } else {
+             const session = activeSessionsList[0];
+             this.selectedGroupId = session.groupId;
+             this.activeSession = session;
+             this._checkSubmission(session.id);
+        }
+        this.requestUpdate();
     }
 
     _checkSubmission(sessionId) {
@@ -311,8 +355,24 @@ export class StudentPracticeView extends LitElement {
             `;
         }
 
+        const activeSessionsList = Array.from(this.sessionsMap.values());
+
         return html`
             <div class="max-w-2xl mx-auto p-4 md:p-6">
+
+                ${activeSessionsList.length > 1 ? html`
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-6 p-2 flex flex-wrap gap-2">
+                        ${activeSessionsList.map(session => html`
+                            <button
+                                @click="${() => { this.selectedGroupId = session.groupId; this._recalculateActiveSession(); }}"
+                                class="flex-1 py-2 px-4 rounded-xl text-sm font-bold transition-all ${this.selectedGroupId === session.groupId ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}"
+                            >
+                                ${session.groupName}
+                            </button>
+                        `)}
+                    </div>
+                ` : ''}
+
                 <div class="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
                     <div class="bg-slate-900 px-6 py-4">
                         <h1 class="text-lg font-bold text-white flex items-center gap-2">
@@ -321,6 +381,7 @@ export class StudentPracticeView extends LitElement {
                                 <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
                             </span>
                             Odborný Výcvik
+                            ${activeSessionsList.length > 1 ? html`<span class="ml-auto text-xs font-normal text-slate-400 opacity-80">${this.activeSession.groupName}</span>` : ''}
                         </h1>
                     </div>
 
