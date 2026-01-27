@@ -101,7 +101,7 @@ export class EditorViewPost extends Localized(LitElement) {
         }
 
         return html`
-            <div data-tour="editor-post-start" class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-post-start" data-editor-type="post" class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
 
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -116,7 +116,7 @@ export class EditorViewPost extends Localized(LitElement) {
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
                                 <!-- Left Column: Editor -->
-                                <div class="space-y-6">
+                                <div class="space-y-6" data-tour="post-editor-form">
                                     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
                                         <div>
                                             <label class="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
@@ -163,7 +163,7 @@ export class EditorViewPost extends Localized(LitElement) {
                                 </div>
 
                                 <!-- Right Column: Mobile Preview -->
-                                <div class="flex justify-center items-start pt-4">
+                                <div class="flex justify-center items-start pt-4" data-tour="post-mobile-preview">
                                     <div class="relative w-[320px] h-[600px] bg-slate-900 rounded-[3rem] shadow-2xl border-4 border-slate-800 overflow-hidden ring-4 ring-slate-200/50">
                                         <!-- Phone Status Bar -->
                                         <div class="absolute top-0 w-full h-8 bg-slate-900 z-20 flex justify-between items-center px-6 text-[10px] text-white font-medium">

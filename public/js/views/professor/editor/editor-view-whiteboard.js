@@ -13,9 +13,9 @@ export class EditorViewWhiteboard extends Localized(LitElement) {
 
     render() {
         return html`
-            <div data-tour="editor-whiteboard-start" class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-whiteboard-start" data-editor-type="whiteboard" class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
-                <div class="flex-1 p-6 overflow-hidden">
+                <div class="flex-1 p-6 overflow-hidden" data-tour="whiteboard-container">
                     <magic-board-view .lessonId="${this.lesson.id}"></magic-board-view>
                 </div>
             </div>
