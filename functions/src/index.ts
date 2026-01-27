@@ -2838,3 +2838,85 @@ exports.generateProjectScaffolding = onCall({
         throw new HttpsError("internal", "Failed to generate project scaffolding.");
     }
 });
+
+exports.triggerCrisis = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can trigger a crisis.");
+    }
+
+    const { lessonId, milestoneTitle } = request.data;
+    if (!lessonId) {
+        throw new HttpsError("invalid-argument", "Missing lessonId.");
+    }
+
+    try {
+        const lessonRef = db.collection("lessons").doc(lessonId);
+        const lessonDoc = await lessonRef.get();
+
+        if (!lessonDoc.exists) {
+            throw new HttpsError("not-found", "Lesson not found.");
+        }
+
+        const lessonData = lessonDoc.data();
+        const topic = lessonData.topic || lessonData.title || "Project";
+
+        // Determine phase
+        let phase = milestoneTitle || "Execution Phase";
+        if (!milestoneTitle && lessonData.projectData?.milestones?.length > 0) {
+            // Pick a middle milestone as a guess if not specified
+            const midIndex = Math.floor(lessonData.projectData.milestones.length / 2);
+            phase = lessonData.projectData.milestones[midIndex].title;
+        }
+
+        // 2. Generate Crisis
+        const crisisScenario = await GeminiAPI.generateCrisisScenario(topic, phase);
+
+        // 3. Inject into Lesson
+        await lessonRef.update({
+            activeCrisis: {
+                ...crisisScenario,
+                timestamp: FieldValue.serverTimestamp(),
+                triggeredBy: request.auth.uid
+            }
+        });
+
+        return { success: true, crisis: crisisScenario };
+
+    } catch (error: any) {
+        logger.error("Error in triggerCrisis:", error);
+        throw new HttpsError("internal", "Failed to trigger crisis.");
+    }
+});
+
+exports.resolveCrisis = onCall({
+    region: DEPLOY_REGION
+}, async (request: CallableRequest) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const { lessonId } = request.data;
+    if (!lessonId) {
+        throw new HttpsError("invalid-argument", "Missing lessonId.");
+    }
+
+    try {
+        const lessonRef = db.collection("lessons").doc(lessonId);
+
+        // We can just delete the field to "resolve" it
+        await lessonRef.update({
+            activeCrisis: FieldValue.delete()
+        });
+
+        return { success: true, message: "Crisis resolved." };
+
+    } catch (error: any) {
+        logger.error("Error in resolveCrisis:", error);
+        throw new HttpsError("internal", "Failed to resolve crisis.");
+    }
+});

@@ -723,5 +723,30 @@ export {
     generateAudioAnalysis,
     matchInsightsToNodes,
     generateRemedialExplanation,
-    generateProjectScaffolding
+    generateProjectScaffolding,
+    generateCrisisScenario
 };
+
+
+async function generateCrisisScenario(topic: string, currentMilestone: string): Promise<any> {
+    const prompt = `
+    ROLE: You are a "Dungeon Master" or "Corporate Simulator" for a project-based learning course.
+    TASK: Create a sudden, realistic CRISIS event for the project topic: "${topic}".
+    CONTEXT: The team is currently working on the milestone: "${currentMilestone}".
+
+    REQUIREMENTS:
+    1. The crisis must be relevant to the topic and the current phase.
+    2. It should disrupt their workflow and require immediate attention.
+    3. Define a specific "Recovery Task" they must complete to resume normal operations.
+
+    OUTPUT FORMAT (JSON ONLY):
+    {
+      "title": "Short, alarming title (e.g., 'Database Breach', 'Supply Chain Failure')",
+      "description": "Dramatic description of what happened and why it's bad...",
+      "consequence": "What happens if ignored (e.g., 'Project delay', 'Data loss').",
+      "recovery_task": "Specific instruction on how to fix it (e.g., 'Write a public apology statement', 'Patch the security vulnerability')."
+    }
+    `;
+
+    return await generateJsonFromPrompt(prompt);
+}
