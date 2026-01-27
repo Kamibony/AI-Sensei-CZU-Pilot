@@ -116,7 +116,15 @@ export class GuideBot extends LitElement {
         console.log(`[GuideBot] Tour Requested. Raw: '${rawView}', Normalized: '${normalizedView}'`);
 
         // Try exact match first, then lookup map, then normalized, then fallback to general
-        const topicKey = VIEW_TO_TOPIC_MAP[rawView] || VIEW_TO_TOPIC_MAP[normalizedView] || normalizedView;
+        let topicKey = VIEW_TO_TOPIC_MAP[rawView] || VIEW_TO_TOPIC_MAP[normalizedView];
+
+        // Fuzzy Logic: If no exact match, but contains 'editor', force editor topic
+        if (!topicKey && (rawView.includes('editor') || normalizedView.includes('editor'))) {
+            topicKey = 'editor';
+        }
+
+        // Final fallback
+        if (!topicKey) topicKey = normalizedView;
 
         console.log(`[GuideBot] Resolved Topic Key: '${topicKey}'`);
 
@@ -140,7 +148,16 @@ export class GuideBot extends LitElement {
         const rawView = this.currentView || 'general';
         const normalizedView = rawView.replace('professor-', '').replace('-view', '');
 
-        const topicKey = VIEW_TO_TOPIC_MAP[rawView] || VIEW_TO_TOPIC_MAP[normalizedView] || normalizedView;
+        let topicKey = VIEW_TO_TOPIC_MAP[rawView] || VIEW_TO_TOPIC_MAP[normalizedView];
+
+        // Fuzzy Logic: If no exact match, but contains 'editor', force editor topic
+        if (!topicKey && (rawView.includes('editor') || normalizedView.includes('editor'))) {
+            topicKey = 'editor';
+        }
+
+        // Final fallback
+        if (!topicKey) topicKey = normalizedView;
+
         const section = APP_KNOWLEDGE_BASE[rawView] || APP_KNOWLEDGE_BASE[topicKey] || APP_KNOWLEDGE_BASE.general;
 
         // If we are in a specific view, we might want to include general info as well,

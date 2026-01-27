@@ -1239,7 +1239,7 @@ export class LessonEditor extends BaseView {
            `;
       }
       return html`
-        <div class="min-h-full flex flex-col items-center justify-center p-4 bg-slate-50/50">
+        <div class="min-h-full flex flex-col items-center justify-center p-4 bg-slate-50/50" data-tour="editor-layout">
             ${this._isGenerating ? html`
                 <div class="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center">
                     <div class="text-center space-y-4">
@@ -1454,7 +1454,7 @@ export class LessonEditor extends BaseView {
            `;
       }
       return html`
-      <div class="h-full flex flex-col bg-slate-50/50 relative">
+      <div class="h-full flex flex-col bg-slate-50/50 relative" data-tour="editor-layout">
         ${this._renderHeader()}
 
         <div class="flex-1 overflow-hidden relative">

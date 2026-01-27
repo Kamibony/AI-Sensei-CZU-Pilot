@@ -70,6 +70,7 @@ export const APP_KNOWLEDGE_BASE = {
 - **Content Types**: Text, Presentation, Quiz, Test, Podcast, Comic, Flashcards, Mindmap.
         `,
         tour_steps: [
+            { element: '[data-tour="editor-layout"]', popover: { title: 'Lesson Editor', description: 'Welcome to the Lesson Editor. Here you can create and manage your content.' } },
             { element: '[data-tour="editor-header"]', popover: { title: 'Editor Toolbar', description: 'Manage lesson settings and publish status.' } }
         ]
     },
