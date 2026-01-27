@@ -17,6 +17,8 @@ const textToSpeech = require("@google-cloud/text-to-speech"); // Import pre TTS
 // Import local API using TypeScript syntax
 import * as GeminiAPI from "./gemini-api";
 import { SUBMISSION_STATUS, SUBMISSION_OUTCOME } from "./shared-constants";
+import { generateClassReport } from "./analytics";
+import { exportAnonymizedData } from "./export-engine";
 
 // Lazy load heavy dependencies
 // const pdf = require("pdf-parse");
@@ -2908,6 +2910,33 @@ exports.resolveCrisis = onCall({
     try {
         const lessonRef = db.collection("lessons").doc(lessonId);
 
+        // 1. Fetch current crisis data to calculate stats
+        const lessonDoc = await lessonRef.get();
+        if (lessonDoc.exists) {
+            const data = lessonDoc.data();
+            const activeCrisis = data.activeCrisis;
+
+            if (activeCrisis && activeCrisis.timestamp) {
+                // Calculate Duration
+                const startTime = activeCrisis.timestamp.toDate ? activeCrisis.timestamp.toDate() : new Date(activeCrisis.timestamp);
+                const now = new Date();
+                const durationMs = now.getTime() - startTime.getTime();
+
+                // Log Analytics Event
+                await db.collection("crisis_logs").add({
+                    studentId: request.auth.uid,
+                    lessonId: lessonId,
+                    crisisTitle: activeCrisis.title || "Unknown Crisis",
+                    durationMs: durationMs,
+                    resolvedAt: FieldValue.serverTimestamp(),
+                    // We can attempt to find classId later or store it here if known.
+                    // For now, we store the raw event.
+                });
+
+                logger.log(`Crisis resolved by ${request.auth.uid} in ${durationMs}ms`);
+            }
+        }
+
         // We can just delete the field to "resolve" it
         await lessonRef.update({
             activeCrisis: FieldValue.delete()
@@ -2920,3 +2949,6 @@ exports.resolveCrisis = onCall({
         throw new HttpsError("internal", "Failed to resolve crisis.");
     }
 });
+
+exports.generateClassReport = generateClassReport;
+exports.exportAnonymizedData = exportAnonymizedData;
