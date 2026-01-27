@@ -13,7 +13,8 @@ export class ProjectEditor extends LitElement {
         _complexity: { state: true },
         _isGenerating: { state: true },
         _projectData: { state: true },
-        _isSaving: { state: true }
+        _isSaving: { state: true },
+        _isTriggeringCrisis: { state: true }
     };
 
     constructor() {
@@ -25,6 +26,7 @@ export class ProjectEditor extends LitElement {
         this._isGenerating = false;
         this._projectData = null; // { roles: [], milestones: [], role_tasks: {} }
         this._isSaving = false;
+        this._isTriggeringCrisis = false;
     }
 
     createRenderRoot() { return this; }
@@ -63,6 +65,25 @@ export class ProjectEditor extends LitElement {
             showToast("Failed to generate project. Please try again.", true);
         } finally {
             this._isGenerating = false;
+        }
+    }
+
+    async _handleTriggerCrisis() {
+        if (!this.lesson || !this.lesson.id) return;
+        if (!confirm("Are you sure you want to inject a CRISIS event? This will disrupt all students working on this project.")) return;
+
+        this._isTriggeringCrisis = true;
+        try {
+            const triggerFunc = httpsCallable(functions, 'triggerCrisis');
+            await triggerFunc({
+                lessonId: this.lesson.id
+            });
+            showToast("Crisis Injected! 🚨");
+        } catch (error) {
+            console.error("Crisis injection failed:", error);
+            showToast("Failed to trigger crisis.", true);
+        } finally {
+            this._isTriggeringCrisis = false;
         }
     }
 
@@ -154,12 +175,22 @@ export class ProjectEditor extends LitElement {
                             <p class="text-slate-500 text-sm">Design Project-Based Learning Experience</p>
                         </div>
                     </div>
-                    ${this._projectData ? html`
-                        <button @click="${this._handleSave}" ?disabled="${this._isSaving}" class="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50">
-                            ${this._isSaving ? html`<div class="spinner w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>` : '💾'}
-                            Save Project
-                        </button>
-                    ` : nothing}
+                    <div class="flex items-center gap-4">
+                        ${this.lesson && this.lesson.id ? html`
+                            <button @click="${this._handleTriggerCrisis}" ?disabled="${this._isTriggeringCrisis}"
+                                class="px-6 py-2 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-red-200">
+                                ${this._isTriggeringCrisis ? html`<div class="spinner w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>` : '⚡'}
+                                Inject Crisis
+                            </button>
+                        ` : nothing}
+
+                        ${this._projectData ? html`
+                            <button @click="${this._handleSave}" ?disabled="${this._isSaving}" class="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50">
+                                ${this._isSaving ? html`<div class="spinner w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>` : '💾'}
+                                Save Project
+                            </button>
+                        ` : nothing}
+                    </div>
                 </div>
 
                 <!-- Main Content -->

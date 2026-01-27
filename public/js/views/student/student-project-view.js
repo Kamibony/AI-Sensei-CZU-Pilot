@@ -1,13 +1,17 @@
 import { LitElement, html, css, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { doc, onSnapshot, setDoc, updateDoc, arrayUnion, arrayRemove, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db, auth } from '../../firebase-init.js';
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { db, auth, functions } from '../../firebase-init.js';
 import confetti from 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/+esm';
+import { showToast } from '../../utils/utils.js';
 
 export class StudentProjectView extends LitElement {
     static properties = {
         lesson: { type: Object },
         _progress: { state: true },
-        _loading: { state: true }
+        _loading: { state: true },
+        _activeCrisis: { state: true },
+        _isResolvingCrisis: { state: true }
     };
 
     constructor() {
@@ -16,6 +20,9 @@ export class StudentProjectView extends LitElement {
         this._progress = null; // { selectedRole: string, completedTasks: [] }
         this._loading = true;
         this._unsubscribe = null;
+        this._activeCrisis = null;
+        this._crisisUnsubscribe = null;
+        this._isResolvingCrisis = false;
     }
 
     createRenderRoot() { return this; }
@@ -24,6 +31,7 @@ export class StudentProjectView extends LitElement {
         super.connectedCallback();
         if (this.lesson && this.lesson.id) {
             this._initProgressTracking();
+            this._initCrisisListener();
         }
     }
 
@@ -32,12 +40,16 @@ export class StudentProjectView extends LitElement {
             if (!this._unsubscribe) {
                 this._initProgressTracking();
             }
+            if (!this._crisisUnsubscribe) {
+                this._initCrisisListener();
+            }
         }
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         if (this._unsubscribe) this._unsubscribe();
+        if (this._crisisUnsubscribe) this._crisisUnsubscribe();
     }
 
     _initProgressTracking() {
@@ -52,6 +64,23 @@ export class StudentProjectView extends LitElement {
                 this._progress = { selectedRole: null, completedTasks: [] };
             }
             this._loading = false;
+        });
+    }
+
+    _initCrisisListener() {
+        if (!this.lesson || !this.lesson.id) return;
+        const lessonRef = doc(db, 'lessons', this.lesson.id);
+        this._crisisUnsubscribe = onSnapshot(lessonRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                this._activeCrisis = data.activeCrisis || null;
+
+                // Optional: Play sound if crisis just appeared
+                if (this._activeCrisis && !this._previousCrisisState) {
+                    // console.log("Crisis started!");
+                }
+                this._previousCrisisState = !!this._activeCrisis;
+            }
         });
     }
 
@@ -106,6 +135,28 @@ export class StudentProjectView extends LitElement {
         }
     }
 
+    async _handleResolveCrisis() {
+        if (!this.lesson || !this.lesson.id) return;
+        this._isResolvingCrisis = true;
+        try {
+            const resolveFunc = httpsCallable(functions, 'resolveCrisis');
+            await resolveFunc({ lessonId: this.lesson.id });
+
+            confetti({
+                particleCount: 150,
+                spread: 100,
+                origin: { y: 0.6 },
+                colors: ['#22c55e', '#ffffff'] // Green and White
+            });
+            showToast("Great job! Crisis averted.", false);
+        } catch (error) {
+            console.error("Failed to resolve crisis:", error);
+            showToast("Failed to resolve crisis. Try again.", true);
+        } finally {
+            this._isResolvingCrisis = false;
+        }
+    }
+
     render() {
         if (this._loading) {
             return html`<div class="flex justify-center items-center h-64"><div class="spinner border-4 border-indigo-600 border-t-transparent rounded-full w-10 h-10 animate-spin"></div></div>`;
@@ -114,11 +165,61 @@ export class StudentProjectView extends LitElement {
         const projectData = this.lesson.projectData;
         if (!projectData) return html`<div class="p-8 text-center text-red-500">Project data missing.</div>`;
 
-        if (!this._progress?.selectedRole) {
-            return this._renderRoleSelection(projectData.roles);
-        }
+        return html`
+            ${this._renderCrisisOverlay()}
+            ${!this._progress?.selectedRole
+                ? this._renderRoleSelection(projectData.roles)
+                : this._renderDashboard(projectData)}
+        `;
+    }
 
-        return this._renderDashboard(projectData);
+    _renderCrisisOverlay() {
+        if (!this._activeCrisis) return nothing;
+        const { title, description, consequence, recovery_task } = this._activeCrisis;
+
+        return html`
+            <div class="fixed inset-0 z-[100] flex items-center justify-center bg-red-900/90 backdrop-blur-sm animate-fade-in p-4">
+                <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border-4 border-red-600 relative">
+                    <!-- Header -->
+                    <div class="bg-red-600 p-6 flex items-center justify-between text-white">
+                        <div class="flex items-center gap-3">
+                            <span class="text-4xl">🚨</span>
+                            <div>
+                                <h2 class="text-3xl font-black uppercase tracking-wider">System Alert</h2>
+                                <p class="text-red-100 font-bold opacity-80">CRITICAL SITUATION DETECTED</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Content -->
+                    <div class="p-8 space-y-6">
+                        <div>
+                            <h3 class="text-2xl font-bold text-slate-800 mb-2">${title}</h3>
+                            <p class="text-slate-600 text-lg leading-relaxed">${description}</p>
+                        </div>
+
+                        <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl">
+                            <h4 class="font-bold text-red-700 uppercase text-sm mb-1">Potential Consequence</h4>
+                            <p class="text-red-600 font-medium">${consequence}</p>
+                        </div>
+
+                        <div class="bg-slate-100 p-6 rounded-2xl border-2 border-slate-200">
+                            <h4 class="font-bold text-slate-500 uppercase text-xs mb-3">Recovery Protocol</h4>
+                            <div class="flex items-start gap-3">
+                                <span class="text-2xl">🛠️</span>
+                                <p class="text-slate-800 font-bold text-lg">${recovery_task}</p>
+                            </div>
+                        </div>
+
+                        <button @click="${this._handleResolveCrisis}" ?disabled="${this._isResolvingCrisis}"
+                            class="w-full py-4 bg-gradient-to-r from-red-600 to-orange-600 text-white font-black text-xl rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all flex justify-center items-center gap-2">
+                             ${this._isResolvingCrisis ? html`<div class="spinner w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div>` : '✅'}
+                            EXECUTE RECOVERY & RESOLVE
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     _renderRoleSelection(roles) {
