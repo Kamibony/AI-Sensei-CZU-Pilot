@@ -130,7 +130,7 @@ export class ProfessorLibraryView extends LitElement {
 
     render() {
         return html`
-            <div class="h-full flex flex-col bg-slate-50/50">
+            <div data-tour="library-start" class="h-full flex flex-col bg-slate-50/50">
                 <!-- Header -->
                 <div class="px-8 py-6 flex justify-between items-center border-b border-slate-200 bg-white" data-tour="library-header">
                     <div>

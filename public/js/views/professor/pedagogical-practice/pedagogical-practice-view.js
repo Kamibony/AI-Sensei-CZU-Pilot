@@ -20,7 +20,7 @@ export class PedagogicalPracticeView extends Localized(LitElement) {
 
     render() {
         return html`
-            <div class="h-full flex flex-col">
+            <div data-tour="pedagogical-practice-start" class="h-full flex flex-col">
                 <!-- Header -->
                 <div class="flex-shrink-0 mb-6">
                     <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">Pedagogická praxe</h1>

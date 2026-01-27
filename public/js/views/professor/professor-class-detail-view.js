@@ -416,7 +416,7 @@ export class ProfessorClassDetailView extends Localized(LitElement) {
 
     render() {
         if (this._isLoading && !this._group) {
-            return html`<div class="flex justify-center items-center h-full"><p class="text-xl text-slate-500">${this.t('common.loading')}</p></div>`;
+            return html`<div data-tour="class-detail-start" class="flex justify-center items-center h-full"><p class="text-xl text-slate-500">${this.t('common.loading')}</p></div>`;
         }
 
         if (!this._group) {

@@ -201,7 +201,7 @@ export class PracticeView extends LitElement {
 
     render() {
         return html`
-            <div class="max-w-7xl mx-auto p-6 space-y-8">
+            <div data-tour="practice-start" class="max-w-7xl mx-auto p-6 space-y-8">
                 <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                     <h1 data-tour="practice-title" class="text-3xl font-extrabold text-slate-900 tracking-tight">Odborný Výcvik (AI Mistr)</h1>
                     <div class="relative">

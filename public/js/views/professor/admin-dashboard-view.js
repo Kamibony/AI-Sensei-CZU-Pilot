@@ -13,7 +13,7 @@ export class AdminDashboardView extends LitElement {
 
     render() {
         return html`
-            <div class="h-full flex flex-col bg-slate-50 overflow-hidden">
+            <div data-tour="admin-dashboard-start" class="h-full flex flex-col bg-slate-50 overflow-hidden">
                 <header class="p-8 border-b border-slate-200 bg-white flex-shrink-0">
                     <h1 class="text-3xl font-bold text-slate-900">Administrace systému</h1>
                     <p class="text-slate-500 mt-2 text-lg">Centrální správa aplikace AI Sensei.</p>

@@ -130,7 +130,7 @@ export class EditorViewFlashcards extends Localized(LitElement) {
 
     render() {
         return html`
-            <div class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-flashcards-start" class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving || this._isGenerating}"></professor-header-editor>
                 <div class="flex-1 overflow-hidden relative">
                     <div class="absolute inset-0 overflow-y-auto custom-scrollbar">

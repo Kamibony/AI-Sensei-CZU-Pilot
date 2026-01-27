@@ -78,7 +78,7 @@ export class AdminSettingsView extends Localized(LitElement) {
     render() {
         if (this._isLoading) {
             return html`
-                <div class="flex items-center justify-center h-full">
+                <div data-tour="admin-settings-start" class="flex items-center justify-center h-full">
                     <div class="text-slate-500">${this.t('common.loading')}</div>
                 </div>
             `;

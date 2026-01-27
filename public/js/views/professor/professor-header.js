@@ -25,7 +25,7 @@ export class ProfessorHeader extends Localized(LitElement) {
 
     render() {
         return html`
-            <div class="flex flex-col w-full">
+            <div data-tour="header-start" class="flex flex-col w-full">
                 <header class="bg-white border-b border-slate-200 sticky top-0 z-30 h-16 flex-shrink-0">
                     <div class="h-full px-4 sm:px-6 lg:px-8 flex items-center justify-between">
                         <div class="flex items-center gap-4">

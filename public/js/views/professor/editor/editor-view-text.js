@@ -73,7 +73,7 @@ export class EditorViewText extends Localized(LitElement) {
         const hasContent = !!textContent.trim();
 
         return html`
-            <div class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-text-start" class="h-full flex flex-col bg-slate-50 relative">
                 <!-- Header -->
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
 

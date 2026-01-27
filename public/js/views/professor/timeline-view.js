@@ -385,7 +385,7 @@ export class TimelineView extends LitElement {
         const days = this._generateMonthDays(this.currentMonthStart);
 
         return html`
-            <div class="flex h-full bg-slate-100 overflow-hidden font-sans">
+            <div data-tour="timeline-start" class="flex h-full bg-slate-100 overflow-hidden font-sans">
                 <!-- Sidebar -->
                 ${this._renderSidebar()}
 

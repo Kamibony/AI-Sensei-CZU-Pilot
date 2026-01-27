@@ -409,7 +409,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
 
     render() {
         return html`
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div data-tour="ai-generator-panel-start" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="bg-gradient-to-r from-slate-50 to-indigo-50/30 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                     <div>
                         <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">

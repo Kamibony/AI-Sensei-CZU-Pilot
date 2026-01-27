@@ -12,7 +12,13 @@ const VIEW_TO_TOPIC_MAP = {
     'student-detail': 'students',
     'practice-detail': 'practice',
     'submission-detail': 'practice',
-    'pedagogical-detail': 'pedagogical-practice'
+    'pedagogical-detail': 'pedagogical-practice',
+    'professor-interactions-view': 'interactions',
+    'professor-analytics-view': 'analytics',
+    'professor-architect-view': 'architect',
+    'professor-observer-view': 'observer',
+    'professor-timeline-view': 'planner',
+    'professor-pedagogical-practice-view': 'pedagogical-practice'
 };
 
 export class GuideBot extends LitElement {

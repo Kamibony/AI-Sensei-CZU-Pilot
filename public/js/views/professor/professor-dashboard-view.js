@@ -119,7 +119,7 @@ export class ProfessorDashboardView extends Localized(LitElement) {
         const t = (key) => this.t(key);
         
         if (this._isLoading) {
-             return html`<div class="flex justify-center items-center h-full min-h-screen"><p class="text-xl text-slate-400 animate-pulse">${t('common.loading')}</p></div>`;
+             return html`<div data-tour="dashboard-start" class="flex justify-center items-center h-full min-h-screen"><p class="text-xl text-slate-400 animate-pulse">${t('common.loading')}</p></div>`;
         }
 
         const user = firebaseInit.auth.currentUser;

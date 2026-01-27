@@ -125,7 +125,53 @@ export const APP_KNOWLEDGE_BASE = {
 - **Portfolio**: Track your teaching experience.
 - **Reflection**: Add reflections on your lessons.
         `,
-        tour_steps: []
+        tour_steps: [
+            { element: '[data-tour="pedagogical-practice-start"]', popover: { title: 'Pedagogical Practice', description: 'Manage your portfolio and reflections.' } }
+        ]
+    },
+    interactions: {
+        context_hint: "Student-Professor communication hub.",
+        user_guide: `
+**Interactions Guide**
+- **Chat**: Communicate with students directly.
+- **AI Assist**: Use AI to draft replies.
+        `,
+        tour_steps: [
+            { element: '[data-tour="interactions-start"]', popover: { title: 'Interactions', description: 'Communicate with your students here.' } }
+        ]
+    },
+    architect: {
+        context_hint: "Curriculum Architect for visualizing competency graphs.",
+        user_guide: `
+**Architect Guide**
+- **Upload**: Upload a PDF syllabus.
+- **Map**: Visualize the competency graph (Bloom/EQF).
+        `,
+        tour_steps: [
+            { element: '[data-tour="architect-start"]', popover: { title: 'Architect', description: 'Visualize and analyze your curriculum structure.' } }
+        ]
+    },
+    observer: {
+        context_hint: "AI Classroom Observer for real-time analysis.",
+        user_guide: `
+**Observer Guide**
+- **Record**: Start recording a lesson.
+- **Analyze**: Get real-time feedback on talk ratio and tone.
+        `,
+        tour_steps: [
+            { element: '[data-tour="observer-start"]', popover: { title: 'AI Observer', description: 'Real-time classroom analysis tool.' } }
+        ]
+    },
+    planner: {
+        context_hint: "Lesson Planner and Calendar.",
+        user_guide: `
+**Planner Guide**
+- **Calendar**: Drag and drop lessons to schedule them.
+- **Backlog**: View unscheduled lessons.
+        `,
+        tour_steps: [
+            { element: '[data-tour="timeline-start"]', popover: { title: 'Planner', description: 'Schedule your lessons and manage your timeline.' } }
+        ]
     }
 };
 

@@ -117,7 +117,7 @@ export class ObserverView extends LitElement {
 
     render() {
         return html`
-            <div class="h-full flex flex-col p-6 max-w-4xl mx-auto space-y-8">
+            <div data-tour="observer-start" class="h-full flex flex-col p-6 max-w-4xl mx-auto space-y-8">
                 <!-- Header -->
                 <div class="text-center space-y-2">
                     <h1 class="text-3xl font-extrabold text-slate-900">AI Observer</h1>

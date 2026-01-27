@@ -146,7 +146,7 @@ export class EditorViewTest extends Localized(LitElement) {
         };
 
         return html`
-            <div class="h-full flex flex-col bg-slate-100 relative">
+            <div data-tour="editor-test-start" class="h-full flex flex-col bg-slate-100 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
 
                 <!-- Scrollable Content Area -->

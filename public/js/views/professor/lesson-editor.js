@@ -1657,7 +1657,7 @@ export class LessonEditor extends BaseView {
       if (!this.lesson) {
           if (this._longLoading) {
              return html`
-                <div class="flex flex-col justify-center items-center h-full space-y-4">
+                <div data-tour="lesson-editor-start" class="flex flex-col justify-center items-center h-full space-y-4">
                     <p class="text-slate-500">${translationService.t('common.loading_slow') || 'Nahrávání trvá déle než obvykle...'}</p>
                     <button @click="${() => window.location.reload()}"
                             class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">

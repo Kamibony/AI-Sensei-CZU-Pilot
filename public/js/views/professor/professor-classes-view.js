@@ -146,7 +146,7 @@ export class ProfessorClassesView extends LitElement {
     render() {
         const t = (key) => translationService.t(key);
         return html`
-            <div class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="classes-start" class="h-full flex flex-col bg-slate-50 relative">
                 <header class="bg-white p-6 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                         <h1 data-tour="classes-title" class="text-3xl font-extrabold text-slate-800 tracking-tight">${t('classes.manage_title')}</h1>
