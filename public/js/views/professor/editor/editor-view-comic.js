@@ -169,7 +169,7 @@ export class EditorViewComic extends Localized(LitElement) {
         };
 
         return html`
-            <div data-tour="editor-comic-start" class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-comic-start" data-editor-type="comic" class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
 
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -182,6 +182,7 @@ export class EditorViewComic extends Localized(LitElement) {
                                     <p class="text-slate-500 text-sm">${this.t('editor.comic.subtitle')}</p>
                                 </div>
                                 <button
+                                    data-tour="comic-add-panel-btn"
                                     @click="${this._addPanel}"
                                     class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"
                                 >
@@ -190,7 +191,7 @@ export class EditorViewComic extends Localized(LitElement) {
                                 </button>
                             </div>
 
-                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-tour="comic-panels-grid">
                                 ${script.map((panel, index) => html`
                                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col h-[500px] relative group hover:shadow-md transition-shadow">
                                         <div class="absolute top-3 right-3 text-xs font-bold text-slate-300 pointer-events-none group-hover:text-indigo-200 z-10">

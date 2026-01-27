@@ -163,9 +163,9 @@ export class ProjectEditor extends LitElement {
 
     render() {
         return html`
-            <div class="h-full flex flex-col bg-slate-50 relative overflow-hidden">
+            <div class="h-full flex flex-col bg-slate-50 relative overflow-hidden" data-editor-type="project">
                 <!-- Header -->
-                <div class="px-8 py-6 flex justify-between items-center border-b border-slate-200 bg-white z-10">
+                <div class="px-8 py-6 flex justify-between items-center border-b border-slate-200 bg-white z-10" data-tour="project-header">
                     <div class="flex items-center gap-4">
                         <button @click="${this._handleBack}" class="p-2 -ml-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-full transition-colors">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
@@ -185,7 +185,7 @@ export class ProjectEditor extends LitElement {
                         ` : nothing}
 
                         ${this._projectData ? html`
-                            <button @click="${this._handleSave}" ?disabled="${this._isSaving}" class="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50">
+                            <button data-tour="project-save-btn" @click="${this._handleSave}" ?disabled="${this._isSaving}" class="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50">
                                 ${this._isSaving ? html`<div class="spinner w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>` : '💾'}
                                 Save Project
                             </button>
@@ -205,7 +205,7 @@ export class ProjectEditor extends LitElement {
 
     _renderInputForm() {
         return html`
-            <div class="max-w-2xl mx-auto mt-10">
+            <div class="max-w-2xl mx-auto mt-10" data-tour="project-input-form">
                 <div class="bg-white/80 backdrop-blur-xl border border-white/20 shadow-xl rounded-3xl p-8 space-y-6 relative overflow-hidden">
                      <!-- Glassmorphism decorative elements -->
                     <div class="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -261,7 +261,7 @@ export class ProjectEditor extends LitElement {
 
     _renderCanvas() {
         return html`
-            <div class="space-y-8 animate-fade-in-up">
+            <div class="space-y-8 animate-fade-in-up" data-tour="project-canvas">
 
                 <!-- Roles Section -->
                 <div>

@@ -45,7 +45,7 @@ export class EditorViewVideo extends Localized(LitElement) {
 
     render() {
         return html`
-            <div data-tour="editor-video-start" class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-video-start" data-editor-type="video" class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
 
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -60,6 +60,7 @@ export class EditorViewVideo extends Localized(LitElement) {
                                     ${this.t('editor.video.url_label')}
                                 </label>
                                 <input
+                                    data-tour="video-url-input"
                                     type="text"
                                     class="w-full text-lg p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-300"
                                     placeholder="${this.t('editor.video.url_placeholder')}"
@@ -70,7 +71,7 @@ export class EditorViewVideo extends Localized(LitElement) {
 
                             <!-- Preview Section -->
                             ${this._videoId ? html`
-                                <div class="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-lg">
+                                <div class="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-lg" data-tour="video-preview">
                                     <iframe
                                         src="https://www.youtube.com/embed/${this._videoId}"
                                         frameborder="0"

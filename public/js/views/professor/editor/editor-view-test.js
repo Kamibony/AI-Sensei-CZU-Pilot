@@ -146,7 +146,7 @@ export class EditorViewTest extends Localized(LitElement) {
         };
 
         return html`
-            <div data-tour="editor-test-start" class="h-full flex flex-col bg-slate-100 relative">
+            <div data-tour="editor-test-start" data-editor-type="test" class="h-full flex flex-col bg-slate-100 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
 
                 <!-- Scrollable Content Area -->
@@ -158,7 +158,7 @@ export class EditorViewTest extends Localized(LitElement) {
                             <div class="bg-white shadow-2xl relative min-h-[800px] flex flex-col" style="box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.2);">
 
                                 <!-- Formal Exam Header -->
-                                <div class="border-b-2 border-slate-900 p-12 pb-8 mb-8 text-center">
+                                <div class="border-b-2 border-slate-900 p-12 pb-8 mb-8 text-center" data-tour="test-paper-header">
                                     <div class="uppercase tracking-widest text-slate-500 text-sm font-bold mb-2">${this.t('editor.test.paper_header')}</div>
                                     <h1 class="text-4xl font-serif text-slate-900 mb-4">${this.lesson.title || this.t('editor.test.untitled')}</h1>
                                     <div class="flex justify-center gap-8 text-sm font-serif italic text-slate-600">
@@ -174,7 +174,7 @@ export class EditorViewTest extends Localized(LitElement) {
                                 <div class="px-12 pb-12 flex-1 space-y-12">
 
                                     <!-- AI Generator (Styled Formally) -->
-                                    <div class="border border-slate-200 bg-slate-50 p-6">
+                                    <div class="border border-slate-200 bg-slate-50 p-6" data-tour="test-ai-panel">
                                         <ai-generator-panel
                                             @ai-completion="${this._handleAiCompletion}"
                                             .lesson=${this.lesson}
@@ -213,7 +213,7 @@ export class EditorViewTest extends Localized(LitElement) {
 
                                     <!-- Questions List -->
                                     ${hasContent ? html`
-                                        <div class="space-y-12">
+                                        <div class="space-y-12" data-tour="test-questions-list">
                                             ${questions.map((q, qIndex) => html`
                                                 <div class="relative group">
                                                     <!-- Question Number & Text -->
@@ -268,6 +268,7 @@ export class EditorViewTest extends Localized(LitElement) {
                                         <!-- Add Question Button (Formal) -->
                                         <div class="mt-12 pt-8 border-t border-slate-100 text-center">
                                             <button
+                                                data-tour="test-add-question-btn"
                                                 @click="${this._addQuestion}"
                                                 class="inline-flex items-center gap-2 px-6 py-2 border border-slate-300 text-slate-600 font-serif hover:border-slate-800 hover:text-slate-900 transition-all uppercase tracking-wider text-xs"
                                             >

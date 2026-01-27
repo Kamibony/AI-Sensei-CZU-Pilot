@@ -71,7 +71,8 @@ export const APP_KNOWLEDGE_BASE = {
         `,
         tour_steps: [
             { element: '[data-tour="editor-layout"]', popover: { title: 'Lesson Editor', description: 'Welcome to the Lesson Editor. Here you can create and manage your content.' } },
-            { element: '[data-tour="editor-header"]', popover: { title: 'Editor Toolbar', description: 'Manage lesson settings and publish status.' } }
+            { element: '[data-tour="editor-header"]', popover: { title: 'Editor Toolbar', description: 'Manage lesson settings and publish status.' } },
+            { element: '#active-editor', popover: { title: 'Content Workspace', description: 'This is your main workspace. The tools here change based on the content type (Text, Quiz, etc.) you selected.' } }
         ]
     },
     students: {

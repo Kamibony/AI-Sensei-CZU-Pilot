@@ -203,7 +203,7 @@ export class EditorViewMindmap extends Localized(LitElement) {
         const inverseZoom = 100 / this._zoomLevel;
 
         return html`
-            <div data-tour="editor-mindmap-start" class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-mindmap-start" data-editor-type="mindmap" class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
 
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -242,10 +242,10 @@ export class EditorViewMindmap extends Localized(LitElement) {
                             </div>
                         ` : html`
                             <!-- Split View Editor -->
-                            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-[600px] flex flex-col md:flex-row">
+                            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-[600px] flex flex-col md:flex-row" data-tour="mindmap-split-view">
 
                                 <!-- Left: Mermaid Code Editor -->
-                                <div class="w-full md:w-1/2 flex flex-col border-b md:border-b-0 md:border-r border-slate-200 bg-slate-50">
+                                <div class="w-full md:w-1/2 flex flex-col border-b md:border-b-0 md:border-r border-slate-200 bg-slate-50" data-tour="mindmap-code-editor">
                                     <div class="p-3 border-b border-slate-200 bg-white flex justify-between items-center">
                                         <span class="text-xs font-bold uppercase text-slate-500 tracking-wider">${this.t('editor.mindmap.syntax_header')}</span>
                                         <a href="https://mermaid.js.org/intro/" target="_blank" class="text-xs text-indigo-600 hover:underline">${this.t('editor.mindmap.docs')}</a>
@@ -262,7 +262,7 @@ export class EditorViewMindmap extends Localized(LitElement) {
                                 </div>
 
                                 <!-- Right: Live Preview -->
-                                <div class="w-full md:w-1/2 bg-white flex flex-col relative">
+                                <div class="w-full md:w-1/2 bg-white flex flex-col relative" data-tour="mindmap-preview">
                                     <div class="p-3 border-b border-slate-200 flex justify-between items-center bg-white z-10">
                                         <span class="text-xs font-bold uppercase text-slate-500 tracking-wider">${this.t('editor.mindmap.preview_header')}</span>
                                         ${this._renderError ? html`

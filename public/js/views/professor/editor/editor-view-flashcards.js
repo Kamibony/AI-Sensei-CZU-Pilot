@@ -130,12 +130,12 @@ export class EditorViewFlashcards extends Localized(LitElement) {
 
     render() {
         return html`
-            <div data-tour="editor-flashcards-start" class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-flashcards-start" data-editor-type="flashcards" class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving || this._isGenerating}"></professor-header-editor>
                 <div class="flex-1 overflow-hidden relative">
                     <div class="absolute inset-0 overflow-y-auto custom-scrollbar">
                         <div class="max-w-6xl mx-auto p-8 space-y-8">
-                            <div class="flex justify-between items-center">
+                            <div class="flex justify-between items-center" data-tour="flashcards-toolbar">
                                 <h2 class="text-2xl font-bold text-slate-800">${this.t('editor.flashcards.title')}</h2>
                                 <div class="flex gap-2">
                                     <button @click=${this._generateCards} ?disabled=${this._isGenerating}
@@ -161,7 +161,7 @@ export class EditorViewFlashcards extends Localized(LitElement) {
                                     description="${this.t('editor.flashcards.empty_desc')}"
                                 ></ai-generator-panel>
                             ` : html`
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6" data-tour="flashcards-grid">
                                     ${this._cards.map((card, index) => html`
                                         <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 relative group hover:shadow-md transition-shadow">
                                             <button @click=${() => this._deleteCard(index)}
