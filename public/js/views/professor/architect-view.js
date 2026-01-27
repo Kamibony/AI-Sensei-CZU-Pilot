@@ -8,20 +8,26 @@ export class ArchitectView extends Localized(BaseView) {
     static properties = {
         _isUploading: { state: true },
         _isAnalyzing: { state: true },
+        _isMapping: { state: true },
         _statusMessage: { state: true },
         _knowledgeBaseId: { state: true },
         _graphData: { state: true },
-        _selectedNode: { state: true }
+        _selectedNode: { state: true },
+        _showInsightInput: { state: true },
+        _insightText: { state: true }
     };
 
     constructor() {
         super();
         this._isUploading = false;
         this._isAnalyzing = false;
+        this._isMapping = false;
         this._statusMessage = '';
         this._knowledgeBaseId = null;
         this._graphData = null;
         this._selectedNode = null;
+        this._showInsightInput = false;
+        this._insightText = '';
     }
 
     async _handleFileUpload(e) {
@@ -100,6 +106,44 @@ export class ArchitectView extends Localized(BaseView) {
         }
     }
 
+    async _handleMapInsights() {
+        if (!this._knowledgeBaseId || !this._insightText.trim()) return;
+
+        this._isMapping = true;
+
+        try {
+            const mapInsightsToGraph = httpsCallable(firebaseInit.functions, 'mapInsightsToGraph');
+            const result = await mapInsightsToGraph({
+                knowledgeBaseId: this._knowledgeBaseId,
+                insightText: this._insightText
+            });
+
+            const coveredNodeIds = result.data.coveredNodeIds;
+
+            // Update local graph data
+            this._graphData.nodes = this._graphData.nodes.map(node => {
+                if (coveredNodeIds.includes(node.id)) {
+                    return { ...node, status: 'covered' };
+                }
+                return node;
+            });
+
+            this._showToast(`Aktualizováno! Pokryto ${coveredNodeIds.length} témat.`, 'success');
+            this._showInsightInput = false;
+            this._insightText = '';
+
+            // Wait for render and re-init graph to apply styles
+            await this.updateComplete;
+            this._renderGraph();
+
+        } catch (error) {
+            console.error('Mapping Error:', error);
+            this._showToast('Chyba při aktualizaci: ' + error.message, 'error');
+        } finally {
+            this._isMapping = false;
+        }
+    }
+
     async _renderGraph() {
         if (!this._graphData) return;
 
@@ -146,7 +190,10 @@ export class ArchitectView extends Localized(BaseView) {
                     {
                         selector: 'node',
                         style: {
-                            'background-color': (ele) => bloomColors[ele.data('bloomLevel')] || '#94a3b8',
+                            'background-color': (ele) => {
+                                if (ele.data('status') === 'covered') return '#4ade80'; // Green-400
+                                return bloomColors[ele.data('bloomLevel')] || '#94a3b8';
+                            },
                             'label': 'data(label)',
                             'color': '#1e293b',
                             'font-size': '12px',
@@ -277,6 +324,25 @@ export class ArchitectView extends Localized(BaseView) {
                                 `}
                             </button>
                         ` : ''}
+
+                        <!-- Update Progress Button -->
+                        ${this._graphData ? html`
+                             <div class="mt-4 pt-4 border-t border-slate-100">
+                                <button
+                                    @click=${() => { this._showInsightInput = true; }}
+                                    ?disabled=${this._isMapping}
+                                    class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-emerald-200">
+                                    ${this._isMapping ? html`
+                                        <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                        <span>Aktualizuji...</span>
+                                    ` : html`
+                                        <span>📈</span>
+                                        <span>Aktualizovat progres</span>
+                                    `}
+                                </button>
+                                <p class="text-xs text-slate-400 mt-2 text-center">Porovná plán s realitou z hodiny.</p>
+                             </div>
+                        ` : ''}
                     </div>
 
                     <!-- Right: Map Placeholder -->
@@ -347,6 +413,41 @@ export class ArchitectView extends Localized(BaseView) {
                     </div>
 
                 </div>
+
+                <!-- Insight Input Dialog -->
+                ${this._showInsightInput ? html`
+                    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+                        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-200">
+                            <h3 class="text-xl font-bold text-slate-800 mb-4">Aktualizace progresu</h3>
+                            <p class="text-slate-600 mb-4 text-sm">
+                                Vložte poznámky z hodiny nebo výstup z "AI Observera". Systém analyzuje, která témata byla probrána.
+                            </p>
+
+                            <textarea
+                                class="w-full h-40 p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm resize-none mb-6"
+                                placeholder="Např.: Dnes jsme probrali základy Bloomovy taxonomie a vysvětlili si rozdíl mezi..."
+                                .value=${this._insightText}
+                                @input=${e => this._insightText = e.target.value}
+                            ></textarea>
+
+                            <div class="flex justify-end gap-3">
+                                <button
+                                    @click=${() => { this._showInsightInput = false; }}
+                                    class="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors"
+                                >
+                                    Zrušit
+                                </button>
+                                <button
+                                    @click=${this._handleMapInsights}
+                                    ?disabled=${!this._insightText.trim() || this._isMapping}
+                                    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50"
+                                >
+                                    Vyhodnotit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
             </div>
         `;
     }

@@ -2731,3 +2731,62 @@ exports.analyzeSyllabus = onCall({
         throw new HttpsError("internal", "Failed to analyze syllabus.");
     }
 });
+
+exports.mapInsightsToGraph = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can update map progress.");
+    }
+    const { knowledgeBaseId, insightText } = request.data;
+    if (!knowledgeBaseId || !insightText) {
+        throw new HttpsError("invalid-argument", "Missing knowledgeBaseId or insightText.");
+    }
+
+    try {
+        const docRef = db.collection("knowledge_base").doc(knowledgeBaseId);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            throw new HttpsError("not-found", "Document not found.");
+        }
+
+        const data = doc.data();
+        if (data.ownerId !== request.auth.uid) {
+             throw new HttpsError("permission-denied", "You do not own this document.");
+        }
+
+        if (!data.competencyMap || !data.competencyMap.nodes) {
+             throw new HttpsError("failed-precondition", "Competency map not found.");
+        }
+
+        // 2. AI Analysis
+        const coveredNodeIds = await GeminiAPI.matchInsightsToNodes(insightText, data.competencyMap.nodes);
+
+        // 3. Update Graph Data
+        const updatedNodes = data.competencyMap.nodes.map((node: any) => {
+            if (coveredNodeIds.includes(node.id)) {
+                return {
+                    ...node,
+                    status: "covered",
+                    lastCoveredAt: new Date().toISOString()
+                };
+            }
+            return node;
+        });
+
+        await docRef.update({
+            "competencyMap.nodes": updatedNodes,
+            lastProgressUpdate: FieldValue.serverTimestamp()
+        });
+
+        return { success: true, coveredNodeIds: coveredNodeIds };
+
+    } catch (error: any) {
+        logger.error("Error in mapInsightsToGraph:", error);
+        throw new HttpsError("internal", "Failed to map insights to graph.");
+    }
+});
