@@ -617,6 +617,32 @@ async function generateAudioAnalysis(base64Data: string, mimeType: string): Prom
     return await generateJsonFromMultimodal(prompt, base64Data, mimeType);
 }
 
+async function matchInsightsToNodes(insightText: string, nodes: any[]): Promise<string[]> {
+    const nodesContext = nodes.map(n => `- ID: ${n.id}, Label: ${n.label}`).join("\n");
+    const prompt = `
+    ROLE: You are an expert educational analyst.
+    TASK: Compare the "Insight Text" (summary of a class session) with the "Competency Nodes" (syllabus topics).
+    GOAL: Identify which Competency Nodes were sufficiently covered or discussed in the session based on the insight text.
+
+    --- COMPETENCY NODES ---
+    ${nodesContext}
+
+    --- INSIGHT TEXT ---
+    ${insightText}
+
+    INSTRUCTIONS:
+    1. specific: Only mark a node as covered if there is clear evidence in the text.
+    2. Output a JSON object with a single key "covered_node_ids" containing an array of node IDs.
+    3. Return valid JSON only.
+
+    OUTPUT FORMAT:
+    { "covered_node_ids": ["id1", "id2"] }
+    `;
+
+    const result = await generateJsonFromPrompt(prompt);
+    return result.covered_node_ids || [];
+}
+
 export {
     getEmbeddings,
     generateEmbeddings,
@@ -631,5 +657,6 @@ export {
     downloadFileWithRetries,
     sanitizeStoragePath,
     generateCompetencyGraph,
-    generateAudioAnalysis
+    generateAudioAnalysis,
+    matchInsightsToNodes
 };
