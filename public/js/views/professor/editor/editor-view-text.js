@@ -11,7 +11,7 @@ export class EditorViewText extends Localized(LitElement) {
         files: { type: Array }
     };
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     _handleInput(e) {
         if (!this.lesson) return;

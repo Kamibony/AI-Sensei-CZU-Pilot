@@ -8,7 +8,7 @@ export class EditorViewAi extends LitElement {
         isSaving: { type: Boolean }
     };
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     render() {
         const t = (key) => translationService.t(key);

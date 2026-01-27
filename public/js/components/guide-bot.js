@@ -8,6 +8,8 @@ import { showToast } from '../utils/utils.js';
 // Phase 1: Intelligent Translation Layer
 const VIEW_TO_TOPIC_MAP = {
     'lesson-editor': 'editor',
+    'professor-lesson-editor': 'editor',
+    'editor': 'editor',
     'class-detail': 'classes',
     'student-detail': 'students',
     'practice-detail': 'practice',
@@ -18,6 +20,7 @@ const VIEW_TO_TOPIC_MAP = {
     'professor-architect-view': 'architect',
     'professor-observer-view': 'observer',
     'professor-timeline-view': 'planner',
+    'timeline': 'planner',
     'professor-pedagogical-practice-view': 'pedagogical-practice'
 };
 
@@ -110,8 +113,13 @@ export class GuideBot extends LitElement {
         // Smart Resolution: Normalize view name (e.g. professor-students-view -> students)
         const normalizedView = rawView.replace('professor-', '').replace('-view', '');
 
+        console.log(`[GuideBot] Tour Requested. Raw: '${rawView}', Normalized: '${normalizedView}'`);
+
         // Try exact match first, then lookup map, then normalized, then fallback to general
-        const topicKey = VIEW_TO_TOPIC_MAP[normalizedView] || normalizedView;
+        const topicKey = VIEW_TO_TOPIC_MAP[rawView] || VIEW_TO_TOPIC_MAP[normalizedView] || normalizedView;
+
+        console.log(`[GuideBot] Resolved Topic Key: '${topicKey}'`);
+
         const knowledge = APP_KNOWLEDGE_BASE[rawView] || APP_KNOWLEDGE_BASE[topicKey] || APP_KNOWLEDGE_BASE['general'];
 
         if (knowledge && knowledge.tour_steps && knowledge.tour_steps.length > 0) {
@@ -122,6 +130,7 @@ export class GuideBot extends LitElement {
         } else {
             // Check if there are any general steps if specific ones are missing?
             // Or just alert.
+             console.warn(`[GuideBot] No tour steps found for view: ${rawView} (Topic: ${topicKey})`);
              const msg = translationService.t('guide_bot.no_tour', 'Interactive tour is not available for this view yet.');
              showToast(msg, true);
         }
@@ -131,7 +140,7 @@ export class GuideBot extends LitElement {
         const rawView = this.currentView || 'general';
         const normalizedView = rawView.replace('professor-', '').replace('-view', '');
 
-        const topicKey = VIEW_TO_TOPIC_MAP[normalizedView] || normalizedView;
+        const topicKey = VIEW_TO_TOPIC_MAP[rawView] || VIEW_TO_TOPIC_MAP[normalizedView] || normalizedView;
         const section = APP_KNOWLEDGE_BASE[rawView] || APP_KNOWLEDGE_BASE[topicKey] || APP_KNOWLEDGE_BASE.general;
 
         // If we are in a specific view, we might want to include general info as well,

@@ -25,7 +25,7 @@ export class TimelineView extends LitElement {
         _draggedLessonId: { state: true }
     };
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     constructor() {
         super();

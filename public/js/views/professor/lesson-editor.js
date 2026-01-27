@@ -108,7 +108,7 @@ export class LessonEditor extends BaseView {
     this._saveTimeout = null;
   }
 
-  createRenderRoot() { return this; }
+  createRenderRoot() { return this; } // Light DOM enabled
 
   // --- NOVÁ OCHRANA (Fix pre miznutie obsahu) ---
   willUpdate(changedProperties) {
@@ -1114,7 +1114,7 @@ export class LessonEditor extends BaseView {
           generationParams.episode_count = 3;
       }
 
-      const activeEditor = this.shadowRoot.querySelector('#active-editor');
+      const activeEditor = this.querySelector('#active-editor');
       if (activeEditor && activeEditor.handleAiGeneration) {
            try {
                await activeEditor.handleAiGeneration(generationParams);

@@ -21,7 +21,7 @@ export class EditorViewAudio extends Localized(LitElement) {
         this.voiceGender = 'male';
     }
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     _getScript() {
         let script = [];

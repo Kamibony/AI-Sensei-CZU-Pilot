@@ -12,7 +12,7 @@ export class EditorViewVideo extends Localized(LitElement) {
         _videoId: { state: true, type: String }
     };
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     willUpdate(changedProperties) {
         if (changedProperties.has('lesson')) {

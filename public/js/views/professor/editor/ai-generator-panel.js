@@ -65,7 +65,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         this._audioUrls = new Map();
     }
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     updated(changedProperties) {
         // If 'files' prop is provided (from LessonEditor), use it as source of truth

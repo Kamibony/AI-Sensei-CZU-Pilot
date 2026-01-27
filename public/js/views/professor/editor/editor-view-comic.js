@@ -18,7 +18,7 @@ export class EditorViewComic extends Localized(LitElement) {
         this._generatingPanels = {};
     }
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     _getScript() {
         let script = [];
