@@ -2790,3 +2790,27 @@ exports.mapInsightsToGraph = onCall({
         throw new HttpsError("internal", "Failed to map insights to graph.");
     }
 });
+
+exports.generateRemedialExplanation = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const { lessonTopic, failedQuestions } = request.data;
+    if (!lessonTopic || !failedQuestions || !Array.isArray(failedQuestions) || failedQuestions.length === 0) {
+        throw new HttpsError("invalid-argument", "Missing topic or failedQuestions (must be a non-empty array).");
+    }
+
+    try {
+        const result = await GeminiAPI.generateRemedialExplanation(lessonTopic, failedQuestions);
+        return result;
+    } catch (error: any) {
+        logger.error("Error in generateRemedialExplanation:", error);
+        throw new HttpsError("internal", "Failed to generate remedial explanation.");
+    }
+});

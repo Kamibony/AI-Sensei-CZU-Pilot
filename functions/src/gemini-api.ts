@@ -643,6 +643,35 @@ async function matchInsightsToNodes(insightText: string, nodes: any[]): Promise<
     return result.covered_node_ids || [];
 }
 
+async function generateRemedialExplanation(topic: string, failedQuestions: string[]): Promise<any> {
+    const questionsText = failedQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n");
+
+    const prompt = `
+    ROLE: You are a "Patient Tutor" AI.
+    TASK: The student failed a quiz on the topic: "${topic}".
+
+    FAILED QUESTIONS:
+    ${questionsText}
+
+    GOAL:
+    1. Identify the core concept the student is missing based on these questions.
+    2. Explain it SIMPLY (ELI5 - Explain Like I'm 5).
+    3. Use a creative ANALOGY to help them understand.
+    4. Provide ONE new, simplified example question (with the correct answer clearly stated).
+
+    LANGUAGE: Czech (Čeština).
+
+    OUTPUT FORMAT (JSON ONLY):
+    {
+      "explanation": "Simple explanation of the concept...",
+      "analogy": "Imagine that...",
+      "newExample": "Question: ... ? Answer: ..."
+    }
+    `;
+
+    return await generateJsonFromPrompt(prompt);
+}
+
 export {
     getEmbeddings,
     generateEmbeddings,
@@ -658,5 +687,6 @@ export {
     sanitizeStoragePath,
     generateCompetencyGraph,
     generateAudioAnalysis,
-    matchInsightsToNodes
+    matchInsightsToNodes,
+    generateRemedialExplanation
 };
