@@ -2814,3 +2814,27 @@ exports.generateRemedialExplanation = onCall({
         throw new HttpsError("internal", "Failed to generate remedial explanation.");
     }
 });
+
+exports.generateProjectScaffolding = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can generate project scaffolding.");
+    }
+
+    const { topic, duration, complexity } = request.data;
+    if (!topic || !duration || !complexity) {
+        throw new HttpsError("invalid-argument", "Missing topic, duration, or complexity.");
+    }
+
+    try {
+        const result = await GeminiAPI.generateProjectScaffolding(topic, duration, complexity);
+        return result;
+    } catch (error: any) {
+        logger.error("Error in generateProjectScaffolding:", error);
+        throw new HttpsError("internal", "Failed to generate project scaffolding.");
+    }
+});

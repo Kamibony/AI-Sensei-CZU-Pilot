@@ -672,6 +672,40 @@ async function generateRemedialExplanation(topic: string, failedQuestions: strin
     return await generateJsonFromPrompt(prompt);
 }
 
+async function generateProjectScaffolding(topic: string, duration: string, complexity: string): Promise<any> {
+    const prompt = `
+    ROLE: You are an expert Project Manager & Curriculum Designer.
+    TASK: Create a Project-Based Learning (PBL) scaffolding for the topic: "${topic}".
+
+    PARAMETERS:
+    - Duration: ${duration} (e.g., "4 weeks", "1 semester")
+    - Complexity: ${complexity} (e.g., "Beginner", "Advanced")
+
+    REQUIREMENTS:
+    1. ROLES: Define 3-4 distinct Student Roles based on soft skills (e.g., "The Leader", "The Researcher", "The Designer").
+    2. MILESTONES: Create a linear timeline of milestones suitable for the duration.
+    3. TASKS: specific tasks for each role within each milestone.
+
+    OUTPUT FORMAT (JSON ONLY):
+    {
+      "roles": [
+        { "id": "r1", "title": "Role Title", "description": "Role description...", "skills": ["skill1", "skill2"] }
+      ],
+      "milestones": [
+        { "id": "m1", "title": "Milestone Title", "description": "Phase description..." }
+      ],
+      "role_tasks": {
+        "m1": {
+          "r1": ["Task 1", "Task 2"],
+          "r2": ["Task A", "Task B"]
+        }
+      }
+    }
+    `;
+
+    return await generateJsonFromPrompt(prompt);
+}
+
 export {
     getEmbeddings,
     generateEmbeddings,
@@ -688,5 +722,6 @@ export {
     generateCompetencyGraph,
     generateAudioAnalysis,
     matchInsightsToNodes,
-    generateRemedialExplanation
+    generateRemedialExplanation,
+    generateProjectScaffolding
 };
