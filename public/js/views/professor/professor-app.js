@@ -19,6 +19,7 @@ import './practice-view.js';
 import './pedagogical-practice/pedagogical-practice-view.js';
 import './architect-view.js';
 import './observer-view.js';
+import './project-editor.js';
 
 // Guide Bot
 import '../../components/guide-bot.js';
@@ -263,6 +264,13 @@ export class ProfessorApp extends LitElement {
                 return html`<architect-view></architect-view>`;
             case 'observer':
                 return html`<observer-view></observer-view>`;
+            case 'project-editor':
+                return html`
+                    <project-editor
+                        .lesson="${this._currentData}"
+                        @navigate="${this._handleNavigation}">
+                    </project-editor>
+                `;
             case 'admin-users':
                 return html`<admin-user-management-view></admin-user-management-view>`;
             case 'admin-settings':

@@ -13,6 +13,7 @@ import './chat-panel.js';
 import './flashcards-component.js';
 import './mindmap-component.js';
 import './comic-component.js'; // Import Comic Component
+import './student-project-view.js';
 import '../../components/magic-board-view.js';
 
 function normalizeLessonData(rawData) {
@@ -285,6 +286,35 @@ export class StudentLessonDetail extends LitElement {
 
         if (!this.lessonData) {
             return html`<div class="p-8 text-center text-red-500">Nepodařilo se načíst lekci.</div>`;
+        }
+
+        // Project Mode Check
+        if (this.lessonData.type === 'project' || this.lessonData.contentType === 'project') {
+            return html`
+                <div class="min-h-screen bg-slate-50 flex flex-col">
+                     <!-- Top Navigation Bar (Simplified for Project) -->
+                    <div class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div class="flex items-center justify-between h-16">
+                                <div class="flex items-center gap-4">
+                                    <button @click=${this._handleBackToList} class="p-2 -ml-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-full transition-colors">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                                    </button>
+                                    <div>
+                                        <h1 class="text-lg font-bold text-slate-800 line-clamp-1">${this.lessonData.title}</h1>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">PROJECT</span>
+                                            <p class="text-xs text-slate-500 hidden sm:block">${this.lessonData.topic || "PBL Module"}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <student-project-view .lesson=${this.lessonData} class="flex-grow"></student-project-view>
+                </div>
+            `;
         }
 
         const tabs = this._getTabs();

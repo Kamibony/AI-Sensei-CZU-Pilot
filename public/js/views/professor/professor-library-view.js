@@ -109,9 +109,18 @@ export class ProfessorLibraryView extends LitElement {
         }));
     }
 
-    _handleOpenLesson(lesson) {
+    _handleNewProject() {
         this.dispatchEvent(new CustomEvent('navigate', {
-            detail: { view: 'editor', id: lesson.id, ...lesson },
+            detail: { view: 'project-editor' },
+            bubbles: true,
+            composed: true
+        }));
+    }
+
+    _handleOpenLesson(lesson) {
+        const view = (lesson.type === 'project' || lesson.contentType === 'project') ? 'project-editor' : 'editor';
+        this.dispatchEvent(new CustomEvent('navigate', {
+            detail: { view: view, id: lesson.id, ...lesson },
             bubbles: true,
             composed: true
         }));
@@ -139,6 +148,9 @@ export class ProfessorLibraryView extends LitElement {
                     </div>
                     <button data-tour="new-lesson-btn" @click="${this._handleNewLesson}" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-2">
                         <span>✨</span> ${translationService.t('lesson.new') || 'Nová lekce'}
+                    </button>
+                    <button @click="${this._handleNewProject}" class="ml-2 px-4 py-2 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 shadow-sm transition-all flex items-center gap-2">
+                        <span>🚀</span> ${translationService.t('project.new') || 'Nový Projekt'}
                     </button>
                 </div>
 
@@ -202,7 +214,8 @@ export class ProfessorLibraryView extends LitElement {
             'post': '📰',
             'video': '🎥',
             'audio': '🎙️',
-            'comic': '💬'
+            'comic': '💬',
+            'project': '🚀'
         };
         return icons[type] || '📄';
     }
