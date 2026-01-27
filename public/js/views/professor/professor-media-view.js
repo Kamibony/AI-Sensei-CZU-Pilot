@@ -159,7 +159,7 @@ export class ProfessorMediaView extends Localized(LitElement) {
         }
 
         return html`
-            <div class="h-full flex flex-col bg-slate-50">
+            <div data-tour="media-start" class="h-full flex flex-col bg-slate-50">
                 <header class="bg-white p-6 border-b border-slate-200" data-tour="media-header">
                      <div class="w-full">
                         <h1 data-tour="media-title" class="text-3xl font-extrabold text-slate-800 tracking-tight">${this.t('media.title')}</h1>

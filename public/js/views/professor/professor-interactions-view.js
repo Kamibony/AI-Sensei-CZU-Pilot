@@ -252,7 +252,7 @@ export class ProfessorInteractionsView extends Localized(LitElement) {
         }
 
         return html`
-            <aside class="w-full md:w-1/3 border-r border-slate-200 flex flex-col h-full bg-white"> <header class="p-4 border-b border-slate-200 flex-shrink-0">
+            <aside data-tour="interactions-start" class="w-full md:w-1/3 border-r border-slate-200 flex flex-col h-full bg-white"> <header class="p-4 border-b border-slate-200 flex-shrink-0">
                      <h2 class="font-bold text-slate-800 mb-3">${this.t('interactions.title')}</h2>
                      <input type="search"
                            placeholder="${this.t('interactions.search_placeholder')}"

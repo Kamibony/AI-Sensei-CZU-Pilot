@@ -5,6 +5,8 @@ import * as firebaseInit from '../../firebase-init.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
 export class ArchitectView extends Localized(BaseView) {
+    createRenderRoot() { return this; }
+
     static properties = {
         _isUploading: { state: true },
         _isAnalyzing: { state: true },
@@ -224,7 +226,7 @@ export class ArchitectView extends Localized(BaseView) {
 
     render() {
         return html`
-            <div class="p-6 max-w-7xl mx-auto space-y-8">
+            <div data-tour="architect-start" class="p-6 max-w-7xl mx-auto space-y-8">
                 <!-- Header -->
                 <div class="flex flex-col gap-2">
                     <h1 class="text-3xl font-bold text-slate-800">${this.t('architect.title')}</h1>

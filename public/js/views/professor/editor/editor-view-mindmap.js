@@ -203,7 +203,7 @@ export class EditorViewMindmap extends Localized(LitElement) {
         const inverseZoom = 100 / this._zoomLevel;
 
         return html`
-            <div class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-mindmap-start" class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
 
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-6">

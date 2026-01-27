@@ -155,7 +155,7 @@ export class ProfessorAnalyticsView extends Localized(LitElement) {
         // Loading State
         if (this._isLoading) {
             return html`
-                <div class="h-full flex flex-col bg-slate-50 p-6 md:p-8 animate-pulse">
+                <div data-tour="analytics-start" class="h-full flex flex-col bg-slate-50 p-6 md:p-8 animate-pulse">
                     <div class="h-8 w-48 bg-slate-200 rounded mb-4"></div>
                     <div class="h-4 w-96 bg-slate-200 rounded mb-8"></div>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

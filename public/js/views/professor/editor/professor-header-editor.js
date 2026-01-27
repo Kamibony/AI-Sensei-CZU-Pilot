@@ -55,7 +55,7 @@ export class ProfessorHeaderEditor extends Localized(LitElement) {
         const title = this.lesson?.title || this.t('professor.editor.lessonTitlePlaceholder') || this.t('editor.titleNew');
 
         return html`
-        <div class="bg-white border-b border-slate-200 sticky top-0 z-30 flex-shrink-0">
+        <div data-tour="header-editor-start" class="bg-white border-b border-slate-200 sticky top-0 z-30 flex-shrink-0">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col md:flex-row justify-between items-center py-4 gap-4">
 

@@ -215,7 +215,7 @@ export class EditorViewAudio extends Localized(LitElement) {
         };
 
         return html`
-            <div class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-audio-start" class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
 
                 <div class="flex-1 overflow-hidden relative">

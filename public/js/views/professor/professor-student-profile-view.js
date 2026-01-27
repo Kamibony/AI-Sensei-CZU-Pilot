@@ -449,7 +449,7 @@ export class ProfessorStudentProfileView extends LitElement {
 
     render() {
         if (this._isLoading) {
-            return html`<div class="p-8"><div class="text-center">Načítání dat studenta...</div></div>`;
+            return html`<div data-tour="student-profile-start" class="p-8"><div class="text-center">Načítání dat studenta...</div></div>`;
         }
         if (this._studentData && this._studentData.error) {
              return html`<div class="p-8 text-red-500">${this._studentData.error}</div>`;

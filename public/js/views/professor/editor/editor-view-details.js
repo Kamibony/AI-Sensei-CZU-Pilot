@@ -110,7 +110,7 @@ export class EditorViewDetails extends Localized(LitElement) {
 
     render() {
         return html`
-            <div class="flex justify-between items-start mb-6">
+            <div data-tour="editor-details-start" class="flex justify-between items-start mb-6">
                 <h2 class="text-3xl font-extrabold text-slate-800">${this.t('editor.hub_edit_details')}</h2>
             </div>
             <div class="bg-white p-6 rounded-2xl shadow-lg">

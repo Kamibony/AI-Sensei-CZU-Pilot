@@ -143,7 +143,7 @@ export class AdminUserManagementView extends Localized(LitElement) {
         }
 
         return html`
-            <div class="h-full flex flex-col">
+            <div data-tour="admin-user-management-start" class="h-full flex flex-col">
                 <header class="text-center p-6 border-b border-slate-200 bg-white flex-shrink-0">
                     <h1 class="text-3xl font-extrabold text-slate-800">${this.t('admin.users.title')}</h1>
                     <p class="text-slate-500 mt-1">${this.t('admin.users.subtitle')}</p>

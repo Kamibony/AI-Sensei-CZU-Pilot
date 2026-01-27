@@ -155,7 +155,7 @@ export class ProfessorInteractionsView extends LitElement {
         else { conversationContent = filteredConversations.map(conv => this.renderConversationCard(conv)); }
 
         return html`
-            <aside class="w-full md:w-1/3 border-r border-slate-200 flex flex-col h-full bg-white">
+            <aside data-tour="interactions-start" class="w-full md:w-1/3 border-r border-slate-200 flex flex-col h-full bg-white">
                 <header class="p-4 border-b border-slate-200 flex-shrink-0">
                      <h2 class="font-bold text-slate-800 mb-3">Konverzace</h2>
                      <input type="search" placeholder="Hledat studenta..." .value=${this._searchTerm} @input=${this._handleSearchInput} class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-transparent">

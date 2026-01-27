@@ -188,7 +188,7 @@ export class ProfessorApp extends LitElement {
 
     render() {
         return html`
-            <div class="flex h-screen bg-slate-50 overflow-hidden">
+            <div data-tour="app-start" class="flex h-screen bg-slate-50 overflow-hidden">
                 <div class="w-64 flex-shrink-0 bg-white border-r border-slate-200 hidden md:block z-20">
                     <professor-navigation 
                         .activeView="${this._currentView}"

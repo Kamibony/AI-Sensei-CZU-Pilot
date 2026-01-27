@@ -173,7 +173,7 @@ export class ObservationView extends Localized(LitElement) {
 
     _renderEmptyState() {
         return html`
-            <div class="p-6 bg-white rounded-xl shadow-sm border border-slate-200 h-full flex items-center justify-center">
+            <div data-tour="observation-start" class="p-6 bg-white rounded-xl shadow-sm border border-slate-200 h-full flex items-center justify-center">
                 <div class="text-center py-12">
                     <div class="text-6xl mb-4">🦻</div>
                     <h2 class="text-2xl font-bold text-slate-800 mb-2">${this.t('observation.new_btn')}</h2>
