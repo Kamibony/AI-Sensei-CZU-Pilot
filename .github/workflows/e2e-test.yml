@@ -43,15 +43,17 @@ jobs:
       - name: Build Functions
         run: npm run build --prefix functions
 
-      - name: Execute Test
-        run: firebase emulators:exec --project=demo-test "python deep_diagnostic_editors.py"
+      - name: Execute Production Verification
+        run: python verification_scripts/verify_production_master.py
         env:
           CI: true
-          SCREENSHOT_DIR: screenshots
+          TARGET_ENV: PRODUCTION
 
       - name: Upload Artifacts
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: screenshots
-          path: screenshots/*.png
+          path: |
+            *.png
+            screenshots/*.png
