@@ -280,7 +280,25 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest, systemI
                 ],
                 edges: [
                     { source: "n1", target: "n2", type: "prerequisite" }
-                ]
+                ],
+                // Mock for Project Scaffolding
+                roles: [
+                    { id: "r1", title: "Project Manager", description: "Leads the team.", skills: ["Leadership", "Planning"] },
+                    { id: "r2", title: "Researcher", description: "Gathers info.", skills: ["Research", "Analysis"] }
+                ],
+                milestones: [
+                    { id: "m1", title: "Kickoff", description: "Start the project." },
+                    { id: "m2", title: "Final Delivery", description: "Submit the project." }
+                ],
+                role_tasks: {
+                    "m1": { "r1": ["Plan timeline"], "r2": ["Find sources"] },
+                    "m2": { "r1": ["Present"], "r2": ["Cite sources"] }
+                },
+                // Mock for Crisis
+                title: "Mock Crisis",
+                description: "This is a simulated crisis event.",
+                consequence: "Project timeline delay.",
+                recovery_task: "Conduct a root cause analysis."
             });
         }
         return "This is a mock response from the emulator for a text prompt.";

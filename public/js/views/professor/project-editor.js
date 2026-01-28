@@ -58,6 +58,7 @@ export class ProjectEditor extends LitElement {
                 complexity: this._complexity
             });
 
+            console.log("Project Editor received:", result.data);
             this._projectData = result.data;
             showToast("Project scaffolding generated!");
         } catch (error) {

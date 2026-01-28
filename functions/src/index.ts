@@ -1843,7 +1843,7 @@ exports.submitTestResults = onCall({ region: DEPLOY_REGION }, async (request: Ca
     }
 });
 
-exports.joinClass = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
+exports.joinClass = onCall({ region: DEPLOY_REGION, cors: true }, async (request: CallableRequest) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Musíte být přihlášen, abyste se mohl(a) zapsat do třídy.");
     }
@@ -1884,12 +1884,11 @@ exports.joinClass = onCall({ region: DEPLOY_REGION }, async (request: CallableRe
 
         await batch.commit();
 
-
         logger.log(`Student ${studentId} successfully joined group ${groupDoc.id} (${groupData.name}).`);
 
         return { success: true, groupName: groupData.name };
 
-    } catch (error) {
+    } catch (error: any) {
         logger.error(`Error in joinClass for student ${studentId} with code "${joinCode}":`, error);
         if (error instanceof HttpsError) {
             throw error;
@@ -1898,7 +1897,7 @@ exports.joinClass = onCall({ region: DEPLOY_REGION }, async (request: CallableRe
     }
 });
 
-exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, async (request: CallableRequest) => {
+exports.registerUserWithRole = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     logger.log("registerUserWithRole called", { data: request.data });
     const { email, password, role, displayName } = request.data;
 

@@ -1,0 +1,137 @@
+Traceback (most recent call last):
+  File "/app/verify_production_master.py", line 521, in run
+    student_page = await act_3_student_join(context_student, join_code)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/verify_production_master.py", line 333, in act_3_student_join
+    await project_card.wait_for(timeout=10000)
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/site-packages/playwright/async_api/_generated.py", line 17999, in wait_for
+    await self._impl_obj.wait_for(timeout=timeout, state=state)
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/site-packages/playwright/_impl/_locator.py", line 710, in wait_for
+    await self._frame.wait_for_selector(
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/site-packages/playwright/_impl/_frame.py", line 369, in wait_for_selector
+    await self._channel.send(
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Locator.wait_for: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator("h3:has-text('Mars Colonization')").first to be visible
+
+[PROF] Registering Professor... prof_master_1769640190.4812949@test.cz
+[PROF CONSOLE] TranslationService: Switched to 'cs'
+[PROF CONSOLE] Could not load auto-config. Using hardcoded local config for ai-sensei-czu-pilot. SyntaxError: Failed to execute 'json' on 'Response': Unexpected end of JSON input
+    at initializeFirebase (http://localhost:5000/js/firebase-init.js:22:39)
+    at async main (http://localhost:5000/js/app.js:27:9)
+[PROF CONSOLE] Firebase initialized from hardcoded local config.
+[PROF CONSOLE] Analytics skipped on localhost to avoid invalid API key errors.
+[PROF CONSOLE] Connecting to Firebase emulators.
+[PROF CONSOLE] WARNING: You are using the Auth Emulator, which is intended for local testing only.  Do not use with production credentials.
+[PROF CONSOLE] Firebase fully initialized.
+[PROF CONSOLE] Mixin: Language update received -> cs
+[PROF CONSOLE] DIAGNOSTIKA: Overujem token pre používateľa: IYGbn9jTVUZ96P9udKTnuFgkt9d5
+[PROF CONSOLE] === DEKÓDOVANÝ ID TOKEN (CLAIMS) ===
+[PROF CONSOLE] {
+  "name": "Professor Master",
+  "role": "professor",
+  "email": "prof_master_1769640190.4812949@test.cz",
+  "email_verified": false,
+  "auth_time": 1769640194,
+  "user_id": "IYGbn9jTVUZ96P9udKTnuFgkt9d5",
+  "firebase": {
+    "identities": {
+      "email": [
+        "prof_master_1769640190.4812949@test.cz"
+      ]
+    },
+    "sign_in_provider": "password"
+  },
+  "iat": 1769640194,
+  "exp": 1769643794,
+  "aud": "ai-sensei-czu-pilot",
+  "iss": "https://securetoken.google.com/ai-sensei-czu-pilot",
+  "sub": "IYGbn9jTVUZ96P9udKTnuFgkt9d5"
+}
+[PROF CONSOLE] ===================================
+[PROF CONSOLE] DIAGNOSTIKA: ✅ Rola "professor" NÁJDENÁ v tokene.
+[PROF CONSOLE] Professor app initialized for user: IYGbn9jTVUZ96P9udKTnuFgkt9d5
+[PROF CONSOLE] Mixin: Language update received -> cs
+[PROF CONSOLE] Mixin: Language update received -> cs
+[PROF CONSOLE] Mixin: Language update received -> cs
+[PROF CONSOLE] [Toast success]: Registrace proběhla úspěšně!
+[PROF] Dashboard Loaded.
+[ACT 0] Setting up Class...
+[PROF CONSOLE] Autofocus processing was blocked because a document already has a focused element.
+[ACT 0] Waiting for redirect to Class Detail...
+[PROF CONSOLE] [Toast info]: Třída úspěšně vytvořena.
+[PROF CONSOLE] Mixin: Language update received -> cs
+[ACT 0] Class Created. Code: OWMVBM
+[PROF CONSOLE] Mixin: Language update received -> cs
+[ACT 1] The Architect...
+[PROF CONSOLE] Mixin: Language update received -> cs
+  - Uploaded file. Waiting for analysis...
+[PROF CONSOLE] Warning: Indexing all PDF objects
+[PROF CONSOLE] Warning: Font "F1" is not available -- attempting to fallback to a default font.
+  - Analysis complete. Button visible.
+  - Generating Graph...
+[PROF CONSOLE] The style value of `label` is deprecated for `width`
+[PROF CONSOLE] The style value of `label` is deprecated for `height`
+[ACT 1] Success: Cytoscape Graph rendered.
+[ACT 2] Project Setup...
+[WARN] Standard click failed: Locator.click: Timeout 5000ms exceeded.
+Call log:
+  - waiting for locator("button:has-text('Nový Projekt')").first
+. Retrying with force...
+[WARN] 'Nový Projekt' text not found. Trying rocket icon/class selector.
+  - Generating Scaffolding (AI)...
+  - Waiting for Roles...
+[PROF CONSOLE] Project Editor received: {mock: This is a mock JSON response from the emulator., script: Array(2), panels: Array(2), questions: Array(1), mermaid: graph TD; A-->B;}
+[PROF CONSOLE] [Toast info]: Project scaffolding generated!
+  - Roles generated.
+  - Saving Project...
+  - Waiting for save confirmation (Inject Crisis button)...
+[PROF CONSOLE] [Toast info]: New project created.
+[ACT 2] Project Saved.
+  - Assigning Project to Class 'Mars Mission Control'...
+[PROF CONSOLE] Mixin: Language update received -> cs
+  - Selecting 'Mars Colonization' from modal...
+  - Project Assigned.
+  - Publishing Project...
+[PROF CONSOLE] [Toast info]: Lekce byla úspěšně přiřazena.
+  - Project Published.
+[ACT 3] Student Joining Class OWMVBM...
+[PROF CONSOLE] [Toast info]: class.lesson_published
+[STUDENT CONSOLE] TranslationService: Switched to 'cs'
+[STUDENT CONSOLE] Could not load auto-config. Using hardcoded local config for ai-sensei-czu-pilot. SyntaxError: Failed to execute 'json' on 'Response': Unexpected end of JSON input
+    at initializeFirebase (http://localhost:5000/js/firebase-init.js:22:39)
+    at async main (http://localhost:5000/js/app.js:27:9)
+[STUDENT CONSOLE] Firebase initialized from hardcoded local config.
+[STUDENT CONSOLE] Analytics skipped on localhost to avoid invalid API key errors.
+[STUDENT CONSOLE] Connecting to Firebase emulators.
+[STUDENT CONSOLE] WARNING: You are using the Auth Emulator, which is intended for local testing only.  Do not use with production credentials.
+[STUDENT CONSOLE] Firebase fully initialized.
+[STUDENT CONSOLE] Mixin: Language update received -> cs
+  - Waiting for student dashboard...
+[STUDENT CONSOLE] Mixin: Language update received -> cs
+  - Opening Join Class Modal...
+[STUDENT CONSOLE] [Toast success]: Registrace proběhla úspěšně!
+  - Entering Code: OWMVBM
+  - Waiting for 'Active Lesson' card to appear...
+[STUDENT CONSOLE] Error joining class: FirebaseError: internal
+[STUDENT CONSOLE] TranslationService: Switched to 'cs'
+[STUDENT CONSOLE] Could not load auto-config. Using hardcoded local config for ai-sensei-czu-pilot. SyntaxError: Failed to execute 'json' on 'Response': Unexpected end of JSON input
+    at initializeFirebase (http://localhost:5000/js/firebase-init.js:22:39)
+    at async main (http://localhost:5000/js/app.js:27:9)
+[STUDENT CONSOLE] Firebase initialized from hardcoded local config.
+[STUDENT CONSOLE] Analytics skipped on localhost to avoid invalid API key errors.
+[STUDENT CONSOLE] Connecting to Firebase emulators.
+[STUDENT CONSOLE] WARNING: You are using the Auth Emulator, which is intended for local testing only.  Do not use with production credentials.
+[STUDENT CONSOLE] Firebase fully initialized.
+[STUDENT CONSOLE] Mixin: Language update received -> cs
+  - Looking for project 'Mars Colonization'...
+  - Not found on Dashboard. Switching to 'Moje lekce'...
+
+[ERROR] Test Failed: Locator.wait_for: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator("h3:has-text('Mars Colonization')").first to be visible
