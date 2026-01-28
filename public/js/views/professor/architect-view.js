@@ -46,7 +46,6 @@ export class ArchitectView extends Localized(BaseView) {
 
         try {
             const text = await this._extractTextFromPdf(file);
-            console.log('Extracted text length:', text.length);
 
             // Call Backend
             const generateEmbeddings = httpsCallable(firebaseInit.functions, 'generateEmbeddings');

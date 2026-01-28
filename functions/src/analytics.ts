@@ -59,7 +59,7 @@ export const generateClassReport = onCall({
 
             quizzesSnap.forEach(doc => {
                 const data = doc.data();
-                const score = typeof data.score === 'number' ? data.score : 0; // 0-1
+                const score = typeof data.score === "number" ? data.score : 0; // 0-1
                 totalQuizScore += score;
                 quizCount++;
 
@@ -79,7 +79,7 @@ export const generateClassReport = onCall({
 
             testsSnap.forEach(doc => {
                 const data = doc.data();
-                const score = typeof data.score === 'number' ? data.score : 0;
+                const score = typeof data.score === "number" ? data.score : 0;
                 totalTestScore += score;
                 testCount++;
             });

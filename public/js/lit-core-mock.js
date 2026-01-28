@@ -1,12 +1,33 @@
 export class LitElement extends HTMLElement {
     constructor() {
         super();
+        const props = this.constructor.properties;
+        if (props) {
+            Object.keys(props).forEach(key => {
+                let internalVal;
+                Object.defineProperty(this, key, {
+                    get() { return internalVal; },
+                    set(val) {
+                        internalVal = val;
+                        this.requestUpdate();
+                    },
+                    configurable: true
+                });
+            });
+        }
     }
     connectedCallback() {
         this.performUpdate();
     }
     requestUpdate() {
-        this.performUpdate();
+        // Debounce update slightly to avoid thrashing
+        if (!this._updatePending) {
+            this._updatePending = true;
+            setTimeout(() => {
+                this.performUpdate();
+                this._updatePending = false;
+            }, 0);
+        }
     }
     performUpdate() {
         if (this.render) {
@@ -25,6 +46,7 @@ export class LitElement extends HTMLElement {
         return this.attachShadow({mode:'open'});
     }
     updated() {}
+    willUpdate() {}
     disconnectedCallback() {}
     firstUpdated() {}
 }
