@@ -3,8 +3,6 @@ import { getFirestore, FieldPath } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import * as logger from "firebase-functions/logger";
 
-const db = getFirestore();
-
 // Duplicate bucket logic to ensure consistency
 const PROJECT_ID = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
 const FIREBASE_CONFIG = process.env.FIREBASE_CONFIG ? JSON.parse(process.env.FIREBASE_CONFIG) : {};
@@ -24,6 +22,8 @@ export const exportAnonymizedData = onCall({
     if (!classId || !format) {
         throw new HttpsError("invalid-argument", "Missing classId or format (json/csv).");
     }
+
+    const db = getFirestore();
 
     try {
         logger.log(`Exporting data for class ${classId} in ${format} format...`);

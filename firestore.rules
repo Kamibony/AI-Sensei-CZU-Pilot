@@ -15,10 +15,6 @@ service cloud.firestore {
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor')
       );
     }
-    // Pre istotu, ak by sa 'role' volalo inak v tokenoch
-    function isProfessorRole() {
-       return isSignedIn() && request.auth.token.get('role', '') == 'professor';
-    }
     
     function isStudentRole() {
       return isSignedIn() && request.auth.token.role == 'student';

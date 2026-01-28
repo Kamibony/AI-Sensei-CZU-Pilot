@@ -2,8 +2,6 @@ import { onCall, CallableRequest, HttpsError } from "firebase-functions/v2/https
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 
-const db = getFirestore();
-
 export const generateClassReport = onCall({
     region: "europe-west1",
     timeoutSeconds: 300,
@@ -18,6 +16,8 @@ export const generateClassReport = onCall({
     if (!classId) {
         throw new HttpsError("invalid-argument", "Missing classId.");
     }
+
+    const db = getFirestore();
 
     try {
         logger.log(`Generating class report for ${classId}...`);
