@@ -134,7 +134,7 @@ exports.startMagicGeneration = onCall({
         // --- 0. DYNAMIC CONFIGURATION FETCH ---
         log("[Magic] Fetching AI system configuration...");
         const configSnap = await db.collection("system_settings").doc("ai_config").get();
-        const config = configSnap.exists ? configSnap.data() : {};
+        const config = configSnap.data() || {};
 
         const systemPrompt = config.system_prompt || undefined;
         const magicSlidesCount = parseInt(config.magic_presentation_slides) || 8;
@@ -624,7 +624,7 @@ exports.generatePodcastAudio = onCall({
                     name: voiceName
                 },
                 audioConfig: {
-                    audioEncoding: "MP3",
+                    audioEncoding: "MP3" as const,
                     speakingRate: 1.0,
                     pitch: 0.0
                 },
@@ -772,7 +772,7 @@ exports.generateContent = onCall({
     try {
         // Načítanie konfigurácie pre magický režim
         const configSnap = await db.collection("system_settings").doc("ai_config").get();
-        const config = configSnap.exists ? configSnap.data() : {};
+        const config = configSnap.data() || {};
         const systemPrompt = config.system_prompt || undefined;
 
         let finalPrompt = promptData.userPrompt;
@@ -1123,7 +1123,8 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
             throw new HttpsError("not-found", `File metadata not found for id: ${fileId}`);
         }
 
-        const { storagePath, ownerId } = fileMetadataDoc.data();
+        const data = fileMetadataDoc.data() || {};
+        const { storagePath, ownerId } = data;
 
         // Security check
         if (ownerId !== request.auth.uid) {
@@ -2530,7 +2531,7 @@ exports.evaluatePracticalSubmission = onDocumentWritten({
     document: "practical_submissions/{submissionId}",
     memory: "2GiB",
     timeoutSeconds: 300
-}, async (event: FirestoreEvent<Change<QueryDocumentSnapshot> | undefined>) => {
+}, async (event: any) => {
     // 1. Idempotency Guard & Data Retrieval
     if (!event.data) {
         logger.error("No data associated with the event");
@@ -2697,7 +2698,7 @@ exports.analyzeSyllabus = onCall({
             throw new HttpsError("not-found", "Document not found.");
         }
 
-        const data = doc.data();
+        const data = doc.data() || {};
         if (data.ownerId !== request.auth.uid) {
              throw new HttpsError("permission-denied", "You do not own this document.");
         }
@@ -2755,7 +2756,7 @@ exports.mapInsightsToGraph = onCall({
             throw new HttpsError("not-found", "Document not found.");
         }
 
-        const data = doc.data();
+        const data = doc.data() || {};
         if (data.ownerId !== request.auth.uid) {
              throw new HttpsError("permission-denied", "You do not own this document.");
         }
@@ -2863,7 +2864,7 @@ exports.triggerCrisis = onCall({
             throw new HttpsError("not-found", "Lesson not found.");
         }
 
-        const lessonData = lessonDoc.data();
+        const lessonData = lessonDoc.data() || {};
         const topic = lessonData.topic || lessonData.title || "Project";
 
         // Determine phase
@@ -2912,7 +2913,7 @@ exports.resolveCrisis = onCall({
         // 1. Fetch current crisis data to calculate stats
         const lessonDoc = await lessonRef.get();
         if (lessonDoc.exists) {
-            const data = lessonDoc.data();
+            const data = lessonDoc.data() || {};
             const activeCrisis = data.activeCrisis;
 
             if (activeCrisis && activeCrisis.timestamp) {
