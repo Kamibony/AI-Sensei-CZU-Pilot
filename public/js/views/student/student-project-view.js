@@ -1,11 +1,12 @@
 import { LitElement, html, css, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { Localized } from '../../utils/localization-mixin.js';
 import { doc, onSnapshot, setDoc, updateDoc, arrayUnion, arrayRemove, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { db, auth, functions } from '../../firebase-init.js';
 import confetti from 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/+esm';
 import { showToast } from '../../utils/utils.js';
 
-export class StudentProjectView extends LitElement {
+export class StudentProjectView extends Localized(LitElement) {
     static properties = {
         lesson: { type: Object },
         _progress: { state: true },
@@ -185,8 +186,8 @@ export class StudentProjectView extends LitElement {
                         <div class="flex items-center gap-3">
                             <span class="text-4xl">🚨</span>
                             <div>
-                                <h2 class="text-3xl font-black uppercase tracking-wider">System Alert</h2>
-                                <p class="text-red-100 font-bold opacity-80">CRITICAL SITUATION DETECTED</p>
+                                <h2 class="text-3xl font-black uppercase tracking-wider">${this.t('crisis.alert_title')}</h2>
+                                <p class="text-red-100 font-bold opacity-80">${this.t('crisis.critical_detected')}</p>
                             </div>
                         </div>
                     </div>
@@ -199,12 +200,12 @@ export class StudentProjectView extends LitElement {
                         </div>
 
                         <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl">
-                            <h4 class="font-bold text-red-700 uppercase text-sm mb-1">Potential Consequence</h4>
+                            <h4 class="font-bold text-red-700 uppercase text-sm mb-1">${this.t('crisis.potential_consequence')}</h4>
                             <p class="text-red-600 font-medium">${consequence}</p>
                         </div>
 
                         <div class="bg-slate-100 p-6 rounded-2xl border-2 border-slate-200">
-                            <h4 class="font-bold text-slate-500 uppercase text-xs mb-3">Recovery Protocol</h4>
+                            <h4 class="font-bold text-slate-500 uppercase text-xs mb-3">${this.t('crisis.recovery_protocol')}</h4>
                             <div class="flex items-start gap-3">
                                 <span class="text-2xl">🛠️</span>
                                 <p class="text-slate-800 font-bold text-lg">${recovery_task}</p>
@@ -214,7 +215,7 @@ export class StudentProjectView extends LitElement {
                         <button @click="${this._handleResolveCrisis}" ?disabled="${this._isResolvingCrisis}"
                             class="w-full py-4 bg-gradient-to-r from-red-600 to-orange-600 text-white font-black text-xl rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all flex justify-center items-center gap-2">
                              ${this._isResolvingCrisis ? html`<div class="spinner w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div>` : '✅'}
-                            EXECUTE RECOVERY & RESOLVE
+                            ${this.t('crisis.execute_recovery')}
                         </button>
                     </div>
                 </div>
@@ -226,8 +227,8 @@ export class StudentProjectView extends LitElement {
         return html`
             <div class="max-w-5xl mx-auto py-10 px-4">
                 <div class="text-center mb-10">
-                    <h1 class="text-3xl font-extrabold text-slate-800 mb-2">Choose Your Role</h1>
-                    <p class="text-slate-500">Select a role to contribute to the project team.</p>
+                    <h1 class="text-3xl font-extrabold text-slate-800 mb-2">${this.t('roles.selection_title')}</h1>
+                    <p class="text-slate-500">${this.t('roles.selection_desc')}</p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -249,7 +250,7 @@ export class StudentProjectView extends LitElement {
                             </div>
 
                             <button class="w-full py-2 bg-slate-50 text-slate-700 font-bold rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                Select Role
+                                ${this.t('roles.select_btn')}
                             </button>
                         </div>
                     `)}

@@ -316,16 +316,16 @@ export class ProfessorAnalyticsView extends Localized(LitElement) {
                             <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 border-b border-slate-700 pb-8">
                                 <div>
                                     <h2 class="text-2xl font-bold flex items-center gap-3">
-                                        <span class="text-3xl">🔬</span> Research Engine & Black Box
+                                        <span class="text-3xl">🔬</span> ${this.t('research.engine_title')}
                                     </h2>
-                                    <p class="text-slate-400 mt-2">Hloubková analýza a export anonymizovaných dat pro výzkum.</p>
+                                    <p class="text-slate-400 mt-2">${this.t('research.engine_desc')}</p>
                                 </div>
                                 <div class="flex items-center gap-3 bg-slate-800 p-2 rounded-xl">
-                                    <span class="text-sm font-bold text-slate-400 px-2">Třída:</span>
+                                    <span class="text-sm font-bold text-slate-400 px-2">${this.t('research.select_class_label')}</span>
                                     <select
                                         class="bg-slate-700 text-white border-none rounded-lg py-2 px-4 focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
                                         @change="${(e) => this._selectClass(e.target.value)}">
-                                        <option value="" disabled ?selected="${!this._selectedClassId}">Vyberte třídu...</option>
+                                        <option value="" disabled ?selected="${!this._selectedClassId}">${this.t('research.select_class_placeholder')}</option>
                                         ${this._classes.map(c => html`
                                             <option value="${c.id}" ?selected="${this._selectedClassId === c.id}">${c.name}</option>
                                         `)}
@@ -338,25 +338,25 @@ export class ProfessorAnalyticsView extends Localized(LitElement) {
                                     <!-- Controls -->
                                     <div class="space-y-4">
                                         <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
-                                            <h3 class="font-bold text-lg mb-4">Akce</h3>
+                                            <h3 class="font-bold text-lg mb-4">${this.t('research.actions')}</h3>
                                             <button @click="${this._handleGenerateReport}" ?disabled="${this._generatingReport}"
                                                 class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold transition-all mb-3 flex justify-center items-center gap-2">
                                                 ${this._generatingReport ? html`<div class="spinner w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>` : '📊'}
-                                                Generovat Report
+                                                ${this.t('research.generate_report')}
                                             </button>
                                             <div class="grid grid-cols-2 gap-3">
                                                 <button @click="${() => this._handleExport('json')}" ?disabled="${this._exporting}"
                                                     class="py-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold transition-all flex justify-center items-center gap-2">
-                                                    JSON Export
+                                                    ${this.t('research.export_json')}
                                                 </button>
                                                 <button @click="${() => this._handleExport('csv')}" ?disabled="${this._exporting}"
                                                     class="py-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold transition-all flex justify-center items-center gap-2">
-                                                    CSV Export
+                                                    ${this.t('research.export_csv')}
                                                 </button>
                                             </div>
                                             ${this._classReport ? html`
                                                 <div class="mt-4 text-xs text-slate-500 text-center">
-                                                    Naposledy generováno: ${this._classReport.generatedAt?.toDate ? this._classReport.generatedAt.toDate().toLocaleString() : 'N/A'}
+                                                    ${this.t('research.last_generated')} ${this._classReport.generatedAt?.toDate ? this._classReport.generatedAt.toDate().toLocaleString() : 'N/A'}
                                                 </div>
                                             ` : nothing}
                                         </div>
@@ -364,10 +364,10 @@ export class ProfessorAnalyticsView extends Localized(LitElement) {
                                         <!-- Simple Metrics -->
                                         ${this._classReport ? html`
                                             <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
-                                                <h3 class="font-bold text-slate-400 text-xs uppercase mb-4">Class Resilience</h3>
+                                                <h3 class="font-bold text-slate-400 text-xs uppercase mb-4">${this.t('research.class_resilience')}</h3>
                                                 <div class="flex items-end gap-2">
                                                     <span class="text-4xl font-black text-white">${this._classReport.metrics.behavioral.avgCrisisResolutionSeconds}s</span>
-                                                    <span class="text-sm text-slate-400 mb-1">avg. response time</span>
+                                                    <span class="text-sm text-slate-400 mb-1">${this.t('research.avg_response')}</span>
                                                 </div>
                                                 <div class="w-full bg-slate-700 h-2 rounded-full mt-2 overflow-hidden">
                                                     <div class="bg-green-500 h-full" style="width: ${Math.min(100, (60 / Math.max(1, this._classReport.metrics.behavioral.avgCrisisResolutionSeconds)) * 100)}%"></div>
@@ -388,7 +388,7 @@ export class ProfessorAnalyticsView extends Localized(LitElement) {
                             ` : html`
                                 <div class="text-center py-12 text-slate-500">
                                     <div class="text-4xl mb-4 opacity-50">👈</div>
-                                    <p>Vyberte třídu pro zobrazení výzkumných dat a export.</p>
+                                    <p>${this.t('research.select_class_prompt')}</p>
                                 </div>
                             `}
                         </div>

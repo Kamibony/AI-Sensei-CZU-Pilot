@@ -1131,5 +1131,32 @@
       "title": "Celkové zhodnocení praxe",
       "placeholder": "Popište celkový průběh vaší praxe, co vám dala, co byste udělali jinak..."
     }
+  },
+  "crisis": {
+    "alert_title": "Systémové upozornění",
+    "critical_detected": "DETEKOVÁNA KRITICKÁ SITUACE",
+    "potential_consequence": "Potenciální následek",
+    "recovery_protocol": "Protokol obnovy",
+    "execute_recovery": "PROVÉST OBNOVU A VYŘEŠIT"
+  },
+  "research": {
+    "engine_title": "Research Engine & Black Box",
+    "engine_desc": "Hloubková analýza a export anonymizovaných dat pro výzkum.",
+    "select_class_label": "Třída:",
+    "select_class_placeholder": "Vyberte třídu...",
+    "actions": "Akce",
+    "generate_report": "Generovat Report",
+    "export_json": "Export JSON",
+    "export_csv": "Export CSV",
+    "last_generated": "Naposledy generováno:",
+    "class_resilience": "Odolnost Třídy",
+    "avg_response": "prům. čas reakce",
+    "select_class_prompt": "Vyberte třídu pro zobrazení výzkumných dat a export."
+  },
+  "roles": {
+    "selection_title": "Vyberte si svou roli",
+    "selection_desc": "Vyberte roli, kterou přispějete do projektového týmu.",
+    "select_btn": "Vybrat roli",
+    "leader": "Vedoucí"
   }
 }

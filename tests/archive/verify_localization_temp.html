@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script type="importmap">
+    {
+        "imports": {
+            "/js/firebase-init.js": "./js/firebase-init-mock.js",
+            "/js/utils/utils.js": "./js/utils/utils.js",
+            "/js/utils/localization-mixin.js": "./js/utils/localization-mixin.js",
+            "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js": "./js/lit-core-mock.js",
+            "https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/+esm": "./js/mock-confetti.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js": "./js/firebase-mock-snapshot.js",
+            "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js": "./js/firebase-mock-snapshot.js"
+        }
+    }
+    </script>
+    <script type="module">
+        import { StudentProjectView } from './js/views/student/student-project-view.js';
+        import { translationService } from './js/utils/translation-service.js';
+
+        const mockLesson = {
+            id: 'lesson1',
+            title: 'Project Alpha',
+            projectData: {
+                roles: [{ id: 'r1', title: 'Leader', description: 'Leads the team' }]
+            }
+        };
+
+        async function init() {
+            await translationService.init();
+            const el = new StudentProjectView();
+            el.lesson = mockLesson;
+            document.body.appendChild(el);
+        }
+        init();
+    </script>
+</head>
+<body>
+</body>
+</html>

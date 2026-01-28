@@ -54,8 +54,13 @@ service cloud.firestore {
       allow read: if (resource.data.ownerId == request.auth.uid) || isProfessor() || 
                      (isStudentRole() && resource.data.assignedToGroups.hasAny(get(/databases/$(database)/documents/students/$(request.auth.uid)).data.memberOfGroups));
       
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow create: if isProfessor() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if (resource.data.ownerId == request.auth.uid) || isProfessor();
+    }
+
+    // Kurzy (nové pravidlo pre storage paths mapped to firestore if needed, or generally locked down)
+    match /courses/{courseId} {
+      allow read: if isSignedIn();
     }
 
     // --- KĽÚČOVÁ OPRAVA: SKUPINY (TRIEDY) ---

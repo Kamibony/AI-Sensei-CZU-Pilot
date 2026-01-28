@@ -1,18 +1,17 @@
 import type { CallableRequest, Request } from "firebase-functions/v2/https";
 import type { Change, FirestoreEvent, QueryDocumentSnapshot } from "firebase-functions/v2/firestore";
 
-const { initializeApp } = require("firebase-admin/app");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
-const { getAuth } = require("firebase-admin/auth");
-const { getStorage } = require("firebase-admin/storage");
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onRequest } = require("firebase-functions/v2/https");
-const { onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
-const functions = require("firebase-functions/v1"); // Import v1 for triggers
-const logger = require("firebase-functions/logger");
-const cors = require("cors");
-const fetch = require("node-fetch");
-const textToSpeech = require("@google-cloud/text-to-speech"); // Import pre TTS
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
+import { getStorage } from "firebase-admin/storage";
+import { onCall, HttpsError, onRequest } from "firebase-functions/v2/https";
+import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
+import * as functions from "firebase-functions/v1"; // Import v1 for triggers
+import * as logger from "firebase-functions/logger";
+import cors from "cors";
+import fetch from "node-fetch";
+import * as textToSpeech from "@google-cloud/text-to-speech"; // Import pre TTS
 
 // Import local API using TypeScript syntax
 import * as GeminiAPI from "./gemini-api";

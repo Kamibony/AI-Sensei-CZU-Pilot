@@ -43,7 +43,7 @@ export const exportAnonymizedData = onCall({
         // 3. Create Anonymization Map
         const anonMap: { [uid: string]: string } = {};
         studentIds.forEach((uid, index) => {
-            anonMap[uid] = `Participant_${String(index + 1).padStart(3, '0')}`;
+            anonMap[uid] = `Participant_${String(index + 1).padStart(3, "0")}`;
         });
 
         // 4. Fetch All Data (Chunked)
@@ -148,14 +148,14 @@ export const exportAnonymizedData = onCall({
         let contentType = "application/json";
         let extension = "json";
 
-        if (format === 'csv') {
+        if (format === "csv") {
             contentType = "text/csv";
             extension = "csv";
             // Header
             fileContent += "participant_id,group_variant,type,timestamp,lesson_id,topic,score,duration_ms\n";
             // Rows
             rawData.forEach(row => {
-                fileContent += `${row.participant_id},${row.group_variant},${row.type},${row.timestamp},${row.lesson_id},"${row.topic}",${row.score !== undefined ? row.score : ''},${row.duration_ms !== undefined ? row.duration_ms : ''}\n`;
+                fileContent += `${row.participant_id},${row.group_variant},${row.type},${row.timestamp},${row.lesson_id},"${row.topic}",${row.score !== undefined ? row.score : ""},${row.duration_ms !== undefined ? row.duration_ms : ""}\n`;
             });
         } else {
             fileContent = JSON.stringify(rawData, null, 2);
@@ -172,7 +172,7 @@ export const exportAnonymizedData = onCall({
 
         // 7. Get Signed URL
         const [url] = await file.getSignedUrl({
-            action: 'read',
+            action: "read",
             expires: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
         });
 
