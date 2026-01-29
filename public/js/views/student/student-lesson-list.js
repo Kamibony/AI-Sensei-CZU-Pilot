@@ -86,11 +86,15 @@ export class StudentLessonList extends LitElement {
             );
 
             this.lessonsUnsubscribe = onSnapshot(lessonsQuery, (querySnapshot) => {
-                this.lessons = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    createdAt: doc.data().createdAt?.toDate ? doc.data().createdAt.toDate().toISOString() : new Date().toISOString()
-                }));
+                this.lessons = querySnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        ...data,
+                        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+                        availableAt: data.availableAt?.toDate ? data.availableAt.toDate().toISOString() : (data.availableAt || null)
+                    };
+                });
                 this.isLoading = false;
             }, (error) => {
                 console.error("Error fetching lessons:", error);
@@ -137,6 +141,20 @@ export class StudentLessonList extends LitElement {
         return createdDate > sevenDaysAgo;
     }
 
+    _getLessonStatus(lesson) {
+        if (!lesson.availableAt) return 'past';
+
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        const availableDate = new Date(lesson.availableAt);
+        const lessonDate = new Date(availableDate.getFullYear(), availableDate.getMonth(), availableDate.getDate());
+
+        if (lessonDate > today) return 'future';
+        if (lessonDate.getTime() === today.getTime()) return 'present';
+        return 'past';
+    }
+
     render() {
         const t = (key) => translationService.t(key);
 
@@ -181,67 +199,120 @@ export class StudentLessonList extends LitElement {
 
                         <!-- Adaptive Grid: Columns on Desktop, Stack on Mobile (handled by card flex-row) -->
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                            ${groupedLessons[subject].map(lesson => html`
-                                <div @click=${() => this._handleLessonClick(lesson.id)}
-                                     class="group bg-white rounded-2xl md:rounded-3xl shadow-sm hover:shadow-xl hover:shadow-indigo-100/50 cursor-pointer transition-all duration-200 transform active:scale-95 flex flex-row md:flex-col h-auto md:h-full border border-slate-100 relative overflow-hidden">
-
-                                    ${this._isNew(lesson.createdAt) ? html`
-                                        <div class="absolute top-2 right-2 md:top-4 md:right-4 z-10">
-                                            <span class="px-1.5 py-0.5 md:px-2 md:py-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-wider rounded-md md:rounded-lg shadow-sm">
-                                                Novinka
-                                            </span>
-                                        </div>
-                                    ` : ''}
-
-                                    <!-- Thumbnail: Fixed Width on Mobile (Left), Full Width on Desktop (Top) -->
-                                    <div class="w-24 sm:w-32 md:w-full h-auto min-h-[6rem] md:h-40 bg-slate-50 relative flex-shrink-0 flex items-center justify-center border-r md:border-r-0 md:border-b border-slate-100">
-                                        <!-- Placeholder Pattern -->
-                                        <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:16px_16px]"></div>
-
-                                        <div class="text-4xl md:text-6xl transform group-hover:scale-110 transition-transform duration-300">
-                                            ${this._getIconForTopic(lesson.topic)}
-                                        </div>
-
-                                        <!-- Gradient overlay only on Desktop -->
-                                        <div class="hidden md:block absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-white to-transparent"></div>
-                                    </div>
-
-                                    <!-- Content -->
-                                    <div class="p-3 md:p-6 flex flex-col flex-grow justify-between min-w-0">
-
-                                        <div>
-                                            <div class="flex justify-between items-start mb-1 md:mb-2">
-                                                <span class="text-xs md:text-xs font-bold text-indigo-600 uppercase tracking-wider truncate pr-2">
-                                                    ${lesson.topic || 'Obecné'}
-                                                </span>
-                                                ${lesson.status !== 'published' ? html`<span class="flex-shrink-0 text-[9px] md:text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">Draft</span>` : ''}
-                                            </div>
-
-                                            <h3 class="text-sm md:text-lg font-bold text-slate-900 mb-1 md:mb-2 line-clamp-2 group-hover:text-indigo-600 transition-colors leading-tight">
-                                                ${lesson.title}
-                                            </h3>
-
-                                            ${lesson.subtitle ? html`
-                                                <p class="text-xs md:text-sm text-slate-500 line-clamp-1 md:line-clamp-2 mb-2 md:mb-4 leading-relaxed hidden sm:block">${lesson.subtitle}</p>
-                                            ` : ''}
-                                        </div>
-
-                                        <div class="mt-auto pt-2 md:pt-4 flex items-center justify-between text-[10px] md:text-xs font-medium text-slate-400 border-t border-slate-50 md:border-slate-50">
-                                            <div class="flex items-center gap-1">
-                                                <svg class="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                                                <span>${new Date(lesson.createdAt).toLocaleDateString('cs-CZ')}</span>
-                                            </div>
-                                            <span class="group-hover:translate-x-1 transition-transform text-indigo-600 flex items-center gap-1">
-                                                <span class="hidden md:inline">Otevřít</span>
-                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            `)}
+                            ${groupedLessons[subject].map(lesson => this._renderLessonCard(lesson))}
                         </div>
                     </div>
                 `)}
+            </div>
+        `;
+    }
+
+    _renderLessonCard(lesson) {
+        const status = this._getLessonStatus(lesson);
+        const isFuture = status === 'future';
+        const isPresent = status === 'present';
+        const isPast = status === 'past'; // Logic: Date < Today OR No Date
+
+        // Dynamic Classes
+        let cardClasses = "group rounded-2xl md:rounded-3xl flex flex-row md:flex-col h-auto md:h-full relative overflow-hidden transition-all duration-200 border ";
+        let titleClasses = "text-sm md:text-lg font-bold mb-1 md:mb-2 line-clamp-2 leading-tight ";
+        let iconClasses = "text-4xl md:text-6xl transform transition-transform duration-300 ";
+
+        if (isFuture) {
+            // Future State (Teaser/Locked)
+            cardClasses += "bg-white border-dashed border-slate-300 cursor-not-allowed";
+            titleClasses += "text-gray-400";
+            iconClasses += "text-gray-300"; // Muted icon
+        } else if (isPresent) {
+            // Present State (Active/Urgent)
+            cardClasses += "bg-white border-l-4 border-l-indigo-600 border-t border-r border-b border-slate-100 shadow-lg scale-[1.01] cursor-pointer hover:shadow-xl hover:shadow-indigo-100/50 active:scale-95";
+            titleClasses += "text-slate-900 group-hover:text-indigo-600";
+            iconClasses += "group-hover:scale-110";
+        } else {
+            // Past State (Completed/History)
+            cardClasses += "bg-gray-50 border-slate-200 opacity-75 cursor-pointer hover:opacity-100 hover:shadow-md active:scale-95";
+            titleClasses += "text-gray-600 line-through decoration-gray-400";
+            iconClasses += "grayscale opacity-70 group-hover:scale-110";
+        }
+
+        return html`
+            <div @click=${() => !isFuture ? this._handleLessonClick(lesson.id) : null}
+                 class="${cardClasses}"
+                 title="${isFuture ? `Available on ${new Date(lesson.availableAt).toLocaleDateString('cs-CZ')}` : ''}">
+
+                <div class="absolute top-2 right-2 md:top-4 md:right-4 z-10 flex flex-col items-end gap-1">
+                    ${this._isNew(lesson.createdAt) && !isFuture ? html`
+                        <span class="px-1.5 py-0.5 md:px-2 md:py-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-wider rounded-md md:rounded-lg shadow-sm">
+                            Novinka
+                        </span>
+                    ` : ''}
+
+                    ${isPresent ? html`
+                        <span class="animate-pulse px-1.5 py-0.5 md:px-2 md:py-1 bg-indigo-600 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-wider rounded-md md:rounded-lg shadow-sm">
+                            TODAY
+                        </span>
+                    ` : ''}
+                </div>
+
+                <!-- Thumbnail: Fixed Width on Mobile (Left), Full Width on Desktop (Top) -->
+                <div class="w-24 sm:w-32 md:w-full h-auto min-h-[6rem] md:h-40 relative flex-shrink-0 flex items-center justify-center border-r md:border-r-0 md:border-b border-slate-100 ${isFuture ? 'bg-slate-50' : 'bg-slate-50'}">
+                    <!-- Placeholder Pattern -->
+                    <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:16px_16px]"></div>
+
+                    <div class="${iconClasses}">
+                        ${isFuture ? '🔒' : this._getIconForTopic(lesson.topic)}
+                    </div>
+
+                    ${isFuture ? html`
+                         <div class="absolute bottom-2 left-0 right-0 text-center">
+                             <span class="text-[10px] font-bold text-gray-400 bg-white/80 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                                Available on ${new Date(lesson.availableAt).toLocaleDateString('cs-CZ')}
+                             </span>
+                         </div>
+                    ` : ''}
+
+                    <!-- Gradient overlay only on Desktop -->
+                    <div class="hidden md:block absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-white to-transparent"></div>
+                </div>
+
+                <!-- Content -->
+                <div class="p-3 md:p-6 flex flex-col flex-grow justify-between min-w-0">
+
+                    <div>
+                        <div class="flex justify-between items-start mb-1 md:mb-2">
+                            <span class="text-xs md:text-xs font-bold text-indigo-600 uppercase tracking-wider truncate pr-2 ${isFuture ? 'text-gray-400' : ''}">
+                                ${lesson.topic || 'Obecné'}
+                            </span>
+                            ${lesson.status !== 'published' ? html`<span class="flex-shrink-0 text-[9px] md:text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">Draft</span>` : ''}
+                        </div>
+
+                        <h3 class="${titleClasses}">
+                            ${lesson.title}
+                        </h3>
+
+                        ${lesson.subtitle ? html`
+                            <p class="text-xs md:text-sm text-slate-500 line-clamp-1 md:line-clamp-2 mb-2 md:mb-4 leading-relaxed hidden sm:block ${isFuture ? 'text-gray-300' : ''}">${lesson.subtitle}</p>
+                        ` : ''}
+                    </div>
+
+                    <div class="mt-auto pt-2 md:pt-4 flex items-center justify-between text-[10px] md:text-xs font-medium text-slate-400 border-t border-slate-50 md:border-slate-50">
+                        <div class="flex items-center gap-1">
+                            <svg class="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            <span>${new Date(lesson.createdAt).toLocaleDateString('cs-CZ')}</span>
+                        </div>
+
+                        ${!isFuture ? html`
+                            <span class="group-hover:translate-x-1 transition-transform text-indigo-600 flex items-center gap-1 ${isPast ? 'text-gray-400' : ''}">
+                                <span class="hidden md:inline">${isPast ? 'Otevřít' : 'Otevřít'}</span>
+                                ${isPast ? html`<span class="text-lg">✓</span>` : html`<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>`}
+                            </span>
+                        ` : html`
+                             <span class="flex items-center gap-1 text-gray-300">
+                                🔒 Locked
+                            </span>
+                        `}
+                    </div>
+                </div>
             </div>
         `;
     }
