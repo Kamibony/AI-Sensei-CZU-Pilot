@@ -1456,20 +1456,28 @@ exports.sendMessageToStudent = onCall({ region: DEPLOY_REGION, secrets: ["TELEGR
     try {
         const conversationRef = db.collection("conversations").doc(studentId);
         
-        // Zjednotenie na 'sender' a 'type'
-        await conversationRef.collection("messages").add({
-            sender: "professor", // Namiesto senderId
+        const batch = db.batch();
+
+        // 1. Add Message (Atomic)
+        const messageRef = conversationRef.collection("messages").doc();
+        batch.set(messageRef, {
+            sender: "professor",
             text: text,
-            type: "professor", // Pridáme typ
-            lessonId: "general", // Pridáme všeobecné ID lekcie pre konzistenciu
+            type: "professor",
+            lessonId: "general",
             timestamp: FieldValue.serverTimestamp(),
         });
 
-        await conversationRef.update({
+        // 2. Update Metadata (Atomic)
+        // Use set with merge: true to ensure conversation doc exists
+        batch.set(conversationRef, {
             lastMessage: text,
             lastMessageTimestamp: FieldValue.serverTimestamp(),
             professorHasUnread: false,
-        });
+        }, { merge: true });
+
+        await batch.commit();
+
         const studentDoc = await db.collection("students").doc(studentId).get();
         if (studentDoc.exists && studentDoc.data()?.telegramChatId) {
             const chatId = studentDoc.data()?.telegramChatId;
@@ -1884,6 +1892,7 @@ exports.joinClass = onCall({ region: DEPLOY_REGION, cors: true }, async (request
             throw new Error("Je nutné zadat kód třídy.");
         }
 
+        // 1. Resolve Join Code to Group ID
         const groupsRef = db.collection("groups");
         const querySnapshot = await groupsRef.where("joinCode", "==", joinCode.trim()).limit(1).get();
 
@@ -1891,32 +1900,41 @@ exports.joinClass = onCall({ region: DEPLOY_REGION, cors: true }, async (request
             throw new Error("Kód třídy není platný");
         }
 
-        const groupDoc = querySnapshot.docs[0];
-        const groupData = groupDoc.data();
-        const groupId = groupDoc.id;
-
-        // SAFE ACCESS
-        const groupName = groupData?.name || "Unknown Class";
-
+        const initialGroupDoc = querySnapshot.docs[0];
+        const groupId = initialGroupDoc.id;
+        const groupRef = groupsRef.doc(groupId);
         const studentRef = db.collection("students").doc(studentId);
 
-        // Perform both writes in a single transaction/batch for atomicity
-        const batch = db.batch();
+        let groupName = "Unknown Class";
 
-        // 1. Add studentId to the group's studentIds array
-        batch.update(groupDoc.ref, {
-            studentIds: FieldValue.arrayUnion(studentId)
+        // 2. Execute Atomic Transaction (Double-Write Protocol)
+        await db.runTransaction(async (transaction) => {
+            // A. READ: Get fresh Group Data
+            const freshGroupDoc = await transaction.get(groupRef);
+            if (!freshGroupDoc.exists) {
+                throw new Error("Třída již neexistuje.");
+            }
+
+            const freshGroupData = freshGroupDoc.data() || {};
+            // Security/Consistency check: verify join code still matches
+            if (freshGroupData.joinCode !== joinCode.trim()) {
+                throw new Error("Kód třídy se změnil nebo není platný.");
+            }
+
+            groupName = freshGroupData.name || "Unknown Class";
+
+            // B. WRITE: Update Group Roster
+            transaction.update(groupRef, {
+                studentIds: FieldValue.arrayUnion(studentId)
+            });
+
+            // C. WRITE: Update Student Profile (Guaranteed to sync)
+            transaction.set(studentRef, {
+                memberOfGroups: FieldValue.arrayUnion(groupId)
+            }, { merge: true });
         });
 
-        // 2. Add groupId to the student's memberOfGroups array
-        // Using set with { merge: true } is safe and creates the field if it doesn't exist.
-        batch.set(studentRef, {
-            memberOfGroups: FieldValue.arrayUnion(groupId)
-        }, { merge: true });
-
-        await batch.commit();
-
-        logger.log(`Student ${studentId} successfully joined group ${groupDoc.id} (${groupName}).`);
+        logger.log(`Student ${studentId} successfully joined group ${groupId} (${groupName}).`);
 
         return { success: true, groupName: groupName };
 
@@ -1954,9 +1972,11 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION }, async (request:
         // 2. Set custom claim immediately
         await getAuth().setCustomUserClaims(userId, { role: role });
 
-        // 3. Create document in 'users' collection
+        // 3. ATOMIC WRITE: Create Firestore Documents
+        const batch = db.batch();
+
         const userDocRef = db.collection("users").doc(userId);
-        await userDocRef.set({
+        batch.set(userDocRef, {
             email: email,
             role: role,
             name: displayName || "", // Save name to users collection
@@ -1966,13 +1986,15 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION }, async (request:
         // 4. PRESERVE DUAL-WRITE: If role is 'student', create doc in 'students' collection
         if (role === "student") {
             const studentDocRef = db.collection("students").doc(userId);
-            await studentDocRef.set({
+            batch.set(studentDocRef, {
                 email: email,
                 role: "student", // Redundant but kept for consistency
                 createdAt: FieldValue.serverTimestamp(),
                 name: displayName || "" // Save name to students collection
             });
         }
+
+        await batch.commit();
 
         logger.log(`Successfully registered user ${userId} with role ${role}.`);
         return { success: true, userId: userId };
