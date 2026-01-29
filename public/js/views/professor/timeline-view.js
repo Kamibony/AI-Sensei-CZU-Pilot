@@ -14,7 +14,8 @@ export class TimelineView extends LitElement {
         lessons: { state: true },
         isLoading: { state: true },
         currentMonthStart: { state: true },
-        _draggedLessonId: { state: true }
+        _draggedLessonId: { state: true },
+        selectedGroupFilter: { state: true }
     };
 
     createRenderRoot() { return this; } // Light DOM enabled
@@ -25,6 +26,7 @@ export class TimelineView extends LitElement {
         this.isLoading = true;
         this.dataService = new ProfessorDataService();
         this._draggedLessonId = null;
+        this.selectedGroupFilter = 'all';
 
         // Initialize to current month's first day
         this.currentMonthStart = this._getStartOfMonth(new Date());
@@ -116,9 +118,15 @@ export class TimelineView extends LitElement {
 
     // --- Data Helpers ---
 
+    _getFilteredLessons() {
+        if (this.selectedGroupFilter === 'all') return this.lessons;
+        return this.lessons.filter(l => l.assignedToGroups?.includes(this.selectedGroupFilter));
+    }
+
     _getLessonsForDay(date) {
         if (!date) return [];
-        return this.lessons.filter(l => {
+        const lessons = this._getFilteredLessons();
+        return lessons.filter(l => {
             if (!l.availableFrom) return false;
             const lDate = new Date(l.availableFrom);
             return this._isSameDay(lDate, date);
@@ -126,7 +134,8 @@ export class TimelineView extends LitElement {
     }
 
     _getUnscheduledLessons() {
-        return this.lessons.filter(l => !l.availableFrom);
+        const lessons = this._getFilteredLessons();
+        return lessons.filter(l => !l.availableFrom);
     }
 
     _getLessonStatus(lesson) {
@@ -224,9 +233,10 @@ export class TimelineView extends LitElement {
     // --- Rendering ---
 
     _renderStatusDashboard() {
-        const drafts = this.lessons.filter(l => this._getLessonStatus(l) === 'draft').length;
-        const scheduled = this.lessons.filter(l => this._getLessonStatus(l) === 'scheduled').length;
-        const live = this.lessons.filter(l => this._getLessonStatus(l) === 'live').length;
+        const lessons = this._getFilteredLessons();
+        const drafts = lessons.filter(l => this._getLessonStatus(l) === 'draft').length;
+        const scheduled = lessons.filter(l => this._getLessonStatus(l) === 'scheduled').length;
+        const live = lessons.filter(l => this._getLessonStatus(l) === 'live').length;
 
         return html`
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-6 flex flex-wrap gap-4 items-center justify-between">
@@ -373,6 +383,10 @@ export class TimelineView extends LitElement {
     }
 
     _renderHeader() {
+        const uniqueGroups = Array.from(new Set(
+            this.lessons.flatMap(l => l.assignedToGroups || [])
+        )).sort();
+
         return html`
             <div class="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
                 <div class="flex items-center gap-4">
@@ -402,6 +416,22 @@ export class TimelineView extends LitElement {
                     >
                         Dnes
                     </button>
+                </div>
+
+                <!-- Group Filter -->
+                <div class="flex items-center gap-2">
+                    <label for="group-filter" class="text-sm font-medium text-slate-600">Třída:</label>
+                    <select
+                        id="group-filter"
+                        class="pl-3 pr-8 py-1.5 text-sm border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-slate-50 text-slate-700 font-medium"
+                        .value="${this.selectedGroupFilter}"
+                        @change="${(e) => this.selectedGroupFilter = e.target.value}"
+                    >
+                        <option value="all">Všechny třídy</option>
+                        ${uniqueGroups.map(group => html`
+                            <option value="${group}">${group}</option>
+                        `)}
+                    </select>
                 </div>
             </div>
         `;
