@@ -331,27 +331,61 @@ async def act_3_student_join(context, join_code):
             # Fill Code
             print(f"  - Entering Code: {join_code}")
             await page.fill("input[placeholder='CODE']", join_code)
+
+            # Setup Dialog Handler for Success Alert (Synchronized Waiting)
+            dialog_appeared = False
+            async def handle_dialog(dialog):
+                nonlocal dialog_appeared
+                dialog_appeared = True
+                print(f"  - Dialog detected: {dialog.message}")
+                await dialog.accept()
+
+            page.on("dialog", handle_dialog)
+
+            # Submit
             await page.press("input[placeholder='CODE']", "Enter") # Or click join button
 
-            # Check for immediate failure (Toast or Alert)
-            # We wait a short moment to see if an error appears
-            error_toast = page.locator(".toast-error, .bg-red-600").first
-            try:
-                await error_toast.wait_for(state="visible", timeout=2000)
-                print(f"[WARN] Join failed with error: {await error_toast.text_content()}")
-                # Close modal if possible or just retry loop which usually reloads or re-clicks
-                # If error, we wait 5s
-                await asyncio.sleep(5)
-                # Reload to reset state
-                await page.reload()
-                await page.wait_for_selector("student-dashboard")
-                continue
-            except:
-                # No error appeared quickly, assume processing success
-                pass
+            # Wait for either Success (Dialog) or Failure (Error Toast)
+            # Use polling to prevent race conditions or premature reloads
+            start_time = time.time()
+            success = False
+            error_found = False
 
-            join_success = True
-            break
+            while time.time() - start_time < 45: # 45s timeout for Join operation
+                if dialog_appeared:
+                    success = True
+                    break
+
+                # Check for error toast
+                error_toast = page.locator(".toast-error, .bg-red-600, .text-red-500").first
+                if await error_toast.is_visible():
+                    error_msg = await error_toast.text_content()
+                    print(f"[WARN] Join failed with error: {error_msg}")
+                    error_found = True
+                    break
+
+                await asyncio.sleep(0.5)
+
+            # Cleanup handler
+            page.remove_listener("dialog", handle_dialog)
+
+            if success:
+                print("  - Join Success confirmed via Dialog.")
+                join_success = True
+                break
+
+            if error_found:
+                 print("  - Retrying Join...")
+                 await asyncio.sleep(5)
+                 await page.reload()
+                 await page.wait_for_selector("student-dashboard")
+                 continue
+
+            # Timeout
+            print("[WARN] Join operation timed out (no dialog, no error detected).")
+            await page.reload()
+            await page.wait_for_selector("student-dashboard")
+            continue
 
         except Exception as e:
             print(f"[WARN] Join Attempt {join_attempt+1} exception: {e}")
@@ -367,7 +401,7 @@ async def act_3_student_join(context, join_code):
     # Wait for Dashboard to update with "Active Lesson" (Real-time)
     print("  - Waiting for 'Active Lesson' card to appear...")
 
-    # Force reload to ensure data consistency
+    # Force reload to ensure data consistency - NOW we are sure the backend finished!
     await page.reload()
     await page.wait_for_selector("student-dashboard")
 
