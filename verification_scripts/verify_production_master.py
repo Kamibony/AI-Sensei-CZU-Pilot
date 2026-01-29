@@ -386,6 +386,12 @@ async def act_3_student_join(context, join_code):
             if success:
                 print("  - Join Success confirmed via Dialog.")
                 join_success = True
+
+                # --- FORCE SYNCHRONIZATION ---
+                print("  - [SYNC] Force Refreshing to fetch new class data...")
+                await page.reload()
+                await page.wait_for_selector("student-dashboard", timeout=30000)
+                print("  - [SYNC] Dashboard re-initialized.")
                 break
 
             if error_found:
@@ -413,10 +419,6 @@ async def act_3_student_join(context, join_code):
 
     # Wait for Dashboard to update with "Active Lesson" (Real-time)
     print("  - Waiting for 'Active Lesson' card to appear...")
-
-    # Force reload to ensure data consistency
-    await page.reload()
-    await page.wait_for_selector("student-dashboard")
 
     # Find the Project Card "Mars Colonization"
     if not await page.locator("student-project-view").is_visible():
