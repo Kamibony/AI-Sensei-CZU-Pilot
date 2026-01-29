@@ -3,31 +3,10 @@ import { ProfessorDataService } from '../../services/professor-data-service.js';
 import { translationService } from '../../utils/translation-service.js';
 import { showToast } from '../../utils/utils.js';
 
-const ADMIN_STYLES = {
-    draft: {
-        wrapper: "border-l-4 border-l-amber-400 bg-amber-50/50 hover:bg-amber-100/50",
-        badge: "bg-amber-100 text-amber-700",
-        icon: "text-amber-500",
-        dot: "bg-amber-400"
-    },
-    scheduled: {
-        wrapper: "border-l-4 border-l-blue-500 bg-white hover:bg-blue-50",
-        badge: "bg-blue-100 text-blue-700",
-        icon: "text-blue-500",
-        dot: "bg-blue-500"
-    },
-    live: {
-        wrapper: "border-l-4 border-l-emerald-500 bg-white shadow-md hover:shadow-lg",
-        badge: "bg-emerald-100 text-emerald-700",
-        icon: "text-emerald-600",
-        dot: "bg-emerald-500"
-    },
-    archived: {
-        wrapper: "border-l-4 border-l-slate-400 bg-slate-50 opacity-75 hover:opacity-100",
-        badge: "bg-slate-200 text-slate-600",
-        icon: "text-slate-500",
-        dot: "bg-slate-400"
-    }
+const STATUS_STYLES = {
+    draft: { bg: 'bg-amber-50', border: 'border-amber-400', text: 'text-amber-800' },
+    scheduled: { bg: 'bg-blue-50', border: 'border-blue-400', text: 'text-blue-800' },
+    live: { bg: 'bg-emerald-50', border: 'border-emerald-400', text: 'text-emerald-800' }
 };
 
 export class TimelineView extends LitElement {
@@ -75,12 +54,29 @@ export class TimelineView extends LitElement {
         const days = [];
         const year = startOfMonth.getFullYear();
         const month = startOfMonth.getMonth();
-        const lastDayOfMonth = new Date(year, month + 1, 0);
 
-        // Vertical Timeline: Generate all days of the month strictly
-        for (let d = 1; d <= lastDayOfMonth.getDate(); d++) {
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+
+        // Monday based index (Mon=0 ... Sun=6)
+        let startDayIndex = firstDay.getDay() - 1;
+        if (startDayIndex === -1) startDayIndex = 6;
+
+        // Padding for previous month
+        for (let i = 0; i < startDayIndex; i++) {
+             days.push(null);
+        }
+
+        // Current month days
+        for (let d = 1; d <= lastDay.getDate(); d++) {
             days.push(new Date(year, month, d));
         }
+
+        // Padding for next month to complete the grid
+        while (days.length % 7 !== 0) {
+            days.push(null);
+        }
+
         return days;
     }
 
@@ -98,14 +94,10 @@ export class TimelineView extends LitElement {
 
     _goToToday() {
         this.currentMonthStart = this._getStartOfMonth(new Date());
-        // Scroll to today?
-        setTimeout(() => {
-             const todayEl = this.querySelector('[data-is-today="true"]');
-             if (todayEl) todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 100);
     }
 
     _isSameDay(d1, d2) {
+        if (!d1 || !d2) return false;
         return d1.getFullYear() === d2.getFullYear() &&
                d1.getMonth() === d2.getMonth() &&
                d1.getDate() === d2.getDate();
@@ -122,13 +114,10 @@ export class TimelineView extends LitElement {
         return s.charAt(0).toUpperCase() + s.slice(1);
     }
 
-    _formatDayName(date) {
-        return new Intl.DateTimeFormat(translationService.currentLanguage || 'cs-CZ', { weekday: 'long' }).format(date);
-    }
-
     // --- Data Helpers ---
 
     _getLessonsForDay(date) {
+        if (!date) return [];
         return this.lessons.filter(l => {
             if (!l.availableFrom) return false;
             const lDate = new Date(l.availableFrom);
@@ -140,9 +129,8 @@ export class TimelineView extends LitElement {
         return this.lessons.filter(l => !l.availableFrom);
     }
 
-    _getAdminLessonStatus(lesson) {
-        if (!lesson.isPublished && lesson.status !== 'published') return 'draft'; // Check both possible flags
-        if (!lesson.availableFrom) return 'draft';
+    _getLessonStatus(lesson) {
+        if (!lesson.isPublished || !lesson.availableFrom) return 'draft';
 
         const now = new Date();
         const availableDate = new Date(lesson.availableFrom);
@@ -172,6 +160,8 @@ export class TimelineView extends LitElement {
 
     async _handleDropOnDay(e, date) {
         e.preventDefault();
+        if (!date) return; // Cannot drop on padding cells
+
         const lessonId = e.dataTransfer.getData('text/plain');
         if (!lessonId) return;
 
@@ -181,15 +171,12 @@ export class TimelineView extends LitElement {
             const targetDate = new Date(date);
             targetDate.setHours(9, 0, 0, 0);
 
-            // Optimistic Update
             const updatedLesson = {
                 ...this.lessons[lessonIndex],
                 availableFrom: targetDate.toISOString(),
-                isPublished: true // Assume dragging to calendar implies intent to publish/schedule? Or keep status?
-                // Keeping status as is, but logic says scheduled if published.
+                isPublished: true
             };
 
-            // Re-create array to trigger update
             this.lessons = [
                 ...this.lessons.slice(0, lessonIndex),
                 updatedLesson,
@@ -198,9 +185,8 @@ export class TimelineView extends LitElement {
 
             const success = await this.dataService.updateLessonSchedule(lessonId, targetDate, null);
             if (!success) {
-                // Revert
                 this.lessons[lessonIndex] = { ...this.lessons[lessonIndex], availableFrom: oldFrom };
-                this.lessons = [...this.lessons]; // trigger update
+                this.lessons = [...this.lessons];
                 showToast('Chyba při plánování', 'error');
             } else {
                  showToast(translationService.t('timeline.scheduled_success') || 'Lekce naplánována', 'success');
@@ -238,16 +224,9 @@ export class TimelineView extends LitElement {
     // --- Rendering ---
 
     _renderStatusDashboard() {
-        // Calculate counts based on current month's view? Or global?
-        // Prompt says "Insert a summary card at the top of the view".
-        // Usually dashboards reflect global state or current view. Let's do current view (filtered by month) to match the timeline context,
-        // OR global if it's "My Planner".
-        // Let's do Global for Drafts, but maybe current view for Scheduled?
-        // Actually, simple counts of what's in 'this.lessons' (which is all lessons) is best.
-
-        const drafts = this.lessons.filter(l => this._getAdminLessonStatus(l) === 'draft').length;
-        const scheduled = this.lessons.filter(l => this._getAdminLessonStatus(l) === 'scheduled').length;
-        const live = this.lessons.filter(l => this._getAdminLessonStatus(l) === 'live').length;
+        const drafts = this.lessons.filter(l => this._getLessonStatus(l) === 'draft').length;
+        const scheduled = this.lessons.filter(l => this._getLessonStatus(l) === 'scheduled').length;
+        const live = this.lessons.filter(l => this._getLessonStatus(l) === 'live').length;
 
         return html`
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-6 flex flex-wrap gap-4 items-center justify-between">
@@ -291,35 +270,40 @@ export class TimelineView extends LitElement {
     }
 
     _renderLessonCard(lesson) {
-        const status = this._getAdminLessonStatus(lesson);
-        const style = ADMIN_STYLES[status] || ADMIN_STYLES.draft;
+        const status = this._getLessonStatus(lesson);
+        const style = STATUS_STYLES[status] || STATUS_STYLES.draft;
         const icon = this._getIconForTopic(lesson.topic);
+        const contentTypeIcon = lesson.type === 'quiz' ? '📝' : (lesson.type === 'project' ? '🚀' : '🎥');
+        // fallback icons based on type, or just label.
+        // Prompt says "Show content type (Video, Quiz) as a small icon or text label inside the card."
 
         return html`
             <div
                 draggable="true"
                 @dragstart="${(e) => this._handleDragStart(e, lesson)}"
                 @dragend="${this._handleDragEnd}"
-                class="group relative mb-3 rounded-r-xl transition-all duration-200 ${style.wrapper} p-4 cursor-pointer"
+                class="group relative mb-1.5 p-2 rounded-lg border-l-4 ${style.bg} ${style.border} cursor-pointer hover:shadow-md transition-all duration-200"
             >
-                <!-- Popover (X-Ray) -->
-                <div class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 bg-slate-900 text-white p-4 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none group-hover:pointer-events-auto">
+                <!-- Popover -->
+                <div class="absolute left-1/2 -translate-x-1/2 bottom-full mb-3 w-64 bg-white text-slate-800 p-4 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none group-hover:pointer-events-auto border border-slate-100">
                      <div class="flex items-start gap-3 mb-3">
                          <span class="text-2xl">${icon}</span>
                          <div>
-                             <h4 class="font-bold text-sm leading-tight">${lesson.title}</h4>
-                             <p class="text-xs text-slate-400 mt-0.5">${lesson.subtitle || 'Žádný podtitul'}</p>
+                             <h4 class="font-bold text-sm leading-tight text-slate-900">${lesson.title}</h4>
+                             <p class="text-xs text-slate-500 mt-0.5">${lesson.subtitle || 'Žádný podtitul'}</p>
                          </div>
                      </div>
 
                      <div class="space-y-2 mb-4 text-xs">
-                        <div class="flex justify-between border-b border-slate-700 pb-1">
-                             <span class="text-slate-400">Dostupnost:</span>
-                             <span class="font-medium">${lesson.availableFrom ? new Date(lesson.availableFrom).toLocaleDateString() : 'Nenaplánováno'}</span>
+                        <div class="flex justify-between border-b border-slate-100 pb-1">
+                             <span class="text-slate-500">Dostupnost:</span>
+                             <span class="font-medium text-slate-900">
+                                 ⏰ ${lesson.availableFrom ? new Date(lesson.availableFrom).toLocaleString() : 'Nenaplánováno'}
+                             </span>
                         </div>
-                        <div class="flex justify-between border-b border-slate-700 pb-1">
-                             <span class="text-slate-400">Skupiny:</span>
-                             <span class="font-medium">${lesson.assignedToGroups?.length || 0} tříd</span>
+                        <div class="flex justify-between border-b border-slate-100 pb-1">
+                             <span class="text-slate-500">Skupiny:</span>
+                             <span class="font-medium text-slate-900">👥 ${lesson.assignedToGroups?.length || 0}</span>
                         </div>
                      </div>
 
@@ -334,88 +318,55 @@ export class TimelineView extends LitElement {
                         }}"
                         class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-colors"
                      >
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                        Upravit lekci
+                        ✏️ Upravit lekci
                      </button>
 
                      <!-- Arrow -->
-                     <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-slate-900"></div>
+                     <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white"></div>
                 </div>
 
-                <div class="flex justify-between items-start">
-                    <div class="flex-1">
-                        <div class="flex items-center gap-2 mb-1">
-                             <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${style.badge}">
-                                ${status.toUpperCase()}
-                             </span>
-                             <span class="text-xs text-slate-500 font-medium flex items-center gap-1">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                ${lesson.availableFrom ? new Date(lesson.availableFrom).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
-                             </span>
+                <!-- Card Content -->
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-bold text-[11px] leading-tight truncate ${style.text}">${lesson.title}</h3>
+                        <div class="flex items-center gap-1.5 mt-1">
+                            <span class="text-[10px] opacity-75">${contentTypeIcon}</span>
+                            <span class="text-[9px] opacity-75 font-mono">${lesson.availableFrom ? new Date(lesson.availableFrom).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
                         </div>
-                        <h3 class="font-bold text-slate-800 leading-snug">${lesson.title}</h3>
                     </div>
-
-                    <button
-                         class="text-slate-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                         @click="${(e) => {
-                             e.stopPropagation();
-                             this._handleDropOnBacklog({ preventDefault:()=>{}, dataTransfer: { getData: () => lesson.id } });
-                         }}"
-                         title="Vrátit do zásobníku"
-                    >
-                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
                 </div>
             </div>
         `;
     }
 
-    _renderTimelineItem(date) {
+    _renderDayCell(date) {
+        if (!date) {
+            // Padding cell
+            return html`<div class="bg-slate-50/50 min-h-[120px] rounded-xl"></div>`;
+        }
+
         const isToday = this._isToday(date);
         const lessons = this._getLessonsForDay(date);
-        const hasLessons = lessons.length > 0;
-
-        // Date Badge Logic
-        const dayName = this._formatDayName(date).slice(0, 3).toUpperCase();
         const dayNum = date.getDate();
 
         return html`
             <div
-                class="relative pl-24 min-h-[5rem] group/day"
-                data-is-today="${isToday}"
+                class="min-h-[120px] bg-white rounded-xl border ${isToday ? 'border-blue-400 ring-2 ring-blue-100' : 'border-slate-100'} p-2 flex flex-col group/day hover:border-blue-200 transition-colors relative"
                 @dragover="${this._handleDragOver}"
                 @drop="${(e) => this._handleDropOnDay(e, date)}"
             >
-                <!-- Vertical Line (Connector) -->
-                <div class="absolute left-[5.5rem] top-0 bottom-0 w-px bg-slate-200 group-hover/day:bg-slate-300 transition-colors"></div>
-
-                <!-- Date Badge (Left Column) -->
-                <div class="absolute left-0 top-0 w-16 text-right pr-4 pt-2">
-                    <div class="text-[10px] font-bold tracking-wider ${isToday ? 'text-blue-600' : 'text-slate-400'} uppercase">
-                        ${dayName}
-                    </div>
-                    <div class="text-2xl font-black ${isToday ? 'text-blue-600' : 'text-slate-800'} leading-none">
-                        ${dayNum}
-                    </div>
-                    ${isToday ? html`<div class="text-[9px] font-bold text-blue-500 mt-1">DNES</div>` : nothing}
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-sm font-bold ${isToday ? 'text-blue-600' : 'text-slate-700'}">${dayNum}</span>
+                    ${isToday ? html`<span class="text-[10px] font-bold text-blue-500 uppercase">Dnes</span>` : nothing}
                 </div>
 
-                <!-- Timeline Dot -->
-                <div class="absolute left-[5.5rem] top-4 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-white ring-1 ${isToday ? 'ring-blue-500 bg-blue-500' : 'ring-slate-200 bg-slate-100'} z-10"></div>
+                <div class="flex-1 space-y-1">
+                    ${lessons.map(lesson => this._renderLessonCard(lesson))}
 
-                <!-- Main Content (Cards) -->
-                <div class="pb-8 pt-1 pr-4">
-                    ${lessons.length > 0 ? html`
-                        <div class="space-y-1">
-                            ${lessons.map(lesson => this._renderLessonCard(lesson))}
-                        </div>
-                    ` : html`
-                         <!-- Empty Slot Placeholder (Drop Target Visual) -->
-                         <div class="h-12 rounded-xl border-2 border-dashed border-slate-100 hover:border-blue-300 hover:bg-blue-50 transition-all flex items-center justify-center text-slate-300 text-xs font-medium cursor-default opacity-0 group-hover/day:opacity-100">
-                             + Naplánovat lekci
-                         </div>
-                    `}
+                    <!-- Empty state/Drop target hint -->
+                    <div class="h-full min-h-[2rem] rounded-lg border-2 border-dashed border-transparent group-hover/day:border-slate-100 transition-colors flex items-center justify-center opacity-0 group-hover/day:opacity-100 pointer-events-none">
+                         <span class="text-slate-300 text-lg">+</span>
+                    </div>
                 </div>
             </div>
         `;
@@ -515,6 +466,10 @@ export class TimelineView extends LitElement {
 
     render() {
         const days = this._generateMonthDays(this.currentMonthStart);
+        const weekDays = Array.from({length: 7}, (_, i) => {
+            const d = new Date(2023, 0, i + 2); // Jan 2, 2023 is Monday
+            return new Intl.DateTimeFormat(translationService.currentLanguage || 'cs', {weekday: 'short'}).format(d);
+        });
 
         return html`
             <div data-tour="timeline-start" class="flex h-full bg-slate-50 overflow-hidden font-sans">
@@ -525,16 +480,22 @@ export class TimelineView extends LitElement {
                 <div class="flex-1 flex flex-col h-full overflow-hidden relative">
                     ${this._renderHeader()}
 
-                    <div class="flex-1 overflow-y-auto custom-scrollbar">
-                        <div class="max-w-4xl mx-auto px-6 py-8">
+                    <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
+                        <div class="max-w-7xl mx-auto">
 
                             <!-- Dashboard -->
                             ${this._renderStatusDashboard()}
 
-                            <!-- Vertical Timeline -->
-                            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 min-h-[500px]">
-                                <div class="relative">
-                                     ${days.map(date => this._renderTimelineItem(date))}
+                            <!-- Calendar Grid -->
+                            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
+                                <!-- Weekday Headers -->
+                                <div class="grid grid-cols-7 gap-4 mb-4 text-center">
+                                    ${weekDays.map(d => html`<div class="text-xs font-bold text-slate-400 uppercase tracking-wider">${d}</div>`)}
+                                </div>
+
+                                <!-- Days Grid -->
+                                <div class="grid grid-cols-7 gap-4 auto-rows-fr">
+                                     ${days.map(date => this._renderDayCell(date))}
                                 </div>
                             </div>
                         </div>
