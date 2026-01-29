@@ -1,10 +1,21 @@
 import asyncio
 import time
+import os
 from playwright.async_api import async_playwright, expect
 
 # --- Configuration ---
-HEADLESS = True  # Set to True for CI/Remote
-BASE_URL = "http://localhost:5000"
+HEADLESS = True  # Default
+if os.environ.get("CI"):
+    HEADLESS = True
+
+# Determine Target Environment
+if os.environ.get("CI") or os.environ.get("TARGET_ENV") == "PRODUCTION":
+    BASE_URL = "https://ai-sensei-czu-pilot.web.app"
+else:
+    BASE_URL = "http://localhost:5000"
+
+print(f"[CONFIG] Target: {BASE_URL}, Headless: {HEADLESS}")
+
 PROF_EMAIL_PREFIX = "prof_master_"
 STUDENT_NAME = "Test Student"
 
@@ -532,6 +543,8 @@ async def run():
             print(f"\n[ERROR] Test Failed: {e}")
             import traceback
             traceback.print_exc()
+            import sys
+            sys.exit(1)
         finally:
             await browser.close()
 
