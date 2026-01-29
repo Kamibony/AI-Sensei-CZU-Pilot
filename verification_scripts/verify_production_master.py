@@ -145,7 +145,8 @@ async def act_1_architect(page):
     # Cytoscape creates multiple canvases. We just need to see one.
     canvas = page.locator("#competency-map canvas").first
     try:
-        await canvas.wait_for(state="visible", timeout=30000)
+        # Increased timeout to 90s for Cold Starts
+        await canvas.wait_for(state="visible", timeout=90000)
         print("[ACT 1] Success: Cytoscape Graph rendered.")
     except Exception:
         print("[FAIL] Graph canvas not found.")
