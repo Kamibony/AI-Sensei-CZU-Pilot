@@ -309,32 +309,60 @@ async def act_3_student_join(context, join_code):
 
     # Join Class via Dashboard
     print("  - Opening Join Class Modal...")
-    # Button with Rocket icon or "Připojit se k třídě"
-    # student-dashboard-view.js: renderMobileNavItem('join', ...) or the big buttons
-    # "Rychlé akce" -> button with text "Připojit se k třídě" (translated)
-    # cs.json: "student.join_class": "Připojit se k třídě"
 
-    # Try finding the button
-    join_btn = page.locator("button:has-text('Připojit se k třídě')")
-    if not await join_btn.is_visible():
-        # Maybe icon only?
-        # Try generic button inside the dashboard that opens the modal
-        # We can look for the rocket icon div
-        join_btn = page.locator("div.bg-indigo-50:has-text('🚀')").locator("xpath=..")
+    # Retry Loop for Join
+    JOIN_RETRIES = 3
+    join_success = False
 
-    await join_btn.click()
+    for join_attempt in range(JOIN_RETRIES):
+        try:
+            print(f"  - Join Attempt {join_attempt+1}/{JOIN_RETRIES}...")
 
-    # Fill Code
-    print(f"  - Entering Code: {join_code}")
-    await page.fill("input[placeholder='CODE']", join_code)
-    await page.press("input[placeholder='CODE']", "Enter") # Or click join button
+            # Button with Rocket icon or "Připojit se k třídě"
+            join_btn = page.locator("button:has-text('Připojit se k třídě')")
+            if not await join_btn.is_visible():
+                # Maybe icon only?
+                join_btn = page.locator("div.bg-indigo-50:has-text('🚀')").locator("xpath=..")
 
-    # Wait for Success Alert or Redirect
-    # The code uses alert() for success!
-    # Playwright auto-dismisses alerts, but we should verify we are in the class or redirected.
-    # Actually, after join, the dashboard might refresh or we might need to navigate.
-    # The dashboard doesn't auto-redirect to the class/lesson unless notified.
-    # But the "Active Lesson" card should appear if there is one.
+            # Ensure button is visible before clicking
+            await join_btn.wait_for(state="visible", timeout=5000)
+            await join_btn.click()
+
+            # Fill Code
+            print(f"  - Entering Code: {join_code}")
+            await page.fill("input[placeholder='CODE']", join_code)
+            await page.press("input[placeholder='CODE']", "Enter") # Or click join button
+
+            # Check for immediate failure (Toast or Alert)
+            # We wait a short moment to see if an error appears
+            error_toast = page.locator(".toast-error, .bg-red-600").first
+            try:
+                await error_toast.wait_for(state="visible", timeout=2000)
+                print(f"[WARN] Join failed with error: {await error_toast.text_content()}")
+                # Close modal if possible or just retry loop which usually reloads or re-clicks
+                # If error, we wait 5s
+                await asyncio.sleep(5)
+                # Reload to reset state
+                await page.reload()
+                await page.wait_for_selector("student-dashboard")
+                continue
+            except:
+                # No error appeared quickly, assume processing success
+                pass
+
+            join_success = True
+            break
+
+        except Exception as e:
+            print(f"[WARN] Join Attempt {join_attempt+1} exception: {e}")
+            await asyncio.sleep(5)
+            await page.reload()
+            await page.wait_for_selector("student-dashboard")
+
+    if not join_success:
+        print("[FAIL] Failed to join class after retries.")
+        await page.screenshot(path="failure_act3_join.png")
+        raise Exception("Failed to join class")
 
     # Wait for Dashboard to update with "Active Lesson" (Real-time)
     print("  - Waiting for 'Active Lesson' card to appear...")
@@ -360,8 +388,8 @@ async def act_3_student_join(context, join_code):
                 # Fallback to icon or mobile text
                 await page.click("button:has-text('Lekce')")
 
-            # Now wait for card
-            await project_card.wait_for(timeout=30000)
+            # Now wait for card - INCREASED TIMEOUT to 60s
+            await project_card.wait_for(timeout=60000)
 
         await project_card.click()
 

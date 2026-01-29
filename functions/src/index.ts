@@ -1866,6 +1866,9 @@ exports.joinClass = onCall({ region: DEPLOY_REGION, cors: true }, async (request
         const groupData = groupDoc.data();
         const groupId = groupDoc.id;
 
+        // SAFE ACCESS
+        const groupName = groupData?.name || "Unknown Class";
+
         const studentRef = db.collection("students").doc(studentId);
 
         // Perform both writes in a single transaction/batch for atomicity
@@ -1884,9 +1887,9 @@ exports.joinClass = onCall({ region: DEPLOY_REGION, cors: true }, async (request
 
         await batch.commit();
 
-        logger.log(`Student ${studentId} successfully joined group ${groupDoc.id} (${groupData.name}).`);
+        logger.log(`Student ${studentId} successfully joined group ${groupDoc.id} (${groupName}).`);
 
-        return { success: true, groupName: groupData.name };
+        return { success: true, groupName: groupName };
 
     } catch (error: any) {
         logger.error(`Error in joinClass for student ${studentId} with code "${joinCode}":`, error);
