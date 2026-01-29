@@ -273,7 +273,7 @@ async def act_3_student_join(context, join_code):
     await page.goto(BASE_URL)
 
     # Check for both states (Dashboard or Login)
-    await expect(page.locator("student-dashboard").or(page.locator("login-view"))).to_be_visible()
+    await expect(page.locator("student-dashboard").or_(page.locator("login-view"))).to_be_visible()
 
     if await page.locator("student-dashboard").is_visible():
         print("  - Already logged in. Logging out to ensure clean state...")
