@@ -165,6 +165,31 @@ export class StudentLessonList extends LitElement {
         const groupedLessons = this._groupLessonsBySubject();
         const subjects = Object.keys(groupedLessons).sort();
 
+        // Calculate counts for the dashboard
+        const futureCount = this.lessons.filter(l => this._getLessonStatus(l) === 'future').length;
+        const presentCount = this.lessons.filter(l => this._getLessonStatus(l) === 'present').length;
+
+        // Render Legend
+        const legendHTML = html`
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800">Můj Plánovač</h2>
+                    <p class="text-sm text-slate-500">Máš <span class="text-indigo-600 font-bold">${presentCount} aktivních</span> lekcí a ${futureCount} naplánovaných.</p>
+                </div>
+                <div class="flex gap-3 text-xs font-medium">
+                     <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 border border-slate-200 text-gray-500">
+                        <div class="w-2 h-2 rounded-full bg-gray-400"></div> Minulé
+                     </div>
+                     <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700">
+                        <div class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></div> Dnes
+                     </div>
+                     <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-dashed border-slate-300 text-slate-400">
+                        <div class="w-2 h-2 rounded-full bg-slate-300"></div> Budoucí
+                     </div>
+                </div>
+            </div>
+        `;
+
         return html`
             <div class="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-8 md:space-y-12">
 
@@ -186,6 +211,8 @@ export class StudentLessonList extends LitElement {
                         <p class="text-slate-500 mt-2">V této třídě zatím nejsou žádné lekce.</p>
                     </div>
                 ` : nothing}
+
+                ${!this.isNotInAnyGroup && this.lessons.length > 0 ? legendHTML : nothing}
 
                 ${subjects.map(subject => html`
                     <div class="animate-fade-in-up">
@@ -235,10 +262,33 @@ export class StudentLessonList extends LitElement {
             iconClasses += "grayscale opacity-70 group-hover:scale-110";
         }
 
+        // Date Badge Data
+        const dateObj = new Date(lesson.availableAt || lesson.createdAt);
+        const day = dateObj.getDate();
+        const monthShort = dateObj.toLocaleDateString('cs-CZ', { month: 'short' }).replace('.', '').toUpperCase();
+
         return html`
             <div @click=${() => !isFuture ? this._handleLessonClick(lesson.id) : null}
-                 class="${cardClasses}"
-                 title="${isFuture ? `Available on ${new Date(lesson.availableAt).toLocaleDateString('cs-CZ')}` : ''}">
+                 class="${cardClasses}">
+
+                <!-- Rich Popover -->
+                <div class="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm p-4 flex-col justify-center items-center text-center gap-2 hidden group-hover:flex transition-all duration-300 opacity-0 group-hover:opacity-100">
+                    ${isFuture ? html`
+                        <div class="text-3xl mb-2">🔒</div>
+                        <h4 class="font-bold text-slate-800">Ještě zamčeno</h4>
+                        <p class="text-sm text-slate-500 mb-2">Lekce se otevře:</p>
+                        <div class="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg font-mono text-sm font-bold border border-indigo-100">
+                            ${new Date(lesson.availableAt).toLocaleDateString('cs-CZ')}
+                        </div>
+                        <p class="text-xs text-slate-400 mt-2">Vrať se později!</p>
+                    ` : html`
+                        <div class="text-3xl mb-2 text-indigo-600">🚀</div>
+                        <h4 class="font-bold text-slate-800">Připraveno ke startu</h4>
+                        <button class="mt-3 px-6 py-2 bg-indigo-600 text-white rounded-full font-bold shadow-lg hover:bg-indigo-700 transform hover:scale-105 transition-all">
+                            Spustit lekci
+                        </button>
+                    `}
+                </div>
 
                 <div class="absolute top-2 right-2 md:top-4 md:right-4 z-10 flex flex-col items-end gap-1">
                     ${this._isNew(lesson.createdAt) && !isFuture ? html`
@@ -256,20 +306,23 @@ export class StudentLessonList extends LitElement {
 
                 <!-- Thumbnail: Fixed Width on Mobile (Left), Full Width on Desktop (Top) -->
                 <div class="w-24 sm:w-32 md:w-full h-auto min-h-[6rem] md:h-40 relative flex-shrink-0 flex items-center justify-center border-r md:border-r-0 md:border-b border-slate-100 ${isFuture ? 'bg-slate-50' : 'bg-slate-50'}">
+
+                    <!-- Calendar Leaf Badge -->
+                    <div class="absolute top-2 left-2 md:top-4 md:left-4 z-20 flex flex-col items-center bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                        <div class="px-2 py-0.5 bg-red-500 text-white text-[9px] font-bold uppercase tracking-wider w-full text-center">
+                            ${monthShort}
+                        </div>
+                        <div class="px-2 py-0.5 text-slate-800 font-bold text-sm md:text-base">
+                            ${day}
+                        </div>
+                    </div>
+
                     <!-- Placeholder Pattern -->
                     <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:16px_16px]"></div>
 
                     <div class="${iconClasses}">
                         ${isFuture ? '🔒' : this._getIconForTopic(lesson.topic)}
                     </div>
-
-                    ${isFuture ? html`
-                         <div class="absolute bottom-2 left-0 right-0 text-center">
-                             <span class="text-[10px] font-bold text-gray-400 bg-white/80 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                                Available on ${new Date(lesson.availableAt).toLocaleDateString('cs-CZ')}
-                             </span>
-                         </div>
-                    ` : ''}
 
                     <!-- Gradient overlay only on Desktop -->
                     <div class="hidden md:block absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-white to-transparent"></div>
