@@ -776,24 +776,38 @@ exports.generateContent = onCall({
         const systemPrompt = config.system_prompt || undefined;
 
         let finalPrompt = promptData.userPrompt;
-        const language = promptData.language || "cs";
 
-        // Step 1: Implement Language Mapping
-        let targetLangName = "Czech";
-        switch (language) {
-            case "cs": targetLangName = "Czech"; break;
-            case "sk": targetLangName = "Slovak"; break;
-            case "pt-br": targetLangName = "Portuguese"; break;
-            case "en": targetLangName = "English"; break;
-            default: targetLangName = "Czech"; break;
-        }
+        // 1. Resolve Full Language Name
+        const langMap: Record<string, string> = {
+            "cs": "Czech",
+            "sk": "Slovak",
+            "en": "English",
+            "pt-br": "Portuguese",
+            "uk": "Ukrainian",
+            "de": "German",
+            "es": "Spanish",
+            "fr": "French"
+        };
+        const userLangCode = promptData.language || "cs"; // Default to Czech
+        const targetLanguage = langMap[userLangCode] || "Czech";
+
+        // 2. Define The "GOD MODE" Language Instruction
+        const SYSTEM_LANGUAGE_INSTRUCTION = `
+*** CRITICAL LANGUAGE INSTRUCTION ***
+The user EXPLICITLY requested the output to be in ${targetLanguage}.
+Even if the source material (PDF, text, topic) is in English or another language, you MUST TRANSLATE, ADAPT, and GENERATE the final response strictly in ${targetLanguage}.
+Do NOT output in English unless the requested language is 'English'.
+Fail to follow this, and the generation is considered incorrect.
+*************************************
+`;
 
         const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap", "podcast", "audio"].includes(contentType);
 
-        // Add language instruction
-        // Step 2: Rewrite langInstruction to strictly enforce the user's requested language.
-        const langInstruction = `OUTPUT LANGUAGE RULE: The user has explicitly requested the output to be in ${targetLangName}. Regardless of the language of the input PDF or text, you MUST translate and generate the final content in ${targetLangName}. Do NOT output in English unless ${targetLangName} is 'English'.`;
-        finalPrompt += `\n\n${langInstruction}`;
+        // Append instruction for non-JSON cases (Text) immediately.
+        // For JSON cases, we will append it inside the switch to ensure correct placement.
+        if (!isJson) {
+            finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+        }
 
         // STRICT SYSTEM INSTRUCTION to silence conversational filler
         finalPrompt += "\n\nSTRICT RULE: Return ONLY the raw content/JSON. Do NOT start with 'Here is', 'Sure', or 'Certainly'. No conversational filler.";
@@ -805,8 +819,10 @@ exports.generateContent = onCall({
             const magicTestCount = parseInt(config.magic_test_questions) || 5;
             const magicFlashcardCount = parseInt(config.magic_flashcard_count) || 10;
 
+            const JSON_SAFEGUARD = `\nEnsure all JSON keys remain in English as defined in the schema. Only the content values must be in ${targetLanguage}.`;
+
             switch(contentType) {
-                case "presentation":
+                case "presentation": {
                     let targetSlides = parseInt(promptData.slide_count, 10);
                     if (promptData.isMagic) {
                         targetSlides = magicSlidesCount;
@@ -820,16 +836,18 @@ exports.generateContent = onCall({
                     const style = promptData.presentation_style_selector ? `Visual Style: ${promptData.presentation_style_selector}.` : "";
                     
                     finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${targetSlides} slidy. ${style}
-${langInstruction}
 
 FORMAT: JSON
 {
   "slides": [ ... ] (MANDATORY: Generate exactly ${targetSlides} slides. Empty array is a failure.)
 }
 Each slide object must have: 'title' (string), 'points' (array of strings), 'visual_idea' (string - detailní popis obrázku).`;
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
+                }
 
-                case "quiz":
+                case "quiz": {
                     let targetQuizQs = 5;
                     if (promptData.isMagic) {
                          targetQuizQs = magicQuizCount;
@@ -838,16 +856,18 @@ Each slide object must have: 'title' (string), 'points' (array of strings), 'vis
                     }
 
                     finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}".
-${langInstruction}
 
 FORMAT: JSON
 {
   "questions": [ ... ] (MANDATORY: Generate exactly ${targetQuizQs} questions. Empty array is a failure.)
 }
 Each question object must have: 'question_text' (string), 'options' (array of 4 strings), 'correct_option_index' (number 0-3).`;
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
+                }
 
-                case "test":
+                case "test": {
                     // OPRAVA: Mapovanie premenných z frontendu (snake_case) a fallbacky
                     // Frontend posiela 'question_count', backend čakal 'questionCount'
                     let testCount = parseInt(promptData.question_count || promptData.questionCount || "5", 10);
@@ -862,24 +882,19 @@ Each question object must have: 'question_text' (string), 'options' (array of 4 
                     const testTypes = promptData.type_select || promptData.questionTypes || "Mix";
 
                     finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${testCount} otázkami. Obtížnost: ${testDifficulty}. Typy otázek: ${testTypes}.
-${langInstruction}
 
 FORMAT: JSON
 {
   "questions": [ ... ] (MANDATORY: Generate exactly ${testCount} questions. Empty array is a failure.)
 }
 Each question object must have: 'question_text' (string), 'type' (string), 'options' (array of strings), 'correct_option_index' (number).`;
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
-                case "post":
+                }
+                case "post": {
                      const epCount = promptData.episode_count || promptData.episodeCount || 3;
-                     const reqLang = language || promptData.language || "cs";
-                     let targetLang = "Czech";
-                     if (reqLang === "pt-br") targetLang = "Brazilian Portuguese";
-                     else if (reqLang === "sk") targetLang = "Slovak";
-                     else if (reqLang === "en") targetLang = "English";
-                     else if (reqLang === "de") targetLang = "German";
-                     else if (reqLang === "fr") targetLang = "French";
-                     else if (reqLang === "es") targetLang = "Spanish";
+                     // We rely on targetLanguage derived earlier.
 
                      finalPrompt = `You are Jules, an expert AI educational content creator and senior podcast producer used in the 'AI Sensei' platform. Your goal is to generate comprehensive educational content that includes both a structured text lesson and a scripted podcast series based on a single topic provided by the user: "${promptData.userPrompt}".
 
@@ -887,7 +902,7 @@ Each question object must have: 'question_text' (string), 'type' (string), 'opti
 1. **Strict JSON Only:** You must output ONLY valid JSON. Do not include markdown formatting (like \`\`\`json), introduction text, or concluding remarks.
 2. **Structure Integrity:** Ensure all JSON keys are present even if the content is brief. Never output broken or malformed JSON.
 3. **Safety & content policy:** If the topic is controversial, treat it with academic neutrality. If the topic violates safety policies, return a JSON with an "error" field explaining why, instead of generating harmful content.
-4. **Language:** The content (values) must be in ${targetLang}. Keys must remain in English.
+4. **Language:** The content (values) must be in ${targetLanguage}. Keys must remain in English.
 
 ### CONTENT GENERATION RULES
 
@@ -932,34 +947,44 @@ Use exactly this structure:
     ]
   }
 }`;
+                     finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                     finalPrompt += JSON_SAFEGUARD;
                      break;
+                }
 
-                case "flashcards":
+                case "flashcards": {
                     const fcCount = promptData.isMagic ? magicFlashcardCount : 10;
                     finalPrompt = `Vytvoř sadu ${fcCount} studijních kartiček na téma "${promptData.userPrompt}".
-${langInstruction}
 
 FORMAT: JSON
 {
   "cards": [ ... ] (MANDATORY: Generate exactly ${fcCount} cards. Empty array is a failure.)
 }
 Each card object must have: 'front' (pojem/otázka), 'back' (definice/odpověď).`;
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
+                }
 
-                case "mindmap":
-                    finalPrompt = `Vytvoř mentální mapu na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt obsahující POUZE klíč 'mermaid', jehož hodnotou je validní string pro Mermaid.js diagram (typ 'graph TD'). Nepoužívej markdown bloky. Příklad: { "mermaid": "graph TD\\nA-->B" }. ${langInstruction}`;
+                case "mindmap": {
+                    finalPrompt = `Vytvoř mentální mapu na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt obsahující POUZE klíč 'mermaid', jehož hodnotou je validní string pro Mermaid.js diagram (typ 'graph TD'). Nepoužívej markdown bloky. Příklad: { "mermaid": "graph TD\\nA-->B" }.`;
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
+                }
 
-                case "comic":
-                    finalPrompt = `Vytvoř scénář pro komiks (4 panely). Odpověď musí být JSON objekt s klíčem 'panels' (pole objektů: panel_number, description, dialogue). ${langInstruction}`;
+                case "comic": {
+                    finalPrompt = "Vytvoř scénář pro komiks (4 panely). Odpověď musí být JSON objekt s klíčem 'panels' (pole objektů: panel_number, description, dialogue).";
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
+                }
 
                 case "podcast":
-                case "audio":
+                case "audio": {
                     const mode = promptData.mode || "dialogue";
                     if (mode === "monologue") {
                         finalPrompt = `Vytvoř monolog (jednolitý text) na téma "${promptData.userPrompt}".
-${langInstruction}
 Do NOT use speaker tags like [Host] or [Guest].
 
 FORMAT: JSON
@@ -969,7 +994,6 @@ FORMAT: JSON
 Each script object must have: 'text' (string). The 'speaker' field is optional or can be empty.`;
                     } else {
                         finalPrompt = `Vytvoř scénář pro audio podcast na téma "${promptData.userPrompt}".
-${langInstruction}
 
 FORMAT: JSON
 {
@@ -977,7 +1001,10 @@ FORMAT: JSON
 }
 Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
                     }
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
+                }
             }
         }
 
