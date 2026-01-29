@@ -35,8 +35,9 @@ export class StudentClassesView extends LitElement {
         const user = firebaseInit.auth.currentUser;
         if (!user) return;
 
-        const studentsPath = getCollectionPath("students");
-        const userDocRef = doc(firebaseInit.db, studentsPath, user.uid);
+        // ARCHITECT UPDATE: Reading from 'users' to resolve split-brain anomaly
+        const usersPath = getCollectionPath("users");
+        const userDocRef = doc(firebaseInit.db, usersPath, user.uid);
         this._studentUnsubscribe = onSnapshot(userDocRef, async (docSnapshot) => {
             if (docSnapshot.exists()) {
                 const data = docSnapshot.data();
