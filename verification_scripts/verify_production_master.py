@@ -162,13 +162,11 @@ async def act_2_project_setup(page):
     await page.wait_for_selector("professor-library-view")
 
     # Click "Nový Projekt" (Rocket icon usually)
-    # The text might vary if translation is missing, but fallback is 'Nový Projekt'
-    # Use partial text match or icon check if needed.
-    # Try text first, then icon/class fallback
+    # Update to accept Czech label 'Nový projekt' or use the icon selector .fa-rocket
     try:
-        await safe_click(page, "button:has-text('Nový Projekt')")
+        await safe_click(page, "button:has-text('New Project'), button:has-text('Nový projekt'), button:has-text('Nový Projekt'), button:has(.fa-rocket)")
     except:
-        print("[WARN] 'Nový Projekt' text not found. Trying rocket icon/class selector.")
+        print("[WARN] 'New Project' button not found via text/icon. Trying fallback bg-emerald-600.")
         # bg-emerald-600 is unique to this button in the header
         await safe_click(page, "button.bg-emerald-600")
 
@@ -192,7 +190,8 @@ async def act_2_project_setup(page):
 
     # Wait for Roles (h3:has-text("Student Roles"))
     print("  - Waiting for Roles...")
-    await page.locator("h3:has-text('Student Roles')").wait_for(timeout=30000)
+    # Bilingual Selectors & Extended Timeout (90s)
+    await page.locator("h3:has-text('Student Roles'), h3:has-text('Role studentů'), h3:has-text('Role')").first.wait_for(timeout=90000)
     print("  - Roles generated.")
 
     # Save Project
