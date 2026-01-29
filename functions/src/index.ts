@@ -1904,6 +1904,7 @@ exports.joinClass = onCall({ region: DEPLOY_REGION, cors: true }, async (request
         const groupId = initialGroupDoc.id;
         const groupRef = groupsRef.doc(groupId);
         const studentRef = db.collection("students").doc(studentId);
+        const userRef = db.collection("users").doc(studentId);
 
         let groupName = "Unknown Class";
 
@@ -1930,6 +1931,11 @@ exports.joinClass = onCall({ region: DEPLOY_REGION, cors: true }, async (request
 
             // C. WRITE: Update Student Profile (Guaranteed to sync)
             transaction.set(studentRef, {
+                memberOfGroups: FieldValue.arrayUnion(groupId)
+            }, { merge: true });
+
+            // D. WRITE: Update User Profile (Unified Source of Truth)
+            transaction.set(userRef, {
                 memberOfGroups: FieldValue.arrayUnion(groupId)
             }, { merge: true });
         });

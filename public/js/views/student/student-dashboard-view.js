@@ -113,9 +113,10 @@ class StudentDashboard extends Localized(LitElement) {
         if (this._unsubStudent) this._unsubStudent();
 
         // Standard Mode: Listen to users/students profile
-        const studentsPath = getCollectionPath('students');
+        // ARCHITECT UPDATE: Reading from 'users' as the single source of truth (aligned with backend dual-write)
+        const usersPath = getCollectionPath('users');
         try {
-            this._unsubStudent = onSnapshot(doc(db, studentsPath, this.user.uid), (docSnap) => {
+            this._unsubStudent = onSnapshot(doc(db, usersPath, this.user.uid), (docSnap) => {
                 if (docSnap.exists()) {
                     this.studentData = docSnap.data();
                     this._fetchLastLesson();

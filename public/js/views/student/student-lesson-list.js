@@ -50,8 +50,9 @@ export class StudentLessonList extends LitElement {
         }
 
         // Standard Mode
-        const studentsPath = getCollectionPath("students");
-        const studentDocRef = doc(firebaseInit.db, studentsPath, currentUser.uid);
+        // ARCHITECT UPDATE: Reading from 'users'
+        const usersPath = getCollectionPath("users");
+        const studentDocRef = doc(firebaseInit.db, usersPath, currentUser.uid);
 
         this.studentUnsubscribe = onSnapshot(studentDocRef, (studentSnap) => {
             if (this.lessonsUnsubscribe) this.lessonsUnsubscribe();
