@@ -15,7 +15,8 @@ export class TimelineView extends LitElement {
         isLoading: { state: true },
         currentMonthStart: { state: true },
         _draggedLessonId: { state: true },
-        selectedGroupFilter: { state: true }
+        selectedGroupFilter: { state: true },
+        _expandedDates: { state: true }
     };
 
     createRenderRoot() { return this; } // Light DOM enabled
@@ -27,6 +28,7 @@ export class TimelineView extends LitElement {
         this.dataService = new ProfessorDataService();
         this._draggedLessonId = null;
         this.selectedGroupFilter = 'all';
+        this._expandedDates = new Set();
 
         // Initialize to current month's first day
         this.currentMonthStart = this._getStartOfMonth(new Date());
@@ -176,12 +178,20 @@ export class TimelineView extends LitElement {
 
         const lessonIndex = this.lessons.findIndex(l => l.id === lessonId);
         if (lessonIndex > -1) {
-            const oldFrom = this.lessons[lessonIndex].availableFrom;
+            const originalLesson = this.lessons[lessonIndex];
+            const oldFrom = originalLesson.availableFrom;
             const targetDate = new Date(date);
-            targetDate.setHours(9, 0, 0, 0);
+
+            // Smart Drag & Drop: Preserve original time if exists, else default to 09:00
+            if (oldFrom) {
+                const originalDate = new Date(oldFrom);
+                targetDate.setHours(originalDate.getHours(), originalDate.getMinutes(), 0, 0);
+            } else {
+                targetDate.setHours(9, 0, 0, 0);
+            }
 
             const updatedLesson = {
-                ...this.lessons[lessonIndex],
+                ...originalLesson,
                 availableFrom: targetDate.toISOString(),
                 isPublished: true
             };
@@ -194,7 +204,7 @@ export class TimelineView extends LitElement {
 
             const success = await this.dataService.updateLessonSchedule(lessonId, targetDate, null);
             if (!success) {
-                this.lessons[lessonIndex] = { ...this.lessons[lessonIndex], availableFrom: oldFrom };
+                this.lessons[lessonIndex] = { ...originalLesson, availableFrom: oldFrom };
                 this.lessons = [...this.lessons];
                 showToast('Chyba při plánování', 'error');
             } else {
@@ -228,6 +238,39 @@ export class TimelineView extends LitElement {
                  showToast(translationService.t('timeline.unscheduled_success') || 'Lekce přesunuta do zásobníku', 'success');
              }
         }
+    }
+
+    async _handleDayDoubleClick(date) {
+        if (!date) return;
+        const targetDate = new Date(date);
+        targetDate.setHours(9, 0, 0, 0);
+
+        const newLesson = {
+            title: 'Nová lekce',
+            status: 'draft',
+            availableFrom: targetDate.toISOString(),
+            isPublished: false,
+            topic: '',
+            contentType: 'text',
+            content: { blocks: [] },
+            assignedToGroups: []
+        };
+
+        const created = await this.dataService.createLesson(newLesson);
+        if (created) {
+            this.lessons = [created, ...this.lessons];
+            showToast('Lekce vytvořena', 'success');
+        }
+    }
+
+    _toggleExpandDate(dateKey) {
+        const newSet = new Set(this._expandedDates);
+        if (newSet.has(dateKey)) {
+            newSet.delete(dateKey);
+        } else {
+            newSet.add(dateKey);
+        }
+        this._expandedDates = newSet;
     }
 
     // --- Rendering ---
@@ -359,11 +402,18 @@ export class TimelineView extends LitElement {
         const lessons = this._getLessonsForDay(date);
         const dayNum = date.getDate();
 
+        const dateKey = date.toDateString();
+        const isExpanded = this._expandedDates.has(dateKey);
+        const hasOverflow = lessons.length > 3;
+
+        const visibleLessons = (hasOverflow && !isExpanded) ? lessons.slice(0, 3) : lessons;
+
         return html`
             <div
                 class="min-h-[120px] bg-white rounded-xl border ${isToday ? 'border-blue-400 ring-2 ring-blue-100' : 'border-slate-100'} p-2 flex flex-col group/day hover:border-blue-200 transition-colors relative"
                 @dragover="${this._handleDragOver}"
                 @drop="${(e) => this._handleDropOnDay(e, date)}"
+                @dblclick="${() => this._handleDayDoubleClick(date)}"
             >
                 <div class="flex justify-between items-start mb-2">
                     <span class="text-sm font-bold ${isToday ? 'text-blue-600' : 'text-slate-700'}">${dayNum}</span>
@@ -371,7 +421,16 @@ export class TimelineView extends LitElement {
                 </div>
 
                 <div class="flex-1 space-y-1">
-                    ${lessons.map(lesson => this._renderLessonCard(lesson))}
+                    ${visibleLessons.map(lesson => this._renderLessonCard(lesson))}
+
+                    ${hasOverflow ? html`
+                        <button
+                            @click="${(e) => { e.stopPropagation(); this._toggleExpandDate(dateKey); }}"
+                            class="w-full py-1.5 text-[10px] font-bold text-slate-500 bg-slate-50 hover:bg-slate-100 rounded-lg text-center transition-colors border border-slate-100 uppercase tracking-wide"
+                        >
+                            ${isExpanded ? 'Méně' : `+ ${lessons.length - 3} Další`}
+                        </button>
+                    ` : nothing}
 
                     <!-- Empty state/Drop target hint -->
                     <div class="h-full min-h-[2rem] rounded-lg border-2 border-dashed border-transparent group-hover/day:border-slate-100 transition-colors flex items-center justify-center opacity-0 group-hover/day:opacity-100 pointer-events-none">
@@ -380,6 +439,53 @@ export class TimelineView extends LitElement {
                 </div>
             </div>
         `;
+    }
+
+    async _handleClonePreviousWeek() {
+        if (!confirm('Opravdu chcete zkopírovat lekce z minulého týdne?')) return;
+
+        this.isLoading = true;
+
+        const currentStart = new Date(this.currentMonthStart);
+        const sourceStart = new Date(currentStart);
+        sourceStart.setDate(sourceStart.getDate() - 7);
+        const sourceEnd = new Date(currentStart);
+
+        const sourceLessons = this.lessons.filter(l => {
+            if (!l.availableFrom) return false;
+            const d = new Date(l.availableFrom);
+            return d >= sourceStart && d < sourceEnd;
+        });
+
+        if (sourceLessons.length === 0) {
+            showToast('V minulém týdnu nebyly nalezeny žádné lekce.', 'info');
+            this.isLoading = false;
+            return;
+        }
+
+        const newLessons = sourceLessons.map(l => {
+            const oldDate = new Date(l.availableFrom);
+            const newDate = new Date(oldDate);
+            newDate.setDate(newDate.getDate() + 7);
+
+            // eslint-disable-next-line no-unused-vars
+            const { id, createdAt, updatedAt, ownerId, ...rest } = l;
+
+            return {
+                ...rest,
+                status: 'draft',
+                isPublished: false,
+                availableFrom: newDate.toISOString()
+            };
+        });
+
+        const success = await this.dataService.createLessonsBatch(newLessons);
+        if (success) {
+            showToast(`Úspěšně zkopírováno ${newLessons.length} lekcí.`, 'success');
+            await this._loadData();
+        } else {
+             this.isLoading = false;
+        }
     }
 
     _renderHeader() {
@@ -415,6 +521,14 @@ export class TimelineView extends LitElement {
                         class="ml-2 px-3 py-1 text-sm font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
                     >
                         Dnes
+                    </button>
+
+                    <button
+                        @click="${this._handleClonePreviousWeek}"
+                        class="ml-2 p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Kopírovat minulý týden"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                     </button>
                 </div>
 

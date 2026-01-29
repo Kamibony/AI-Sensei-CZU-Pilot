@@ -212,6 +212,60 @@ export class ProfessorDataService {
         }
     }
 
+    async createLesson(lessonData) {
+        try {
+            if (!this.db || !this.auth.currentUser) return null;
+
+            const finalData = {
+                ...lessonData,
+                ownerId: this.auth.currentUser.uid,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            const newDocRef = doc(collection(this.db, 'lessons'));
+            finalData.id = newDocRef.id; // Consistent with LessonEditor
+
+            await setDoc(newDocRef, finalData);
+            return finalData;
+        } catch (error) {
+            console.error("Error creating lesson:", error);
+            showToast("Chyba při vytváření lekce.", "error");
+            return null;
+        }
+    }
+
+    async createLessonsBatch(lessonsDataArray) {
+        try {
+            if (!this.db || !this.auth.currentUser) return false;
+            if (!lessonsDataArray || lessonsDataArray.length === 0) return true;
+
+            const batch = writeBatch(this.db);
+            const commonData = {
+                ownerId: this.auth.currentUser.uid,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            lessonsDataArray.forEach(data => {
+                const newDocRef = doc(collection(this.db, 'lessons'));
+                const finalData = {
+                    ...data,
+                    ...commonData,
+                    id: newDocRef.id
+                };
+                batch.set(newDocRef, finalData);
+            });
+
+            await batch.commit();
+            return true;
+        } catch (error) {
+            console.error("Error creating batch lessons:", error);
+            showToast("Chyba při hromadném vytváření.", "error");
+            return false;
+        }
+    }
+
     async updateLessonSchedule(lessonId, availableFrom, availableUntil) {
         try {
             if (!this.db || !this.auth.currentUser) return false;
