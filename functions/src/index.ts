@@ -103,7 +103,7 @@ async function sendTelegramMessage(chatId: number, text: string) {
 exports.startMagicGeneration = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 540,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     if (!request.auth || request.auth.token.role !== "professor") {
         throw new HttpsError("unauthenticated", "Only professors can start magic generation.");
@@ -550,7 +550,7 @@ CRITICAL OUTPUT INSTRUCTIONS:
 exports.generatePodcastAudio = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     // 1. Validácia a Autorizácia
     if (!request.auth || request.auth.token.role !== "professor") {
@@ -703,7 +703,7 @@ exports.generatePodcastAudio = onCall({
 exports.generateComicPanelImage = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     if (!request.auth || request.auth.token.role !== "professor") {
         throw new HttpsError("unauthenticated", "Only professors can generate images.");
@@ -761,8 +761,8 @@ exports.generateComicPanelImage = onCall({
 // ZJEDNOTENÁ FUNKCIA PRE VŠETKY AI OPERÁCIE
 exports.generateContent = onCall({
     region: DEPLOY_REGION,
-    timeoutSeconds: 300, // (5 minút)
-    memory: "1GiB",
+    timeoutSeconds: 540, // Increased to 9 minutes for RAG/Heavy loads
+    memory: "2GiB",
     cors: true
 }, async (request: CallableRequest) => {
     const { contentType, promptData, filePaths } = request.data;
@@ -1072,7 +1072,7 @@ Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
 exports.generateImage = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB",
+    memory: "2GiB",
     cors: true
 }, async (request: CallableRequest) => {
     const { prompt } = request.data;
@@ -1101,7 +1101,7 @@ exports.generateImage = onCall({
     }
 });
 
-exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540, memory: "1GiB" }, async (request: CallableRequest) => {
+exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540, memory: "2GiB" }, async (request: CallableRequest) => {
     if (!request.auth || request.auth.token.role !== "professor") {
         throw new HttpsError("unauthenticated", "This action requires professor privileges.");
     }
@@ -1248,7 +1248,7 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
 exports.getAiAssistantResponse = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300, // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     const { lessonId, userQuestion } = request.data;
 
@@ -1341,7 +1341,7 @@ exports.getAiAssistantResponse = onCall({
 exports.generatePortfolioFeedback = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     // 1. Validation
     if (!request.auth) {
@@ -1530,7 +1530,8 @@ exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: C
 // UPRAVENÁ FUNKCIA: AI Analýza študenta
 exports.getAiStudentSummary = onCall({
     region: DEPLOY_REGION,
-    timeoutSeconds: 300 // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
+    timeoutSeconds: 300, // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     const { studentId } = request.data;
     if (!studentId) {
@@ -2487,7 +2488,7 @@ exports.analyzeClassroomAudio = onCall({
 exports.generateDiagramElement = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     if (!request.auth || request.auth.token.role !== "professor") {
         throw new HttpsError("unauthenticated", "Only professors can generate diagrams.");
@@ -2645,7 +2646,7 @@ exports.evaluatePracticalSubmission = onDocumentWritten({
 exports.generateEmbeddings = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     // 1. Validation
     if (!request.auth || request.auth.token.role !== "professor") {
@@ -2681,7 +2682,7 @@ exports.generateEmbeddings = onCall({
 exports.analyzeSyllabus = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     // 1. Validation
     if (!request.auth || request.auth.token.role !== "professor") {
@@ -2739,7 +2740,7 @@ exports.analyzeSyllabus = onCall({
 exports.mapInsightsToGraph = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     // 1. Validation
     if (!request.auth || request.auth.token.role !== "professor") {
@@ -2798,7 +2799,7 @@ exports.mapInsightsToGraph = onCall({
 exports.generateRemedialExplanation = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     // 1. Validation
     if (!request.auth) {
@@ -2822,7 +2823,7 @@ exports.generateRemedialExplanation = onCall({
 exports.generateProjectScaffolding = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     // 1. Validation
     if (!request.auth || request.auth.token.role !== "professor") {
@@ -2846,7 +2847,7 @@ exports.generateProjectScaffolding = onCall({
 exports.triggerCrisis = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     // 1. Validation
     if (!request.auth || request.auth.token.role !== "professor") {
