@@ -306,9 +306,17 @@ class StudentDashboard extends Localized(LitElement) {
             const joinClass = httpsCallable(functions, 'joinClass');
             const result = await joinClass({ joinCode: this.joinCode });
 
-            this._closeJoinClassModal();
-            // Success alert
-            alert(`${this.t('student.join_success')} ${result.data.groupName}!`);
+            // Backend now returns { success: boolean, error?: string, groupName?: string }
+            if (result.data.success) {
+                this._closeJoinClassModal();
+                // Success alert
+                alert(`${this.t('student.join_success')} ${result.data.groupName}!`);
+            } else {
+                // Handle controlled failure
+                const errorMessage = result.data.error || this.t('student.join_error');
+                this.joinError = errorMessage;
+                console.error("Error joining class (controlled):", errorMessage);
+            }
             
         } catch (error) {
             console.error("Error joining class:", error);
