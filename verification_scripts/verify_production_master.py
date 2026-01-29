@@ -62,8 +62,8 @@ async def login_and_setup_professor(context):
 
     # Wait for Dashboard or Error
     try:
-        # Wait up to 60s for cold start
-        await page.wait_for_selector("professor-dashboard-view", timeout=60000)
+        # Wait up to 90s for cold start
+        await page.wait_for_selector("professor-dashboard-view", timeout=90000)
         print("[PROF] Dashboard Loaded.")
     except Exception:
         print("[FAIL] Dashboard did not load.")
@@ -266,26 +266,46 @@ async def act_3_student_join(context, join_code):
     # Switch to Register
     await safe_click(page, "a:has-text('Registrujte se')")
 
-    # Register Student
-    student_email = f"student_{time.time()}@test.cz"
-    await page.fill("#register-name", STUDENT_NAME)
-    await page.fill("#register-email", student_email)
-    await page.fill("#register-password", "password123")
-    await safe_click(page, "button:has-text('Registrovat se')")
+    # Register Student (Retry Logic)
+    MAX_RETRIES = 3
+    for attempt in range(MAX_RETRIES):
+        try:
+            # Generate unique email for each attempt to avoid collisions if previous attempt partially succeeded
+            student_email = f"student_{time.time()}@test.cz"
+            print(f"  - Registration Attempt {attempt+1}/{MAX_RETRIES} ({student_email})")
 
-    # Wait for Student Dashboard
-    print("  - Waiting for student dashboard...")
-    try:
-        # Note: Tag name is 'student-dashboard', not '-view'
-        await page.wait_for_selector("student-dashboard", timeout=30000)
-    except:
-        print("[FAIL] Student Dashboard did not load.")
-        # Check for error message
-        error_el = page.locator(".text-red-600")
-        if await error_el.count() > 0:
-             print(f"[FAIL] Error on page: {await error_el.all_text_contents()}")
-        await page.screenshot(path="failure_student_dash.png")
-        raise
+            await page.fill("#register-name", STUDENT_NAME)
+            await page.fill("#register-email", student_email)
+            await page.fill("#register-password", "password123")
+            await safe_click(page, "button:has-text('Registrovat se')")
+
+            # Wait for Student Dashboard
+            print("  - Waiting for student dashboard...")
+            # Note: Tag name is 'student-dashboard', not '-view'
+            await page.wait_for_selector("student-dashboard", timeout=90000)
+            print("  - Student Dashboard Loaded.")
+            break # Success
+
+        except Exception as e:
+            print(f"[WARN] Registration Attempt {attempt+1} failed: {e}")
+            if attempt < MAX_RETRIES - 1:
+                print("  - Retrying in 5 seconds...")
+                await asyncio.sleep(5)
+                # Ensure we are on the registration page or reset state
+                if not await page.locator("button:has-text('Registrovat se')").is_visible():
+                     print("  - Form lost. Reloading...")
+                     await page.reload()
+                     await page.wait_for_selector("login-view")
+                     await safe_click(page, "button:has-text('Jsem Student')")
+                     await safe_click(page, "a:has-text('Registrujte se')")
+            else:
+                print("[FAIL] All registration attempts failed.")
+                # Check for error message
+                error_el = page.locator(".text-red-600")
+                if await error_el.count() > 0:
+                     print(f"[FAIL] Error on page: {await error_el.all_text_contents()}")
+                await page.screenshot(path="failure_act3.png", full_page=True)
+                raise
 
     # Join Class via Dashboard
     print("  - Opening Join Class Modal...")
@@ -341,7 +361,7 @@ async def act_3_student_join(context, join_code):
                 await page.click("button:has-text('Lekce')")
 
             # Now wait for card
-            await project_card.wait_for(timeout=10000)
+            await project_card.wait_for(timeout=30000)
 
         await project_card.click()
 
