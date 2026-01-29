@@ -26,6 +26,39 @@ async def safe_click(page, selector, timeout=5000):
         print(f"[WARN] Standard click failed: {e}. Retrying with force...")
         await page.locator(selector).first.click(force=True, timeout=timeout)
 
+async def run_with_retry(func, *args, name="Act", retries=3):
+    """Executes an async function with automatic retry logic."""
+    for attempt in range(1, retries + 1):
+        print(f"\n[EXEC] Starting {name} (Attempt {attempt}/{retries})...")
+        try:
+            return await func(*args)
+        except Exception as e:
+            print(f"[FAIL] {name} failed on attempt {attempt}: {e}")
+
+            # Attempt to capture screenshot from any argument that looks like a Page
+            page = None
+            for arg in args:
+                if hasattr(arg, 'screenshot'):
+                    page = arg
+                    break
+
+            if page:
+                timestamp = int(time.time())
+                sanitized_name = name.lower().replace(" ", "_").replace("-", "")
+                screenshot_path = f"failure_{sanitized_name}_attempt_{attempt}_{timestamp}.png"
+                try:
+                    await page.screenshot(path=screenshot_path, full_page=True)
+                    print(f"[INFO] Saved failure screenshot to: {screenshot_path}")
+                except Exception as sc_err:
+                    print(f"[WARN] Failed to save screenshot: {sc_err}")
+
+            if attempt == retries:
+                print(f"[CRITICAL] {name} failed permanently after {retries} attempts.")
+                raise e
+
+            print(f"[RETRY] Waiting 10 seconds before retrying {name}...")
+            await asyncio.sleep(10)
+
 async def login_and_setup_professor(context):
     """Registers a new professor account and creates a class."""
     page = await context.new_page()
@@ -71,8 +104,6 @@ async def login_and_setup_professor(context):
         error_el = page.locator(".text-red-600")
         if await error_el.count() > 0:
              print(f"[FAIL] Error on page: {await error_el.all_text_contents()}")
-
-        await page.screenshot(path="failure_prof_dashboard.png")
         raise
 
     # 2. Create Class (Act 0)
@@ -134,7 +165,6 @@ async def act_1_architect(page):
         print("  - Analysis complete. Button visible.")
     except Exception:
         print("[FAIL] 'Generovat mapu' button did not appear.")
-        await page.screenshot(path="failure_act1.png")
         raise
 
     # Click Generate
@@ -150,7 +180,6 @@ async def act_1_architect(page):
         print("[ACT 1] Success: Cytoscape Graph rendered.")
     except Exception:
         print("[FAIL] Graph canvas not found.")
-        await page.screenshot(path="failure_act1_graph.png")
         raise
 
 async def act_2_project_setup(page):
@@ -163,7 +192,6 @@ async def act_2_project_setup(page):
     await page.wait_for_selector("professor-library-view")
 
     # Click "Nový Projekt" (Rocket icon usually)
-    # Update to accept Czech label 'Nový projekt' or use the icon selector .fa-rocket
     try:
         await safe_click(page, "button:has-text('New Project'), button:has-text('Nový projekt'), button:has-text('Nový Projekt'), button:has(.fa-rocket)")
     except:
@@ -178,10 +206,6 @@ async def act_2_project_setup(page):
     await page.fill("input[placeholder*='e.g., Sustainable City Design']", "Mars Colonization")
 
     # Duration (Selector based on value "2 weeks")
-    # Using generic 'select' if possible or finding by label
-    # The duration select is inside the form.
-    # We can try selecting by value directly on the select element.
-    # Locator: select that has option "2 weeks"
     duration_select = page.locator("select").filter(has=page.locator("option[value='2 weeks']"))
     await duration_select.select_option("2 weeks")
 
@@ -214,8 +238,6 @@ async def act_2_project_setup(page):
     await page.wait_for_selector("professor-class-detail-view")
 
     # Switch to Lessons Tab (Lekce)
-    # The button text depends on translation, but 'Lekce' or 'Lessons'
-    # professor.stats_lessons -> 'Lekce'
     try:
         await safe_click(page, "button:has-text('Lekce')")
     except:
@@ -224,14 +246,10 @@ async def act_2_project_setup(page):
         await page.locator("span:has-text('📚')").locator("xpath=..").click()
 
     # Click "Přiřadit lekci" (Assign Lesson) - Plus icon or text
-    # professor-class-detail-view.js: assign_lesson_btn
-    # Text: "Přiřadit lekci"
     await safe_click(page, "button:has-text('Přiřadit lekci')")
 
     # Modal opens. Find "Mars Colonization"
-    # It might be in the list.
     print("  - Selecting 'Mars Colonization' from modal...")
-    # Find button containing title
     lesson_btn = page.locator("div.fixed.inset-0 button").filter(has=page.locator("h4:has-text('Mars Colonization')"))
     await lesson_btn.wait_for(state="visible", timeout=10000)
     await lesson_btn.click()
@@ -240,10 +258,7 @@ async def act_2_project_setup(page):
     print("  - Project Assigned.")
 
     # Toggle "Publish" (Visibility)
-    # Checkbox is input[type='checkbox'] inside the lesson card
-    # Lesson card contains h3:has-text('Mars Colonization')
     print("  - Publishing Project...")
-    # The assigned lesson appears in the list. Wait for it.
     lesson_card = page.locator("div.bg-white").filter(has=page.locator("h3:has-text('Mars Colonization')"))
     await lesson_card.wait_for(state="visible", timeout=10000)
 
@@ -270,7 +285,7 @@ async def act_3_student_join(context, join_code):
     MAX_RETRIES = 3
     for attempt in range(MAX_RETRIES):
         try:
-            # Generate unique email for each attempt to avoid collisions if previous attempt partially succeeded
+            # Generate unique email for each attempt to avoid collisions
             student_email = f"student_{time.time()}@test.cz"
             print(f"  - Registration Attempt {attempt+1}/{MAX_RETRIES} ({student_email})")
 
@@ -281,10 +296,9 @@ async def act_3_student_join(context, join_code):
 
             # Wait for Student Dashboard
             print("  - Waiting for student dashboard...")
-            # Note: Tag name is 'student-dashboard', not '-view'
             await page.wait_for_selector("student-dashboard", timeout=90000)
             print("  - Student Dashboard Loaded.")
-            break # Success
+            break
 
         except Exception as e:
             print(f"[WARN] Registration Attempt {attempt+1} failed: {e}")
@@ -300,11 +314,6 @@ async def act_3_student_join(context, join_code):
                      await safe_click(page, "a:has-text('Registrujte se')")
             else:
                 print("[FAIL] All registration attempts failed.")
-                # Check for error message
-                error_el = page.locator(".text-red-600")
-                if await error_el.count() > 0:
-                     print(f"[FAIL] Error on page: {await error_el.all_text_contents()}")
-                await page.screenshot(path="failure_act3.png", full_page=True)
                 raise
 
     # Join Class via Dashboard
@@ -321,10 +330,8 @@ async def act_3_student_join(context, join_code):
             # Button with Rocket icon or "Připojit se k třídě"
             join_btn = page.locator("button:has-text('Připojit se k třídě')")
             if not await join_btn.is_visible():
-                # Maybe icon only?
                 join_btn = page.locator("div.bg-indigo-50:has-text('🚀')").locator("xpath=..")
 
-            # Ensure button is visible before clicking
             await join_btn.wait_for(state="visible", timeout=5000)
             await join_btn.click()
 
@@ -332,7 +339,7 @@ async def act_3_student_join(context, join_code):
             print(f"  - Entering Code: {join_code}")
             await page.fill("input[placeholder='CODE']", join_code)
 
-            # Setup Dialog Handler for Success Alert (Synchronized Waiting)
+            # Setup Dialog Handler
             dialog_appeared = False
             async def handle_dialog(dialog):
                 nonlocal dialog_appeared
@@ -343,15 +350,14 @@ async def act_3_student_join(context, join_code):
             page.on("dialog", handle_dialog)
 
             # Submit
-            await page.press("input[placeholder='CODE']", "Enter") # Or click join button
+            await page.press("input[placeholder='CODE']", "Enter")
 
             # Wait for either Success (Dialog) or Failure (Error Toast)
-            # Use polling to prevent race conditions or premature reloads
             start_time = time.time()
             success = False
             error_found = False
 
-            while time.time() - start_time < 45: # 45s timeout for Join operation
+            while time.time() - start_time < 45:
                 if dialog_appeared:
                     success = True
                     break
@@ -382,7 +388,7 @@ async def act_3_student_join(context, join_code):
                  continue
 
             # Timeout
-            print("[WARN] Join operation timed out (no dialog, no error detected).")
+            print("[WARN] Join operation timed out.")
             await page.reload()
             await page.wait_for_selector("student-dashboard")
             continue
@@ -395,13 +401,12 @@ async def act_3_student_join(context, join_code):
 
     if not join_success:
         print("[FAIL] Failed to join class after retries.")
-        await page.screenshot(path="failure_act3_join.png")
         raise Exception("Failed to join class")
 
     # Wait for Dashboard to update with "Active Lesson" (Real-time)
     print("  - Waiting for 'Active Lesson' card to appear...")
 
-    # Force reload to ensure data consistency - NOW we are sure the backend finished!
+    # Force reload to ensure data consistency
     await page.reload()
     await page.wait_for_selector("student-dashboard")
 
@@ -409,20 +414,15 @@ async def act_3_student_join(context, join_code):
     if not await page.locator("student-project-view").is_visible():
         print("  - Looking for project 'Mars Colonization'...")
 
-        # Try finding in Dashboard Hero or Quick List
         project_card = page.locator("h3:has-text('Mars Colonization')").first
 
         if not await project_card.is_visible():
             print("  - Not found on Dashboard. Switching to 'Moje lekce'...")
-            # Click "Moje lekce" (Desktop) or "Lekce" (Mobile)
-            # Try finding the nav button by text
             try:
                 await page.click("button:has-text('Moje lekce')")
             except:
-                # Fallback to icon or mobile text
                 await page.click("button:has-text('Lekce')")
 
-            # Now wait for card - INCREASED TIMEOUT to 60s
             await project_card.wait_for(timeout=60000)
 
         await project_card.click()
@@ -431,30 +431,6 @@ async def act_3_student_join(context, join_code):
     await page.wait_for_selector("student-project-view")
     print("  - Role Selection screen loaded.")
 
-    # Select a Role
-    # Find active role cards (generated in Act 2)
-    # They are likely button-like or cards.
-    # Selector based on common card classes or text
-    # In student-project-view.js, role selection usually involves clicking a card.
-    # Let's target the first available role card.
-    # Assuming class "role-card" or similar, or just text matching known roles (Commander, Engineer)
-    # The mock AI generates roles like "Project Manager", "Architect".
-    # We click the first one.
-
-    # Wait for render
-    await page.wait_for_timeout(1000)
-
-    # Try generic selector for role item
-    # If using student-project-view, it might render role selection.
-    # Let's try text "Select" or click the first div with text.
-
-    # Actually, verify_production_master.py earlier used .role-card.
-    # If that failed, we need a better one.
-    # Let's try just clicking the first H3 inside the role selection area.
-
-    # For now, let's look for a button "Select Role" or similar if text exists.
-    # Or just click the first card.
-    # Mock roles: "Project Manager", "Researcher"
     print("  - Selecting Role 'Project Manager'...")
     try:
         await safe_click(page, "h3:has-text('Project Manager')")
@@ -468,9 +444,7 @@ async def act_3_student_join(context, join_code):
     if await confirm_btn.is_visible():
         await confirm_btn.click()
 
-    # Verify Dashboard loads (tasks list etc)
-    # Check for ".project-dashboard" class might fail if not present.
-    # Look for "Active Phase" badge or Timeline elements.
+    # Verify Dashboard loads
     await page.locator("text=Active Phase").first.wait_for(timeout=10000)
     print("[ACT 3] Student Dashboard loaded with Role.")
 
@@ -487,44 +461,19 @@ async def act_4_crisis(prof_page, student_page):
     await prof_page.wait_for_selector("professor-library-view")
 
     # Open "Mars Colonization"
-    # Find card
     card = prof_page.locator("h3:has-text('Mars Colonization')").first
-    # Click "Otevřít" in that card
-    # Card structure: div.group -> ... -> div -> button:has-text('Otevřít')
-    # Parent of H3 is div.flex-grow. Parent of that is div.group.
-    # Button is in div.mt-auto inside div.group.
-    # We can just click "Otevřít" inside the card scope
     await card.locator("xpath=../..").locator("button:has-text('Otevřít')").click()
 
     # Wait for Editor
     await prof_page.wait_for_selector("project-editor")
-
-    # Wait a bit for properties to bind and render
     await prof_page.wait_for_timeout(3000)
 
     # Prof triggers crisis
     print("  - Prof: Clicking Inject Crisis...")
-    # Button might be icon-only on small screens? No, Prof view is desktop.
     crisis_btn = prof_page.locator("button:has-text('Inject Crisis')")
     await crisis_btn.wait_for(state="visible", timeout=10000)
-    await crisis_btn.click()
 
-    # Confirm dialog?
-    # project-editor.js says: if (!confirm(...)) return;
-    # Playwright handles dialogs automatically (dismiss by default).
-    # We need to accept it.
-
-    prof_page.on("dialog", lambda dialog: dialog.accept())
-
-    # Note: Dialog handler must be set BEFORE action.
-    # Re-clicking to ensure dialog is caught (if strictly async, race condition might apply, but usually OK)
-    # But since I already clicked, and if dialog appeared, it might have been dismissed.
-    # Wait, Playwright auto-dismisses! So the crisis was CANCELED!
-    # I need to set the handler before clicking.
-
-    # Retry logic:
-    # Reload page? No.
-    # Just click again with handler.
+    # Handle dialog
     prof_page.on("dialog", lambda dialog: dialog.accept())
     await crisis_btn.click()
     print("  - Prof: Injected Crisis (Dialog Accepted).")
@@ -537,12 +486,10 @@ async def act_4_crisis(prof_page, student_page):
         print("[ACT 4] Success: Crisis Overlay detected on Student.")
     except:
         print("[FAIL] Crisis Overlay not shown.")
-        await student_page.screenshot(path="failure_crisis.png")
         raise
 
     # Resolve
     print("  - Student: Resolving Crisis...")
-    # Button inside overlay - "PROVÉST OBNOVU A VYŘEŠIT" or "EXECUTE RECOVERY"
     resolve_btn = student_page.locator("button").filter(has_text="OBNOVU")
     if not await resolve_btn.is_visible():
          resolve_btn = student_page.locator("button").filter(has_text="RECOVERY")
@@ -561,7 +508,6 @@ async def act_5_analytics(prof_page):
 
     # Verify Heatmap
     print("  - Checking for Heatmap...")
-    # Looking for a canvas (Chart.js usually) or a specific container
     heatmap = prof_page.locator("canvas").first
     try:
         await heatmap.wait_for(timeout=10000)
@@ -571,14 +517,9 @@ async def act_5_analytics(prof_page):
 
     # Export Data
     print("  - Exporting Data...")
-    # Button "Export Research Data" or "Export"
-    # In cs.json: "research.export_json": "Export JSON"
-    # professor-analytics-view.js probably has it.
-    # Let's target text "Export"
     export_btn = prof_page.locator("button:has-text('Export')").first
 
     if await export_btn.is_visible():
-        # Click and catch download event
         try:
             async with prof_page.expect_download(timeout=5000) as download_info:
                 await export_btn.click()
@@ -602,22 +543,23 @@ async def run():
         context_prof.on("page", lambda page: page.on("console", lambda msg: print(f"[PROF CONSOLE] {msg.text}")))
 
         try:
-            # Act 0 & 1 & 2 (Professor)
-            prof_page, join_code = await login_and_setup_professor(context_prof)
+            # Act 0 (Professor Setup)
+            prof_page, join_code = await run_with_retry(login_and_setup_professor, context_prof, name="Act 0 - Setup")
 
-            await act_1_architect(prof_page)
+            # Act 1 (Architect)
+            await run_with_retry(act_1_architect, prof_page, name="Act 1 - Architect")
 
-            await act_2_project_setup(prof_page)
-            # Prof is now in Project Editor
+            # Act 2 (Project Setup)
+            await run_with_retry(act_2_project_setup, prof_page, name="Act 2 - Project Setup")
 
-            # Act 3 (Student)
-            student_page = await act_3_student_join(context_student, join_code)
+            # Act 3 (Student Join)
+            student_page = await run_with_retry(act_3_student_join, context_student, join_code, name="Act 3 - Student Join")
 
             # Act 4 (Interaction)
-            await act_4_crisis(prof_page, student_page)
+            await run_with_retry(act_4_crisis, prof_page, student_page, name="Act 4 - Crisis")
 
             # Act 5 (Analytics)
-            await act_5_analytics(prof_page)
+            await run_with_retry(act_5_analytics, prof_page, name="Act 5 - Analytics")
 
             print("\n[SUCCESS] Master Production Verification Completed.")
 
