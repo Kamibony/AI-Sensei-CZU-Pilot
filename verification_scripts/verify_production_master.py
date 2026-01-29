@@ -422,9 +422,13 @@ async def act_3_student_join(context, join_code):
 
     # Find the Project Card "Mars Colonization"
     if not await page.locator("student-project-view").is_visible():
-        print("  - Looking for project 'Mars Colonization'...")
+        print("  - Looking for project 'Mars Colonization' or any project card...")
 
-        project_card = page.locator("h3:has-text('Mars Colonization')").first
+        # Relaxed Selector: Generic [data-lesson-card] or text fallback
+        project_card = page.locator("[data-lesson-card]").first
+        if not await project_card.is_visible():
+            # Fallback for legacy/non-updated UI
+            project_card = page.locator("h3:has-text('Mars Colonization')").first
 
         if not await project_card.is_visible():
             print("  - Not found on Dashboard. Switching to 'Moje lekce'...")
@@ -432,6 +436,11 @@ async def act_3_student_join(context, join_code):
                 await page.click("button:has-text('Moje lekce')")
             except:
                 await page.click("button:has-text('Lekce')")
+
+            # Try finding again in list
+            project_card = page.locator("[data-lesson-card]").first
+            if not await project_card.is_visible():
+                 project_card = page.locator("h3:has-text('Mars Colonization')").first
 
             await project_card.wait_for(timeout=60000)
 

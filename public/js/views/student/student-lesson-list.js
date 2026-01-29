@@ -268,7 +268,7 @@ export class StudentLessonList extends LitElement {
         const monthShort = dateObj.toLocaleDateString('cs-CZ', { month: 'short' }).replace('.', '').toUpperCase();
 
         return html`
-            <div @click=${() => !isFuture ? this._handleLessonClick(lesson.id) : null}
+            <div data-lesson-card="list-item" @click=${() => !isFuture ? this._handleLessonClick(lesson.id) : null}
                  class="${cardClasses}">
 
                 <!-- Rich Popover -->

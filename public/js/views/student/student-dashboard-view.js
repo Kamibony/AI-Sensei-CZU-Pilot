@@ -151,6 +151,7 @@ class StudentDashboard extends Localized(LitElement) {
 
             if (this._unsubLesson) this._unsubLesson();
             this._unsubLesson = onSnapshot(q, (snapshot) => {
+                console.log("Last Lesson Query Snapshot Size:", snapshot.size);
                 if (!snapshot.empty) {
                     const doc = snapshot.docs[0];
                     this.lastLesson = { id: doc.id, ...doc.data() };
@@ -485,7 +486,7 @@ class StudentDashboard extends Localized(LitElement) {
                 </h3>
 
                 ${this.lastLesson ? html`
-                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-lg transition-shadow duration-300 group cursor-pointer"
+                    <div data-lesson-card="hero" class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-lg transition-shadow duration-300 group cursor-pointer"
                          @click="${() => {
                             this.selectedLessonId = this.lastLesson.id;
                             this.currentView = 'lessons';
