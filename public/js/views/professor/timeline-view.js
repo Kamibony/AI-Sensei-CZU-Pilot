@@ -16,7 +16,8 @@ export class TimelineView extends LitElement {
         currentMonthStart: { state: true },
         _draggedLessonId: { state: true },
         selectedGroupFilter: { state: true },
-        _expandedDates: { state: true }
+        _expandedDates: { state: true },
+        _undoState: { state: true }
     };
 
     createRenderRoot() { return this; } // Light DOM enabled
@@ -29,6 +30,8 @@ export class TimelineView extends LitElement {
         this._draggedLessonId = null;
         this.selectedGroupFilter = 'all';
         this._expandedDates = new Set();
+        this._undoState = { visible: false, lessonId: null, previousDate: null, message: '' };
+        this._undoTimeout = null;
 
         // Initialize to current month's first day
         this.currentMonthStart = this._getStartOfMonth(new Date());
@@ -169,6 +172,36 @@ export class TimelineView extends LitElement {
         e.dataTransfer.dropEffect = 'move';
     }
 
+    async _performUndo() {
+        if (!this._undoState.visible || !this._undoState.lessonId) return;
+
+        const { lessonId, previousDate } = this._undoState;
+
+        // Optimistic update
+        const lessonIndex = this.lessons.findIndex(l => l.id === lessonId);
+        if (lessonIndex > -1) {
+            const originalLesson = this.lessons[lessonIndex];
+            const updatedLesson = {
+                ...originalLesson,
+                availableFrom: previousDate ? previousDate.toISOString() : null,
+                isPublished: !!previousDate
+            };
+
+            this.lessons = [
+                ...this.lessons.slice(0, lessonIndex),
+                updatedLesson,
+                ...this.lessons.slice(lessonIndex + 1)
+            ];
+        }
+
+        this._undoState = { ...this._undoState, visible: false };
+        if (this._undoTimeout) clearTimeout(this._undoTimeout);
+
+        // API Call
+        await this.dataService.updateLessonSchedule(lessonId, previousDate, null);
+        showToast('Akce vrácena zpět', 'info');
+    }
+
     async _handleDropOnDay(e, date) {
         e.preventDefault();
         if (!date) return; // Cannot drop on padding cells
@@ -208,7 +241,19 @@ export class TimelineView extends LitElement {
                 this.lessons = [...this.lessons];
                 showToast('Chyba při plánování', 'error');
             } else {
-                 showToast(translationService.t('timeline.scheduled_success') || 'Lekce naplánována', 'success');
+                // showToast(translationService.t('timeline.scheduled_success') || 'Lekce naplánována', 'success');
+
+                // Trigger Undo
+                if (this._undoTimeout) clearTimeout(this._undoTimeout);
+                this._undoState = {
+                    visible: true,
+                    lessonId,
+                    previousDate: oldFrom ? new Date(oldFrom) : null,
+                    message: 'Lekce přesunuta'
+                };
+                this._undoTimeout = setTimeout(() => {
+                    this._undoState = { ...this._undoState, visible: false };
+                }, 5000);
             }
         }
     }
@@ -235,7 +280,19 @@ export class TimelineView extends LitElement {
                  this.lessons[lessonIndex] = { ...this.lessons[lessonIndex], availableFrom: oldFrom };
                  this.lessons = [...this.lessons];
              } else {
-                 showToast(translationService.t('timeline.unscheduled_success') || 'Lekce přesunuta do zásobníku', 'success');
+                 // showToast(translationService.t('timeline.unscheduled_success') || 'Lekce přesunuta do zásobníku', 'success');
+
+                 // Trigger Undo
+                 if (this._undoTimeout) clearTimeout(this._undoTimeout);
+                 this._undoState = {
+                     visible: true,
+                     lessonId,
+                     previousDate: oldFrom ? new Date(oldFrom) : null,
+                     message: 'Lekce přesunuta do zásobníku'
+                 };
+                 this._undoTimeout = setTimeout(() => {
+                     this._undoState = { ...this._undoState, visible: false };
+                 }, 5000);
              }
         }
     }
@@ -608,6 +665,30 @@ export class TimelineView extends LitElement {
         return '📚';
     }
 
+    _renderUndoToast() {
+        if (!this._undoState.visible) return nothing;
+
+        return html`
+            <div class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-4">
+                <span>${this._undoState.message}</span>
+                <button
+                    @click="${this._performUndo}"
+                    class="text-amber-400 font-bold hover:text-amber-300 uppercase text-sm tracking-wide"
+                >
+                    Vrátit zpět
+                </button>
+                <button
+                    @click="${() => this._undoState = { ...this._undoState, visible: false }}"
+                    class="text-slate-500 hover:text-white transition-colors"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        `;
+    }
+
     render() {
         const days = this._generateMonthDays(this.currentMonthStart);
         const weekDays = Array.from({length: 7}, (_, i) => {
@@ -645,6 +726,9 @@ export class TimelineView extends LitElement {
                         </div>
                     </div>
                 </div>
+
+                <!-- Undo Toast -->
+                ${this._renderUndoToast()}
             </div>
         `;
     }
