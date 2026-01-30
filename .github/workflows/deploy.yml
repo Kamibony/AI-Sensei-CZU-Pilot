@@ -49,14 +49,17 @@ jobs:
         env:
           RAW_KEY: ${{ secrets.GCP_SA_KEY }}
         run: |
-          # Diagnostic: Check project_id in key (masked to avoid leaking sensitive data if format differs)
-          echo "Checking project_id in GCP_SA_KEY..."
           echo "$RAW_KEY" > raw_key.json
+
+          # Sanitize: Remove 'projects/' prefix from project_id if present (Fixes double prefix error)
+          sed -i 's/"project_id": *"projects\//"project_id": "/g' raw_key.json
+
+          # Diagnostic: Verify project_id format in logs
+          echo "Sanitized project_id in GCP_SA_KEY:"
           grep -o '"project_id": *"[^"]*"' raw_key.json || echo "Could not find project_id in key"
-          rm raw_key.json
 
           # Encode the secret to Base64 (single line) to satisfy w9jds/firebase-action requirements
-          echo "$RAW_KEY" | base64 -w 0 > gcp_key_b64.txt
+          cat raw_key.json | base64 -w 0 > gcp_key_b64.txt
           echo "GCP_SA_KEY_B64=$(cat gcp_key_b64.txt)" >> $GITHUB_ENV
 
       # --- Nasadenie na DEV (vetva main) -> ai-sensei-czu-pilot ---
