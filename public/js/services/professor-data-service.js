@@ -235,7 +235,7 @@ export class ProfessorDataService {
         }
     }
 
-    async createLessonsBatch(lessonsDataArray) {
+    async batchCreateLessons(lessonsDataArray) {
         try {
             if (!this.db || !this.auth.currentUser) return false;
             if (!lessonsDataArray || lessonsDataArray.length === 0) return true;

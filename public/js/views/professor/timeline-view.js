@@ -17,7 +17,8 @@ export class TimelineView extends LitElement {
         _draggedLessonId: { state: true },
         selectedGroupFilter: { state: true },
         _expandedDates: { state: true },
-        _undoState: { state: true }
+        _undoState: { state: true },
+        _quickAddState: { state: true }
     };
 
     createRenderRoot() { return this; } // Light DOM enabled
@@ -32,6 +33,7 @@ export class TimelineView extends LitElement {
         this._expandedDates = new Set();
         this._undoState = { visible: false, lessonId: null, previousDate: null, message: '' };
         this._undoTimeout = null;
+        this._quickAddState = { visible: false, date: null, recurring: false, weeks: 12, title: 'Nová lekce' };
 
         // Initialize to current month's first day
         this.currentMonthStart = this._getStartOfMonth(new Date());
@@ -297,26 +299,74 @@ export class TimelineView extends LitElement {
         }
     }
 
-    async _handleDayDoubleClick(date) {
+    _handleDayDoubleClick(date) {
         if (!date) return;
         const targetDate = new Date(date);
         targetDate.setHours(9, 0, 0, 0);
 
-        const newLesson = {
-            title: 'Nová lekce',
-            status: 'draft',
-            availableFrom: targetDate.toISOString(),
-            isPublished: false,
-            topic: '',
-            contentType: 'text',
-            content: { blocks: [] },
-            assignedToGroups: []
+        this._quickAddState = {
+            visible: true,
+            date: targetDate,
+            recurring: false,
+            weeks: 12,
+            title: 'Nová lekce'
         };
+    }
 
-        const created = await this.dataService.createLesson(newLesson);
-        if (created) {
-            this.lessons = [created, ...this.lessons];
-            showToast('Lekce vytvořena', 'success');
+    async _handleQuickAddSubmit() {
+        const { date, recurring, weeks, title } = this._quickAddState;
+        if (!date) return;
+
+        this.isLoading = true;
+        this._quickAddState = { ...this._quickAddState, visible: false };
+
+        if (recurring) {
+            showToast("Vytvářím rozvrh na celý semestr...", "info");
+            const lessonsToCreate = [];
+
+            for (let i = 0; i < weeks; i++) {
+                const lessonDate = new Date(date);
+                lessonDate.setDate(lessonDate.getDate() + (i * 7));
+
+                lessonsToCreate.push({
+                    title: title,
+                    status: 'draft',
+                    availableFrom: lessonDate.toISOString(),
+                    isPublished: true,
+                    topic: '',
+                    contentType: 'text',
+                    content: { blocks: [] },
+                    assignedToGroups: []
+                });
+            }
+
+            const success = await this.dataService.batchCreateLessons(lessonsToCreate);
+            if (success) {
+                showToast(`Naplánováno ${weeks} lekcí`, "success");
+                await this._loadData();
+            } else {
+                this.isLoading = false;
+            }
+
+        } else {
+            // Single lesson creation
+            const newLesson = {
+                title: title,
+                status: 'draft',
+                availableFrom: date.toISOString(),
+                isPublished: false,
+                topic: '',
+                contentType: 'text',
+                content: { blocks: [] },
+                assignedToGroups: []
+            };
+
+            const created = await this.dataService.createLesson(newLesson);
+            if (created) {
+                this.lessons = [created, ...this.lessons];
+                showToast('Lekce vytvořena', 'success');
+            }
+            this.isLoading = false;
         }
     }
 
@@ -536,7 +586,7 @@ export class TimelineView extends LitElement {
             };
         });
 
-        const success = await this.dataService.createLessonsBatch(newLessons);
+        const success = await this.dataService.batchCreateLessons(newLessons);
         if (success) {
             showToast(`Úspěšně zkopírováno ${newLessons.length} lekcí.`, 'success');
             await this._loadData();
@@ -698,6 +748,73 @@ export class TimelineView extends LitElement {
         `;
     }
 
+    _renderQuickAddModal() {
+        if (!this._quickAddState.visible) return nothing;
+
+        return html`
+            <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm animate-in fade-in">
+                <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md animate-in zoom-in-95">
+                    <h3 class="text-lg font-bold text-slate-900 mb-4">Naplánovat lekci</h3>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Název lekce</label>
+                            <input
+                                type="text"
+                                class="w-full rounded-lg border-slate-300 focus:border-indigo-500 focus:ring-indigo-500"
+                                .value="${this._quickAddState.title}"
+                                @input="${(e) => this._quickAddState = { ...this._quickAddState, title: e.target.value }}"
+                            >
+                        </div>
+
+                        <div class="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <input
+                                type="checkbox"
+                                id="recurring-check"
+                                class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                .checked="${this._quickAddState.recurring}"
+                                @change="${(e) => this._quickAddState = { ...this._quickAddState, recurring: e.target.checked }}"
+                            >
+                            <label for="recurring-check" class="text-sm font-medium text-slate-700 select-none cursor-pointer">
+                                Opakovat týdně
+                            </label>
+                        </div>
+
+                        ${this._quickAddState.recurring ? html`
+                            <div class="animate-in slide-in-from-top-2 fade-in">
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Trvání (týdnů)</label>
+                                <input
+                                    type="number"
+                                    min="2"
+                                    max="52"
+                                    class="w-full rounded-lg border-slate-300 focus:border-indigo-500 focus:ring-indigo-500"
+                                    .value="${this._quickAddState.weeks}"
+                                    @input="${(e) => this._quickAddState = { ...this._quickAddState, weeks: parseInt(e.target.value) || 12 }}"
+                                >
+                                <p class="text-xs text-slate-500 mt-1">Vytvoří se ${this._quickAddState.weeks} kopií lekce.</p>
+                            </div>
+                        ` : nothing}
+                    </div>
+
+                    <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
+                        <button
+                            @click="${() => this._quickAddState = { ...this._quickAddState, visible: false }}"
+                            class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                        >
+                            Zrušit
+                        </button>
+                        <button
+                            @click="${this._handleQuickAddSubmit}"
+                            class="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-sm transition-all hover:shadow active:scale-95"
+                        >
+                            Vytvořit
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     render() {
         const days = this._generateMonthDays(this.currentMonthStart);
         const weekDays = Array.from({length: 7}, (_, i) => {
@@ -825,6 +942,9 @@ export class TimelineView extends LitElement {
 
                 <!-- Undo Toast -->
                 ${this._renderUndoToast()}
+
+                <!-- Quick Add Modal -->
+                ${this._renderQuickAddModal()}
             </div>
         `;
     }
