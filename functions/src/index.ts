@@ -1931,11 +1931,14 @@ exports.joinClass = onCall({ region: DEPLOY_REGION, cors: true }, async (request
                 studentIds: FieldValue.arrayUnion(studentId)
             });
 
-            // C. WRITE: Update Student Profile (Guaranteed to sync)
-            // IDEMPOTENT ACTION: Safe to run multiple times.
+            // C. WRITE: Update Student Profile (LEGACY - REMOVED TO PREVENT SPLIT BRAIN)
+            // We no longer write to students/{uid} for group membership.
+            // The 'users/{uid}' collection is the Canonical Source of Truth.
+            /*
             transaction.set(studentRef, {
                 memberOfGroups: FieldValue.arrayUnion(groupId)
             }, { merge: true });
+            */
 
             // D. WRITE: Update User Profile (Unified Source of Truth)
             // IDEMPOTENT ACTION: Ensures self-healing if previous attempts failed here.
