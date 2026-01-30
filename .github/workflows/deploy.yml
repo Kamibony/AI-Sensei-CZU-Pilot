@@ -49,6 +49,12 @@ jobs:
         env:
           RAW_KEY: ${{ secrets.GCP_SA_KEY }}
         run: |
+          # Diagnostic: Check project_id in key (masked to avoid leaking sensitive data if format differs)
+          echo "Checking project_id in GCP_SA_KEY..."
+          echo "$RAW_KEY" > raw_key.json
+          grep -o '"project_id": *"[^"]*"' raw_key.json || echo "Could not find project_id in key"
+          rm raw_key.json
+
           # Encode the secret to Base64 (single line) to satisfy w9jds/firebase-action requirements
           echo "$RAW_KEY" | base64 -w 0 > gcp_key_b64.txt
           echo "GCP_SA_KEY_B64=$(cat gcp_key_b64.txt)" >> $GITHUB_ENV
@@ -61,6 +67,8 @@ jobs:
           args: deploy --force
         env:
           GCP_SA_KEY: ${{ env.GCP_SA_KEY_B64 }}
+          GCLOUD_PROJECT: ai-sensei-czu-pilot
+          FIREBASE_PROJECT: ai-sensei-czu-pilot
 
       # --- Nasadenie na NOVÝ PROD (vetva release) -> ai-sensei-prod ---
       - name: Deploy to PROD (ai-sensei-prod)
