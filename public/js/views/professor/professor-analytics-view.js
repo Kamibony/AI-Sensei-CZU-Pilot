@@ -56,6 +56,13 @@ export class ProfessorAnalyticsView extends Localized(LitElement) {
         this._isLoading = true;
         this._error = null;
         try {
+            // Verify Role: Check claims
+            if (auth.currentUser) {
+                auth.currentUser.getIdTokenResult()
+                    .then(idTokenResult => console.log("[Analytics] User Claims:", idTokenResult.claims))
+                    .catch(err => console.error("[Analytics] Error fetching claims:", err));
+            }
+
             this._analyticsData = await this._dataService.getAdvancedAnalytics();
         } catch (e) {
             console.error("Error loading analytics:", e);
