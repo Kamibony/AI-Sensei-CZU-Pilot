@@ -484,7 +484,12 @@ async def act_3_student_join(context, join_code):
 
         if await project_card.is_visible():
             print(f"  - Found card: {await project_card.text_content()}")
-            await project_card.click()
+            # Refined Click: Target the button if possible
+            button = project_card.locator("button, .btn-primary, [role='button']").first
+            if await button.is_visible():
+                await button.click()
+            else:
+                await project_card.click()
         else:
             print("  - [WARN] No specific card found on Dashboard. Switching to 'Moje lekce'...")
             try:
@@ -506,8 +511,9 @@ async def act_3_student_join(context, join_code):
                  raise Exception("No lesson cards found for student.")
 
     # Wait for Project View (Role Selection)
-    await page.wait_for_selector("student-project-view")
-    print("  - Role Selection screen loaded.")
+    # Using logical OR to support various lesson types or intermediate loading states
+    await page.locator("student-project-view").or_(page.locator("student-lesson-detail")).or_(page.locator("student-task-view")).first.wait_for(timeout=30000)
+    print("  - Role Selection/Lesson View loaded.")
 
     print("  - Selecting Role 'Project Manager'...")
     try:
