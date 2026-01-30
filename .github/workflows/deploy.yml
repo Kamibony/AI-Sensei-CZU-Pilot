@@ -58,7 +58,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --project dev --force
+          args: deploy --project development --force
         env:
           GCP_SA_KEY: ${{ env.GCP_SA_KEY_B64 }}
 

@@ -1,8 +1,8 @@
 {
   "projects": {
-    "default": "ai-sensei-czu-pilot",
-    "dev": "ai-sensei-czu-pilot",
+    "development": "ai-sensei-czu-pilot",
+    "prod": "ai-sensei-prod",
     "legacy": "via-academy-prod-3f4e1",
-    "prod": "ai-sensei-prod"
+    "default": "ai-sensei-czu-pilot"
   }
 }
