@@ -1,5 +1,5 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as firebaseInit from '../../firebase-init.js';
 import { showToast, getCollectionPath } from '../../utils/utils.js';
 import { translationService } from '../../utils/translation-service.js';
@@ -7,18 +7,23 @@ import { translationService } from '../../utils/translation-service.js';
 export class ProfessorClassesView extends LitElement {
     static properties = {
         _classes: { state: true, type: Array },
+        _lessons: { state: true, type: Array },
         _isLoading: { state: true, type: Boolean },
         _isCreateModalOpen: { state: true, type: Boolean },
-        _newClassName: { state: true, type: String }
+        _newClassName: { state: true, type: String },
+        _selectedLessonId: { state: true, type: String }
     };
 
     constructor() {
         super();
         this._classes = [];
+        this._lessons = [];
         this._isLoading = true;
         this.classesUnsubscribe = null;
+        this.lessonsUnsubscribe = null;
         this._isCreateModalOpen = false;
         this._newClassName = '';
+        this._selectedLessonId = '';
     }
 
     createRenderRoot() { return this; }
@@ -26,6 +31,7 @@ export class ProfessorClassesView extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._fetchClasses();
+        this._fetchLessons();
         this._langUnsubscribe = translationService.subscribe(() => this.requestUpdate());
     }
 
@@ -33,6 +39,9 @@ export class ProfessorClassesView extends LitElement {
         super.disconnectedCallback();
         if (this.classesUnsubscribe) {
             this.classesUnsubscribe();
+        }
+        if (this.lessonsUnsubscribe) {
+            this.lessonsUnsubscribe();
         }
         if (this._langUnsubscribe) {
             this._langUnsubscribe();
@@ -64,6 +73,18 @@ export class ProfessorClassesView extends LitElement {
         });
     }
 
+    _fetchLessons() {
+        const user = firebaseInit.auth.currentUser;
+        if (!user) return;
+
+        const q = query(collection(firebaseInit.db, 'lessons'), where("ownerId", "==", user.uid));
+        this.lessonsUnsubscribe = onSnapshot(q, (snapshot) => {
+            this._lessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        }, (error) => {
+            console.error("Error fetching lessons:", error);
+        });
+    }
+
     _generateJoinCode() {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         let result = '';
@@ -75,6 +96,7 @@ export class ProfessorClassesView extends LitElement {
 
     _openCreateModal() {
         this._newClassName = '';
+        this._selectedLessonId = '';
         this._isCreateModalOpen = true;
     }
 
@@ -88,6 +110,13 @@ export class ProfessorClassesView extends LitElement {
             showToast(translationService.t('professor.enter_class_name'), true);
             return;
         }
+
+        // SYSTEMIC FIX: Validate that a lesson is selected (Prevent Null State Class)
+        if (!this._selectedLessonId) {
+            showToast("Musíte vybrat úvodní lekci pro novou třídu.", true); // Validation Error
+            return;
+        }
+
         const user = firebaseInit.auth.currentUser;
         if (!user) {
             showToast(translationService.t('classes.login_required_create'), true);
@@ -108,6 +137,7 @@ export class ProfessorClassesView extends LitElement {
                 return;
             }
 
+            // 1. Create the Group
             const docRef = await addDoc(collection(firebaseInit.db, groupsPath), {
                 name: className,
                 ownerId: user.uid,
@@ -115,6 +145,13 @@ export class ProfessorClassesView extends LitElement {
                 studentIds: [],
                 createdAt: serverTimestamp()
             });
+
+            // 2. Assign the Selected Lesson to the Group
+            const lessonRef = doc(firebaseInit.db, 'lessons', this._selectedLessonId);
+            await updateDoc(lessonRef, {
+                assignedToGroups: arrayUnion(docRef.id)
+            });
+
             showToast(translationService.t('classes.created_success'));
 
             this._closeCreateModal();
@@ -172,20 +209,36 @@ export class ProfessorClassesView extends LitElement {
                     <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" @click=${(e) => { if(e.target === e.currentTarget) this._closeCreateModal(); }}>
                         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100 animate-fade-in-up">
                             <h3 class="text-xl font-bold text-slate-900 mb-2">${t('professor.create_new_class')}</h3>
-                            <p class="text-sm text-slate-500 mb-4">Zadejte název pro novou třídu.</p>
+                            <p class="text-sm text-slate-500 mb-4">Zadejte název pro novou třídu a vyberte úvodní lekci.</p>
                             
+                            <label class="block text-sm font-bold text-slate-700 mb-1">Název třídy</label>
                             <input
                                 type="text"
-                                class="w-full border-2 border-slate-200 rounded-xl p-3 mb-6 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all font-bold text-slate-700"
+                                class="w-full border-2 border-slate-200 rounded-xl p-3 mb-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all font-bold text-slate-700"
                                 placeholder="${translationService.t('classes.name_placeholder')}"
                                 .value=${this._newClassName}
                                 @input=${e => this._newClassName = e.target.value}
-                                @keypress=${e => e.key === 'Enter' && this._submitCreateClass()}
                                 autofocus
                             >
+
+                            <label class="block text-sm font-bold text-slate-700 mb-1">Přiřadit lekci</label>
+                            <select
+                                class="w-full border-2 border-slate-200 rounded-xl p-3 mb-6 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all font-medium text-slate-700 bg-white"
+                                .value=${this._selectedLessonId}
+                                @change=${e => this._selectedLessonId = e.target.value}
+                            >
+                                <option value="">Vyberte lekci...</option>
+                                ${this._lessons.map(lesson => html`<option value="${lesson.id}">${lesson.title}</option>`)}
+                            </select>
+
                             <div class="flex justify-end gap-3">
                                 <button class="px-4 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors" @click=${this._closeCreateModal}>${t('common.cancel')}</button>
-                                <button class="px-6 py-2 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all transform active:scale-95" @click=${this._submitCreateClass}>${t('common.save')}</button>
+                                <button
+                                    class="px-6 py-2 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    ?disabled=${!this._newClassName || !this._selectedLessonId}
+                                    @click=${this._submitCreateClass}>
+                                    ${t('common.save')}
+                                </button>
                             </div>
                         </div>
                     </div>
