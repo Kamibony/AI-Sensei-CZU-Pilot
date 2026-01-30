@@ -1,0 +1,6 @@
+./functions/src/gemini-api.ts:    const endpoint = `projects/${projectId}/locations/${LOCATION}/publishers/google/models/text-embedding-004`;
+./functions/src/gemini-api.ts:    const endpoint = `projects/${projectId}/locations/${LOCATION}/publishers/google/models/imagegeneration@006`;
+./.firebaserc:  "projects": {
+./.git/hooks/pre-commit.sample:# Cross platform projects tend to avoid non-ASCII filenames; prevent
+./verify_full_lifecycle.py:FIRESTORE_BASE_URL = f"http://{EMULATOR_HOST}:8080/v1/projects/{PROJECT_ID}/databases/(default)/documents"
+./verify_full_lifecycle.py:    url = f"http://{EMULATOR_HOST}:9099/emulator/v1/projects/{PROJECT_ID}/accounts/{localId}"
