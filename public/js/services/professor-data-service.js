@@ -373,14 +373,19 @@ export class ProfessorDataService {
 
             if (lessonIds.length > 0) {
                 const fetchSubmissions = async (collName) => {
-                    const batches = [];
-                    const path = getCollectionPath(collName);
-                    for (let i = 0; i < lessonIds.length; i += 30) {
-                        const batch = lessonIds.slice(i, i + 30);
-                        batches.push(getDocs(query(collection(this.db, path), where("lessonId", "in", batch))));
+                    try {
+                        const batches = [];
+                        const path = getCollectionPath(collName);
+                        for (let i = 0; i < lessonIds.length; i += 30) {
+                            const batch = lessonIds.slice(i, i + 30);
+                            batches.push(getDocs(query(collection(this.db, path), where("lessonId", "in", batch))));
+                        }
+                        const snaps = await Promise.all(batches);
+                        return snaps.flatMap(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
+                    } catch (error) {
+                        console.error(`Error fetching ${collName}:`, error);
+                        return [];
                     }
-                    const snaps = await Promise.all(batches);
-                    return snaps.flatMap(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
                 };
 
                 // Execute in parallel
