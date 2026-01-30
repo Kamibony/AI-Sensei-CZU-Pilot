@@ -54,6 +54,7 @@ class StudentDashboard extends Localized(LitElement) {
         this.isJoining = false;
         this._unsubStudent = null;
         this._unsubLesson = null;
+        this._unsubSafeStudent = null;
         this._boundHandleHashChange = this._handleHashChange.bind(this);
     }
 
@@ -73,6 +74,8 @@ class StudentDashboard extends Localized(LitElement) {
         super.disconnectedCallback();
         if (this._unsubStudent) this._unsubStudent();
         if (this._unsubLesson) this._unsubLesson();
+        if (this._unsubSafeStudent) this._unsubSafeStudent();
+        permissionService.dispose();
         window.removeEventListener('hashchange', this._boundHandleHashChange);
     }
 
@@ -109,6 +112,9 @@ class StudentDashboard extends Localized(LitElement) {
     _initData() {
         if (!this.user) return;
 
+        // Init sync service
+        permissionService.init(this.user);
+
         // 1. Fetch student data (streak, groups)
         if (this._unsubStudent) this._unsubStudent();
 
@@ -119,25 +125,40 @@ class StudentDashboard extends Localized(LitElement) {
             this._unsubStudent = onSnapshot(doc(db, usersPath, this.user.uid), (docSnap) => {
                 if (docSnap.exists()) {
                     this.studentData = docSnap.data();
-                    this._fetchLastLesson();
                 }
             }, (error) => {
                 console.error("Error fetching student data:", error);
             });
+
+            // 2. Listen to SAFE permissions source (students collection) for querying
+            // This prevents "Insufficient Permissions" errors by ensuring the query matches the security rule source
+            if (this._unsubSafeStudent) this._unsubSafeStudent();
+            const studentsPath = getCollectionPath('students');
+
+            this._unsubSafeStudent = onSnapshot(doc(db, studentsPath, this.user.uid), (docSnap) => {
+                if (docSnap.exists() && docSnap.data().memberOfGroups) {
+                     this._fetchLastLesson(docSnap.data().memberOfGroups);
+                } else {
+                     this.lastLesson = null;
+                }
+            }, (error) => {
+                // Ignore permission errors on 'students' read if it doesn't exist yet
+                console.warn("Could not read safe student profile (sync pending?):", error);
+            });
+
         } catch (e) {
             console.error("Error setting up student listener:", e);
         }
     }
 
-    _fetchLastLesson() {
-        if (!this.studentData || !this.studentData.memberOfGroups || this.studentData.memberOfGroups.length === 0) {
+    _fetchLastLesson(groups) {
+        if (!groups || groups.length === 0) {
             this.lastLesson = null;
             return;
         }
 
         // 2. Fetch most recent active lesson
         // Firestore 'array-contains-any' query limit is 10.
-        let groups = this.studentData.memberOfGroups;
         if (groups.length > 10) groups = groups.slice(0, 10);
 
         try {

@@ -50,9 +50,10 @@ export class StudentLessonList extends LitElement {
         }
 
         // Standard Mode
-        // ARCHITECT UPDATE: Reading from 'users'
-        const usersPath = getCollectionPath("users");
-        const studentDocRef = doc(firebaseInit.db, usersPath, currentUser.uid);
+        // PERMISSION FIX: Reading from 'students' because Security Rules strictly check this collection.
+        // The dashboard view handles syncing data from 'users' (canonical) to 'students' (permissions).
+        const studentsPath = getCollectionPath("students");
+        const studentDocRef = doc(firebaseInit.db, studentsPath, currentUser.uid);
 
         this.studentUnsubscribe = onSnapshot(studentDocRef, (studentSnap) => {
             if (this.lessonsUnsubscribe) this.lessonsUnsubscribe();
