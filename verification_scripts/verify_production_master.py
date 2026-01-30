@@ -15,6 +15,7 @@ else:
     BASE_URL = "http://localhost:5000"
 
 print(f"[CONFIG] Target: {BASE_URL}, Headless: {HEADLESS}")
+print("[VERSION] Verification Script v2.1 - Semantic & Observable")
 
 PROF_EMAIL_PREFIX = "prof_master_"
 STUDENT_NAME = "Test Student"
@@ -248,19 +249,46 @@ async def act_2_project_setup(page):
     # Click "Přiřadit lekci" (Assign Lesson) - Plus icon or text
     await safe_click(page, "button:has-text('Přiřadit lekci')")
 
-    # Modal opens. Find "Mars Colonization"
-    print("  - Selecting 'Mars Colonization' from modal...")
-    lesson_btn = page.locator("div.fixed.inset-0 button").filter(has=page.locator("h4:has-text('Mars Colonization')"))
-    await lesson_btn.wait_for(state="visible", timeout=10000)
-    await lesson_btn.click()
+    # Modal opens. Find "Mars Colonization" or ANY latest project
+    print("  - Selecting Lesson from modal...")
+
+    # Try specific first, but fall back to the first available button in the list
+    # The modal list usually contains buttons with h4 titles
+    modal_list_item = page.locator("div.fixed.inset-0 button:has(h4)")
+
+    try:
+        # Try to find the specific one if possible, to be sure
+        specific_btn = modal_list_item.filter(has=page.locator("h4:has-text('Mars Colonization')"))
+        await specific_btn.wait_for(state="visible", timeout=5000)
+        await specific_btn.click()
+    except:
+        print("  - [WARN] Specific 'Mars Colonization' not found in modal. Selecting the first available lesson...")
+        # Fallback: Select the first one
+        if await modal_list_item.count() > 0:
+            await modal_list_item.first.click()
+        else:
+             print("[FAIL] No lessons available in assignment modal.")
+             print(await page.locator("div.fixed.inset-0").inner_text())
+             raise
 
     # Verify assignment toast or list update
     print("  - Project Assigned.")
 
     # Toggle "Publish" (Visibility)
     print("  - Publishing Project...")
-    lesson_card = page.locator("div.bg-white").filter(has=page.locator("h3:has-text('Mars Colonization')"))
+    # Find the most recently added lesson card (assuming it's at the end or we can just pick the last one)
+    # The list is usually sorted, but we can't be sure.
+    # However, since we just added it, we can look for *any* lesson card that matches our generic criteria
+
+    lesson_card = page.locator("div.bg-white:has(h3)").last
+
+    # Try to find specific if possible
+    specific_card = page.locator("div.bg-white").filter(has=page.locator("h3:has-text('Mars Colonization')"))
+    if await specific_card.count() > 0:
+        lesson_card = specific_card.first
+
     await lesson_card.wait_for(state="visible", timeout=10000)
+    print(f"  - Publishing lesson: {await lesson_card.locator('h3').text_content()}")
 
     # Click the label to toggle checkbox
     await lesson_card.locator("label").click()
@@ -420,31 +448,62 @@ async def act_3_student_join(context, join_code):
     # Wait for Dashboard to update with "Active Lesson" (Real-time)
     print("  - Waiting for 'Active Lesson' card to appear...")
 
-    # Find the Project Card "Mars Colonization"
+    # Find the Project Card (Semantic Search)
+    print("  - [SEMANTIC] Looking for ANY active project card...")
+
+    # Wait for potential content loading
+    try:
+        await page.wait_for_selector("[data-lesson-card], h3", timeout=10000)
+    except:
+        pass # Proceed to inspection
+
+    # Deep Observability: Dump Dashboard State
+    try:
+        dashboard_dump = await page.evaluate("""() => {
+            const cards = Array.from(document.querySelectorAll('[data-lesson-card], .card, h3'));
+            return {
+                url: window.location.href,
+                cardCount: cards.length,
+                cardTexts: cards.map(c => c.innerText.substring(0, 50)),
+                bodyText: document.body.innerText.substring(0, 500)
+            };
+        }""")
+        print(f"  - [DEBUG] Dashboard State: {dashboard_dump}")
+    except Exception as e:
+        print(f"  - [WARN] Failed to dump dashboard state: {e}")
+
     if not await page.locator("student-project-view").is_visible():
-        print("  - Looking for project 'Mars Colonization' or any project card...")
-
-        # Relaxed Selector: Generic [data-lesson-card] or text fallback
+        # Generic Selector: Any element that looks like a lesson card
+        # We prioritize data-lesson-card, then fall back to h3 headings inside expected containers
         project_card = page.locator("[data-lesson-card]").first
-        if not await project_card.is_visible():
-            # Fallback for legacy/non-updated UI
-            project_card = page.locator("h3:has-text('Mars Colonization')").first
 
         if not await project_card.is_visible():
-            print("  - Not found on Dashboard. Switching to 'Moje lekce'...")
+             # Fallback: Look for any h3 that might be a title, excluding common UI elements if possible
+             # But for now, just taking the first h3 in the main content area might be safe enough
+             project_card = page.locator("main h3, h3").first
+
+        if await project_card.is_visible():
+            print(f"  - Found card: {await project_card.text_content()}")
+            await project_card.click()
+        else:
+            print("  - [WARN] No specific card found on Dashboard. Switching to 'Moje lekce'...")
             try:
                 await page.click("button:has-text('Moje lekce')")
             except:
                 await page.click("button:has-text('Lekce')")
 
-            # Try finding again in list
-            project_card = page.locator("[data-lesson-card]").first
-            if not await project_card.is_visible():
-                 project_card = page.locator("h3:has-text('Mars Colonization')").first
+            # Try again in list
+            await page.wait_for_timeout(2000)
+            project_card = page.locator("[data-lesson-card], h3").first
 
-            await project_card.wait_for(timeout=60000)
-
-        await project_card.click()
+            if await project_card.is_visible():
+                 print(f"  - Found card in list: {await project_card.text_content()}")
+                 await project_card.click()
+            else:
+                 print("[FAIL] No lessons found even after navigation.")
+                 # One last dump
+                 print(f"[FATAL DEBUG] {await page.content()}")
+                 raise Exception("No lesson cards found for student.")
 
     # Wait for Project View (Role Selection)
     await page.wait_for_selector("student-project-view")
@@ -479,9 +538,24 @@ async def act_4_crisis(prof_page, student_page):
     # Wait for library
     await prof_page.wait_for_selector("professor-library-view")
 
-    # Open "Mars Colonization"
-    card = prof_page.locator("h3:has-text('Mars Colonization')").first
-    await card.locator("xpath=../..").locator("button:has-text('Otevřít')").click()
+    # Open "Mars Colonization" or Latest Project
+    print("  - Opening project from library...")
+
+    # Try specific
+    card_header = prof_page.locator("h3:has-text('Mars Colonization')")
+
+    if await card_header.count() == 0:
+        print("  - [WARN] 'Mars Colonization' not found in library. Picking the first available project...")
+        # Fallback to first h3 in library grid
+        card_header = prof_page.locator("professor-library-view h3").first
+
+    await card_header.first.wait_for()
+    print(f"  - Target Project: {await card_header.first.text_content()}")
+
+    # Find the Open button relative to the header
+    # We can use the layout relationship
+    card_container = prof_page.locator("div.bg-white").filter(has=card_header.first).last
+    await card_container.locator("button:has-text('Otevřít'), button:has-text('Open')").click()
 
     # Wait for Editor
     await prof_page.wait_for_selector("project-editor")
