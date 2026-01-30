@@ -289,9 +289,9 @@ export class MagicBoardView extends Localized(LitElement) {
                     to { transform: rotate(360deg); }
                 }
             </style>
-            <div class="relative w-full h-full bg-slate-50 rounded-xl overflow-hidden shadow-inner border border-slate-200">
+            <div class="relative w-full h-full bg-slate-50 rounded-xl overflow-hidden shadow-inner border border-slate-200" data-editor-type="magic-board">
                 ${!this.readOnly ? html`
-                    <div class="toolbar">
+                    <div class="toolbar" data-tour="magic-board-toolbar">
                         <button class="${this._activeTool === 'select' ? 'active' : ''}" @click=${() => this._setTool('select')} title="Select">👆</button>
                         <button class="${this._activeTool === 'pencil' ? 'active' : ''}" @click=${() => this._setTool('pencil')} title="${this.t('whiteboard.toolbar.pencil')}">✏️</button>
                         <button @click=${() => this._setTool('rectangle')} title="${this.t('whiteboard.toolbar.rectangle')}">⬜</button>
@@ -302,7 +302,7 @@ export class MagicBoardView extends Localized(LitElement) {
                         ${this._isSaving ? html`<span class="text-xs text-slate-400 self-center px-2">${this.t('common.saving')}</span>` : ''}
                     </div>
 
-                    <div class="ai-panel">
+                    <div class="ai-panel" data-tour="magic-board-ai-panel">
                         <input id="magic-input" type="text" placeholder="${this.t('whiteboard.ai_prompt_placeholder')}" @keydown=${(e) => e.key === 'Enter' && this._handleMagicGen()}>
                         <button @click=${this._handleMagicGen} class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-none font-bold flex items-center gap-2">
                             ${this._isGenerating ? html`<div class="spinner w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>` : '✨'}
@@ -311,7 +311,9 @@ export class MagicBoardView extends Localized(LitElement) {
                     </div>
                 ` : ''}
 
-                <canvas id="c"></canvas>
+                <div data-tour="magic-board-canvas" class="canvas-container">
+                    <canvas id="c"></canvas>
+                </div>
             </div>
         `;
     }

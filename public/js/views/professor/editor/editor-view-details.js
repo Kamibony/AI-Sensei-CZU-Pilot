@@ -48,7 +48,7 @@ export class EditorViewDetails extends Localized(LitElement) {
         }
     }
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     // === ZMENA: updated() namiesto firstUpdated() pre RAG ===
     updated(changedProperties) {
@@ -110,11 +110,11 @@ export class EditorViewDetails extends Localized(LitElement) {
 
     render() {
         return html`
-            <div class="flex justify-between items-start mb-6">
+            <div data-tour="editor-details-start" data-editor-type="details" class="flex justify-between items-start mb-6">
                 <h2 class="text-3xl font-extrabold text-slate-800">${this.t('editor.hub_edit_details')}</h2>
             </div>
             <div class="bg-white p-6 rounded-2xl shadow-lg">
-                <form id="lesson-details-form" class="space-y-4">
+                <form id="lesson-details-form" class="space-y-4" data-tour="details-form">
                     <div>
                         <label class="block font-medium text-slate-600">${this.t('lesson.title')}</label>
                         <input type="text" id="lesson-title-input" class="w-full border-slate-300 rounded-lg p-2 mt-1 focus:ring-green-500 focus:border-green-500" .value="${this.lesson?.title || ''}" placeholder="${this.t('editor.details.title_placeholder')}">

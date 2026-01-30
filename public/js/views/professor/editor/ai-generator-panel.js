@@ -26,6 +26,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         description: { type: String },
         context: { type: Object },
         inputsConfig: { type: Array },
+        extraData: { type: Object },
         _generationOutput: { state: true },
         _isLoading: { state: true, type: Boolean },
         _isSaving: { state: true, type: Boolean },
@@ -49,6 +50,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         this.promptPlaceholder = "";
         this.description = this.t('editor.ai.missing_description') || "Popis chybí.";
         this.inputsConfig = []; 
+        this.extraData = {};
         this._generationOutput = null;
         this._isLoading = false; 
         this._isSaving = false;
@@ -63,7 +65,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         this._audioUrls = new Map();
     }
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     updated(changedProperties) {
         // If 'files' prop is provided (from LessonEditor), use it as source of truth
@@ -190,7 +192,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
         this._generationOutput = null;
 
         // --- 1. Unified Data Gathering (Hybrid Strategy) ---
-        const promptData = {};
+        const promptData = { ...this.extraData };
 
         // A) Internal Config (Shadow DOM / Local)
         if (this.inputsConfig) {
@@ -407,8 +409,8 @@ export class AiGeneratorPanel extends Localized(LitElement) {
 
     render() {
         return html`
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="bg-gradient-to-r from-slate-50 to-indigo-50/30 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+            <div data-tour="ai-generator-panel-start" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-gradient-to-r from-slate-50 to-indigo-50/30 px-6 py-4 border-b border-slate-200 flex justify-between items-center" data-tour="ai-panel-header">
                     <div>
                         <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <span class="text-2xl">✨</span> ${this.viewTitle}
@@ -429,7 +431,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                         ${this.inputsConfig.map(input => {
                             if (input.type === 'select') {
                                 return html`
-                                    <div>
+                                    <div data-tour="ai-input-${input.id}">
                                         <label class="block text-sm font-medium text-slate-700 mb-1">${input.label}</label>
                                         <select id="${input.id}" class="w-full rounded-lg border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm">
                                             ${input.options.map(opt => html`<option value="${opt.value || opt}" ?selected="${(opt.value || opt) === input.default}">${opt.label || opt}</option>`)}
@@ -439,14 +441,14 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                             }
                             if (input.type === 'textarea') {
                                 return html`
-                                    <div>
+                                    <div data-tour="ai-input-${input.id}">
                                         <label class="block text-sm font-medium text-slate-700 mb-1">${input.label}</label>
                                         <textarea id="${input.id}" rows="3" class="w-full rounded-lg border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm" placeholder="${input.placeholder || ''}">${input.default || ''}</textarea>
                                     </div>
                                 `;
                             }
                             return html`
-                                <div>
+                                <div data-tour="ai-input-${input.id}">
                                     <label class="block text-sm font-medium text-slate-700 mb-1">${input.label}</label>
                                     <input type="${input.type || 'text'}" id="${input.id}"
                                         class="w-full rounded-lg border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm"
@@ -463,6 +465,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
 
                     <div class="flex justify-center mb-8">
                         <button 
+                            data-tour="ai-generate-btn"
                             @click="${this._handleGeneration}" 
                             ?disabled="${this._isLoading}"
                             class="${btnGenerate} ${this._isLoading ? 'opacity-75 cursor-wait' : ''}">
@@ -480,7 +483,7 @@ export class AiGeneratorPanel extends Localized(LitElement) {
                     </div>
 
                     ${this._generationOutput ? html`
-                        <div class="animate-fade-in bg-slate-50 rounded-xl border border-slate-200 p-6">
+                        <div class="animate-fade-in bg-slate-50 rounded-xl border border-slate-200 p-6" data-tour="ai-preview-area">
                             <div class="flex justify-between items-center mb-4">
                                 <h3 class="font-bold text-slate-800 flex items-center gap-2">
                                     <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>

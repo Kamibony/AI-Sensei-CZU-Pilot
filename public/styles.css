@@ -9546,3 +9546,29 @@ html {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
+
+@media print {
+    /* 1. Hide Global Shell Parts */
+    app-navigation,
+    professor-header,
+    .main-nav,
+    header,
+    aside {
+        display: none !important;
+    }
+
+    /* 2. Fix SPA Scrolling Issue (Crucial!) */
+    html, body, main, #app, .app-container {
+        height: auto !important;
+        width: 100% !important;
+        overflow: visible !important;
+        position: static !important;
+    }
+
+    /* 3. Ensure the current view takes full width */
+    professor-app, timeline-view {
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+    }
+}

@@ -1,22 +1,23 @@
 import type { CallableRequest, Request } from "firebase-functions/v2/https";
 import type { Change, FirestoreEvent, QueryDocumentSnapshot } from "firebase-functions/v2/firestore";
 
-const { initializeApp } = require("firebase-admin/app");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
-const { getAuth } = require("firebase-admin/auth");
-const { getStorage } = require("firebase-admin/storage");
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onRequest } = require("firebase-functions/v2/https");
-const { onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
-const functions = require("firebase-functions/v1"); // Import v1 for triggers
-const logger = require("firebase-functions/logger");
-const cors = require("cors");
-const fetch = require("node-fetch");
-const textToSpeech = require("@google-cloud/text-to-speech"); // Import pre TTS
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
+import { getStorage } from "firebase-admin/storage";
+import { onCall, HttpsError, onRequest } from "firebase-functions/v2/https";
+import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
+import * as functions from "firebase-functions/v1"; // Import v1 for triggers
+import * as logger from "firebase-functions/logger";
+import cors from "cors";
+import fetch from "node-fetch";
+import * as textToSpeech from "@google-cloud/text-to-speech"; // Import pre TTS
 
 // Import local API using TypeScript syntax
-import * as GeminiAPI from './gemini-api';
-import { SUBMISSION_STATUS, SUBMISSION_OUTCOME } from './shared-constants';
+import * as GeminiAPI from "./gemini-api";
+import { SUBMISSION_STATUS, SUBMISSION_OUTCOME } from "./shared-constants";
+import { generateClassReport } from "./analytics";
+import { exportAnonymizedData } from "./export-engine";
 
 // Lazy load heavy dependencies
 // const pdf = require("pdf-parse");
@@ -35,15 +36,15 @@ function loadPdfParser(): (buffer: Buffer, options?: any) => Promise<any> {
         throw new Error(`Failed to require('${packageName}'): ${e.message}`);
     }
     // 1. Direct function export (Standard CJS)
-    if (typeof parser === 'function') return parser;
+    if (typeof parser === "function") return parser;
     // 2. Default export (ESM interop)
-    if (parser && typeof parser.default === 'function') return parser.default;
+    if (parser && typeof parser.default === "function") return parser.default;
     // 3. Nested default (Double interop edge case)
-    if (parser && parser.default && typeof parser.default.default === 'function') return parser.default.default;
+    if (parser && parser.default && typeof parser.default.default === "function") return parser.default.default;
 
     // 4. Class-based export (Version 2.x+)
     // If the export is an object containing a 'PDFParse' class, we wrap it to match the v1.x API.
-    if (typeof parser === 'object' && parser !== null && typeof parser.PDFParse === 'function') {
+    if (typeof parser === "object" && parser !== null && typeof parser.PDFParse === "function") {
         const PDFParseClass = parser.PDFParse;
         // Return a wrapper function that mimics standard v1 behavior: (buffer) => Promise<{ text: string }>
         return async (buffer: Buffer) => {
@@ -54,12 +55,12 @@ function loadPdfParser(): (buffer: Buffer, options?: any) => Promise<any> {
              // result is likely an object { text: "...", ... } or just a string?
              // Based on testing: { text: "...", pages: [...] }
              // We ensure we return an object with a .text property.
-             return typeof result === 'string' ? { text: result } : result;
+             return typeof result === "string" ? { text: result } : result;
         };
     }
 
     const type = typeof parser;
-    const keys = (typeof parser === 'object' && parser !== null) ? Object.keys(parser).join(", ") : "null";
+    const keys = (typeof parser === "object" && parser !== null) ? Object.keys(parser).join(", ") : "null";
     throw new Error(
         `Dependency Adapter Error: '${packageName}' did not export a function. ` +
         `Received type: '${type}'. Keys: [${keys}].`
@@ -102,7 +103,7 @@ async function sendTelegramMessage(chatId: number, text: string) {
 exports.startMagicGeneration = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 540,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     if (!request.auth || request.auth.token.role !== "professor") {
         throw new HttpsError("unauthenticated", "Only professors can start magic generation.");
@@ -133,7 +134,7 @@ exports.startMagicGeneration = onCall({
         // --- 0. DYNAMIC CONFIGURATION FETCH ---
         log("[Magic] Fetching AI system configuration...");
         const configSnap = await db.collection("system_settings").doc("ai_config").get();
-        const config = configSnap.exists ? configSnap.data() : {};
+        const config = configSnap.data() || {};
 
         const systemPrompt = config.system_prompt || undefined;
         const magicSlidesCount = parseInt(config.magic_presentation_slides) || 8;
@@ -153,7 +154,7 @@ exports.startMagicGeneration = onCall({
             for (const rawPath of filePaths) {
                 try {
                      // --- ENFORCE STRICT DATA OWNERSHIP ---
-                     const fileName = rawPath.split('/').pop();
+                     const fileName = rawPath.split("/").pop();
                      const ownerId = request.auth.uid;
 
                      // 1. Construct Strict Path (courses/{userId}/media/{fileName})
@@ -201,7 +202,7 @@ exports.startMagicGeneration = onCall({
                          if (text.trim().length < 100) {
                              log(`[Magic] Low text detected in ${finalPath}. Attempting Vision OCR...`);
                              // Convert PDF buffer to Base64
-                             const pdfBase64 = buffer.toString('base64');
+                             const pdfBase64 = buffer.toString("base64");
                              // Call Gemini Flash (cheaper/faster) to extract text
                              const visionPrompt = "Extract all readable text from this document verbatim.";
                              const visionText = await GeminiAPI.generateTextFromMultimodal(visionPrompt, pdfBase64, "application/pdf");
@@ -497,8 +498,8 @@ CRITICAL OUTPUT INSTRUCTIONS:
                              const fileName = `magic_slide_${lessonId}_${index}.png`;
                              const storagePath = `courses/${request.auth!.uid}/media/generated/${fileName}`;
                              const file = bucket.file(storagePath);
-                             await file.save(Buffer.from(imageBase64, 'base64'), { metadata: { contentType: 'image/png' } });
-                             const [url] = await file.getSignedUrl({ action: 'read', expires: '01-01-2030' });
+                             await file.save(Buffer.from(imageBase64, "base64"), { metadata: { contentType: "image/png" } });
+                             const [url] = await file.getSignedUrl({ action: "read", expires: "01-01-2030" });
                              return url;
                          } catch (err: any) {
                              throw new Error(`Image gen failed for slide ${index}: ${err.message}`);
@@ -515,7 +516,7 @@ CRITICAL OUTPUT INSTRUCTIONS:
             // --- PHASE 3: Merge & Save ---
             results.forEach((result, index) => {
                 const slide = slides[index];
-                if (result.status === 'fulfilled') {
+                if (result.status === "fulfilled") {
                     slide.imageUrl = result.value; // URL or null
                 } else {
                     log(`Phase 2 (Image ${index}) failed: ${result.reason}`);
@@ -549,7 +550,7 @@ CRITICAL OUTPUT INSTRUCTIONS:
 exports.generatePodcastAudio = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     // 1. Validácia a Autorizácia
     if (!request.auth || request.auth.token.role !== "professor") {
@@ -611,7 +612,7 @@ exports.generatePodcastAudio = onCall({
                 voiceName = maleVoiceName;
             } else {
                 // Default / Monologue mode
-                voiceName = (voiceGender === 'female') ? femaleVoiceName : maleVoiceName;
+                voiceName = (voiceGender === "female") ? femaleVoiceName : maleVoiceName;
             }
 
             logger.log(`Synthesizing segment for ${currentSpeaker} (${voiceName}): "${part.substring(0, 20)}..."`);
@@ -623,7 +624,7 @@ exports.generatePodcastAudio = onCall({
                     name: voiceName
                 },
                 audioConfig: {
-                    audioEncoding: "MP3",
+                    audioEncoding: "MP3" as const,
                     speakingRate: 1.0,
                     pitch: 0.0
                 },
@@ -685,8 +686,8 @@ exports.generatePodcastAudio = onCall({
             publicUrl = `http://${storageHost}/v0/b/${bucket.name}/o/${encodeURIComponent(filePath)}?alt=media`;
         } else {
             const [signedUrl] = await file.getSignedUrl({
-                action: 'read',
-                expires: '01-01-2050' // Long expiration
+                action: "read",
+                expires: "01-01-2050" // Long expiration
             });
             publicUrl = signedUrl;
         }
@@ -702,14 +703,14 @@ exports.generatePodcastAudio = onCall({
 exports.generateComicPanelImage = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     if (!request.auth || request.auth.token.role !== "professor") {
         throw new HttpsError("unauthenticated", "Only professors can generate images.");
     }
 
     const { lessonId, panelIndex, panelPrompt } = request.data;
-    if (!lessonId || typeof panelIndex === 'undefined' || !panelPrompt) {
+    if (!lessonId || typeof panelIndex === "undefined" || !panelPrompt) {
         throw new HttpsError("invalid-argument", "Missing lessonId, panelIndex, or panelPrompt.");
     }
 
@@ -726,9 +727,9 @@ exports.generateComicPanelImage = onCall({
         const storagePath = `courses/${request.auth.uid}/media/generated/${fileName}`;
         const file = bucket.file(storagePath);
 
-        await file.save(Buffer.from(imageBase64, 'base64'), {
+        await file.save(Buffer.from(imageBase64, "base64"), {
             metadata: {
-                contentType: 'image/png',
+                contentType: "image/png",
                 metadata: {
                     lessonId: lessonId,
                     panelIndex: String(panelIndex),
@@ -743,8 +744,8 @@ exports.generateComicPanelImage = onCall({
             imageUrl = `http://${storageHost}/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media`;
         } else {
             const [signedUrl] = await file.getSignedUrl({
-                action: 'read',
-                expires: '01-01-2050'
+                action: "read",
+                expires: "01-01-2050"
             });
             imageUrl = signedUrl;
         }
@@ -760,8 +761,8 @@ exports.generateComicPanelImage = onCall({
 // ZJEDNOTENÁ FUNKCIA PRE VŠETKY AI OPERÁCIE
 exports.generateContent = onCall({
     region: DEPLOY_REGION,
-    timeoutSeconds: 300, // (5 minút)
-    memory: "1GiB",
+    timeoutSeconds: 540, // Increased to 9 minutes for RAG/Heavy loads
+    memory: "2GiB",
     cors: true
 }, async (request: CallableRequest) => {
     const { contentType, promptData, filePaths } = request.data;
@@ -771,28 +772,42 @@ exports.generateContent = onCall({
     try {
         // Načítanie konfigurácie pre magický režim
         const configSnap = await db.collection("system_settings").doc("ai_config").get();
-        const config = configSnap.exists ? configSnap.data() : {};
+        const config = configSnap.data() || {};
         const systemPrompt = config.system_prompt || undefined;
 
         let finalPrompt = promptData.userPrompt;
-        const language = promptData.language || "cs";
 
-        // Step 1: Implement Language Mapping
-        let targetLangName = "Czech";
-        switch (language) {
-            case "cs": targetLangName = "Czech"; break;
-            case "sk": targetLangName = "Slovak"; break;
-            case "pt-br": targetLangName = "Portuguese"; break;
-            case "en": targetLangName = "English"; break;
-            default: targetLangName = "Czech"; break;
-        }
+        // 1. Resolve Full Language Name
+        const langMap: Record<string, string> = {
+            "cs": "Czech",
+            "sk": "Slovak",
+            "en": "English",
+            "pt-br": "Portuguese",
+            "uk": "Ukrainian",
+            "de": "German",
+            "es": "Spanish",
+            "fr": "French"
+        };
+        const userLangCode = promptData.language || "cs"; // Default to Czech
+        const targetLanguage = langMap[userLangCode] || "Czech";
+
+        // 2. Define The "GOD MODE" Language Instruction
+        const SYSTEM_LANGUAGE_INSTRUCTION = `
+*** CRITICAL LANGUAGE INSTRUCTION ***
+The user EXPLICITLY requested the output to be in ${targetLanguage}.
+Even if the source material (PDF, text, topic) is in English or another language, you MUST TRANSLATE, ADAPT, and GENERATE the final response strictly in ${targetLanguage}.
+Do NOT output in English unless the requested language is 'English'.
+Fail to follow this, and the generation is considered incorrect.
+*************************************
+`;
 
         const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap", "podcast", "audio"].includes(contentType);
 
-        // Add language instruction
-        // Step 2: Rewrite langInstruction to strictly enforce the user's requested language.
-        const langInstruction = `OUTPUT LANGUAGE RULE: The user has explicitly requested the output to be in ${targetLangName}. Regardless of the language of the input PDF or text, you MUST translate and generate the final content in ${targetLangName}. Do NOT output in English unless ${targetLangName} is 'English'.`;
-        finalPrompt += `\n\n${langInstruction}`;
+        // Append instruction for non-JSON cases (Text) immediately.
+        // For JSON cases, we will append it inside the switch to ensure correct placement.
+        if (!isJson) {
+            finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+        }
 
         // STRICT SYSTEM INSTRUCTION to silence conversational filler
         finalPrompt += "\n\nSTRICT RULE: Return ONLY the raw content/JSON. Do NOT start with 'Here is', 'Sure', or 'Certainly'. No conversational filler.";
@@ -804,8 +819,10 @@ exports.generateContent = onCall({
             const magicTestCount = parseInt(config.magic_test_questions) || 5;
             const magicFlashcardCount = parseInt(config.magic_flashcard_count) || 10;
 
+            const JSON_SAFEGUARD = `\nEnsure all JSON keys remain in English as defined in the schema. Only the content values must be in ${targetLanguage}.`;
+
             switch(contentType) {
-                case "presentation":
+                case "presentation": {
                     let targetSlides = parseInt(promptData.slide_count, 10);
                     if (promptData.isMagic) {
                         targetSlides = magicSlidesCount;
@@ -819,16 +836,18 @@ exports.generateContent = onCall({
                     const style = promptData.presentation_style_selector ? `Visual Style: ${promptData.presentation_style_selector}.` : "";
                     
                     finalPrompt = `Vytvoř prezentaci na téma "${promptData.userPrompt}" s přesně ${targetSlides} slidy. ${style}
-${langInstruction}
 
 FORMAT: JSON
 {
   "slides": [ ... ] (MANDATORY: Generate exactly ${targetSlides} slides. Empty array is a failure.)
 }
 Each slide object must have: 'title' (string), 'points' (array of strings), 'visual_idea' (string - detailní popis obrázku).`;
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
+                }
 
-                case "quiz":
+                case "quiz": {
                     let targetQuizQs = 5;
                     if (promptData.isMagic) {
                          targetQuizQs = magicQuizCount;
@@ -837,16 +856,18 @@ Each slide object must have: 'title' (string), 'points' (array of strings), 'vis
                     }
 
                     finalPrompt = `Vytvoř kvíz na základě zadání: "${promptData.userPrompt}".
-${langInstruction}
 
 FORMAT: JSON
 {
   "questions": [ ... ] (MANDATORY: Generate exactly ${targetQuizQs} questions. Empty array is a failure.)
 }
 Each question object must have: 'question_text' (string), 'options' (array of 4 strings), 'correct_option_index' (number 0-3).`;
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
+                }
 
-                case "test":
+                case "test": {
                     // OPRAVA: Mapovanie premenných z frontendu (snake_case) a fallbacky
                     // Frontend posiela 'question_count', backend čakal 'questionCount'
                     let testCount = parseInt(promptData.question_count || promptData.questionCount || "5", 10);
@@ -861,24 +882,19 @@ Each question object must have: 'question_text' (string), 'options' (array of 4 
                     const testTypes = promptData.type_select || promptData.questionTypes || "Mix";
 
                     finalPrompt = `Vytvoř test na téma "${promptData.userPrompt}" s ${testCount} otázkami. Obtížnost: ${testDifficulty}. Typy otázek: ${testTypes}.
-${langInstruction}
 
 FORMAT: JSON
 {
   "questions": [ ... ] (MANDATORY: Generate exactly ${testCount} questions. Empty array is a failure.)
 }
 Each question object must have: 'question_text' (string), 'type' (string), 'options' (array of strings), 'correct_option_index' (number).`;
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
-                case "post":
+                }
+                case "post": {
                      const epCount = promptData.episode_count || promptData.episodeCount || 3;
-                     const reqLang = language || promptData.language || "cs";
-                     let targetLang = "Czech";
-                     if (reqLang === "pt-br") targetLang = "Brazilian Portuguese";
-                     else if (reqLang === "sk") targetLang = "Slovak";
-                     else if (reqLang === "en") targetLang = "English";
-                     else if (reqLang === "de") targetLang = "German";
-                     else if (reqLang === "fr") targetLang = "French";
-                     else if (reqLang === "es") targetLang = "Spanish";
+                     // We rely on targetLanguage derived earlier.
 
                      finalPrompt = `You are Jules, an expert AI educational content creator and senior podcast producer used in the 'AI Sensei' platform. Your goal is to generate comprehensive educational content that includes both a structured text lesson and a scripted podcast series based on a single topic provided by the user: "${promptData.userPrompt}".
 
@@ -886,7 +902,7 @@ Each question object must have: 'question_text' (string), 'type' (string), 'opti
 1. **Strict JSON Only:** You must output ONLY valid JSON. Do not include markdown formatting (like \`\`\`json), introduction text, or concluding remarks.
 2. **Structure Integrity:** Ensure all JSON keys are present even if the content is brief. Never output broken or malformed JSON.
 3. **Safety & content policy:** If the topic is controversial, treat it with academic neutrality. If the topic violates safety policies, return a JSON with an "error" field explaining why, instead of generating harmful content.
-4. **Language:** The content (values) must be in ${targetLang}. Keys must remain in English.
+4. **Language:** The content (values) must be in ${targetLanguage}. Keys must remain in English.
 
 ### CONTENT GENERATION RULES
 
@@ -931,39 +947,64 @@ Use exactly this structure:
     ]
   }
 }`;
+                     finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                     finalPrompt += JSON_SAFEGUARD;
                      break;
+                }
 
-                case "flashcards":
+                case "flashcards": {
                     const fcCount = promptData.isMagic ? magicFlashcardCount : 10;
                     finalPrompt = `Vytvoř sadu ${fcCount} studijních kartiček na téma "${promptData.userPrompt}".
-${langInstruction}
 
 FORMAT: JSON
 {
   "cards": [ ... ] (MANDATORY: Generate exactly ${fcCount} cards. Empty array is a failure.)
 }
 Each card object must have: 'front' (pojem/otázka), 'back' (definice/odpověď).`;
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
+                }
 
-                case "mindmap":
-                    finalPrompt = `Vytvoř mentální mapu na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt obsahující POUZE klíč 'mermaid', jehož hodnotou je validní string pro Mermaid.js diagram (typ 'graph TD'). Nepoužívej markdown bloky. Příklad: { "mermaid": "graph TD\\nA-->B" }. ${langInstruction}`;
+                case "mindmap": {
+                    finalPrompt = `Vytvoř mentální mapu na téma "${promptData.userPrompt}". Odpověď musí být JSON objekt obsahující POUZE klíč 'mermaid', jehož hodnotou je validní string pro Mermaid.js diagram (typ 'graph TD'). Nepoužívej markdown bloky. Příklad: { "mermaid": "graph TD\\nA-->B" }.`;
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
+                }
 
-                case "comic":
-                    finalPrompt = `Vytvoř scénář pro komiks (4 panely). Odpověď musí být JSON objekt s klíčem 'panels' (pole objektů: panel_number, description, dialogue). ${langInstruction}`;
+                case "comic": {
+                    finalPrompt = "Vytvoř scénář pro komiks (4 panely). Odpověď musí být JSON objekt s klíčem 'panels' (pole objektů: panel_number, description, dialogue).";
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
+                }
 
                 case "podcast":
-                case "audio":
-                    finalPrompt = `Vytvoř scénář pro audio podcast na téma "${promptData.userPrompt}".
-${langInstruction}
+                case "audio": {
+                    const mode = promptData.mode || "dialogue";
+                    if (mode === "monologue") {
+                        finalPrompt = `Vytvoř monolog (jednolitý text) na téma "${promptData.userPrompt}".
+Do NOT use speaker tags like [Host] or [Guest].
+
+FORMAT: JSON
+{
+  "script": [ { "text": "Paragraph 1..." }, { "text": "Paragraph 2..." } ] (MANDATORY: Generate a script. Empty array is a failure.)
+}
+Each script object must have: 'text' (string). The 'speaker' field is optional or can be empty.`;
+                    } else {
+                        finalPrompt = `Vytvoř scénář pro audio podcast na téma "${promptData.userPrompt}".
 
 FORMAT: JSON
 {
   "script": [ ... ] (MANDATORY: Generate a dialogue script. Empty array is a failure.)
 }
 Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
+                    }
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
                     break;
+                }
             }
         }
 
@@ -994,11 +1035,11 @@ Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
                 // Extract fileId from storage path `courses/{courseId}/media/{fileId}`
                 // Previously, we assumed fileId matches docId exactly.
                 // Now, storage path might be `.../docId.pdf`. We need to strip extension to find Firestore doc.
-                let rawFileId = filePath.split("/").pop();
+                const rawFileId = filePath.split("/").pop();
                 if (!rawFileId) continue;
 
                 // Odstránime príponu (napr. .pdf, .txt), aby sme získali čisté ID dokumentu
-                const fileId = rawFileId.includes('.') ? rawFileId.split('.').shift() : rawFileId;
+                const fileId = rawFileId.includes(".") ? rawFileId.split(".").shift() : rawFileId;
 
                 const chunksSnapshot = await db.collection(`fileMetadata/${fileId}/chunks`).get();
                 chunksSnapshot.forEach((doc: QueryDocumentSnapshot) => {
@@ -1058,7 +1099,7 @@ Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
 exports.generateImage = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB",
+    memory: "2GiB",
     cors: true
 }, async (request: CallableRequest) => {
     const { prompt } = request.data;
@@ -1087,7 +1128,7 @@ exports.generateImage = onCall({
     }
 });
 
-exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540, memory: "1GiB" }, async (request: CallableRequest) => {
+exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540, memory: "2GiB" }, async (request: CallableRequest) => {
     if (!request.auth || request.auth.token.role !== "professor") {
         throw new HttpsError("unauthenticated", "This action requires professor privileges.");
     }
@@ -1109,7 +1150,8 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
             throw new HttpsError("not-found", `File metadata not found for id: ${fileId}`);
         }
 
-        const { storagePath, ownerId } = fileMetadataDoc.data();
+        const data = fileMetadataDoc.data() || {};
+        const { storagePath, ownerId } = data;
 
         // Security check
         if (ownerId !== request.auth.uid) {
@@ -1233,7 +1275,7 @@ exports.processFileForRAG = onCall({ region: DEPLOY_REGION, timeoutSeconds: 540,
 exports.getAiAssistantResponse = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300, // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     const { lessonId, userQuestion } = request.data;
 
@@ -1248,13 +1290,13 @@ exports.getAiAssistantResponse = onCall({
 
     try {
         let prompt;
-        let systemContext = `You are a helpful AI Assistant for the 'AI Sensei' education platform.
+        const systemContext = `You are a helpful AI Assistant for the 'AI Sensei' education platform.
         Current User Role: ${userRole}.
-        Language: ${userLanguage === 'cs' ? 'Czech' : 'English'}.
+        Language: ${userLanguage === "cs" ? "Czech" : "English"}.
         `;
 
         // Special case for Guide Bot
-        if (lessonId === 'guide-bot') {
+        if (lessonId === "guide-bot") {
             prompt = `${systemContext}\n\nUser Question: ${userQuestion}`;
         } else if (!lessonId || lessonId === "general") {
              // FALLBACK: General Assistant Mode (No specific lesson context)
@@ -1326,7 +1368,7 @@ exports.getAiAssistantResponse = onCall({
 exports.generatePortfolioFeedback = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     // 1. Validation
     if (!request.auth) {
@@ -1414,20 +1456,28 @@ exports.sendMessageToStudent = onCall({ region: DEPLOY_REGION, secrets: ["TELEGR
     try {
         const conversationRef = db.collection("conversations").doc(studentId);
         
-        // Zjednotenie na 'sender' a 'type'
-        await conversationRef.collection("messages").add({
-            sender: "professor", // Namiesto senderId
+        const batch = db.batch();
+
+        // 1. Add Message (Atomic)
+        const messageRef = conversationRef.collection("messages").doc();
+        batch.set(messageRef, {
+            sender: "professor",
             text: text,
-            type: "professor", // Pridáme typ
-            lessonId: "general", // Pridáme všeobecné ID lekcie pre konzistenciu
+            type: "professor",
+            lessonId: "general",
             timestamp: FieldValue.serverTimestamp(),
         });
 
-        await conversationRef.update({
+        // 2. Update Metadata (Atomic)
+        // Use set with merge: true to ensure conversation doc exists
+        batch.set(conversationRef, {
             lastMessage: text,
             lastMessageTimestamp: FieldValue.serverTimestamp(),
             professorHasUnread: false,
-        });
+        }, { merge: true });
+
+        await batch.commit();
+
         const studentDoc = await db.collection("students").doc(studentId).get();
         if (studentDoc.exists && studentDoc.data()?.telegramChatId) {
             const chatId = studentDoc.data()?.telegramChatId;
@@ -1515,7 +1565,8 @@ exports.getGlobalAnalytics = onCall({ region: DEPLOY_REGION }, async (request: C
 // UPRAVENÁ FUNKCIA: AI Analýza študenta
 exports.getAiStudentSummary = onCall({
     region: DEPLOY_REGION,
-    timeoutSeconds: 300 // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
+    timeoutSeconds: 300, // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     const { studentId } = request.data;
     if (!studentId) {
@@ -1828,62 +1879,88 @@ exports.submitTestResults = onCall({ region: DEPLOY_REGION }, async (request: Ca
     }
 });
 
-exports.joinClass = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
-    if (!request.auth) {
-        throw new HttpsError("unauthenticated", "Musíte být přihlášen, abyste se mohl(a) zapsat do třídy.");
-    }
-    const studentId = request.auth.uid;
-
-    const joinCode = request.data.joinCode;
-    if (typeof joinCode !== "string" || joinCode.trim() === "") {
-        throw new HttpsError("invalid-argument", "Je nutné zadat kód třídy.");
-    }
-
+exports.joinClass = onCall({ region: DEPLOY_REGION, cors: true }, async (request: CallableRequest) => {
+    // SYSTEMIC FIX: Wrap entire function to prevent raw exceptions (500s)
     try {
+        if (!request.auth) {
+            throw new Error("Musíte být přihlášen, abyste se mohl(a) zapsat do třídy.");
+        }
+        const studentId = request.auth.uid;
+
+        const joinCode = request.data.joinCode;
+        if (typeof joinCode !== "string" || joinCode.trim() === "") {
+            throw new Error("Je nutné zadat kód třídy.");
+        }
+
+        // 1. Resolve Join Code to Group ID
         const groupsRef = db.collection("groups");
         const querySnapshot = await groupsRef.where("joinCode", "==", joinCode.trim()).limit(1).get();
 
         if (querySnapshot.empty) {
-            throw new HttpsError("not-found", "Kód třídy není platný");
+            throw new Error("Kód třídy není platný");
         }
 
-        const groupDoc = querySnapshot.docs[0];
-        const groupData = groupDoc.data();
-        const groupId = groupDoc.id;
-
+        const initialGroupDoc = querySnapshot.docs[0];
+        const groupId = initialGroupDoc.id;
+        const groupRef = groupsRef.doc(groupId);
         const studentRef = db.collection("students").doc(studentId);
+        const userRef = db.collection("users").doc(studentId);
 
-        // Perform both writes in a single transaction/batch for atomicity
-        const batch = db.batch();
+        let groupName = "Unknown Class";
 
-        // 1. Add studentId to the group's studentIds array
-        batch.update(groupDoc.ref, {
-            studentIds: FieldValue.arrayUnion(studentId)
+        // 2. Execute Atomic Transaction (Double-Write Protocol)
+        await db.runTransaction(async (transaction) => {
+            // A. READ: Get fresh Group Data
+            const freshGroupDoc = await transaction.get(groupRef);
+            if (!freshGroupDoc.exists) {
+                throw new Error("Třída již neexistuje.");
+            }
+
+            const freshGroupData = freshGroupDoc.data() || {};
+            // Security/Consistency check: verify join code still matches
+            if (freshGroupData.joinCode !== joinCode.trim()) {
+                throw new Error("Kód třídy se změnil nebo není platný.");
+            }
+
+            groupName = freshGroupData.name || "Unknown Class";
+
+            // B. WRITE: Update Group Roster
+            // We do NOT return early if student is already in group.
+            // We MUST proceed to update the user profile to fix any "Zombie State".
+            transaction.update(groupRef, {
+                studentIds: FieldValue.arrayUnion(studentId)
+            });
+
+            // C. WRITE: Update Student Profile (LEGACY - REMOVED TO PREVENT SPLIT BRAIN)
+            // We no longer write to students/{uid} for group membership.
+            // The 'users/{uid}' collection is the Canonical Source of Truth.
+            /*
+            transaction.set(studentRef, {
+                memberOfGroups: FieldValue.arrayUnion(groupId)
+            }, { merge: true });
+            */
+
+            // D. WRITE: Update User Profile (Unified Source of Truth)
+            // IDEMPOTENT ACTION: Ensures self-healing if previous attempts failed here.
+            transaction.set(userRef, {
+                memberOfGroups: FieldValue.arrayUnion(groupId)
+            }, { merge: true });
         });
 
-        // 2. Add groupId to the student's memberOfGroups array
-        // Using set with { merge: true } is safe and creates the field if it doesn't exist.
-        batch.set(studentRef, {
-            memberOfGroups: FieldValue.arrayUnion(groupId)
-        }, { merge: true });
+        logger.log(`Student ${studentId} successfully joined group ${groupId} (${groupName}).`);
 
-        await batch.commit();
+        return { success: true, groupName: groupName };
 
+    } catch (error: any) {
+        const studentId = request.auth ? request.auth.uid : "unauthenticated";
+        logger.error(`Error in joinClass for student ${studentId}:`, error);
 
-        logger.log(`Student ${studentId} successfully joined group ${groupDoc.id} (${groupData.name}).`);
-
-        return { success: true, groupName: groupData.name };
-
-    } catch (error) {
-        logger.error(`Error in joinClass for student ${studentId} with code "${joinCode}":`, error);
-        if (error instanceof HttpsError) {
-            throw error;
-        }
-        throw new HttpsError("internal", "Došlo k chybě při připojování k třídě.");
+        // Controlled failure object
+        return { success: false, error: error.message };
     }
 });
 
-exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, async (request: CallableRequest) => {
+exports.registerUserWithRole = onCall({ region: DEPLOY_REGION }, async (request: CallableRequest) => {
     logger.log("registerUserWithRole called", { data: request.data });
     const { email, password, role, displayName } = request.data;
 
@@ -1908,9 +1985,11 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, asy
         // 2. Set custom claim immediately
         await getAuth().setCustomUserClaims(userId, { role: role });
 
-        // 3. Create document in 'users' collection
+        // 3. ATOMIC WRITE: Create Firestore Documents
+        const batch = db.batch();
+
         const userDocRef = db.collection("users").doc(userId);
-        await userDocRef.set({
+        batch.set(userDocRef, {
             email: email,
             role: role,
             name: displayName || "", // Save name to users collection
@@ -1920,13 +1999,15 @@ exports.registerUserWithRole = onCall({ region: DEPLOY_REGION, cors: true }, asy
         // 4. PRESERVE DUAL-WRITE: If role is 'student', create doc in 'students' collection
         if (role === "student") {
             const studentDocRef = db.collection("students").doc(userId);
-            await studentDocRef.set({
+            batch.set(studentDocRef, {
                 email: email,
                 role: "student", // Redundant but kept for consistency
                 createdAt: FieldValue.serverTimestamp(),
                 name: displayName || "" // Save name to students collection
             });
         }
+
+        await batch.commit();
 
         logger.log(`Successfully registered user ${userId} with role ${role}.`);
         return { success: true, userId: userId };
@@ -2023,7 +2104,7 @@ exports.getSecureUploadUrl = onCall({ region: DEPLOY_REGION }, async (request: C
         const docId = db.collection("fileMetadata").doc().id;
         
         // --- OPRAVA: Pridáme príponu k ID ---
-        const extension = fileName.includes('.') ? fileName.split('.').pop() : "";
+        const extension = fileName.includes(".") ? fileName.split(".").pop() : "";
         const finalFileName = extension ? `${docId}.${extension}` : docId;
 
         // --- SECURITY FIX: MANDATORY USER ID IN PATH ---
@@ -2443,10 +2524,34 @@ exports.admin_migrateStudentRoles = onCall({ region: DEPLOY_REGION }, async (req
     }
 });
 
+exports.analyzeClassroomAudio = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "2GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can use the Observer.");
+    }
+    const { audioData, mimeType } = request.data;
+    if (!audioData || !mimeType) {
+        throw new HttpsError("invalid-argument", "Missing audioData or mimeType.");
+    }
+
+    try {
+        // 2. Call Gemini
+        const result = await GeminiAPI.generateAudioAnalysis(audioData, mimeType);
+        return result;
+    } catch (error: any) {
+        logger.error("Error in analyzeClassroomAudio:", error);
+        throw new HttpsError("internal", "Failed to analyze audio: " + error.message);
+    }
+});
+
 exports.generateDiagramElement = onCall({
     region: DEPLOY_REGION,
     timeoutSeconds: 300,
-    memory: "1GiB"
+    memory: "2GiB"
 }, async (request: CallableRequest) => {
     if (!request.auth || request.auth.token.role !== "professor") {
         throw new HttpsError("unauthenticated", "Only professors can generate diagrams.");
@@ -2492,7 +2597,7 @@ exports.evaluatePracticalSubmission = onDocumentWritten({
     document: "practical_submissions/{submissionId}",
     memory: "2GiB",
     timeoutSeconds: 300
-}, async (event: FirestoreEvent<Change<QueryDocumentSnapshot> | undefined>) => {
+}, async (event: any) => {
     // 1. Idempotency Guard & Data Retrieval
     if (!event.data) {
         logger.error("No data associated with the event");
@@ -2539,13 +2644,13 @@ exports.evaluatePracticalSubmission = onDocumentWritten({
         // Generate a long-lived Signed URL for the Professor View
         // (This acts as the "Keymaster" allowing the frontend to view the private file)
         const [signedUrl] = await file.getSignedUrl({
-            action: 'read',
+            action: "read",
             expires: Date.now() + 7 * 24 * 60 * 60 * 1000 // Valid for 7 days
         });
 
         // Download for analysis
         const [buffer] = await file.download();
-        const base64Image = buffer.toString('base64');
+        const base64Image = buffer.toString("base64");
 
         // Try to get mimeType from metadata, default to jpeg
         let mimeType = "image/jpeg";
@@ -2578,7 +2683,7 @@ exports.evaluatePracticalSubmission = onDocumentWritten({
         const evaluation = await GeminiAPI.generateJsonFromMultimodal(systemPrompt, base64Image, mimeType);
 
         // 4. Atomic Update of the Submission Document
-        const outcome = evaluation.status || (evaluation.grade === 'F' ? SUBMISSION_OUTCOME.FAIL : SUBMISSION_OUTCOME.PASS);
+        const outcome = evaluation.status || (evaluation.grade === "F" ? SUBMISSION_OUTCOME.FAIL : SUBMISSION_OUTCOME.PASS);
 
         await snapshot.ref.update({
             grade: evaluation.grade || "N/A",
@@ -2599,3 +2704,317 @@ exports.evaluatePracticalSubmission = onDocumentWritten({
         });
     }
 });
+
+// ARCHITECT MODULE: Embeddings Generation
+exports.generateEmbeddings = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "2GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can generate embeddings.");
+    }
+    const { text, title } = request.data;
+    if (!text) {
+        throw new HttpsError("invalid-argument", "Missing text.");
+    }
+
+    try {
+        // 2. Generate Embeddings using Helper (which handles truncation)
+        const embedding = await GeminiAPI.generateEmbeddings(text);
+
+        // 3. Save to Firestore Knowledge Base
+        const docRef = db.collection("knowledge_base").doc();
+        await docRef.set({
+            text: text.substring(0, 10000), // Store first 10k chars of text for reference
+            embedding: embedding,
+            title: title || "Untitled Document",
+            ownerId: request.auth.uid,
+            createdAt: FieldValue.serverTimestamp(),
+            type: "text_upload"
+        });
+
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        logger.error("Error in generateEmbeddings:", error);
+        throw new HttpsError("internal", "Failed to generate embeddings.");
+    }
+});
+
+exports.analyzeSyllabus = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "2GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can analyze syllabus.");
+    }
+    const { knowledgeBaseId } = request.data;
+    if (!knowledgeBaseId) {
+        throw new HttpsError("invalid-argument", "Missing knowledgeBaseId.");
+    }
+
+    try {
+        const docRef = db.collection("knowledge_base").doc(knowledgeBaseId);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            throw new HttpsError("not-found", "Document not found.");
+        }
+
+        const data = doc.data() || {};
+        if (data.ownerId !== request.auth.uid) {
+             throw new HttpsError("permission-denied", "You do not own this document.");
+        }
+
+        const text = data.text;
+        if (!text) {
+             throw new HttpsError("failed-precondition", "Document has no text.");
+        }
+
+        // 2. AI Analysis
+        const graphData = await GeminiAPI.generateCompetencyGraph(text);
+
+        // 3. Save Result (Additive Update)
+        await docRef.set({
+            competencyMap: graphData,
+            analysisStatus: "completed",
+            analyzedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        return { success: true, data: graphData };
+
+    } catch (error: any) {
+        logger.error("Error in analyzeSyllabus:", error);
+         // Update status to error
+        try {
+            await db.collection("knowledge_base").doc(knowledgeBaseId).set({
+                analysisStatus: "error",
+                lastError: error.message
+            }, { merge: true });
+        } catch (e) { console.error("Failed to update error status", e); }
+
+        throw new HttpsError("internal", "Failed to analyze syllabus.");
+    }
+});
+
+exports.mapInsightsToGraph = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "2GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can update map progress.");
+    }
+    const { knowledgeBaseId, insightText } = request.data;
+    if (!knowledgeBaseId || !insightText) {
+        throw new HttpsError("invalid-argument", "Missing knowledgeBaseId or insightText.");
+    }
+
+    try {
+        const docRef = db.collection("knowledge_base").doc(knowledgeBaseId);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            throw new HttpsError("not-found", "Document not found.");
+        }
+
+        const data = doc.data() || {};
+        if (data.ownerId !== request.auth.uid) {
+             throw new HttpsError("permission-denied", "You do not own this document.");
+        }
+
+        if (!data.competencyMap || !data.competencyMap.nodes) {
+             throw new HttpsError("failed-precondition", "Competency map not found.");
+        }
+
+        // 2. AI Analysis
+        const coveredNodeIds = await GeminiAPI.matchInsightsToNodes(insightText, data.competencyMap.nodes);
+
+        // 3. Update Graph Data
+        const updatedNodes = data.competencyMap.nodes.map((node: any) => {
+            if (coveredNodeIds.includes(node.id)) {
+                return {
+                    ...node,
+                    status: "covered",
+                    lastCoveredAt: new Date().toISOString()
+                };
+            }
+            return node;
+        });
+
+        await docRef.update({
+            "competencyMap.nodes": updatedNodes,
+            lastProgressUpdate: FieldValue.serverTimestamp()
+        });
+
+        return { success: true, coveredNodeIds: coveredNodeIds };
+
+    } catch (error: any) {
+        logger.error("Error in mapInsightsToGraph:", error);
+        throw new HttpsError("internal", "Failed to map insights to graph.");
+    }
+});
+
+exports.generateRemedialExplanation = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "2GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const { lessonTopic, failedQuestions } = request.data;
+    if (!lessonTopic || !failedQuestions || !Array.isArray(failedQuestions) || failedQuestions.length === 0) {
+        throw new HttpsError("invalid-argument", "Missing topic or failedQuestions (must be a non-empty array).");
+    }
+
+    try {
+        const result = await GeminiAPI.generateRemedialExplanation(lessonTopic, failedQuestions);
+        return result;
+    } catch (error: any) {
+        logger.error("Error in generateRemedialExplanation:", error);
+        throw new HttpsError("internal", "Failed to generate remedial explanation.");
+    }
+});
+
+exports.generateProjectScaffolding = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "2GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can generate project scaffolding.");
+    }
+
+    const { topic, duration, complexity } = request.data;
+    if (!topic || !duration || !complexity) {
+        throw new HttpsError("invalid-argument", "Missing topic, duration, or complexity.");
+    }
+
+    try {
+        const result = await GeminiAPI.generateProjectScaffolding(topic, duration, complexity);
+        return result;
+    } catch (error: any) {
+        logger.error("Error in generateProjectScaffolding:", error);
+        throw new HttpsError("internal", "Failed to generate project scaffolding.");
+    }
+});
+
+exports.triggerCrisis = onCall({
+    region: DEPLOY_REGION,
+    timeoutSeconds: 300,
+    memory: "2GiB"
+}, async (request: CallableRequest) => {
+    // 1. Validation
+    if (!request.auth || request.auth.token.role !== "professor") {
+        throw new HttpsError("unauthenticated", "Only professors can trigger a crisis.");
+    }
+
+    const { lessonId, milestoneTitle } = request.data;
+    if (!lessonId) {
+        throw new HttpsError("invalid-argument", "Missing lessonId.");
+    }
+
+    try {
+        const lessonRef = db.collection("lessons").doc(lessonId);
+        const lessonDoc = await lessonRef.get();
+
+        if (!lessonDoc.exists) {
+            throw new HttpsError("not-found", "Lesson not found.");
+        }
+
+        const lessonData = lessonDoc.data() || {};
+        const topic = lessonData.topic || lessonData.title || "Project";
+
+        // Determine phase
+        let phase = milestoneTitle || "Execution Phase";
+        if (!milestoneTitle && lessonData.projectData?.milestones?.length > 0) {
+            // Pick a middle milestone as a guess if not specified
+            const midIndex = Math.floor(lessonData.projectData.milestones.length / 2);
+            phase = lessonData.projectData.milestones[midIndex].title;
+        }
+
+        // 2. Generate Crisis
+        const crisisScenario = await GeminiAPI.generateCrisisScenario(topic, phase);
+
+        // 3. Inject into Lesson
+        await lessonRef.update({
+            activeCrisis: {
+                ...crisisScenario,
+                timestamp: FieldValue.serverTimestamp(),
+                triggeredBy: request.auth.uid
+            }
+        });
+
+        return { success: true, crisis: crisisScenario };
+
+    } catch (error: any) {
+        logger.error("Error in triggerCrisis:", error);
+        throw new HttpsError("internal", "Failed to trigger crisis.");
+    }
+});
+
+exports.resolveCrisis = onCall({
+    region: DEPLOY_REGION
+}, async (request: CallableRequest) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const { lessonId } = request.data;
+    if (!lessonId) {
+        throw new HttpsError("invalid-argument", "Missing lessonId.");
+    }
+
+    try {
+        const lessonRef = db.collection("lessons").doc(lessonId);
+
+        // 1. Fetch current crisis data to calculate stats
+        const lessonDoc = await lessonRef.get();
+        if (lessonDoc.exists) {
+            const data = lessonDoc.data() || {};
+            const activeCrisis = data.activeCrisis;
+
+            if (activeCrisis && activeCrisis.timestamp) {
+                // Calculate Duration
+                const startTime = activeCrisis.timestamp.toDate ? activeCrisis.timestamp.toDate() : new Date(activeCrisis.timestamp);
+                const now = new Date();
+                const durationMs = now.getTime() - startTime.getTime();
+
+                // Log Analytics Event
+                await db.collection("crisis_logs").add({
+                    studentId: request.auth.uid,
+                    lessonId: lessonId,
+                    crisisTitle: activeCrisis.title || "Unknown Crisis",
+                    durationMs: durationMs,
+                    resolvedAt: FieldValue.serverTimestamp(),
+                    // We can attempt to find classId later or store it here if known.
+                    // For now, we store the raw event.
+                });
+
+                logger.log(`Crisis resolved by ${request.auth.uid} in ${durationMs}ms`);
+            }
+        }
+
+        // We can just delete the field to "resolve" it
+        await lessonRef.update({
+            activeCrisis: FieldValue.delete()
+        });
+
+        return { success: true, message: "Crisis resolved." };
+
+    } catch (error: any) {
+        logger.error("Error in resolveCrisis:", error);
+        throw new HttpsError("internal", "Failed to resolve crisis.");
+    }
+});
+
+exports.generateClassReport = generateClassReport;
+exports.exportAnonymizedData = exportAnonymizedData;

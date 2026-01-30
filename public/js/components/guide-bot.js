@@ -1,7 +1,28 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { getAiAssistantResponse } from '../gemini-api.js';
-import { APP_KNOWLEDGE_BASE } from '../utils/app-knowledge-base.js';
+import { APP_KNOWLEDGE_BASE, APP_KNOWLEDGE_BASE_TEXT } from '../utils/app-knowledge-base.js';
 import { translationService } from '../utils/translation-service.js';
+import { TourGuide } from '../utils/tour-guide.js';
+import { showToast } from '../utils/utils.js';
+
+// Phase 1: Intelligent Translation Layer
+const VIEW_TO_TOPIC_MAP = {
+    'lesson-editor': 'editor',
+    'professor-lesson-editor': 'editor',
+    'editor': 'editor',
+    'class-detail': 'classes',
+    'student-detail': 'students',
+    'practice-detail': 'practice',
+    'submission-detail': 'practice',
+    'pedagogical-detail': 'pedagogical-practice',
+    'professor-interactions-view': 'interactions',
+    'professor-analytics-view': 'analytics',
+    'professor-architect-view': 'architect',
+    'professor-observer-view': 'observer',
+    'professor-timeline-view': 'planner',
+    'timeline': 'planner',
+    'professor-pedagogical-practice-view': 'pedagogical-practice'
+};
 
 export class GuideBot extends LitElement {
     static properties = {
@@ -21,6 +42,7 @@ export class GuideBot extends LitElement {
         this.userRole = 'unknown';
         this.currentView = 'unknown';
         this.contextData = {};
+        this.tourGuide = new TourGuide();
     }
 
     createRenderRoot() {
@@ -48,8 +70,6 @@ export class GuideBot extends LitElement {
         this._langUnsubscribe = translationService.subscribe(() => {
             // Re-render to update UI strings
             this.requestUpdate();
-            // Optionally update existing static messages if needed, but usually new messages will use new lang
-            // For the welcome message, if it's the only one, we could update it, but let's keep history static
         });
     }
 
@@ -78,6 +98,84 @@ export class GuideBot extends LitElement {
         }
     }
 
+    updateContext(view, data = {}) {
+        this.currentView = view;
+        this.contextData = data;
+        if (data.role) {
+            this.userRole = data.role;
+        }
+        // Force update to ensure new state is reflected immediately if needed
+        this.requestUpdate();
+    }
+
+    startTour() {
+        const rawView = this.currentView || 'general';
+        // Smart Resolution: Normalize view name (e.g. professor-students-view -> students)
+        const normalizedView = rawView.replace('professor-', '').replace('-view', '');
+
+        console.log(`[GuideBot] Tour Requested. Raw: '${rawView}', Normalized: '${normalizedView}'`);
+
+        // Try exact match first, then lookup map, then normalized, then fallback to general
+        let topicKey = VIEW_TO_TOPIC_MAP[rawView] || VIEW_TO_TOPIC_MAP[normalizedView];
+
+        // Fuzzy Logic: If no exact match, but contains 'editor', force editor topic
+        if (!topicKey && (rawView.includes('editor') || normalizedView.includes('editor'))) {
+            topicKey = 'editor';
+        }
+
+        // Final fallback
+        if (!topicKey) topicKey = normalizedView;
+
+        console.log(`[GuideBot] Resolved Topic Key: '${topicKey}'`);
+
+        const knowledge = APP_KNOWLEDGE_BASE[rawView] || APP_KNOWLEDGE_BASE[topicKey] || APP_KNOWLEDGE_BASE['general'];
+
+        if (knowledge && knowledge.tour_steps && knowledge.tour_steps.length > 0) {
+            this.tourGuide.start(knowledge.tour_steps);
+            // Close the chat window if it covers the screen, but maybe keep it open if it's small?
+            // Usually better to close it so user sees the tour.
+            this.toggleChat();
+        } else {
+            // Check if there are any general steps if specific ones are missing?
+            // Or just alert.
+             console.warn(`[GuideBot] No tour steps found for view: ${rawView} (Topic: ${topicKey})`);
+             const msg = translationService.t('guide_bot.no_tour', 'Interactive tour is not available for this view yet.');
+             showToast(msg, true);
+        }
+    }
+
+    _getRelevantKnowledge() {
+        const rawView = this.currentView || 'general';
+        const normalizedView = rawView.replace('professor-', '').replace('-view', '');
+
+        let topicKey = VIEW_TO_TOPIC_MAP[rawView] || VIEW_TO_TOPIC_MAP[normalizedView];
+
+        // Fuzzy Logic: If no exact match, but contains 'editor', force editor topic
+        if (!topicKey && (rawView.includes('editor') || normalizedView.includes('editor'))) {
+            topicKey = 'editor';
+        }
+
+        // Final fallback
+        if (!topicKey) topicKey = normalizedView;
+
+        const section = APP_KNOWLEDGE_BASE[rawView] || APP_KNOWLEDGE_BASE[topicKey] || APP_KNOWLEDGE_BASE.general;
+
+        // If we are in a specific view, we might want to include general info as well,
+        // but the prompt asks to "inject only the relevant section".
+        // However, context_hint should be helpful.
+
+        let content = `View: ${normalizedView} (Raw: ${rawView})\n`;
+        content += `Context Hint: ${section.context_hint}\n`;
+        content += `Guide:\n${section.user_guide}\n`;
+
+        // If the view is not general, maybe add the general section's key rules?
+        if (normalizedView !== 'general') {
+             content += `\n--- General Rules ---\n${APP_KNOWLEDGE_BASE.general.user_guide}`;
+        }
+
+        return content;
+    }
+
     async sendMessage() {
         const input = this.querySelector('input');
         const text = input.value.trim();
@@ -98,10 +196,13 @@ export class GuideBot extends LitElement {
             });
 
             // AI LOGIC FIX: Injected System Instruction from Translation Service
+            // Inject relevant knowledge base section
+            const relevantKnowledge = this._getRelevantKnowledge();
+
             const systemPrompt = `
 System: ${translationService.t('guide_bot.system_instruction')}
-Here is how the app works:
-${APP_KNOWLEDGE_BASE}
+Current Knowledge Context:
+${relevantKnowledge}
 
 The user is currently at View: [${this.currentView}].
 User Role: [${this.userRole}].
@@ -158,11 +259,18 @@ User Question: "${text}"
                                 </svg>
                                 <span class="font-semibold">${translationService.t('guide_bot.title')}</span>
                             </div>
-                            <button @click=${this.toggleChat} class="text-white/80 hover:text-white">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                </svg>
-                            </button>
+                            <div class="flex items-center gap-1">
+                                <button @click=${() => this.startTour()} class="text-white/80 hover:text-white p-1 rounded hover:bg-indigo-500 transition-colors" title="${translationService.t('guide_bot.start_tour', 'Start Tour')}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </button>
+                                <button @click=${this.toggleChat} class="text-white/80 hover:text-white p-1 rounded hover:bg-indigo-500 transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Messages -->

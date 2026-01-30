@@ -422,7 +422,7 @@ export class PortfolioView extends Localized(LitElement) {
     render() {
         if (this.loading) {
             return html`
-                <div class="p-12 text-center text-slate-500">
+                <div data-tour="portfolio-start" class="p-12 text-center text-slate-500">
                     ${this.t('common.loading', 'Načítám portfolio...')}
                 </div>
             `;

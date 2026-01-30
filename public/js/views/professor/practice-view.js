@@ -201,9 +201,9 @@ export class PracticeView extends LitElement {
 
     render() {
         return html`
-            <div class="max-w-7xl mx-auto p-6 space-y-8">
+            <div data-tour="practice-start" class="max-w-7xl mx-auto p-6 space-y-8">
                 <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-                    <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Odborný Výcvik (AI Mistr)</h1>
+                    <h1 data-tour="practice-title" class="text-3xl font-extrabold text-slate-900 tracking-tight">Odborný Výcvik (AI Mistr)</h1>
                     <div class="relative">
                         <select @change="${e => this._selectGroup(e.target.value)}" class="appearance-none bg-white border border-slate-300 text-slate-700 py-2 px-4 pr-8 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium">
                             <option value="">Vyberte třídu</option>
@@ -260,7 +260,7 @@ export class PracticeView extends LitElement {
 
         if (!this.activeSession) {
             return html`
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mb-8">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mb-8" data-tour="practice-session-control">
                     <h2 class="text-2xl font-bold text-slate-800 mb-6">Nový výcvik</h2>
                     ${inputArea}
                     <div class="mt-8 text-center">
@@ -273,7 +273,7 @@ export class PracticeView extends LitElement {
         }
 
         return html`
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8 ring-1 ring-blue-100">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8 ring-1 ring-blue-100" data-tour="practice-session-control">
                 <div class="flex justify-between items-center mb-6">
                     <div class="flex items-center gap-3">
                         <span class="relative flex h-3 w-3">
@@ -289,7 +289,7 @@ export class PracticeView extends LitElement {
                 ${inputArea}
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-tour="practice-student-grid">
                 ${this.students.map(student => this._renderStudentCard(student))}
             </div>
         `;

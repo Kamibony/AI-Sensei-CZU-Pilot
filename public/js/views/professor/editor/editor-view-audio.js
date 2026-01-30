@@ -21,7 +21,7 @@ export class EditorViewAudio extends Localized(LitElement) {
         this.voiceGender = 'male';
     }
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     _getScript() {
         let script = [];
@@ -215,21 +215,59 @@ export class EditorViewAudio extends Localized(LitElement) {
         };
 
         return html`
-            <div class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-audio-start" data-editor-type="audio" class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
 
                 <div class="flex-1 overflow-hidden relative">
                     <div class="absolute inset-0 overflow-y-auto custom-scrollbar p-6">
                         <div class="max-w-5xl mx-auto space-y-6">
 
+                            <!-- GLOBAL PODCAST CONTROLS (ALWAYS VISIBLE) -->
+                            <div class="mb-6 flex flex-wrap items-center gap-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm" data-tour="audio-controls">
+                                <!-- Mode Toggle -->
+                                <div class="flex items-center gap-3">
+                                    <span class="text-sm font-medium text-slate-700">Režim:</span>
+                                    <div class="flex bg-slate-100 p-1 rounded-lg">
+                                        <button
+                                            @click="${() => this.isDialogueMode = true}"
+                                            class="px-3 py-1.5 text-sm font-medium rounded-md transition-all ${this.isDialogueMode ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
+                                        >
+                                            Dialog
+                                        </button>
+                                        <button
+                                            @click="${() => this.isDialogueMode = false}"
+                                            class="px-3 py-1.5 text-sm font-medium rounded-md transition-all ${!this.isDialogueMode ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
+                                        >
+                                            Monolog
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Voice Gender (Only in Monologue) -->
+                                ${!this.isDialogueMode ? html`
+                                    <div class="flex items-center gap-3 animate-fade-in">
+                                        <span class="text-sm font-medium text-slate-700">Hlas:</span>
+                                        <select
+                                            .value="${this.voiceGender}"
+                                            @change="${e => this.voiceGender = e.target.value}"
+                                            class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2"
+                                        >
+                                            <option value="male">Mužský</option>
+                                            <option value="female">Ženský</option>
+                                        </select>
+                                    </div>
+                                ` : nothing}
+                            </div>
+
                             ${hasContent ? html`
-                                <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8">
+                                <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8" data-tour="audio-script-list">
                                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                                         <div>
                                             <h2 class="text-2xl font-bold text-slate-800">${this.t('editor.audio.title')}</h2>
                                             <p class="text-slate-500">${this.t('editor.audio.subtitle')}</p>
                                         </div>
                                         <button
+                                            data-tour="audio-generate-btn"
                                             @click="${this._generateAudio}"
                                             ?disabled="${this.isGeneratingAudio}"
                                             class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl font-semibold shadow-sm transition-all flex items-center gap-2"
@@ -248,49 +286,13 @@ export class EditorViewAudio extends Localized(LitElement) {
                                     </div>
 
                                     ${audioUrl ? html`
-                                        <div class="mb-8 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+                                        <div class="mb-8 p-4 bg-indigo-50 rounded-2xl border border-indigo-100" data-tour="audio-player">
                                             <div class="flex items-center gap-3 mb-2">
                                                 <span class="text-xs font-bold text-indigo-500 uppercase tracking-wider">Přehrávač</span>
                                             </div>
                                             <audio controls class="w-full" src="${audioUrl}"></audio>
                                         </div>
                                     ` : nothing}
-
-                                    <div class="mb-6 flex flex-wrap items-center gap-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                        <!-- Mode Toggle -->
-                                        <div class="flex items-center gap-3">
-                                            <span class="text-sm font-medium text-slate-700">Režim:</span>
-                                            <div class="flex bg-slate-100 p-1 rounded-lg">
-                                                <button
-                                                    @click="${() => this.isDialogueMode = true}"
-                                                    class="px-3 py-1.5 text-sm font-medium rounded-md transition-all ${this.isDialogueMode ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
-                                                >
-                                                    Dialog
-                                                </button>
-                                                <button
-                                                    @click="${() => this.isDialogueMode = false}"
-                                                    class="px-3 py-1.5 text-sm font-medium rounded-md transition-all ${!this.isDialogueMode ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
-                                                >
-                                                    Monolog
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <!-- Voice Gender (Only in Monologue) -->
-                                        ${!this.isDialogueMode ? html`
-                                            <div class="flex items-center gap-3 animate-fade-in">
-                                                <span class="text-sm font-medium text-slate-700">Hlas:</span>
-                                                <select
-                                                    .value="${this.voiceGender}"
-                                                    @change="${e => this.voiceGender = e.target.value}"
-                                                    class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2"
-                                                >
-                                                    <option value="male">Mužský</option>
-                                                    <option value="female">Ženský</option>
-                                                </select>
-                                            </div>
-                                        ` : nothing}
-                                    </div>
 
                                     <div class="space-y-4">
                                         ${script.map((line, index) => html`
@@ -330,6 +332,7 @@ export class EditorViewAudio extends Localized(LitElement) {
 
                                     <div class="mt-8 flex justify-center">
                                         <button
+                                            data-tour="audio-add-line-btn"
                                             @click="${this._addLine}"
                                             class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                                         >
@@ -354,6 +357,7 @@ export class EditorViewAudio extends Localized(LitElement) {
                                     .lesson="${this.lesson}"
                                     .files="${this.files}"
                                     .context="${aiContext}"
+                                    .extraData="${{ mode: this.isDialogueMode ? 'dialogue' : 'monologue', voice: this.voiceGender }}"
                                     viewTitle="${this.t('editor.audio.title')}"
                                     contentType="podcast"
                                     fieldToUpdate="podcast_script"

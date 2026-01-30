@@ -57,7 +57,7 @@ Do NOT refuse to generate content. Always find the most relevant educational val
 function sanitizeStoragePath(path: string, bucketName: string): string {
     if (!path) return "";
 
-    path = decodeURIComponent(path).normalize('NFC'); // SYSTEMIC FIX for special chars
+    path = decodeURIComponent(path).normalize("NFC"); // SYSTEMIC FIX for special chars
 
     // 1. Remove gs:// prefix
     let clean = path.replace(/^gs:\/\//, "");
@@ -80,8 +80,8 @@ function sanitizeJsonOutput(text: string): string {
     clean = clean.replace(/```json/gi, "").replace(/```/g, "");
 
     // Remove conversational preamble if any (simple heuristic: find first { or [)
-    const firstBrace = clean.indexOf('{');
-    const firstBracket = clean.indexOf('[');
+    const firstBrace = clean.indexOf("{");
+    const firstBracket = clean.indexOf("[");
 
     let startIndex = -1;
     if (firstBrace !== -1 && firstBracket !== -1) {
@@ -97,8 +97,8 @@ function sanitizeJsonOutput(text: string): string {
     }
 
     // Also try to cut off after the last } or ]
-    const lastBrace = clean.lastIndexOf('}');
-    const lastBracket = clean.lastIndexOf(']');
+    const lastBrace = clean.lastIndexOf("}");
+    const lastBracket = clean.lastIndexOf("]");
     let endIndex = -1;
      if (lastBrace !== -1 && lastBracket !== -1) {
         endIndex = Math.max(lastBrace, lastBracket);
@@ -122,8 +122,8 @@ async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<
 
     // 1. Primary Path (as provided, sanitized) - Try NFC first (canonical), then NFD (Mac upload)
     const primaryPath = cleanPath;
-    candidates.push(primaryPath.normalize('NFC'));
-    candidates.push(primaryPath.normalize('NFD'));
+    candidates.push(primaryPath.normalize("NFC"));
+    candidates.push(primaryPath.normalize("NFD"));
 
     // 2. Legacy/Alternative Path (toggle /media/)
     let alternativePath: string | null = null;
@@ -136,17 +136,17 @@ async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<
     }
 
     if (alternativePath && alternativePath !== primaryPath) {
-         candidates.push(alternativePath.normalize('NFC'));
-         candidates.push(alternativePath.normalize('NFD'));
+         candidates.push(alternativePath.normalize("NFC"));
+         candidates.push(alternativePath.normalize("NFD"));
     }
 
     // 3. URI Encoded Path (for files uploaded with %20 instead of spaces)
     // Sometimes storage tools upload 'File Name.pdf' as 'File%20Name.pdf' literal object name.
     if (primaryPath.includes(" ")) {
-        candidates.push(primaryPath.replace(/ /g, '%20'));
+        candidates.push(primaryPath.replace(/ /g, "%20"));
     }
     if (alternativePath && alternativePath.includes(" ")) {
-        candidates.push(alternativePath.replace(/ /g, '%20'));
+        candidates.push(alternativePath.replace(/ /g, "%20"));
     }
 
     // Deduplicate candidates
@@ -160,7 +160,7 @@ async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<
             const file = bucket.file(path);
             const [buffer] = await file.download();
             if (buffer && buffer.length > 0) {
-                 if (path !== primaryPath.normalize('NFC')) {
+                 if (path !== primaryPath.normalize("NFC")) {
                      logger.info(`[gemini-api] Recovered file using alternative path/normalization: '${path}' (Original: '${cleanPath}')`);
                  }
                  return { buffer, finalPath: path };
@@ -170,7 +170,14 @@ async function downloadFileWithRetries(bucket: any, cleanPath: string): Promise<
         }
     }
 
-    throw new Error(`Failed to download file '${cleanPath}' after trying candidates: ${uniqueCandidates.join(', ')}`);
+    throw new Error(`Failed to download file '${cleanPath}' after trying candidates: ${uniqueCandidates.join(", ")}`);
+}
+
+async function generateEmbeddings(text: string): Promise<number[]> {
+    // Truncate to ensure we stay within token limits (MVP approach)
+    // 2048 tokens is roughly 6000-8000 chars. We use a safe limit of 6000.
+    const safeText = text.substring(0, 6000);
+    return await getEmbeddings(safeText);
 }
 
 async function getEmbeddings(text: string): Promise<number[]> {
@@ -265,7 +272,33 @@ async function streamGeminiResponse(requestBody: GenerateContentRequest, systemI
                     { question: "What is 2+2?", options: ["3", "4", "5", "6"], correctAnswer: 1 }
                 ],
                 // Mock for Mindmap
-                mermaid: "graph TD; A-->B;"
+                mermaid: "graph TD; A-->B;",
+                // Mock for Syllabus Graph
+                nodes: [
+                    { id: "n1", label: "Mock Concept 1", bloomLevel: 1, category: "theory" },
+                    { id: "n2", label: "Mock Concept 2", bloomLevel: 3, category: "practice" }
+                ],
+                edges: [
+                    { source: "n1", target: "n2", type: "prerequisite" }
+                ],
+                // Mock for Project Scaffolding
+                roles: [
+                    { id: "r1", title: "Project Manager", description: "Leads the team.", skills: ["Leadership", "Planning"] },
+                    { id: "r2", title: "Researcher", description: "Gathers info.", skills: ["Research", "Analysis"] }
+                ],
+                milestones: [
+                    { id: "m1", title: "Kickoff", description: "Start the project." },
+                    { id: "m2", title: "Final Delivery", description: "Submit the project." }
+                ],
+                role_tasks: {
+                    "m1": { "r1": ["Plan timeline"], "r2": ["Find sources"] },
+                    "m2": { "r1": ["Present"], "r2": ["Cite sources"] }
+                },
+                // Mock for Crisis
+                title: "Mock Crisis",
+                description: "This is a simulated crisis event.",
+                consequence: "Project timeline delay.",
+                recovery_task: "Conduct a root cause analysis."
             });
         }
         return "This is a mock response from the emulator for a text prompt.";
@@ -360,7 +393,7 @@ async function generateTextFromDocuments(filePaths: string[], prompt: string, sy
     }
     
     if (loadedFiles === 0) {
-        throw new HttpsError('not-found', 'Backend could not read any source files. Please check file paths. Attempted path example: ' + (filePaths[0] || 'none'));
+        throw new HttpsError("not-found", "Backend could not read any source files. Please check file paths. Attempted path example: " + (filePaths[0] || "none"));
     }
 
     parts.push({ text: prompt });
@@ -517,7 +550,7 @@ async function generateTextFromMultimodal(prompt: string, base64Data: string, mi
     const model = await getGenerativeModel();
     const result = await model.generateContent({
         contents: [{
-            role: 'user',
+            role: "user",
             parts: [
                 { text: prompt },
                 {
@@ -541,7 +574,7 @@ async function generateJsonFromMultimodal(prompt: string, base64Data: string, mi
 
     const result = await model.generateContent({
         contents: [{
-            role: 'user',
+            role: "user",
             parts: [
                 { text: jsonPrompt },
                 {
@@ -575,8 +608,125 @@ async function generateJsonFromMultimodal(prompt: string, base64Data: string, mi
     }
 }
 
+async function generateCompetencyGraph(text: string): Promise<any> {
+    const systemInstruction = "Analyze the provided syllabus text. Output a JSON object containing 'nodes' (id, label, bloom_level 1-6, eqf_level 1-8) and 'edges' (source, target) representing a dependency graph based on Bloom's Taxonomy and the European Qualifications Framework (EQF). For eqf_level, focus on autonomy and responsibility.";
+    return await generateJsonFromPrompt(text, systemInstruction);
+}
+
+async function generateAudioAnalysis(base64Data: string, mimeType: string): Promise<any> {
+    const prompt = `
+    ROLE: You are an expert pedagogical supervisor (The Observer).
+    TASK: Analyze the provided classroom audio recording.
+
+    ANALYSIS DIMENSIONS:
+    1. Talk Ratio: Estimate the percentage of time the Teacher speaks vs. Students.
+    2. Emotional Tone: Describe the overall vibe (e.g., Enthusiastic, Monotone, chaotic, Strict).
+    3. Methodology: Identify teaching methods used (e.g., Lecture, Socratic questioning, Group work).
+    4. Suggestions: Provide 2-3 concrete, actionable tips for improvement.
+
+    OUTPUT FORMAT (JSON):
+    {
+      "talkRatio": { "teacher": number, "student": number },
+      "emotionalTone": "string",
+      "methodology": ["string", "string"],
+      "suggestions": ["string", "string"]
+    }
+    `;
+    return await generateJsonFromMultimodal(prompt, base64Data, mimeType);
+}
+
+async function matchInsightsToNodes(insightText: string, nodes: any[]): Promise<string[]> {
+    const nodesContext = nodes.map(n => `- ID: ${n.id}, Label: ${n.label}`).join("\n");
+    const prompt = `
+    ROLE: You are an expert educational analyst.
+    TASK: Compare the "Insight Text" (summary of a class session) with the "Competency Nodes" (syllabus topics).
+    GOAL: Identify which Competency Nodes were sufficiently covered or discussed in the session based on the insight text.
+
+    --- COMPETENCY NODES ---
+    ${nodesContext}
+
+    --- INSIGHT TEXT ---
+    ${insightText}
+
+    INSTRUCTIONS:
+    1. specific: Only mark a node as covered if there is clear evidence in the text.
+    2. Output a JSON object with a single key "covered_node_ids" containing an array of node IDs.
+    3. Return valid JSON only.
+
+    OUTPUT FORMAT:
+    { "covered_node_ids": ["id1", "id2"] }
+    `;
+
+    const result = await generateJsonFromPrompt(prompt);
+    return result.covered_node_ids || [];
+}
+
+async function generateRemedialExplanation(topic: string, failedQuestions: string[]): Promise<any> {
+    const questionsText = failedQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n");
+
+    const prompt = `
+    ROLE: You are a "Patient Tutor" AI.
+    TASK: The student failed a quiz on the topic: "${topic}".
+
+    FAILED QUESTIONS:
+    ${questionsText}
+
+    GOAL:
+    1. Identify the core concept the student is missing based on these questions.
+    2. Explain it SIMPLY (ELI5 - Explain Like I'm 5).
+    3. Use a creative ANALOGY to help them understand.
+    4. Provide ONE new, simplified example question (with the correct answer clearly stated).
+
+    LANGUAGE: Czech (Čeština).
+
+    OUTPUT FORMAT (JSON ONLY):
+    {
+      "explanation": "Simple explanation of the concept...",
+      "analogy": "Imagine that...",
+      "newExample": "Question: ... ? Answer: ..."
+    }
+    `;
+
+    return await generateJsonFromPrompt(prompt);
+}
+
+async function generateProjectScaffolding(topic: string, duration: string, complexity: string): Promise<any> {
+    const prompt = `
+    ROLE: You are an expert Project Manager & Curriculum Designer.
+    TASK: Create a Project-Based Learning (PBL) scaffolding for the topic: "${topic}".
+
+    PARAMETERS:
+    - Duration: ${duration} (e.g., "4 weeks", "1 semester")
+    - Complexity: ${complexity} (e.g., "Beginner", "Advanced")
+
+    REQUIREMENTS:
+    1. ROLES: Define 3-4 distinct Student Roles based on soft skills (e.g., "The Leader", "The Researcher", "The Designer").
+    2. MILESTONES: Create a linear timeline of milestones suitable for the duration.
+    3. TASKS: specific tasks for each role within each milestone.
+
+    OUTPUT FORMAT (JSON ONLY):
+    {
+      "roles": [
+        { "id": "r1", "title": "Role Title", "description": "Role description...", "skills": ["skill1", "skill2"] }
+      ],
+      "milestones": [
+        { "id": "m1", "title": "Milestone Title", "description": "Phase description..." }
+      ],
+      "role_tasks": {
+        "m1": {
+          "r1": ["Task 1", "Task 2"],
+          "r2": ["Task A", "Task B"]
+        }
+      }
+    }
+    `;
+
+    return await generateJsonFromPrompt(prompt);
+}
+
 export {
     getEmbeddings,
+    generateEmbeddings,
     calculateCosineSimilarity,
     generateTextFromPrompt,
     generateJsonFromPrompt,
@@ -586,5 +736,35 @@ export {
     generateTextFromMultimodal,
     generateJsonFromMultimodal,
     downloadFileWithRetries,
-    sanitizeStoragePath
+    sanitizeStoragePath,
+    generateCompetencyGraph,
+    generateAudioAnalysis,
+    matchInsightsToNodes,
+    generateRemedialExplanation,
+    generateProjectScaffolding,
+    generateCrisisScenario
 };
+
+
+async function generateCrisisScenario(topic: string, currentMilestone: string): Promise<any> {
+    const prompt = `
+    ROLE: You are a "Dungeon Master" or "Corporate Simulator" for a project-based learning course.
+    TASK: Create a sudden, realistic CRISIS event for the project topic: "${topic}".
+    CONTEXT: The team is currently working on the milestone: "${currentMilestone}".
+
+    REQUIREMENTS:
+    1. The crisis must be relevant to the topic and the current phase.
+    2. It should disrupt their workflow and require immediate attention.
+    3. Define a specific "Recovery Task" they must complete to resume normal operations.
+
+    OUTPUT FORMAT (JSON ONLY):
+    {
+      "title": "Short, alarming title (e.g., 'Database Breach', 'Supply Chain Failure')",
+      "description": "Dramatic description of what happened and why it's bad...",
+      "consequence": "What happens if ignored (e.g., 'Project delay', 'Data loss').",
+      "recovery_task": "Specific instruction on how to fix it (e.g., 'Write a public apology statement', 'Patch the security vulnerability')."
+    }
+    `;
+
+    return await generateJsonFromPrompt(prompt);
+}

@@ -159,10 +159,10 @@ export class ProfessorMediaView extends Localized(LitElement) {
         }
 
         return html`
-            <div class="h-full flex flex-col bg-slate-50">
-                <header class="bg-white p-6 border-b border-slate-200">
+            <div data-tour="media-start" class="h-full flex flex-col bg-slate-50">
+                <header class="bg-white p-6 border-b border-slate-200" data-tour="media-header">
                      <div class="w-full">
-                        <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">${this.t('media.title')}</h1>
+                        <h1 data-tour="media-title" class="text-3xl font-extrabold text-slate-800 tracking-tight">${this.t('media.title')}</h1>
                         <p class="text-slate-500 mt-1 font-medium">${this.t('media.subtitle')}</p>
                     </div>
                 </header>
@@ -171,7 +171,7 @@ export class ProfessorMediaView extends Localized(LitElement) {
                     <div class="w-full px-6 space-y-8">
 
                         <!-- Upload Area -->
-                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200" data-tour="media-upload">
                             <div id="course-media-upload-area"
                                  class="border-3 border-dashed border-slate-300 rounded-2xl p-12 text-center transition-all duration-200
                                         ${this._isAuthReady
@@ -199,7 +199,7 @@ export class ProfessorMediaView extends Localized(LitElement) {
                         </div>
 
                         <!-- Files Grid -->
-                        <div>
+                        <div data-tour="media-files">
                              <h2 class="text-xl font-bold text-slate-800 mb-6 flex items-center">
                                 <svg class="w-6 h-6 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                                 ${this.t('media.uploaded_files')} <span class="ml-2 bg-slate-100 text-slate-600 text-sm py-0.5 px-2 rounded-full font-medium">${this._files.length}</span>

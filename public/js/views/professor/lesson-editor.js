@@ -108,6 +108,8 @@ export class LessonEditor extends BaseView {
     this._saveTimeout = null;
   }
 
+  createRenderRoot() { return this; } // Light DOM enabled
+
   // --- NOVÁ OCHRANA (Fix pre miznutie obsahu) ---
   willUpdate(changedProperties) {
       if (changedProperties.has('lesson')) {
@@ -1112,7 +1114,7 @@ export class LessonEditor extends BaseView {
           generationParams.episode_count = 3;
       }
 
-      const activeEditor = this.shadowRoot.querySelector('#active-editor');
+      const activeEditor = this.querySelector('#active-editor');
       if (activeEditor && activeEditor.handleAiGeneration) {
            try {
                await activeEditor.handleAiGeneration(generationParams);
@@ -1237,7 +1239,7 @@ export class LessonEditor extends BaseView {
            `;
       }
       return html`
-        <div class="min-h-full flex flex-col items-center justify-center p-4 bg-slate-50/50">
+        <div class="min-h-full flex flex-col items-center justify-center p-4 bg-slate-50/50" data-tour="editor-layout">
             ${this._isGenerating ? html`
                 <div class="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center">
                     <div class="text-center space-y-4">
@@ -1452,7 +1454,7 @@ export class LessonEditor extends BaseView {
            `;
       }
       return html`
-      <div class="h-full flex flex-col bg-slate-50/50 relative">
+      <div class="h-full flex flex-col bg-slate-50/50 relative" data-tour="editor-layout">
         ${this._renderHeader()}
 
         <div class="flex-1 overflow-hidden relative">
@@ -1523,7 +1525,7 @@ export class LessonEditor extends BaseView {
 
   _renderHeader() {
     return html`
-      <div class="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+      <div data-tour="editor-header" class="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 sticky top-0 z-30 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex flex-col md:flex-row justify-between items-center py-4 gap-4">
 
@@ -1655,7 +1657,7 @@ export class LessonEditor extends BaseView {
       if (!this.lesson) {
           if (this._longLoading) {
              return html`
-                <div class="flex flex-col justify-center items-center h-full space-y-4">
+                <div data-tour="lesson-editor-start" class="flex flex-col justify-center items-center h-full space-y-4">
                     <p class="text-slate-500">${translationService.t('common.loading_slow') || 'Nahrávání trvá déle než obvykle...'}</p>
                     <button @click="${() => window.location.reload()}"
                             class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">

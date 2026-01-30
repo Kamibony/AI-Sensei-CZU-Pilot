@@ -4,6 +4,8 @@ import { translationService } from '../../utils/translation-service.js';
 import { handleLogout } from '../../auth.js';
 
 export class AppNavigation extends LitElement {
+    createRenderRoot() { return this; }
+
     static properties = {
         activeView: { type: String },
         user: { state: true }
@@ -151,7 +153,7 @@ export class AppNavigation extends LitElement {
         const isAdmin = this.user?.email === 'profesor@profesor.cz';
 
         return html`
-        <aside class="sidebar">
+        <aside data-tour="app-navigation-start" class="sidebar">
             <div>
                 <div class="logo-row" @click=${() => this._navigateTo('dashboard')}>
                     <div class="logo-badge">A</div>

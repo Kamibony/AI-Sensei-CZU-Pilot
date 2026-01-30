@@ -13,6 +13,7 @@ import './chat-panel.js';
 import './flashcards-component.js';
 import './mindmap-component.js';
 import './comic-component.js'; // Import Comic Component
+import './student-project-view.js';
 import '../../components/magic-board-view.js';
 
 function normalizeLessonData(rawData) {
@@ -287,6 +288,35 @@ export class StudentLessonDetail extends LitElement {
             return html`<div class="p-8 text-center text-red-500">Nepodařilo se načíst lekci.</div>`;
         }
 
+        // Project Mode Check
+        if (this.lessonData.type === 'project' || this.lessonData.contentType === 'project') {
+            return html`
+                <div class="min-h-screen bg-slate-50 flex flex-col">
+                     <!-- Top Navigation Bar (Simplified for Project) -->
+                    <div class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div class="flex items-center justify-between h-16">
+                                <div class="flex items-center gap-4">
+                                    <button @click=${this._handleBackToList} class="p-2 -ml-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-full transition-colors">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                                    </button>
+                                    <div>
+                                        <h1 class="text-lg font-bold text-slate-800 line-clamp-1">${this.lessonData.title}</h1>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">PROJECT</span>
+                                            <p class="text-xs text-slate-500 hidden sm:block">${this.lessonData.topic || "PBL Module"}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <student-project-view .lesson=${this.lessonData} class="flex-grow"></student-project-view>
+                </div>
+            `;
+        }
+
         const tabs = this._getTabs();
 
         return html`
@@ -447,12 +477,50 @@ export class StudentLessonDetail extends LitElement {
         }
     }
 
+    _getNormalizedContent(content) {
+        // Defensive Programming: Handle Null/Undefined
+        if (!content) {
+            return "";
+        }
+
+        // IF String: Proceed as normal
+        if (typeof content === 'string') {
+            return content;
+        }
+
+        // IF Object: Parse object back into a String
+        if (typeof content === 'object') {
+            // Scenario A: AI Schema (has sections array)
+            if (Array.isArray(content.sections)) {
+                return content.sections.map(section => {
+                    const title = section.title ? `## ${section.title}` : '';
+                    const body = section.content || '';
+                    return `${title}\n\n${body}`;
+                }).join('\n\n');
+            }
+
+            // Scenario B: Generic Object -> Safe Serialization
+            try {
+                return JSON.stringify(content, null, 2);
+            } catch (e) {
+                console.error("Error serializing content object:", e);
+                return "Error displaying content.";
+            }
+        }
+
+        // Fallback
+        return String(content);
+    }
+
     _renderStudyRoom() {
+        // Content Normalization Layer
+        const safeContent = this._getNormalizedContent(this.lessonData.text_content);
+
         return html`
             <div class="space-y-8 max-w-4xl mx-auto">
 
                 <!-- 1. Text Content -->
-                ${this.lessonData.text_content ? html`
+                ${safeContent ? html`
                     <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 sm:p-12 relative overflow-hidden">
                         <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
                         <h2 class="text-3xl font-extrabold text-slate-900 mb-8 flex items-center gap-3">
@@ -460,8 +528,8 @@ export class StudentLessonDetail extends LitElement {
                         </h2>
                         <div class="prose prose-lg prose-indigo max-w-none text-slate-600 leading-relaxed">
                             ${(typeof marked !== 'undefined')
-                                ? html`<div .innerHTML=${marked.parse(this.lessonData.text_content)}></div>`
-                                : html`<p>${this.lessonData.text_content}</p>`}
+                                ? html`<div .innerHTML=${marked.parse(safeContent)}></div>`
+                                : html`<p>${safeContent}</p>`}
                         </div>
                     </div>
                 ` : ''}

@@ -17,6 +17,9 @@ import './admin-settings-view.js';
 import './admin-dashboard-view.js';
 import './practice-view.js';
 import './pedagogical-practice/pedagogical-practice-view.js';
+import './architect-view.js';
+import './observer-view.js';
+import './project-editor.js';
 
 // Guide Bot
 import '../../components/guide-bot.js';
@@ -186,7 +189,7 @@ export class ProfessorApp extends LitElement {
 
     render() {
         return html`
-            <div class="flex h-screen bg-slate-50 overflow-hidden">
+            <div data-tour="app-start" class="flex h-screen bg-slate-50 overflow-hidden">
                 <div class="w-64 flex-shrink-0 bg-white border-r border-slate-200 hidden md:block z-20">
                     <professor-navigation 
                         .activeView="${this._currentView}"
@@ -257,6 +260,17 @@ export class ProfessorApp extends LitElement {
                 return html`<practice-view></practice-view>`;
             case 'pedagogical-practice':
                 return html`<pedagogical-practice-view></pedagogical-practice-view>`;
+            case 'architect':
+                return html`<architect-view></architect-view>`;
+            case 'observer':
+                return html`<observer-view></observer-view>`;
+            case 'project-editor':
+                return html`
+                    <project-editor
+                        .lesson="${this._currentData}"
+                        @navigate="${this._handleNavigation}">
+                    </project-editor>
+                `;
             case 'admin-users':
                 return html`<admin-user-management-view></admin-user-management-view>`;
             case 'admin-settings':

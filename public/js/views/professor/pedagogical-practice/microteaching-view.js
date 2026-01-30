@@ -170,7 +170,7 @@ export class MicroteachingView extends Localized(LitElement) {
     render() {
         if (this.isLoading) {
             return html`
-                <div class="flex items-center justify-center h-64 text-slate-500">
+                <div data-tour="microteaching-start" class="flex items-center justify-center h-64 text-slate-500">
                     ${this.t('microteaching.alerts.loading')}
                 </div>
             `;

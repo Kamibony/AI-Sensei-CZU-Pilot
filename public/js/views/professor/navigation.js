@@ -49,8 +49,10 @@ export class ProfessorNavigation extends Localized(LitElement) {
     }
 
     render() {
+        const isProduction = ['www.ante.academy', 'ante.academy'].includes(window.location.hostname);
+
         return html`
-            <div class="hidden md:flex w-64 h-full flex-col border-r border-slate-100 bg-white flex-shrink-0 z-50">
+            <div data-tour="navigation-start" class="hidden md:flex w-64 h-full flex-col border-r border-slate-100 bg-white flex-shrink-0 z-50">
                 <div class="h-20 flex items-center justify-start px-6 cursor-pointer group flex-shrink-0 border-b border-transparent"
                      @click=${() => this._handleNav('dashboard')}>
                     <div class="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center shadow-md shadow-indigo-200 font-bold text-lg flex-shrink-0 group-hover:scale-105 transition-transform">
@@ -84,6 +86,8 @@ export class ProfessorNavigation extends Localized(LitElement) {
                         </span>
                     </div>
 
+                    ${!isProduction ? this._renderNavItem('architect', '🏗️', this.t('nav.architect')) : ''}
+                    ${!isProduction ? this._renderNavItem('observer', '🎙️', this.t('nav.observer', 'AI Observer')) : ''}
                     ${this._renderNavItem('library', '📚', this.t('nav.library'))}
                     ${this._renderNavItem('timeline', '📅', this.t('nav.timeline'))}
                     ${this._renderNavItem('media', '📁', this.t('nav.media'))}

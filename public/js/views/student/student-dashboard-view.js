@@ -15,6 +15,7 @@ import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast, getCollectionPath } from '../../utils/utils.js';
 import { translationService } from '../../utils/translation-service.js';
+import { permissionService } from '../../utils/permission-service.js';
 import { Localized } from '../../utils/localization-mixin.js';
 
 import './student-classes-view.js';
@@ -54,6 +55,7 @@ class StudentDashboard extends Localized(LitElement) {
         this.isJoining = false;
         this._unsubStudent = null;
         this._unsubLesson = null;
+        this._unsubSafeStudent = null;
         this._boundHandleHashChange = this._handleHashChange.bind(this);
     }
 
@@ -73,6 +75,8 @@ class StudentDashboard extends Localized(LitElement) {
         super.disconnectedCallback();
         if (this._unsubStudent) this._unsubStudent();
         if (this._unsubLesson) this._unsubLesson();
+        if (this._unsubSafeStudent) this._unsubSafeStudent();
+        permissionService.dispose();
         window.removeEventListener('hashchange', this._boundHandleHashChange);
     }
 
@@ -106,37 +110,59 @@ class StudentDashboard extends Localized(LitElement) {
         }
     }
 
-    _initData() {
+    async _initData() {
         if (!this.user) return;
+
+        // Init sync service
+        permissionService.init(this.user);
+
+        // Wait for permission sync to complete before setting up listeners that depend on it
+        await permissionService.ready();
 
         // 1. Fetch student data (streak, groups)
         if (this._unsubStudent) this._unsubStudent();
 
         // Standard Mode: Listen to users/students profile
-        const studentsPath = getCollectionPath('students');
+        // ARCHITECT UPDATE: Reading from 'users' as the single source of truth (aligned with backend dual-write)
+        const usersPath = getCollectionPath('users');
         try {
-            this._unsubStudent = onSnapshot(doc(db, studentsPath, this.user.uid), (docSnap) => {
+            this._unsubStudent = onSnapshot(doc(db, usersPath, this.user.uid), (docSnap) => {
                 if (docSnap.exists()) {
                     this.studentData = docSnap.data();
-                    this._fetchLastLesson();
                 }
             }, (error) => {
                 console.error("Error fetching student data:", error);
             });
+
+            // 2. Listen to SAFE permissions source (students collection) for querying
+            // This prevents "Insufficient Permissions" errors by ensuring the query matches the security rule source
+            if (this._unsubSafeStudent) this._unsubSafeStudent();
+            const studentsPath = getCollectionPath('students');
+
+            this._unsubSafeStudent = onSnapshot(doc(db, studentsPath, this.user.uid), (docSnap) => {
+                if (docSnap.exists() && docSnap.data().memberOfGroups) {
+                     this._fetchLastLesson(docSnap.data().memberOfGroups);
+                } else {
+                     this.lastLesson = null;
+                }
+            }, (error) => {
+                // Ignore permission errors on 'students' read if it doesn't exist yet
+                console.warn("Could not read safe student profile (sync pending?):", error);
+            });
+
         } catch (e) {
             console.error("Error setting up student listener:", e);
         }
     }
 
-    _fetchLastLesson() {
-        if (!this.studentData || !this.studentData.memberOfGroups || this.studentData.memberOfGroups.length === 0) {
+    _fetchLastLesson(groups) {
+        if (!groups || groups.length === 0) {
             this.lastLesson = null;
             return;
         }
 
         // 2. Fetch most recent active lesson
         // Firestore 'array-contains-any' query limit is 10.
-        let groups = this.studentData.memberOfGroups;
         if (groups.length > 10) groups = groups.slice(0, 10);
 
         try {
@@ -151,6 +177,7 @@ class StudentDashboard extends Localized(LitElement) {
 
             if (this._unsubLesson) this._unsubLesson();
             this._unsubLesson = onSnapshot(q, (snapshot) => {
+                console.log("[STUDENT CONSOLE] Last Lesson Query Snapshot Size:", snapshot.size);
                 if (!snapshot.empty) {
                     const doc = snapshot.docs[0];
                     this.lastLesson = { id: doc.id, ...doc.data() };
@@ -306,9 +333,17 @@ class StudentDashboard extends Localized(LitElement) {
             const joinClass = httpsCallable(functions, 'joinClass');
             const result = await joinClass({ joinCode: this.joinCode });
 
-            this._closeJoinClassModal();
-            // Success alert
-            alert(`${this.t('student.join_success')} ${result.data.groupName}!`);
+            // Backend now returns { success: boolean, error?: string, groupName?: string }
+            if (result.data.success) {
+                this._closeJoinClassModal();
+                // Success alert
+                alert(`${this.t('student.join_success')} ${result.data.groupName}!`);
+            } else {
+                // Handle controlled failure
+                const errorMessage = result.data.error || this.t('student.join_error');
+                this.joinError = errorMessage;
+                console.error("Error joining class (controlled):", errorMessage);
+            }
             
         } catch (error) {
             console.error("Error joining class:", error);
@@ -477,7 +512,7 @@ class StudentDashboard extends Localized(LitElement) {
                 </h3>
 
                 ${this.lastLesson ? html`
-                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-lg transition-shadow duration-300 group cursor-pointer"
+                    <div data-lesson-card="hero" class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-lg transition-shadow duration-300 group cursor-pointer"
                          @click="${() => {
                             this.selectedLessonId = this.lastLesson.id;
                             this.currentView = 'lessons';

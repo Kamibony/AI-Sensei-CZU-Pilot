@@ -11,7 +11,7 @@ export class EditorViewQuiz extends Localized(LitElement) {
         files: { type: Array }
     };
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     _getQuestions() {
         let questions = [];
@@ -153,14 +153,14 @@ export class EditorViewQuiz extends Localized(LitElement) {
         };
 
         return html`
-            <div class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-quiz-start" data-editor-type="quiz" class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
                 <div class="flex-1 overflow-hidden relative">
                     <div class="absolute inset-0 overflow-y-auto custom-scrollbar p-6">
                         <div class="max-w-5xl mx-auto space-y-8">
 
                             <!-- AI Generator Panel (Isolated) -->
-                            <div class="relative">
+                            <div class="relative" data-tour="quiz-ai-panel">
                                 <ai-generator-panel
                                     @ai-completion="${this._handleAiCompletion}"
                                     .lesson=${this.lesson}
@@ -178,7 +178,7 @@ export class EditorViewQuiz extends Localized(LitElement) {
 
                             <!-- Questions List (Isolated) -->
                             ${hasContent ? html`
-                                <div class="space-y-6">
+                                <div class="space-y-6" data-tour="quiz-questions-list">
                                     ${questions.map((q, qIndex) => html`
                                         <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm relative group transition-all hover:shadow-md">
                                             <div class="flex justify-between items-start mb-4">
@@ -228,6 +228,7 @@ export class EditorViewQuiz extends Localized(LitElement) {
 
                                     <div class="text-center pt-4">
                                         <button
+                                            data-tour="quiz-add-question-btn"
                                             @click="${this._addQuestion}"
                                             class="inline-flex items-center gap-2 px-6 py-2 bg-white border border-slate-300 rounded-full text-slate-600 hover:text-teal-600 hover:border-teal-600 hover:bg-teal-50 transition-all font-medium text-sm shadow-sm">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
@@ -237,6 +238,7 @@ export class EditorViewQuiz extends Localized(LitElement) {
 
                                     <div class="mt-8 pt-6 border-t border-slate-200 flex justify-center">
                                         <button
+                                            data-tour="quiz-discard-btn"
                                             @click="${this._handleDiscard}"
                                             class="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium flex items-center gap-2"
                                         >

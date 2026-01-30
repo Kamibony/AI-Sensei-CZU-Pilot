@@ -11,7 +11,7 @@ export class EditorViewText extends Localized(LitElement) {
         files: { type: Array }
     };
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     _handleInput(e) {
         if (!this.lesson) return;
@@ -73,7 +73,7 @@ export class EditorViewText extends Localized(LitElement) {
         const hasContent = !!textContent.trim();
 
         return html`
-            <div class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-text-start" data-editor-type="text" class="h-full flex flex-col bg-slate-50 relative">
                 <!-- Header -->
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
 
@@ -87,6 +87,7 @@ export class EditorViewText extends Localized(LitElement) {
                             <!-- Rich Text Editor Mode (Simple ContentEditable) -->
                             <div class="p-8 md:p-12 w-full h-full flex-1 flex flex-col">
                                 <div
+                                    data-tour="text-editor-content"
                                     class="prose prose-lg prose-slate max-w-none focus:outline-none w-full flex-1 min-h-[400px]"
                                     contenteditable="true"
                                     style="white-space: pre-wrap;"
@@ -95,6 +96,7 @@ export class EditorViewText extends Localized(LitElement) {
                                 ></div>
                                 <div class="mt-8 pt-6 border-t border-slate-100 flex justify-center">
                                     <button
+                                        data-tour="text-discard-btn"
                                         @click="${this._handleDiscard}"
                                         class="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium flex items-center gap-2"
                                     >
@@ -105,7 +107,7 @@ export class EditorViewText extends Localized(LitElement) {
                             </div>
                         ` : html`
                             <!-- Empty State: AI Generator -->
-                            <div class="w-full h-full flex-1 flex flex-col">
+                            <div data-tour="text-ai-container" class="w-full h-full flex-1 flex flex-col">
                                 <ai-generator-panel
                                     @ai-completion="${this._handleAiCompletion}"
                                     .lesson=${this.lesson}

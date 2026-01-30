@@ -17,7 +17,7 @@ export class EditorViewPresentation extends Localized(LitElement) {
         this._slideCount = '5';
     }
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     _onSlideCountChange(e) {
         this._slideCount = e.target.value;
@@ -216,17 +216,17 @@ export class EditorViewPresentation extends Localized(LitElement) {
         };
         
         return html`
-            <div class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-presentation-start" data-editor-type="presentation" class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
                 <div class="flex-1 overflow-hidden relative">
                     <div class="absolute inset-0 overflow-y-auto custom-scrollbar p-6">
                         <div class="max-w-5xl mx-auto space-y-8">
 
                             <!-- AI Generator Panel (Now in its own container, no extra nesting) -->
-                            <div class="relative">
+                            <div class="relative" data-tour="presentation-ai-panel">
                                 ${hasContent ? html`
                                     <div class="absolute top-4 right-16 z-20">
-                                        <button @click=${this._exportToPptx} class="px-4 py-2 text-sm font-semibold rounded-lg transition transform hover:scale-105 flex items-center justify-center bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow-indigo-200">
+                                        <button data-tour="presentation-export-btn" @click=${this._exportToPptx} class="px-4 py-2 text-sm font-semibold rounded-lg transition transform hover:scale-105 flex items-center justify-center bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow-indigo-200">
                                             💾 ${this.t('editor.download_pptx')}
                                         </button>
                                     </div>
@@ -274,7 +274,7 @@ export class EditorViewPresentation extends Localized(LitElement) {
 
                             <!-- Slides List -->
                             ${hasContent ? html`
-                                <div class="space-y-6">
+                                <div class="space-y-6" data-tour="presentation-slides-list">
                                     ${slides.map((slide, index) => html`
                                         <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm relative group transition-all hover:shadow-md">
                                             <div class="flex justify-between items-start mb-4">
@@ -334,6 +334,7 @@ export class EditorViewPresentation extends Localized(LitElement) {
 
                                     <div class="text-center pt-4">
                                         <button
+                                            data-tour="presentation-add-slide-btn"
                                             @click="${this._addSlide}"
                                             class="inline-flex items-center gap-2 px-6 py-2 bg-white border border-slate-300 rounded-full text-slate-600 hover:text-indigo-600 hover:border-indigo-600 hover:bg-indigo-50 transition-all font-medium text-sm shadow-sm">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>

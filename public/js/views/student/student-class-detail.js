@@ -39,6 +39,21 @@ export class StudentClassDetail extends LitElement {
     async _fetchData() {
         this._isLoading = true;
         try {
+            // Force Unity: Check membership in 'students' collection (synced permissions)
+            // This ensures we only show content if the user is truly a member, aligning with StudentLessonList.
+            const user = firebaseInit.auth.currentUser;
+            if (user) {
+                 const studentRef = doc(firebaseInit.db, "students", user.uid);
+                 const studentSnap = await getDoc(studentRef);
+                 const groups = studentSnap.exists() ? (studentSnap.data().memberOfGroups || []) : [];
+
+                 if (!groups.includes(this.groupId)) {
+                     console.warn(`User ${user.uid} attempted to view class ${this.groupId} but is not a member.`);
+                     this._goBack();
+                     return;
+                 }
+            }
+
             // Fetch Group Details
             const groupRef = doc(firebaseInit.db, "groups", this.groupId);
             const groupSnap = await getDoc(groupRef);

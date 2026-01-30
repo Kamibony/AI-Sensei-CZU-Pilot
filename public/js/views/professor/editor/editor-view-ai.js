@@ -8,12 +8,12 @@ export class EditorViewAi extends LitElement {
         isSaving: { type: Boolean }
     };
 
-    createRenderRoot() { return this; }
+    createRenderRoot() { return this; } // Light DOM enabled
 
     render() {
         const t = (key) => translationService.t(key);
         return html`
-            <div class="h-full flex flex-col bg-slate-50 relative">
+            <div data-tour="editor-ai-start" data-editor-type="ai" class="h-full flex flex-col bg-slate-50 relative">
                 <professor-header-editor .lesson="${this.lesson}" .isSaving="${this.isSaving}"></professor-header-editor>
                 <div class="flex-1 flex items-center justify-center">
                     <div class="text-center">
