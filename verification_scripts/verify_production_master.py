@@ -27,6 +27,24 @@ async def safe_click(page, selector, timeout=5000):
         print(f"[WARN] Standard click failed: {e}. Retrying with force...")
         await page.locator(selector).first.click(force=True, timeout=timeout)
 
+async def wait_for_stability(page):
+    """Waits for UI overlays (Spinner, Toasts) to disappear to prevent click interception."""
+    try:
+        # 1. Wait for Global Spinner (High Z-Index Overlay)
+        # Using .or_ to handle potential detachment or visibility states
+        spinner = page.locator("#global-spinner")
+        if await spinner.count() > 0:
+            await expect(spinner).to_be_hidden(timeout=5000)
+
+        # 2. Wait for Toasts (Toastify notifications)
+        # These often overlay the top-right or modal areas
+        toasts = page.locator(".toastify")
+        if await toasts.count() > 0:
+            await expect(toasts.first).to_be_hidden(timeout=5000)
+
+    except Exception as e:
+        print(f"[WARN] Stability wait timed out (proceeding anyway): {e}")
+
 async def run_with_retry(func, *args, name="Act", retries=3):
     """Executes an async function with automatic retry logic."""
     for attempt in range(1, retries + 1):
@@ -215,12 +233,24 @@ async def act_2_project_setup(page):
     # Fill Modal
     await page.fill("div.fixed.inset-0 input[type='text']", "Mars Mission Control")
 
+    # [STABILITY] Wait for overlays to clear (Spinner/Toasts)
+    print("  - [STABILITY] Waiting for UI to stabilize before selection...")
+    await wait_for_stability(page)
+
     # EXPLICITLY SELECT THE LESSON
     # This prevents the "Garbage Data" issue where no lesson was selected.
     # We select index 1 (the first actual lesson, which should be 'Mars Colonization')
     print("  - Selecting Lesson (Mars Colonization) from dropdown...")
-    select_el = page.locator("div.fixed.inset-0 select")
-    await select_el.select_option(index=1)
+
+    # [HARDENED] Use ID selector instead of generic structure
+    select_el = page.locator("#lesson-select")
+
+    # [INTERACTION AUTHORITY] Try standard select, fallback to force
+    try:
+        await select_el.select_option(index=1, timeout=5000)
+    except Exception as e:
+        print(f"  - [WARN] Standard select failed ({e}). Retrying with force=True...")
+        await select_el.select_option(index=1, force=True)
 
     # Save
     await safe_click(page, "div.fixed.inset-0 button:has-text('Uložit')")
