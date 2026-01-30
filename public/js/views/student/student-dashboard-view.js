@@ -15,6 +15,7 @@ import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { LitElement, html, nothing } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast, getCollectionPath } from '../../utils/utils.js';
 import { translationService } from '../../utils/translation-service.js';
+import { permissionService } from '../../utils/permission-service.js';
 import { Localized } from '../../utils/localization-mixin.js';
 
 import './student-classes-view.js';
