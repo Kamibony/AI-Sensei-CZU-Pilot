@@ -473,42 +473,99 @@ async def act_3_student_join(context, join_code):
         print(f"  - [WARN] Failed to dump dashboard state: {e}")
 
     if not await page.locator("student-project-view").is_visible():
-        # Generic Selector: Any element that looks like a lesson card
-        # We prioritize data-lesson-card, then fall back to h3 headings inside expected containers
-        project_card = page.locator("[data-lesson-card]").first
 
-        if not await project_card.is_visible():
-             # Fallback: Look for any h3 that might be a title, excluding common UI elements if possible
-             # But for now, just taking the first h3 in the main content area might be safe enough
-             project_card = page.locator("main h3, h3").first
+        # New Topology-Aware Selection Logic
+        print("  - [TOPOLOGY] Scanning for content cards (filtering system widgets)...")
 
-        if await project_card.is_visible():
-            print(f"  - Found card: {await project_card.text_content()}")
-            # Refined Click: Target the button if possible
-            button = project_card.locator("button, .btn-primary, [role='button']").first
-            if await button.is_visible():
-                await button.click()
-            else:
-                await project_card.click()
-        else:
-            print("  - [WARN] No specific card found on Dashboard. Switching to 'Moje lekce'...")
+        # Helper to validate a potential card element
+        async def is_valid_content_card(element):
+            if not await element.is_visible():
+                return False
+            text = await element.inner_text()
+            # Exclusion List: System Headers & Widgets
+            EXCLUDED_PHRASES = [
+                "Pokračovat ve výuce", "Continue learning",
+                "Rychlé akce", "Quick Actions",
+                "Žádné lekce", "No active lessons", "Žádné aktivní lekce",
+                "Vítejte", "Welcome",
+                "Připojit se k třídě", "Moje třídy"
+            ]
+            # Check strict exclusion
+            if any(phrase in text for phrase in EXCLUDED_PHRASES):
+                return False
+            return True
+
+        # 1. Search on Dashboard
+        found_card = None
+
+        # Wait a bit for async data (Hero card might take a moment)
+        try:
+            await page.wait_for_selector("[data-lesson-card]", timeout=5000)
+        except:
+            pass
+
+        # Get candidates (Strictly target data-lesson-card to avoid headers)
+        candidates = await page.locator("[data-lesson-card]").all()
+
+        # Iterate and validate
+        for card in candidates:
+            if await is_valid_content_card(card):
+                found_card = card
+                print(f"  - [MATCH] Found valid content card: {(await card.inner_text())[:30]}...")
+                break
+
+        # 2. If no card on Dashboard, check for Empty State and Navigate
+        if not found_card:
+            print("  - [INFO] No valid content card on Dashboard. Checking for list navigation...")
+
+            # Check for generic "My Lessons" navigation requirement
+            body_text = await page.locator("body").inner_text()
+            if "Žádné aktivní lekce" in body_text or "No active lessons" in body_text:
+                print("  - [INFO] Detected Empty State on Dashboard.")
+
+            print("  - Switching to 'Moje lekce'...")
             try:
-                await page.click("button:has-text('Moje lekce')")
-            except:
-                await page.click("button:has-text('Lekce')")
+                # Try explicit button first
+                nav_btn = page.locator("button:has-text('Moje lekce'), button:has-text('Lekce')").first
+                if await nav_btn.is_visible():
+                    await nav_btn.click()
+                else:
+                    # Fallback to icon in nav bar (3rd item usually)
+                    await page.click("nav button:nth-child(2)")
+            except Exception as e:
+                print(f"  - [WARN] Navigation failed: {e}")
 
-            # Try again in list
-            await page.wait_for_timeout(2000)
-            project_card = page.locator("[data-lesson-card], h3").first
+            # Wait for list
+            try:
+                await page.wait_for_selector("student-lesson-list", timeout=10000)
 
-            if await project_card.is_visible():
-                 print(f"  - Found card in list: {await project_card.text_content()}")
-                 await project_card.click()
-            else:
-                 print("[FAIL] No lessons found even after navigation.")
-                 # One last dump
-                 print(f"[FATAL DEBUG] {await page.content()}")
-                 raise Exception("No lesson cards found for student.")
+                # Search again in List
+                # List items definitely have [data-lesson-card="list-item"]
+                await page.wait_for_selector("[data-lesson-card='list-item']", timeout=5000)
+                candidates = await page.locator("[data-lesson-card='list-item']").all()
+                if candidates:
+                    found_card = candidates[0]
+                    print(f"  - [MATCH] Found card in list: {(await found_card.inner_text())[:30]}...")
+            except Exception as list_err:
+                 print(f"  - [WARN] List selection failed: {list_err}")
+
+        # 3. Final Execution or Failure
+        if found_card:
+            # Click strategy: Button first, then Card
+            try:
+                btn = found_card.locator("button").first
+                if await btn.is_visible():
+                    await btn.click()
+                else:
+                    await found_card.click()
+            except Exception as click_err:
+                 print(f"  - [WARN] Click failed, forcing: {click_err}")
+                 await found_card.click(force=True)
+        else:
+             print("[FAIL] Topology scan failed. No valid lesson cards found.")
+             # One last dump
+             print(f"[FATAL DEBUG] {await page.content()}")
+             raise Exception("Data Missing: No active lesson cards found for student.")
 
     # Wait for Project View (Role Selection)
     # Using logical OR to support various lesson types or intermediate loading states
