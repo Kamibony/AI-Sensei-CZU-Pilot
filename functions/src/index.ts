@@ -1925,16 +1925,20 @@ exports.joinClass = onCall({ region: DEPLOY_REGION, cors: true }, async (request
             groupName = freshGroupData.name || "Unknown Class";
 
             // B. WRITE: Update Group Roster
+            // We do NOT return early if student is already in group.
+            // We MUST proceed to update the user profile to fix any "Zombie State".
             transaction.update(groupRef, {
                 studentIds: FieldValue.arrayUnion(studentId)
             });
 
             // C. WRITE: Update Student Profile (Guaranteed to sync)
+            // IDEMPOTENT ACTION: Safe to run multiple times.
             transaction.set(studentRef, {
                 memberOfGroups: FieldValue.arrayUnion(groupId)
             }, { merge: true });
 
             // D. WRITE: Update User Profile (Unified Source of Truth)
+            // IDEMPOTENT ACTION: Ensures self-healing if previous attempts failed here.
             transaction.set(userRef, {
                 memberOfGroups: FieldValue.arrayUnion(groupId)
             }, { merge: true });
