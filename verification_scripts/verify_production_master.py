@@ -107,35 +107,7 @@ async def login_and_setup_professor(context):
              print(f"[FAIL] Error on page: {await error_el.all_text_contents()}")
         raise
 
-    # 2. Create Class (Act 0)
-    print("[ACT 0] Setting up Class...")
-    # Navigate to Classes
-    await safe_click(page, "professor-navigation button[data-view='classes']")
-
-    # Click "Vytvořit novou třídu"
-    await safe_click(page, "button:has-text('Vytvořit novou třídu')")
-
-    # Fill Modal
-    await page.fill("div.fixed.inset-0 input[type='text']", "Mars Mission Control")
-    await safe_click(page, "div.fixed.inset-0 button:has-text('Uložit')")
-
-    # The app automatically redirects to Class Detail View after creation
-    print("[ACT 0] Waiting for redirect to Class Detail...")
-    await page.wait_for_selector("professor-class-detail-view", timeout=20000)
-
-    # Get Code from Detail Header
-    # code.font-mono
-    code_el = page.locator("professor-class-detail-view code.font-mono")
-    await code_el.wait_for()
-    join_code = await code_el.text_content()
-    join_code = join_code.strip()
-
-    print(f"[ACT 0] Class Created. Code: {join_code}")
-
-    # Go back to dashboard
-    await safe_click(page, "professor-navigation button[data-view='dashboard']")
-
-    return page, join_code
+    return page, None
 
 async def act_1_architect(page):
     print("[ACT 1] The Architect...")
@@ -230,49 +202,47 @@ async def act_2_project_setup(page):
     await crisis_btn.wait_for(state="visible", timeout=10000)
     print("[ACT 2] Project Saved.")
 
-    # Assign Project to Class
-    print("  - Assigning Project to Class 'Mars Mission Control'...")
+    # -------------------------------------------------------------------------
+    # Create Class with Lesson Selection (Moved from Act 0 to enforce dependency)
+    # -------------------------------------------------------------------------
+    print("[ACT 2] Creating Class with Lesson Assignment...")
+
+    # Navigate to Classes
     await safe_click(page, "professor-navigation button[data-view='classes']")
 
-    # Open Class (Wait for card)
-    await page.locator("h3:has-text('Mars Mission Control')").click()
-    await page.wait_for_selector("professor-class-detail-view")
+    # Click "Vytvořit novou třídu"
+    await safe_click(page, "button:has-text('Vytvořit novou třídu')")
 
-    # Switch to Lessons Tab (Lekce)
+    # Fill Modal
+    await page.fill("div.fixed.inset-0 input[type='text']", "Mars Mission Control")
+
+    # SELECT LESSON (Strict Validation Fix)
+    print("  - Selecting Lesson from dropdown...")
+    select = page.locator("select#lesson-select")
+    # Force selection of the FIRST REAL OPTION (index 1), not the placeholder (index 0)
+    await select.select_option(index=1)
+
+    # Submit
+    await safe_click(page, "div.fixed.inset-0 button:has-text('Uložit')")
+
+    # The app automatically redirects to Class Detail View after creation
+    print("[ACT 2] Waiting for redirect to Class Detail...")
+    await page.wait_for_selector("professor-class-detail-view", timeout=20000)
+
+    # Get Code from Detail Header
+    code_el = page.locator("professor-class-detail-view code.font-mono")
+    await code_el.wait_for()
+    join_code = await code_el.text_content()
+    join_code = join_code.strip()
+    print(f"[ACT 2] Class Created. Code: {join_code}")
+
+    # Switch to Lessons Tab (Lekce) to Publish
     try:
         await safe_click(page, "button:has-text('Lekce')")
     except:
         print("[WARN] 'Lekce' tab not found via text. Trying icon.")
         # Icon 📚 is unique in tab bar
         await page.locator("span:has-text('📚')").locator("xpath=..").click()
-
-    # Click "Přiřadit lekci" (Assign Lesson) - Plus icon or text
-    await safe_click(page, "button:has-text('Přiřadit lekci')")
-
-    # Modal opens. Find "Mars Colonization" or ANY latest project
-    print("  - Selecting Lesson from modal...")
-
-    # Try specific first, but fall back to the first available button in the list
-    # The modal list usually contains buttons with h4 titles
-    modal_list_item = page.locator("div.fixed.inset-0 button:has(h4)")
-
-    try:
-        # Try to find the specific one if possible, to be sure
-        specific_btn = modal_list_item.filter(has=page.locator("h4:has-text('Mars Colonization')"))
-        await specific_btn.wait_for(state="visible", timeout=5000)
-        await specific_btn.click()
-    except:
-        print("  - [WARN] Specific 'Mars Colonization' not found in modal. Selecting the first available lesson...")
-        # Fallback: Select the first one
-        if await modal_list_item.count() > 0:
-            await modal_list_item.first.click()
-        else:
-             print("[FAIL] No lessons available in assignment modal.")
-             print(await page.locator("div.fixed.inset-0").inner_text())
-             raise
-
-    # Verify assignment toast or list update
-    print("  - Project Assigned.")
 
     # Toggle "Publish" (Visibility)
     print("  - Publishing Project...")
@@ -293,6 +263,8 @@ async def act_2_project_setup(page):
     # Click the label to toggle checkbox
     await lesson_card.locator("label").click()
     print("  - Project Published.")
+
+    return join_code
 
 async def act_3_student_join(context, join_code):
     print(f"[ACT 3] Student Joining Class {join_code}...")
@@ -700,13 +672,13 @@ async def run():
 
         try:
             # Act 0 (Professor Setup)
-            prof_page, join_code = await run_with_retry(login_and_setup_professor, context_prof, name="Act 0 - Setup")
+            prof_page, _ = await run_with_retry(login_and_setup_professor, context_prof, name="Act 0 - Setup")
 
             # Act 1 (Architect)
             await run_with_retry(act_1_architect, prof_page, name="Act 1 - Architect")
 
             # Act 2 (Project Setup)
-            await run_with_retry(act_2_project_setup, prof_page, name="Act 2 - Project Setup")
+            join_code = await run_with_retry(act_2_project_setup, prof_page, name="Act 2 - Project Setup")
 
             # Act 3 (Student Join)
             student_page = await run_with_retry(act_3_student_join, context_student, join_code, name="Act 3 - Student Join")
