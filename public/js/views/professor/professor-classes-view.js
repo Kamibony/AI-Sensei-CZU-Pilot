@@ -112,8 +112,9 @@ export class ProfessorClassesView extends LitElement {
         }
 
         // SYSTEMIC FIX: Validate that a lesson is selected (Prevent Null State Class)
-        if (!this._selectedLessonId || this._selectedLessonId === "" || this._selectedLessonId.startsWith("Vyberte")) {
-            showToast("Musíte vybrat úvodní lekci pro novou třídu.", true); // Validation Error
+        // BLOCK submission if the value is falsy OR implies a placeholder
+        if (!this._selectedLessonId || this._selectedLessonId === "" || this._selectedLessonId.includes("Vyberte")) {
+            showToast("Musíte vybrat platnou lekci.", true); // Validation Error
             return;
         }
 
