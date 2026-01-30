@@ -70,6 +70,8 @@ jobs:
           args: deploy --force
         env:
           GCP_SA_KEY: ${{ env.GCP_SA_KEY_B64 }}
+          GCLOUD_PROJECT: ai-sensei-czu-pilot
+          FIREBASE_PROJECT: ai-sensei-czu-pilot
 
       # --- Nasadenie na NOVÝ PROD (vetva release) -> ai-sensei-prod ---
       - name: Deploy to PROD (ai-sensei-prod)
