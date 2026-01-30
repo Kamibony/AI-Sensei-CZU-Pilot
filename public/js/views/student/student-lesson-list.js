@@ -147,6 +147,15 @@ export class StudentLessonList extends LitElement {
         return createdDate > sevenDaysAgo;
     }
 
+    _isModifiedToday(lesson) {
+        if (!lesson.updatedAt) return false;
+        const updated = new Date(lesson.updatedAt.toDate ? lesson.updatedAt.toDate() : lesson.updatedAt);
+        const now = new Date();
+        return updated.getDate() === now.getDate() &&
+               updated.getMonth() === now.getMonth() &&
+               updated.getFullYear() === now.getFullYear();
+    }
+
     _getLessonStatus(lesson) {
         if (!lesson.availableAt) return 'past';
 
@@ -269,7 +278,8 @@ export class StudentLessonList extends LitElement {
         }
 
         // Date Badge Data
-        const dateObj = new Date(lesson.availableAt || lesson.createdAt);
+        // Fix: Use availableAt only for future lessons, otherwise createdAt (to avoid showing "Today" for old lessons)
+        const dateObj = new Date((isFuture && lesson.availableAt) ? lesson.availableAt : (lesson.createdAt || lesson.availableAt));
         const day = dateObj.getDate();
         const monthShort = dateObj.toLocaleDateString('cs-CZ', { month: 'short' }).replace('.', '').toUpperCase();
 
@@ -306,6 +316,12 @@ export class StudentLessonList extends LitElement {
                     ${isPresent ? html`
                         <span class="animate-pulse px-1.5 py-0.5 md:px-2 md:py-1 bg-indigo-600 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-wider rounded-md md:rounded-lg shadow-sm">
                             TODAY
+                        </span>
+                    ` : ''}
+
+                    ${this._isModifiedToday(lesson) ? html`
+                        <span class="px-1.5 py-0.5 md:px-2 md:py-1 bg-amber-500 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-wider rounded-md md:rounded-lg shadow-sm" title="Upraveno dnes">
+                            ✎
                         </span>
                     ` : ''}
                 </div>

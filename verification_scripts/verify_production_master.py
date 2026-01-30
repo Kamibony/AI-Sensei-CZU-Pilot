@@ -231,7 +231,7 @@ async def act_2_project_setup(page):
     await safe_click(page, "button:has-text('Vytvořit novou třídu')")
 
     # Fill Modal
-    await page.fill("div.fixed.inset-0 input[type='text']", "Mars Mission Control")
+    await page.fill("div.fixed.inset-0 input[type='text']", f"Mars Mission Control {time.time()}")
 
     # [STABILITY] Wait for overlays to clear (Spinner/Toasts)
     print("  - [STABILITY] Waiting for UI to stabilize before selection...")
@@ -279,12 +279,16 @@ async def act_2_project_setup(page):
     await page.wait_for_selector("h3", timeout=10000)
 
     # Find the most recently added lesson card
-    lesson_card = page.locator("div.bg-white:has(h3)").last
+    # Exclude system widgets like "Zatím žádní registrovaní studenti" which might be in h3
 
     # Try to find specific if possible
     specific_card = page.locator("div.bg-white").filter(has=page.locator("h3:has-text('Mars Colonization')"))
     if await specific_card.count() > 0:
         lesson_card = specific_card.first
+    else:
+        # Fallback: Find cards that actually look like lessons (have a toggle/label?)
+        # Or exclude known non-lesson headers
+        lesson_card = page.locator("div.bg-white:has(h3):has(label)").last
 
     await lesson_card.wait_for(state="visible", timeout=10000)
     print(f"  - Publishing lesson: {await lesson_card.locator('h3').text_content()}")
