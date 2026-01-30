@@ -339,7 +339,7 @@ export class TimelineView extends LitElement {
         const live = lessons.filter(l => this._getLessonStatus(l) === 'live').length;
 
         return html`
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-6 flex flex-wrap gap-4 items-center justify-between">
+            <div id="status-dashboard" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-6 flex flex-wrap gap-4 items-center justify-between">
                 <div class="flex items-center gap-6">
                      <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-amber-500">
@@ -587,6 +587,14 @@ export class TimelineView extends LitElement {
                     >
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                     </button>
+
+                    <button
+                        @click="${() => window.print()}"
+                        class="ml-2 p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Tisk / PDF"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    </button>
                 </div>
 
                 <!-- Group Filter -->
@@ -614,6 +622,7 @@ export class TimelineView extends LitElement {
 
         return html`
             <div
+                id="timeline-sidebar"
                 class="w-80 flex-shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col h-full overflow-hidden"
                 @dragover="${this._handleDragOver}"
                 @drop="${this._handleDropOnBacklog}"
@@ -697,6 +706,93 @@ export class TimelineView extends LitElement {
         });
 
         return html`
+            <style>
+                @media print {
+                    /* Hide Global App Shell and unnecessary elements */
+                    professor-navigation,
+                    professor-header,
+                    guide-bot,
+                    #guide-bot,
+                    .w-64.border-r,
+                    .flex-shrink-0.z-10.bg-white,
+                    [data-tour] > .w-64,
+                    #timeline-sidebar,
+                    #status-dashboard,
+                    .sticky.top-0 button,
+                    .sticky.top-0 select,
+                    .sticky.top-0 label,
+                    .sticky.top-0 .ml-2,
+                    .sticky.top-0 .bg-blue-50,
+                    .fixed.bottom-6.right-6 {
+                        display: none !important;
+                    }
+
+                    /* Layout Overrides to full width */
+                    body, html, professor-app, main, .max-w-7xl, .flex.h-screen, .flex.h-full {
+                        height: auto !important;
+                        width: 100% !important;
+                        overflow: visible !important;
+                        display: block !important;
+                        position: static !important;
+                        background: white !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        max-width: none !important;
+                    }
+
+                    /* Content specific overrides */
+                    .flex-1.overflow-y-auto {
+                        overflow: visible !important;
+                        height: auto !important;
+                    }
+
+                    .sticky.top-0 {
+                        position: static !important;
+                        border-bottom: none !important;
+                        padding: 0 !important;
+                        margin-bottom: 20px !important;
+                    }
+
+                    .sticky.top-0 h2 {
+                        text-align: center;
+                        font-size: 24pt;
+                        margin: 0;
+                        width: 100% !important;
+                        max-width: none !important;
+                    }
+
+                    /* Grid Optimization */
+                    .bg-white.rounded-3xl {
+                        border: none !important;
+                        box-shadow: none !important;
+                        padding: 0 !important;
+                    }
+
+                    .grid-cols-7 {
+                        display: grid !important;
+                        grid-template-columns: repeat(7, 1fr) !important;
+                        gap: 8px !important;
+                    }
+
+                    .min-h-\[120px\] {
+                        min-height: 100px !important;
+                        border: 1px solid #ccc !important;
+                        break-inside: avoid;
+                    }
+
+                    /* Print Colors */
+                    * {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+
+                    /* Landscape Hint */
+                    @page {
+                        size: landscape;
+                        margin: 0.5cm;
+                    }
+                }
+            </style>
             <div data-tour="timeline-start" class="flex h-full bg-slate-50 overflow-hidden font-sans">
                 <!-- Sidebar -->
                 ${this._renderSidebar()}
