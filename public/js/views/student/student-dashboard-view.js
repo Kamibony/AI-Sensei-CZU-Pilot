@@ -152,7 +152,7 @@ class StudentDashboard extends Localized(LitElement) {
 
             if (this._unsubLesson) this._unsubLesson();
             this._unsubLesson = onSnapshot(q, (snapshot) => {
-                console.log("Last Lesson Query Snapshot Size:", snapshot.size);
+                console.log("[STUDENT CONSOLE] Last Lesson Query Snapshot Size:", snapshot.size);
                 if (!snapshot.empty) {
                     const doc = snapshot.docs[0];
                     this.lastLesson = { id: doc.id, ...doc.data() };
