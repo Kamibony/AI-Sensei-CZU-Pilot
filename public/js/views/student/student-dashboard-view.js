@@ -110,11 +110,14 @@ class StudentDashboard extends Localized(LitElement) {
         }
     }
 
-    _initData() {
+    async _initData() {
         if (!this.user) return;
 
         // Init sync service
         permissionService.init(this.user);
+
+        // Wait for permission sync to complete before setting up listeners that depend on it
+        await permissionService.ready();
 
         // 1. Fetch student data (streak, groups)
         if (this._unsubStudent) this._unsubStudent();

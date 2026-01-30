@@ -3,6 +3,7 @@ import { doc, onSnapshot, collection, query, where, orderBy } from "https://www.
 import * as firebaseInit from '../../firebase-init.js';
 import { translationService } from '../../utils/translation-service.js';
 import { getCollectionPath } from '../../utils/utils.js';
+import { permissionService } from '../../utils/permission-service.js';
 
 export class StudentLessonList extends LitElement {
 
@@ -39,7 +40,7 @@ export class StudentLessonList extends LitElement {
         if (this._langUnsubscribe) this._langUnsubscribe();
     }
 
-    _initReactiveLessons() {
+    async _initReactiveLessons() {
         this.isLoading = true;
         this.error = null;
         const currentUser = firebaseInit.auth.currentUser;
@@ -48,6 +49,9 @@ export class StudentLessonList extends LitElement {
             this.isLoading = false;
             return;
         }
+
+        // Wait for permission sync to complete
+        await permissionService.ready();
 
         // Standard Mode
         // PERMISSION FIX: Reading from 'students' because Security Rules strictly check this collection.
@@ -83,7 +87,7 @@ export class StudentLessonList extends LitElement {
             const lessonsQuery = query(
                 collection(firebaseInit.db, lessonsPath),
                 where("assignedToGroups", "array-contains-any", myGroups),
-                where("status", "==", "published"), // Students must NOT see drafts
+                where("isPublished", "==", true), // Students must NOT see drafts
                 orderBy("createdAt", "desc")
             );
 

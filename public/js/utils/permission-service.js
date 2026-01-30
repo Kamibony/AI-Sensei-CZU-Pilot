@@ -5,10 +5,23 @@ import { getCollectionPath } from './utils.js';
 export class PermissionService {
     constructor() {
         this._unsubscribe = null;
+        this._readyPromise = null;
+        this._resolveReady = null;
     }
 
     init(user) {
         if (!user) return;
+
+        // Reset promise for new initialization
+        if (this._resolveReady) {
+             // If there was a pending promise, resolve it (though likely we are restarting)
+             this._resolveReady(false);
+        }
+
+        this._readyPromise = new Promise((resolve) => {
+            this._resolveReady = resolve;
+        });
+
         // Clean up previous listener if exists
         if (this._unsubscribe) this._unsubscribe();
 
@@ -19,15 +32,36 @@ export class PermissionService {
 
         // Listen to the Canonical Source (users)
         this._unsubscribe = onSnapshot(userRef, async (snapshot) => {
-            if (snapshot.exists()) {
-                const data = snapshot.data();
-                if (data.memberOfGroups !== undefined) {
-                    await this._syncToPermissionStore(user.uid, data.memberOfGroups);
+            try {
+                if (snapshot.exists()) {
+                    const data = snapshot.data();
+                    if (data.memberOfGroups !== undefined) {
+                        await this._syncToPermissionStore(user.uid, data.memberOfGroups);
+                    }
+                }
+            } catch (error) {
+                console.error("PermissionService: Sync error:", error);
+            } finally {
+                // Mark as ready after the first processing attempt
+                if (this._resolveReady) {
+                    console.log("PermissionService: Initial sync complete.");
+                    this._resolveReady(true);
+                    this._resolveReady = null; // Prevent multiple resolutions
                 }
             }
         }, (error) => {
             console.error("PermissionService: Error listening to user profile:", error);
+            // Even on error, we should release the block
+            if (this._resolveReady) {
+                this._resolveReady(false);
+                this._resolveReady = null;
+            }
         });
+    }
+
+    async ready() {
+        if (!this._readyPromise) return true;
+        return this._readyPromise;
     }
 
     dispose() {
