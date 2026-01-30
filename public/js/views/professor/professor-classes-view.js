@@ -224,11 +224,12 @@ export class ProfessorClassesView extends LitElement {
 
                             <label class="block text-sm font-bold text-slate-700 mb-1">Přiřadit lekci</label>
                             <select
+                                id="lesson-select"
                                 class="w-full border-2 border-slate-200 rounded-xl p-3 mb-6 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all font-medium text-slate-700 bg-white"
                                 .value=${this._selectedLessonId}
                                 @change=${e => this._selectedLessonId = e.target.value}
                             >
-                                <option value="">Vyberte lekci...</option>
+                                <option value="" disabled selected>Vyberte lekci...</option>
                                 ${this._lessons.map(lesson => html`<option value="${lesson.id}">${lesson.title}</option>`)}
                             </select>
 
