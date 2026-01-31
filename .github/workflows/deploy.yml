@@ -66,9 +66,12 @@ jobs:
       # --- Nasadenie na NOVÝ PROD (vetva release) -> ai-sensei-prod ---
       - name: Deploy to PROD (ai-sensei-prod)
         if: github.ref == 'refs/heads/release'
-        run: npx firebase deploy --project prod --force
         env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY_PROD }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp_sa_key.json
+        run: |
+          echo "$GCP_SA_KEY" | jq '.project_id |= sub("^projects/"; "")' > gcp_sa_key.json
+          npx firebase deploy --project prod --force
 
       # --- Nasadenie na LEGACY (vetva legacy-v1) -> via-academy-prod ---
       - name: Deploy to LEGACY (via-academy-prod)
