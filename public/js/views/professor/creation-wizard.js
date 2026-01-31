@@ -541,3 +541,4 @@ export class CreationWizard extends Localized(BaseView) {
         }
     }
 }
+customElements.define('creation-wizard', CreationWizard);
