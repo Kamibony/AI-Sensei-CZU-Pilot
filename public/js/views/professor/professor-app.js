@@ -20,6 +20,7 @@ import './pedagogical-practice/pedagogical-practice-view.js';
 import './architect-view.js';
 import './observer-view.js';
 import './project-editor.js';
+import './creation-wizard.js';
 
 // Guide Bot
 import '../../components/guide-bot.js';
@@ -271,6 +272,8 @@ export class ProfessorApp extends LitElement {
                         @navigate="${this._handleNavigation}">
                     </project-editor>
                 `;
+            case 'wizard':
+                return html`<creation-wizard @navigate="${this._handleNavigation}"></creation-wizard>`;
             case 'admin-users':
                 return html`<admin-user-management-view></admin-user-management-view>`;
             case 'admin-settings':

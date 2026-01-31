@@ -653,7 +653,7 @@
   },
   "media": {
     "click_to_select": "Klikněte pro výběr souboru",
-    "delete_confirm": "Opravdu chcete trvale smazat soubor \"{name}\"?",
+    "delete_confirm": "Opravdu chcete trvale smazat soubor \"{name}\"? Tato akce je nevratná.",
     "delete_error": "Chyba při mazání záznamu souboru",
     "delete_success": "Záznam \"{name}\" smazán.",
     "delete_tooltip": "Smazat soubor",
@@ -787,7 +787,7 @@
     "my_classes": "Moje třídy",
     "my_students": "Moji studenti",
     "new_class": "Nová třída",
-    "new_class_btn": "+ Nová třída",
+    "new_class_btn": "+ Nova třída",
     "new_lesson_card": "Nová lekce",
     "no_classes_yet": "Zatím žádné třídy",
     "profile_image_alt": "Profilový obrázek",
@@ -996,167 +996,35 @@
     "title": "Plán výuky (31 dní)",
     "week": "Týden"
   },
-  "guide_bot": {
-    "system_instruction": "Jsi AI průvodce vzdělávací platformou AI Sensei. Pomáhej uživatelům (studentům a profesorům) orientovat se v rozhraní. Odpovídej stručně a nápomocně v češtině.",
-    "title": "AI Průvodce",
-    "welcome_ai": "Ahoj! Jsem tvůj AI průvodce. S čím ti mohu pomoci?",
-    "error_response": "Omlouvám se, ale momentálně nemohu odpovědět.",
-    "error_generic": "Došlo k chybě při komunikaci s AI.",
-    "placeholder": "Zeptej se na cokoliv..."
-  },
-  "podcast": {
-    "audio_unavailable": "Audio se generuje nebo není k dispozici",
-    "read_transcript": "Přečtěte si přepis níže",
-    "playing_not_available": "Přehrávání není k dispozici",
-    "not_ready": "Podcast není připraven",
-    "not_ready_desc": "Profesor zatím nevygeneroval audio ani scénář.",
-    "loading": "Načítám audio...",
-    "professional_audio": "Profesionální Audio",
-    "error_loading": "Nepodařilo se načíst audio soubor."
-  },
-  "chat": {
-    "placeholder": "Zeptej se...",
-    "placeholder_message": "Zpráva",
-    "placeholder_professor": "Zadejte dotaz pro profesora...",
-    "ai_guide": "AI Průvodce",
-    "ask_anything": "Zeptej se na cokoliv...",
-    "error_ai": "Chyba AI:",
-    "error_send": "CHYBA: Zprávu se nepodařilo odeslat.",
-    "error_notify_prof": "Nepodařilo se upozornit profesora na zprávu."
-  },
-  "observation": {
-    "new_btn": "Zaznamenat nový náslech",
-    "timer": "Čas:",
-    "status": {
-      "recording": "Nahrávání",
-      "paused": "Pozastaveno",
-      "finished": "Dokončeno"
+  "wizard": {
+    "title": "Průvodce vytvořením",
+    "step_1": {
+      "title": "Vyberte formát modulu",
+      "subtitle": "Jaký typ výuky chcete vytvořit?"
     },
-    "btn": {
-      "teacher_activity": "Výklad",
-      "student_activity": "Aktivita žáků",
-      "admin": "Administrativa"
+    "type": {
+      "standard": {
+        "title": "Standardní Modul",
+        "desc": "Pasivní obsah, přednášky, materiály a kvízy."
+      },
+      "expedition": {
+        "title": "AI Expedice",
+        "desc": "AI řízená PBL výuka, role, milníky a simulace."
+      }
     },
-    "chart": {
-      "title": "Analýza času",
-      "teacher": "Učitel",
-      "student": "Studenti",
-      "other": "Ostatní"
+    "step_2": {
+      "title": "AI Architekt & Scaffolding",
+      "standard_title": "Základní informace"
     },
-    "questions": {
-      "title": "Didaktická reflexe",
-      "goals": "Cíle vyučovací hodiny",
-      "methods": "Vyučovací metody a formy",
-      "structure": "Struktura hodiny",
-      "teacher_activity": "Činnost učitele",
-      "student_activity": "Činnost žáků",
-      "materials": "Materiální podpora",
-      "assessment": "Hodnocení a zpětná vazba"
+    "step_3": {
+      "title": "Dokončení a uložení",
+      "success": "Modul byl úspěšně vytvořen!"
     },
-    "timeline": {
-      "title": "Časová osa",
-      "note_placeholder": "Poznámka k události..."
-    },
-    "save_btn": "Uložit",
-    "saving": "Ukládám...",
-    "saved": "Uloženo"
-  },
-  "microteaching": {
-    "title": "Mikrovýstupy (Evaluace)",
-    "subtitle": "Hodnotící formulář pro cvičné výstupy.",
-    "new_evaluation": "Nové hodnocení",
-    "start_btn": "Začít nové hodnocení",
-    "empty_desc": "Zde můžete hodnotit své výstupy nebo výstupy kolegů.",
-    "save_btn": "Uložit",
-    "sections": {
-      "goals": "Cíle a struktura",
-      "flow": "Průběh hodiny",
-      "materials": "Materiální prostředky",
-      "personality": "Osobnost učitele"
-    },
-    "criteria": {
-      "active_verbs": "Využil aktivní slovesa?",
-      "smart_goals": "Jsou cíle SMART?",
-      "structure_clear": "Je struktura hodiny jasná?",
-      "intro_engaging": "Byl úvod motivující?",
-      "methods_varied": "Byly metody pestré?",
-      "student_interaction": "Byli žáci aktivně zapojeni?",
-      "tech_usage": "Byly pomůcky využity efektivně?",
-      "materials_quality": "Byla kvalita materiálů dostatečná?",
-      "voice_modulation": "Práce s hlasem a tempem",
-      "nonverbal": "Nonverbální komunikace",
-      "feedback_given": "Poskytl zpětnou vazbu žákům?"
-    },
-    "labels": {
-      "goal_formulation": "Formulace cíle",
-      "analyze_verb_btn": "🤖 Analyzovat sloveso",
-      "comment_placeholder": "Poznámka..."
-    },
-    "alerts": {
-      "passive_verb_warning": "Pozor: 'Rozumět' není měřitelné. Zkuste 'Vysvětlit'.",
-      "analysis_valid": "Výborně! Cíl je formulován aktivně.",
-      "loading": "Načítám analýzu..."
-    },
-    "status": {
-      "yes": "ANO",
-      "partial": "ČÁSTEČNĚ",
-      "no": "NE",
-      "na": "N/A"
+    "action": {
+      "create": "Vytvořit",
+      "back": "Zpět",
+      "next": "Další",
+      "save": "Uložit modul"
     }
-  },
-  "portfolio": {
-    "title": "Reflexe (Portfólio)",
-    "subtitle": "Finální agregace dat pro zápočet. Zde se vygeneruje portfolio z vašich náslechů a rozborů, doplněné o SWOT analýzu a sebereflexi.",
-    "export_btn": "Stáhnout Portfólio (PDF)",
-    "export_title": "Pedagogické Portfolio",
-    "generated_on": "Vygenerováno",
-    "dashboard": {
-      "total_observations": "Absolvované náslechy",
-      "records_count": "záznamů v systému",
-      "teaching_hours": "Odučené hodiny",
-      "teaching_hours_desc": "hodin (čistého času výkladu)"
-    },
-    "swot": {
-      "title": "SWOT Analýza",
-      "strengths": "Silné stránky (Strengths)",
-      "strengths_ph": "V čem jste dobří?",
-      "weaknesses": "Slabé stránky (Weaknesses)",
-      "weaknesses_ph": "Kde máte rezervy?",
-      "opportunities": "Příležitosti (Opportunities)",
-      "opportunities_ph": "Co vám může pomoci růst?",
-      "threats": "Hrozby (Threats)",
-      "threats_ph": "Co vás může ohrozit?"
-    },
-    "reflection": {
-      "title": "Celkové zhodnocení praxe",
-      "placeholder": "Popište celkový průběh vaší praxe, co vám dala, co byste udělali jinak..."
-    }
-  },
-  "crisis": {
-    "alert_title": "Systémové upozornění",
-    "critical_detected": "DETEKOVÁNA KRITICKÁ SITUACE",
-    "potential_consequence": "Potenciální následek",
-    "recovery_protocol": "Protokol obnovy",
-    "execute_recovery": "PROVÉST OBNOVU A VYŘEŠIT"
-  },
-  "research": {
-    "engine_title": "Research Engine & Black Box",
-    "engine_desc": "Hloubková analýza a export anonymizovaných dat pro výzkum.",
-    "select_class_label": "Třída:",
-    "select_class_placeholder": "Vyberte třídu...",
-    "actions": "Akce",
-    "generate_report": "Generovat Report",
-    "export_json": "Export JSON",
-    "export_csv": "Export CSV",
-    "last_generated": "Naposledy generováno:",
-    "class_resilience": "Odolnost Třídy",
-    "avg_response": "prům. čas reakce",
-    "select_class_prompt": "Vyberte třídu pro zobrazení výzkumných dat a export."
-  },
-  "roles": {
-    "selection_title": "Vyberte si svou roli",
-    "selection_desc": "Vyberte roli, kterou přispějete do projektového týmu.",
-    "select_btn": "Vybrat roli",
-    "leader": "Vedoucí"
   }
 }

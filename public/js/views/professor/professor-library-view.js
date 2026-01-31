@@ -149,14 +149,7 @@ export class ProfessorLibraryView extends LitElement {
                         <p class="text-slate-500 text-sm mt-1">${translationService.t('library.subtitle') || 'Spravujte všechny své výukové materiály na jednom místě'}</p>
                     </div>
                     <div class="flex items-center">
-                        <button data-tour="new-lesson-btn" @click="${this._handleNewLesson}" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-2">
-                            <span>✨</span> ${translationService.t('lesson.new') || 'Nová lekce'}
-                        </button>
-                        ${!isProduction ? html`
-                        <button @click="${this._handleNewProject}" class="ml-2 px-4 py-2 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 shadow-sm transition-all flex items-center gap-2">
-                            <span>🚀</span> ${translationService.t('project.new') || 'Nový Projekt'}
-                        </button>
-                        ` : ''}
+                        <!-- Legacy buttons hidden in favor of unified Creation Wizard in Header -->
                     </div>
                 </div>
 

@@ -1012,5 +1012,36 @@
     "subtitle": "Arraste as lições.",
     "title": "Plano de Ensino",
     "week": "Semana"
+  },
+  "wizard": {
+    "title": "Assistente de Criação",
+    "step_1": {
+      "title": "Selecione o Formato do Módulo",
+      "subtitle": "Que tipo de ensino você deseja criar?"
+    },
+    "type": {
+      "standard": {
+        "title": "Módulo Padrão",
+        "desc": "Conteúdo passivo, palestras, materiais e quizzes."
+      },
+      "expedition": {
+        "title": "Expedição AI",
+        "desc": "Ensino PBL guiado por IA, papéis, marcos e simulações."
+      }
+    },
+    "step_2": {
+      "title": "Arquiteto AI & Scaffolding",
+      "standard_title": "Informações Básicas"
+    },
+    "step_3": {
+      "title": "Finalizar e Salvar",
+      "success": "Módulo criado com sucesso!"
+    },
+    "action": {
+      "create": "Criar",
+      "back": "Voltar",
+      "next": "Próximo",
+      "save": "Salvar Módulo"
+    }
   }
 }

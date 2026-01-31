@@ -42,6 +42,12 @@ export class ProfessorHeader extends Localized(LitElement) {
                         </div>
 
                         <div class="flex items-center gap-4">
+                            <button @click="${() => this.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'wizard' }, bubbles: true, composed: true }))}"
+                                    class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors shadow-sm font-medium">
+                                <span>✨</span>
+                                <span>${this.t('wizard.action.create') || 'Create New'}</span>
+                            </button>
+
                             <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
                                 <div class="text-right hidden sm:block">
                                     <div class="text-sm font-medium text-slate-900">${this.userEmail}</div>
