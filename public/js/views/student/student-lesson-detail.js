@@ -40,7 +40,8 @@ export class StudentLessonDetail extends LitElement {
             lessonData: { type: Object },
             activeTabId: { type: String, state: true },
             isLoading: { type: Boolean, state: true },
-            _progress: { type: Object, state: true }
+            _progress: { type: Object, state: true },
+            _viewMode: { state: true }
         };
     }
 
@@ -54,6 +55,7 @@ export class StudentLessonDetail extends LitElement {
         this._progress = { completedSections: [] };
         this._progressUnsubscribe = null;
         this._langUnsubscribe = null;
+        this._viewMode = 'study';
     }
 
     createRenderRoot() {
@@ -318,6 +320,7 @@ export class StudentLessonDetail extends LitElement {
         }
 
         const tabs = this._getTabs();
+        const hasMission = this.lessonData.mission_config && this.lessonData.mission_config.active;
 
         return html`
             <div class="min-h-screen bg-slate-50 flex flex-col">
@@ -337,59 +340,91 @@ export class StudentLessonDetail extends LitElement {
                                 </div>
                             </div>
 
-                            <!-- Desktop Tabs -->
-                            <div class="hidden md:flex space-x-1 overflow-x-auto custom-scrollbar">
-                                ${tabs.map(tab => {
-                                    const isActive = this.activeTabId === tab.id;
-                                    const isCompleted = this._progress?.completedSections?.includes(tab.id);
+                            <!-- Mission Toggle -->
+                            ${hasMission ? this._renderMissionToggle() : ''}
 
-                                    return html`
-                                        <button @click=${() => this._switchTab(tab.id)}
-                                            class="px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap
-                                            ${isActive
-                                                ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 shadow-sm'
-                                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}">
-                                            <span>${tab.icon}</span>
-                                            <span>${tab.label}</span>
-                                            ${isCompleted ? html`<span class="text-green-500 text-xs ml-1">✓</span>` : ''}
-                                        </button>
-                                    `;
-                                })}
-                            </div>
+                            <!-- Desktop Tabs (Only in Study Mode) -->
+                            ${this._viewMode === 'study' ? html`
+                                <div class="hidden md:flex space-x-1 overflow-x-auto custom-scrollbar">
+                                    ${tabs.map(tab => {
+                                        const isActive = this.activeTabId === tab.id;
+                                        const isCompleted = this._progress?.completedSections?.includes(tab.id);
 
-                            <!-- Mobile Menu Button -->
-                            <div class="md:hidden flex items-center">
-                                <span class="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
-                                    ${tabs.find(t => t.id === this.activeTabId)?.label}
-                                </span>
-                            </div>
+                                        return html`
+                                            <button @click=${() => this._switchTab(tab.id)}
+                                                class="px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap
+                                                ${isActive
+                                                    ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 shadow-sm'
+                                                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}">
+                                                <span>${tab.icon}</span>
+                                                <span>${tab.label}</span>
+                                                ${isCompleted ? html`<span class="text-green-500 text-xs ml-1">✓</span>` : ''}
+                                            </button>
+                                        `;
+                                    })}
+                                </div>
+                            ` : ''}
+
+                            <!-- Mobile Menu Button (Only in Study Mode) -->
+                            ${this._viewMode === 'study' ? html`
+                                <div class="md:hidden flex items-center">
+                                    <span class="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                                        ${tabs.find(t => t.id === this.activeTabId)?.label}
+                                    </span>
+                                </div>
+                            ` : ''}
 
                         </div>
                     </div>
 
-                    <!-- Mobile Tabs Scrollable Strip -->
-                    <div class="md:hidden border-t border-slate-100 overflow-x-auto custom-scrollbar py-2 px-4 flex gap-2">
-                        ${tabs.map(tab => {
-                             const isActive = this.activeTabId === tab.id;
-                             return html`
-                                <button @click=${() => this._switchTab(tab.id)}
-                                    class="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 flex items-center gap-1.5
-                                    ${isActive
-                                        ? 'bg-indigo-600 text-white shadow-md'
-                                        : 'bg-white border border-slate-200 text-slate-600'}">
-                                    <span>${tab.icon}</span>
-                                    <span>${tab.label}</span>
-                                </button>
-                             `;
-                        })}
-                    </div>
+                    <!-- Mobile Tabs Scrollable Strip (Only in Study Mode) -->
+                    ${this._viewMode === 'study' ? html`
+                        <div class="md:hidden border-t border-slate-100 overflow-x-auto custom-scrollbar py-2 px-4 flex gap-2">
+                            ${tabs.map(tab => {
+                                 const isActive = this.activeTabId === tab.id;
+                                 return html`
+                                    <button @click=${() => this._switchTab(tab.id)}
+                                        class="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 flex items-center gap-1.5
+                                        ${isActive
+                                            ? 'bg-indigo-600 text-white shadow-md'
+                                            : 'bg-white border border-slate-200 text-slate-600'}">
+                                        <span>${tab.icon}</span>
+                                        <span>${tab.label}</span>
+                                    </button>
+                                 `;
+                            })}
+                        </div>
+                    ` : ''}
                 </div>
 
                 <!-- Main Content Area -->
                 <div class="flex-grow max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 animate-fade-in-up">
-                    ${this._renderContent()}
+                    ${this._viewMode === 'study' ? this._renderContent() : this._renderMissionInterface()}
                 </div>
 
+            </div>
+        `;
+    }
+
+    _renderMissionToggle() {
+        return html`
+            <div class="flex bg-slate-100 p-1 rounded-lg mx-4">
+                <button @click="${() => this._viewMode = 'study'}"
+                    class="px-4 py-1.5 rounded-md text-sm font-bold transition-all ${this._viewMode === 'study' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}">
+                    ${translationService.t('mission.student_toggle_study')}
+                </button>
+                <button @click="${() => this._viewMode = 'mission'}"
+                    class="px-4 py-1.5 rounded-md text-sm font-bold transition-all ${this._viewMode === 'mission' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}">
+                    ${translationService.t('mission.student_toggle_mission')}
+                </button>
+            </div>
+        `;
+    }
+
+    _renderMissionInterface() {
+        return html`
+            <div class="h-[calc(100vh-200px)] bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                 <chat-panel type="ai" .lessonId=${this.lessonId} .currentUserData=${this.currentUserData}></chat-panel>
             </div>
         `;
     }

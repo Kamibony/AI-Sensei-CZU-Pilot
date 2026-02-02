@@ -268,6 +268,9 @@
     "subtitle": "Zde je přehled vašich aktivit"
   },
   "editor": {
+    "tabs": {
+      "mission": "Misia"
+    },
     "ai": {
       "alert_error": "AI nevrátila žádná data.",
       "alert_invalid_slides": "Neplatný počet slidů. Zadejte prosím kladné číslo.",
@@ -529,6 +532,16 @@
     }
   },
   "generate_presentation_first": "Nejprve vygenerujte prezentaci.",
+  "mission": {
+    "create_title": "Vytvořit Misi z podkladů",
+    "student_toggle_study": "Študovňa",
+    "student_toggle_mission": "Misia",
+    "status_active": "Misia je aktivní",
+    "professor_running": "Misia AI běží pro tuto lekci.",
+    "professor_create_desc": "Vytvořte interaktivní AI misi na základě vašich souborů.",
+    "regenerate": "Přegenerovat Misi",
+    "professor_active_desc": "Studenti uvidí přepínač Mise ve svém zobrazení."
+  },
   "header": {
     "brand": "AI Sensei",
     "logout": "Odhlásit se",
