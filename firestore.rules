@@ -52,7 +52,7 @@ service cloud.firestore {
     // Lekcie
     match /lessons/{lessonId} {
       allow read: if (resource.data.ownerId == request.auth.uid) || isProfessor() || 
-                     (isStudentRole() && resource.data.assignedToGroups.hasAny(get(/databases/$(database)/documents/students/$(request.auth.uid)).data.memberOfGroups));
+                     (isStudentRole() && resource.data.assignedToGroups.hasAny(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.memberOfGroups));
       
       allow create: if isProfessor() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if (resource.data.ownerId == request.auth.uid) || isProfessor();
