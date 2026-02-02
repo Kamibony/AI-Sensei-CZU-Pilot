@@ -21,6 +21,7 @@ import './editor/editor-view-flashcards.js';
 import './editor/editor-view-mindmap.js';
 import './editor/editor-view-audio.js';
 import './editor/editor-view-whiteboard.js';
+import './editor/editor-view-mission.js';
 import './editor/ai-generator-panel.js';
 import './editor/professor-header-editor.js';
 
@@ -1221,6 +1222,10 @@ export class LessonEditor extends BaseView {
           case 'whiteboard':
                return false; // Requires checking subcollection, assuming false for now
 
+          case 'mission':
+               if (l.mission_config && l.mission_config.active) return true;
+               break;
+
           default:
               break;
       }
@@ -1485,6 +1490,7 @@ export class LessonEditor extends BaseView {
                       ${this._renderContentCard('flashcards', '🃏', translationService.t('content_types.flashcards'), this._hasMeaningfulContent('flashcards'))}
                       ${this._renderContentCard('mindmap', '🧠', translationService.t('content_types.mindmap'), this._hasMeaningfulContent('mindmap'))}
                       ${this._renderContentCard('whiteboard', '🎨', translationService.t('content_types.whiteboard'), this._hasMeaningfulContent('whiteboard'))}
+                      ${this._renderContentCard('mission', '🚀', translationService.t('editor.tabs.mission'), this._hasMeaningfulContent('mission'))}
                   </div>
               </div>
 
@@ -1648,6 +1654,12 @@ export class LessonEditor extends BaseView {
               return html`<editor-view-whiteboard @back=${this._handleBackToHub}
                   .lesson=${this.lesson} .isSaving=${this.isSaving}
                   id="active-editor" class="w-full h-full block"></editor-view-whiteboard>`;
+
+          case 'mission':
+              return html`<editor-view-mission @back=${this._handleBackToHub} @save=${this._handleSave}
+                  .lesson=${this.lesson} .files="${files}" .isSaving=${this.isSaving}
+                  @lesson-updated=${handleUpdate}
+                  id="active-editor" class="w-full h-full block"></editor-view-mission>`;
                   
           default: return html`<div class="p-4 text-center text-red-500">${translationService.t('common.unknown_type')}</div>`;
       }

@@ -266,6 +266,9 @@
     "subtitle": "Visão geral das atividades"
   },
   "editor": {
+    "tabs": {
+      "mission": "Missão"
+    },
     "ai": {
       "alert_error": "IA não retornou dados.",
       "alert_invalid_slides": "Número de slides inválido.",
@@ -534,6 +537,16 @@
     "system_instruction": "Você é o guia de IA da plataforma educacional 'AI Sensei'. Ajude alunos e professores a navegar na interface. Responda brevemente e de forma útil em português.",
     "title": "Guia de IA",
     "welcome_ai": "Olá! Sou seu guia de IA. Como posso ajudá-lo hoje?"
+  },
+  "mission": {
+    "create_title": "Criar Missão dos recursos",
+    "student_toggle_study": "Sala de Estudo",
+    "student_toggle_mission": "Missão",
+    "status_active": "Missão ativa",
+    "professor_running": "Missão AI está ativa para esta lição.",
+    "professor_create_desc": "Crie uma Missão AI interativa com base em seus arquivos.",
+    "regenerate": "Regenerar Missão",
+    "professor_active_desc": "Os alunos verão o botão de alternância da Missão em sua visualização."
   },
   "header": {
     "brand": "AI Sensei",
