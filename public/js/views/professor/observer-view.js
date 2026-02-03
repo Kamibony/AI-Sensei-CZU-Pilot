@@ -8,7 +8,8 @@ export class ObserverView extends LitElement {
         isProcessing: { type: Boolean },
         result: { type: Object },
         elapsedTime: { type: Number },
-        error: { type: String }
+        error: { type: String },
+        embedded: { type: Boolean }
     };
 
     constructor() {
@@ -18,6 +19,7 @@ export class ObserverView extends LitElement {
         this.result = null;
         this.elapsedTime = 0;
         this.error = null;
+        this.embedded = false;
         this._timerInterval = null;
         this._mediaRecorder = null;
         this._chunks = [];
@@ -119,10 +121,12 @@ export class ObserverView extends LitElement {
         return html`
             <div data-tour="observer-start" class="h-full flex flex-col p-6 max-w-4xl mx-auto space-y-8">
                 <!-- Header -->
+                ${!this.embedded ? html`
                 <div class="text-center space-y-2">
                     <h1 class="text-3xl font-extrabold text-slate-900">AI Observer</h1>
                     <p class="text-slate-500">Pedagogický supervizor v reálném čase</p>
                 </div>
+                ` : ''}
 
                 <!-- Main Action Area -->
                 <div class="flex flex-col items-center justify-center p-12 bg-white rounded-3xl shadow-sm border border-slate-100 space-y-8">

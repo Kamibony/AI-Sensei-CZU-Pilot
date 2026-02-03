@@ -801,7 +801,7 @@ Fail to follow this, and the generation is considered incorrect.
 *************************************
 `;
 
-        const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap", "podcast", "audio"].includes(contentType);
+        const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap", "podcast", "audio", "mission"].includes(contentType);
 
         // Append instruction for non-JSON cases (Text) immediately.
         // For JSON cases, we will append it inside the switch to ensure correct placement.
@@ -1001,6 +1001,42 @@ FORMAT: JSON
 }
 Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
                     }
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
+                    break;
+                }
+
+                case "mission": {
+                    finalPrompt = `
+    ROLE: You are an expert Curriculum Architect and Project Manager.
+    TASK: Analyze the provided content to create a comprehensive "Mission" structure for a Project-Based Learning course.
+
+    OUTPUT LANGUAGE: ${targetLanguage}.
+
+    REQUIREMENTS:
+    1. **Knowledge Graph**: Extract key concepts and their dependencies.
+       - Nodes: id, label, bloom_level (1-6), eqf_level (1-8).
+       - Edges: source, target.
+    2. **Project Scaffolding**: Define the team structure and timeline.
+       - Roles: 3-4 distinct student roles (e.g., "Analyst", "Builder").
+       - Milestones: 3-4 phases of the project.
+       - Role Tasks: Specific tasks for each role in each milestone.
+
+    OUTPUT FORMAT (JSON ONLY):
+    {
+      "graph": {
+        "nodes": [ { "id": "n1", "label": "String", "bloom_level": 1, "eqf_level": 3 } ],
+        "edges": [ { "source": "n1", "target": "n2" } ]
+      },
+      "mission": {
+        "roles": [ { "id": "r1", "title": "String", "description": "String", "skills": ["String"] } ],
+        "milestones": [ { "id": "m1", "title": "String", "description": "String" } ],
+        "role_tasks": {
+           "m1": { "r1": ["Task..."], "r2": ["Task..."] }
+        }
+      }
+    }
+    `;
                     finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
                     finalPrompt += JSON_SAFEGUARD;
                     break;

@@ -193,10 +193,6 @@ export class AppNavigation extends LitElement {
                 <div class="nav-section">
                     <div class="nav-section-label">Tvůrčí studio</div>
                     <ul class="nav-list">
-                        <button class="nav-item ${this.activeView === 'wizard' ? 'active' : ''}" @click=${() => this._navigateTo('wizard')}>
-                            <span class="icon">✨</span>
-                            <span>${t('nav.new_module')}</span>
-                        </button>
                         <button class="nav-item ${this.activeView === 'library' ? 'active' : ''}" @click=${() => this._navigateTo('library')}>
                             <span class="icon">📚</span>
                             <span>${t('nav.library')}</span>
