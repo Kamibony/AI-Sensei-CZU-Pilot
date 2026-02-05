@@ -565,7 +565,16 @@
     "observer_title": "AI Observer",
     "observer_subtitle": "Real-time supervision",
     "active_roles": "Aktivní Role",
-    "project_phases": "Fáze Projektu"
+    "project_phases": "Fáze Projektu",
+    "dashboard": {
+      "role_label": "Vaše Role",
+      "objective_label": "Tajný Cíl",
+      "status_label": "Stav Mise",
+      "crisis_alert": "⚠️ KRIZE AKTIVNÍ",
+      "phase_label": "Fáze",
+      "no_role": "Pozorovatel",
+      "no_objective": "Žádný tajný cíl"
+    }
   },
   "header": {
     "brand": "AI Sensei",

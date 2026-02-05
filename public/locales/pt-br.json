@@ -546,7 +546,16 @@
     "professor_running": "Missão AI está ativa para esta lição.",
     "professor_create_desc": "Crie uma Missão AI interativa com base em seus arquivos.",
     "regenerate": "Regenerar Missão",
-    "professor_active_desc": "Os alunos verão o botão de alternância da Missão em sua visualização."
+    "professor_active_desc": "Os alunos verão o botão de alternância da Missão em sua visualização.",
+    "dashboard": {
+      "role_label": "Sua Função",
+      "objective_label": "Objetivo Secreto",
+      "status_label": "Status da Missão",
+      "crisis_alert": "⚠️ CRISE ATIVA",
+      "phase_label": "Fase",
+      "no_role": "Observador",
+      "no_objective": "Sem objetivo secreto"
+    }
   },
   "header": {
     "brand": "AI Sensei",

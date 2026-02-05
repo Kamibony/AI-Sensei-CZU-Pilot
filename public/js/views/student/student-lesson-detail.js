@@ -14,6 +14,7 @@ import './flashcards-component.js';
 import './mindmap-component.js';
 import './comic-component.js'; // Import Comic Component
 import './student-project-view.js';
+import './mission-dashboard.js'; // Import Mission Dashboard
 import '../../components/magic-board-view.js';
 
 function normalizeLessonData(rawData) {
@@ -54,6 +55,7 @@ export class StudentLessonDetail extends LitElement {
         this.isLoading = true;
         this._progress = { completedSections: [] };
         this._progressUnsubscribe = null;
+        this._lessonUnsubscribe = null;
         this._langUnsubscribe = null;
         this._viewMode = 'study';
     }
@@ -75,6 +77,9 @@ export class StudentLessonDetail extends LitElement {
         }
         if (this._progressUnsubscribe) {
             this._progressUnsubscribe();
+        }
+        if (this._lessonUnsubscribe) {
+            this._lessonUnsubscribe();
         }
     }
 
@@ -180,35 +185,37 @@ export class StudentLessonDetail extends LitElement {
         }
     }
 
-    async _fetchLessonDetail() {
-        console.log("Fetching lesson detail for ID:", this.lessonId);
+    _fetchLessonDetail() {
+        console.log("Subscribing to lesson detail for ID:", this.lessonId);
         this.isLoading = true;
-        this.lessonData = null;
-        try {
-            const docRef = doc(firebaseInit.db, "lessons", this.lessonId);
-            console.log("Calling getDoc...");
-            const docSnap = await getDoc(docRef);
-            console.log("getDoc returned. Exists:", docSnap.exists());
 
-            if (docSnap.exists()) {
-                console.log("Lesson data:", docSnap.data());
-                this.lessonData = normalizeLessonData(docSnap.data());
-                if (!this.activeTabId) {
-                    this.activeTabId = this._getDefaultTab();
-                }
-            } else {
-                console.error("Lekce nenalezena!");
-            }
-        } catch (error) {
+        if (this._lessonUnsubscribe) {
+            this._lessonUnsubscribe();
+        }
+
+        const docRef = doc(firebaseInit.db, "lessons", this.lessonId);
+
+        this._lessonUnsubscribe = onSnapshot(docRef, (docSnap) => {
+             console.log("Lesson update received.");
+             if (docSnap.exists()) {
+                 console.log("Lesson data:", docSnap.data());
+                 this.lessonData = normalizeLessonData(docSnap.data());
+                 if (!this.activeTabId) {
+                     this.activeTabId = this._getDefaultTab();
+                 }
+             } else {
+                 console.error("Lekce nenalezena!");
+                 this.lessonData = null;
+             }
+             this.isLoading = false;
+        }, (error) => {
             console.error("Error fetching lesson detail:", error);
             // Verify permissions error
             if (error.code === 'permission-denied') {
                  console.error("PERMISSION DENIED. Check Security Rules.");
             }
-        } finally {
-            console.log("Fetch finished. isLoading = false");
             this.isLoading = false;
-        }
+        });
     }
 
     _getDefaultTab() {
@@ -423,9 +430,12 @@ export class StudentLessonDetail extends LitElement {
 
     _renderMissionInterface() {
         return html`
-            <div class="h-[calc(100vh-200px)] bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                 <chat-panel type="ai" .lessonId=${this.lessonId} .currentUserData=${this.currentUserData}></chat-panel>
-            </div>
+            <mission-dashboard
+                .lessonData=${this.lessonData}
+                .progress=${this._progress}
+                .lessonId=${this.lessonId}
+                .currentUserData=${this.currentUserData}
+            ></mission-dashboard>
         `;
     }
 
