@@ -285,6 +285,49 @@ export class StudentLessonDetail extends LitElement {
         return tabs;
     }
 
+    async _ensureMissionState() {
+        // 1. Check if role already exists
+        if (this._progress && this._progress.role) {
+            console.log("Mission Role already assigned:", this._progress.role);
+            return;
+        }
+
+        // 2. Validation: Check for config and roles
+        if (!this.lessonData?.mission_config?.roles || !Array.isArray(this.lessonData.mission_config.roles) || this.lessonData.mission_config.roles.length === 0) {
+            console.warn("No roles defined in mission_config. Cannot assign role.");
+            return;
+        }
+
+        // 3. Select Random Role
+        const roles = this.lessonData.mission_config.roles;
+        const selectedRole = roles[Math.floor(Math.random() * roles.length)];
+        console.log("Assigning Role:", selectedRole);
+
+        // 4. Persistence
+        const user = firebaseInit.auth.currentUser;
+        if (!user || !this.lessonId) {
+             console.error("Cannot save role: User or LessonId missing.");
+             return;
+        }
+
+        const path = `students/${user.uid}/progress/${this.lessonId}`;
+        const progressRef = doc(firebaseInit.db, path);
+
+        try {
+            await setDoc(progressRef, {
+                role: selectedRole.title,
+                secret_objective: selectedRole.secret_task
+            }, { merge: true });
+
+            // 5. Feedback
+            showToast(`Byla vám přidělena role: ${selectedRole.title}`, false); // success toast
+
+        } catch (e) {
+            console.error("Error saving mission role:", e);
+            showToast("Chyba při přiřazování role.", true);
+        }
+    }
+
     render() {
         if (this.isLoading) {
             return html`
@@ -420,7 +463,7 @@ export class StudentLessonDetail extends LitElement {
                     class="px-4 py-1.5 rounded-md text-sm font-bold transition-all ${this._viewMode === 'study' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}">
                     ${translationService.t('mission.student_toggle_study')}
                 </button>
-                <button @click="${() => this._viewMode = 'mission'}"
+                <button @click="${() => { this._viewMode = 'mission'; this._ensureMissionState(); }}"
                     class="px-4 py-1.5 rounded-md text-sm font-bold transition-all ${this._viewMode === 'mission' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}">
                     ${translationService.t('mission.student_toggle_mission')}
                 </button>
