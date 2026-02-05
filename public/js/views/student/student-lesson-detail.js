@@ -285,6 +285,17 @@ export class StudentLessonDetail extends LitElement {
         return tabs;
     }
 
+    _sanitizeRoleAssignment(role) {
+        // DATA NORMALIZATION GATEKEEPER
+        // Ensures that no matter what the AI outputs (or omits),
+        // we always write valid, safe data to Firestore.
+        return {
+            role: role.title || "Unknown Role",
+            // Explicitly handle undefined/missing secret_task by converting to null
+            secret_objective: role.secret_task || null
+        };
+    }
+
     async _ensureMissionState() {
         // 1. Check if role already exists
         if (this._progress && this._progress.role) {
@@ -303,6 +314,10 @@ export class StudentLessonDetail extends LitElement {
         const selectedRole = roles[Math.floor(Math.random() * roles.length)];
         console.log("Assigning Role:", selectedRole);
 
+        // --- LAYER B: FRONTEND DATA SANITIZATION ---
+        const sanitizedData = this._sanitizeRoleAssignment(selectedRole);
+        // -------------------------------------------
+
         // 4. Persistence
         const user = firebaseInit.auth.currentUser;
         if (!user || !this.lessonId) {
@@ -314,13 +329,11 @@ export class StudentLessonDetail extends LitElement {
         const progressRef = doc(firebaseInit.db, path);
 
         try {
-            await setDoc(progressRef, {
-                role: selectedRole.title,
-                secret_objective: selectedRole.secret_task
-            }, { merge: true });
+            // SAFETY CLAUSE: Use sanitized data and merge logic
+            await setDoc(progressRef, sanitizedData, { merge: true });
 
             // 5. Feedback
-            showToast(`Byla vám přidělena role: ${selectedRole.title}`, false); // success toast
+            showToast(`Byla vám přidělena role: ${sanitizedData.role}`, false); // success toast
 
         } catch (e) {
             console.error("Error saving mission role:", e);

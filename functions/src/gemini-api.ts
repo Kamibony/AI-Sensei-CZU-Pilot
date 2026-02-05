@@ -707,13 +707,14 @@ async function generateProjectScaffolding(topic: string, duration: string, compl
 
     REQUIREMENTS:
     1. ROLES: Define 3-4 distinct Student Roles based on soft skills (e.g., "The Leader", "The Researcher", "The Designer").
-    2. MILESTONES: Create a linear timeline of milestones suitable for the duration.
-    3. TASKS: specific tasks for each role within each milestone.
+    2. SECRET TASK: For each role, include a "secret_task" (a hidden objective, bonus goal, or constraint). If not applicable, explicitly return null.
+    3. MILESTONES: Create a linear timeline of milestones suitable for the duration.
+    4. TASKS: specific tasks for each role within each milestone.
 
     OUTPUT FORMAT (JSON ONLY):
     {
       "roles": [
-        { "id": "r1", "title": "Role Title", "description": "Role description...", "skills": ["skill1", "skill2"] }
+        { "id": "r1", "title": "Role Title", "description": "Role description...", "skills": ["skill1", "skill2"], "secret_task": "String or null" }
       ],
       "milestones": [
         { "id": "m1", "title": "Milestone Title", "description": "Phase description..." }
