@@ -15,6 +15,7 @@ import './mindmap-component.js';
 import './comic-component.js'; // Import Comic Component
 import './student-project-view.js';
 import './mission-dashboard.js'; // Import Mission Dashboard
+import './mission-briefing-modal.js';
 import '../../components/magic-board-view.js';
 
 function normalizeLessonData(rawData) {
@@ -42,7 +43,9 @@ export class StudentLessonDetail extends LitElement {
             activeTabId: { type: String, state: true },
             isLoading: { type: Boolean, state: true },
             _progress: { type: Object, state: true },
-            _viewMode: { state: true }
+            _viewMode: { state: true },
+            _showBriefing: { state: true },
+            _assignedRoleData: { state: true }
         };
     }
 
@@ -58,6 +61,8 @@ export class StudentLessonDetail extends LitElement {
         this._lessonUnsubscribe = null;
         this._langUnsubscribe = null;
         this._viewMode = 'study';
+        this._showBriefing = false;
+        this._assignedRoleData = null;
     }
 
     createRenderRoot() {
@@ -297,47 +302,74 @@ export class StudentLessonDetail extends LitElement {
     }
 
     async _ensureMissionState() {
-        // 1. Check if role already exists
-        if (this._progress && this._progress.role) {
-            console.log("Mission Role already assigned:", this._progress.role);
-            return;
-        }
-
-        // 2. Validation: Check for config and roles
-        if (!this.lessonData?.mission_config?.roles || !Array.isArray(this.lessonData.mission_config.roles) || this.lessonData.mission_config.roles.length === 0) {
-            console.warn("No roles defined in mission_config. Cannot assign role.");
-            return;
-        }
-
-        // 3. Select Random Role
-        const roles = this.lessonData.mission_config.roles;
-        const selectedRole = roles[Math.floor(Math.random() * roles.length)];
-        console.log("Assigning Role:", selectedRole);
-
-        // --- LAYER B: FRONTEND DATA SANITIZATION ---
-        const sanitizedData = this._sanitizeRoleAssignment(selectedRole);
-        // -------------------------------------------
-
-        // 4. Persistence
+        let roleTitle = this._progress?.role;
+        let roleData = null;
         const user = firebaseInit.auth.currentUser;
-        if (!user || !this.lessonId) {
-             console.error("Cannot save role: User or LessonId missing.");
-             return;
+
+        // 1. Assign Role if missing
+        if (!roleTitle) {
+            if (!this.lessonData?.mission_config?.roles || !Array.isArray(this.lessonData.mission_config.roles) || this.lessonData.mission_config.roles.length === 0) {
+                console.warn("No roles defined in mission_config. Cannot assign role.");
+                return;
+            }
+
+            const roles = this.lessonData.mission_config.roles;
+            roleData = roles[Math.floor(Math.random() * roles.length)];
+
+            // --- LAYER B: FRONTEND DATA SANITIZATION ---
+            const sanitizedData = this._sanitizeRoleAssignment(roleData);
+            // -------------------------------------------
+
+            if (user && this.lessonId) {
+                const path = `students/${user.uid}/progress/${this.lessonId}`;
+                const progressRef = doc(firebaseInit.db, path);
+                try {
+                    await setDoc(progressRef, sanitizedData, { merge: true });
+                    console.log("Role assigned:", sanitizedData.role);
+                } catch (e) {
+                    console.error("Error saving mission role:", e);
+                }
+            }
+        } else {
+             // Find existing role data
+             roleData = this.lessonData.mission_config.roles.find(r => r.title === roleTitle);
         }
 
+        // 2. Check Onboarding
+        if (!this._progress?.has_started_mission) {
+             this._assignedRoleData = roleData || {
+                 title: roleTitle,
+                 description: "",
+                 secret_objective: this._progress?.secret_objective
+             };
+             this._showBriefing = true;
+        }
+    }
+
+    async _handleMissionAccepted() {
+        this._showBriefing = false;
+
+        const user = firebaseInit.auth.currentUser;
+        if (!user || !this.lessonId) return;
+
+        // 1. Update Firestore
         const path = `students/${user.uid}/progress/${this.lessonId}`;
-        const progressRef = doc(firebaseInit.db, path);
-
         try {
-            // SAFETY CLAUSE: Use sanitized data and merge logic
-            await setDoc(progressRef, sanitizedData, { merge: true });
-
-            // 5. Feedback
-            showToast(`Byla vám přidělena role: ${sanitizedData.role}`, false); // success toast
-
+            await setDoc(doc(firebaseInit.db, path), { has_started_mission: true }, { merge: true });
         } catch (e) {
-            console.error("Error saving mission role:", e);
-            showToast("Chyba při přiřazování role.", true);
+            console.error("Error updating mission start status:", e);
+        }
+
+        // 2. Trigger AI Kickstart
+        await this.updateComplete; // Wait for UI to update (render mission dashboard)
+
+        const missionDashboard = this.renderRoot.querySelector('mission-dashboard');
+        const chatPanel = missionDashboard?.querySelector('chat-panel');
+
+        if (chatPanel) {
+            chatPanel.triggerAIKickstart(this._assignedRoleData?.title, this.lessonData.title);
+        } else {
+            console.warn("Chat panel not found for AI Kickstart");
         }
     }
 
@@ -464,6 +496,14 @@ export class StudentLessonDetail extends LitElement {
                 <div class="flex-grow max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 animate-fade-in-up">
                     ${this._viewMode === 'study' ? this._renderContent() : this._renderMissionInterface()}
                 </div>
+
+                <!-- Briefing Modal -->
+                ${this._showBriefing ? html`
+                    <mission-briefing-modal
+                        .roleData=${this._assignedRoleData}
+                        @mission-accepted=${this._handleMissionAccepted}
+                    ></mission-briefing-modal>
+                ` : ''}
 
             </div>
         `;
