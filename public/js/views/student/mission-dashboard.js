@@ -71,7 +71,15 @@ export class MissionDashboard extends LitElement {
                 <div class="w-full md:w-1/2 bg-slate-100 flex flex-col relative">
                      <!-- Chat Panel takes full height of this container -->
                      <div class="absolute inset-0 p-2 md:p-3 bg-slate-900">
-                        <chat-panel type="ai" .lessonId=${this.lessonId} .currentUserData=${this.currentUserData} class="h-full w-full block"></chat-panel>
+                        <chat-panel
+                            type="ai"
+                            .lessonId=${this.lessonId}
+                            .currentUserData=${this.currentUserData}
+                            .kickstartRole=${userRole}
+                            .kickstartTopic=${this.lessonData.title || 'Misia'}
+                            .missionStarted=${this.progress?.has_started_mission || false}
+                            class="h-full w-full block">
+                        </chat-panel>
                      </div>
                 </div>
 
