@@ -1019,6 +1019,7 @@ Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
        - Edges: source, target.
     2. **Project Scaffolding**: Define the team structure and timeline.
        - Roles: 3-4 distinct student roles (e.g., "Analyst", "Builder").
+       - Secret Tasks: Assign a "secret_task" to each role (hidden objective). Use null if not applicable.
        - Milestones: 3-4 phases of the project.
        - Role Tasks: Specific tasks for each role in each milestone.
 
@@ -1029,7 +1030,7 @@ Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
         "edges": [ { "source": "n1", "target": "n2" } ]
       },
       "mission": {
-        "roles": [ { "id": "r1", "title": "String", "description": "String", "skills": ["String"] } ],
+        "roles": [ { "id": "r1", "title": "String", "description": "String", "skills": ["String"], "secret_task": "String or null" } ],
         "milestones": [ { "id": "m1", "title": "String", "description": "String" } ],
         "role_tasks": {
            "m1": { "r1": ["Task..."], "r2": ["Task..."] }
