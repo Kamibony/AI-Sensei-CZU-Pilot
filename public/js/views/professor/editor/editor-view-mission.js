@@ -12,6 +12,7 @@ export class EditorViewMission extends LitElement {
         _generatedData: { state: true }, // Holds { graph, mission } before save
         _selectedNode: { state: true },
         _isCrisisTriggering: { state: true },
+        _triggeringCrisisTitle: { state: true },
         _editMode: { state: true } // If true, show Design mode even if mission exists
     };
 
@@ -35,6 +36,7 @@ export class EditorViewMission extends LitElement {
         this._generatedData = null;
         this._selectedNode = null;
         this._isCrisisTriggering = false;
+        this._triggeringCrisisTitle = null;
         this._editMode = false;
     }
 
@@ -184,6 +186,7 @@ export class EditorViewMission extends LitElement {
         if (!confirm(translationService.t('common.confirm'))) return;
 
         this._isCrisisTriggering = true;
+        this._triggeringCrisisTitle = milestoneTitle;
         try {
             const triggerFn = httpsCallable(functions, 'triggerCrisis');
             await triggerFn({
@@ -199,6 +202,7 @@ export class EditorViewMission extends LitElement {
             showToast(translationService.t('common.error') + ": " + e.message, 'error');
         } finally {
             this._isCrisisTriggering = false;
+            this._triggeringCrisisTitle = null;
         }
     }
 
@@ -433,8 +437,11 @@ export class EditorViewMission extends LitElement {
                                     <button
                                         @click=${() => this._handleTriggerCrisis(m.title)}
                                         ?disabled=${this._isCrisisTriggering}
-                                        class="w-full text-left px-3 py-2 rounded-lg hover:bg-red-50 text-slate-600 hover:text-red-700 text-sm transition-colors border border-transparent hover:border-red-100 group">
-                                        <span class="font-medium group-hover:underline">⚠ ${t('mission.crisis_trigger')}:</span>
+                                        class="w-full text-left px-3 py-2 rounded-lg hover:bg-red-50 text-slate-600 hover:text-red-700 text-sm transition-colors border border-transparent hover:border-red-100 group flex items-center gap-2">
+                                        ${this._isCrisisTriggering && this._triggeringCrisisTitle === m.title
+                                            ? html`<span class="animate-spin h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full"></span>`
+                                            : html`<span class="font-medium group-hover:underline">⚠ ${t('mission.crisis_trigger')}:</span>`
+                                        }
                                         <span class="opacity-75">${m.title}</span>
                                     </button>
                                 `)}

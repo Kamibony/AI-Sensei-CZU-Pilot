@@ -293,6 +293,48 @@ export class ChatPanel extends LitElement {
         }
     }
 
+    async triggerAIKickstart(role, topic) {
+        if (!role || !topic) return;
+
+        console.log("Triggering AI Kickstart for role:", role, "topic:", topic);
+        const language = translationService.currentLanguage === 'cs' ? 'Czech' : 'Portuguese';
+
+        const systemPrompt = `SYSTEM_EVENT: User has just accepted the role of ${role}. The mission context is ${topic}. ACT IMMEDIATELY as the [Mission Persona]. Introduce yourself briefly and give the user their first situational update or order based on their role. Ask them for a status report. Output in ${language}.`;
+
+        // Add hidden typing indicator
+        this.chatHistory = [...this.chatHistory, { sender: 'ai-typing', text: 'píše...' }];
+
+        try {
+            const getAiAssistantResponse = httpsCallable(firebaseInit.functions, 'getAiAssistantResponse');
+            const result = await getAiAssistantResponse({
+                lessonId: this.lessonId,
+                userQuestion: systemPrompt // Sending system prompt as user question, but NOT saving it to DB
+            });
+            const response = result.data;
+
+            let aiResponseText = response.error
+                ? `${translationService.t('chat.error_ai')} ${response.error}`
+                : (response.answer || translationService.t('guide_bot.error_response'));
+
+            // Save AI response to DB so it appears in chat
+            const messageRef = collection(firebaseInit.db, `conversations/${this.currentUserData.id}/messages`);
+            await addDoc(messageRef, {
+                 lessonId: this.lessonId,
+                 text: aiResponseText,
+                 sender: 'ai',
+                 type: 'ai',
+                 timestamp: serverTimestamp()
+            });
+            console.log("AI Kickstart response saved.");
+
+        } catch (e) {
+            console.error("AI Kickstart failed:", e);
+        } finally {
+            // Remove typing indicator
+             this.chatHistory = this.chatHistory.filter(m => m.sender !== 'ai-typing');
+        }
+    }
+
     async _sendMessage() {
         // Pôvodná logika z `sendMessage`
         const inputEl = this.querySelector('#chat-input');

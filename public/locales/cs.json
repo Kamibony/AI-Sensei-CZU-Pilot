@@ -574,7 +574,16 @@
       "phase_label": "Fáze",
       "no_role": "Pozorovatel",
       "no_objective": "Žádný tajný cíl"
-    }
+    },
+    "onboarding": {
+      "title": "🕵️‍♂️ PŘÍSNĚ TAJNÉ / MISSION BRIEFING",
+      "role_label": "Vaše přidělená identita:",
+      "objective_label": "Primární cíl:",
+      "accept_btn": "PŘIJMOUT MISI A SPOJIT SE S VELENÍM",
+      "loading": "Navazuji šifrované spojení..."
+    },
+    "crisis_started_toast": "Krize spuštěna: {name}",
+    "crisis_resolved_toast": "Krize ukončena"
   },
   "header": {
     "brand": "AI Sensei",
