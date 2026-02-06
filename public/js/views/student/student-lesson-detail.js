@@ -544,8 +544,10 @@ export class StudentLessonDetail extends LitElement {
         // solving the deep object mutation issue where mission_config updates inside lessonData
         // were not triggering re-renders in the child dashboard.
         const missionConfig = this.lessonData.mission_config || {};
-        const isCrisisActive = !!missionConfig.active_crisis;
-        const activeCrisisData = missionConfig.active_crisis || null;
+
+        // Use top-level activeCrisis from lessonData, fallback to mission_config if legacy
+        const activeCrisisData = this.lessonData.activeCrisis || missionConfig.active_crisis || null;
+        const isCrisisActive = !!activeCrisisData;
 
         return html`
             <mission-dashboard
