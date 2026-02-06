@@ -31,9 +31,16 @@ export class ChatPanel extends LitElement {
             lessonId: { type: String },
             currentUserData: { type: Object },
             
+            // Reactive props for Kickstart (Ready-First Protocol)
+            kickstartRole: { type: String },
+            kickstartTopic: { type: String },
+            missionStarted: { type: Boolean },
+
             chatHistory: { type: Array, state: true },
             currentSubView: { type: String, state: true }, // Len pre 'ai' typ: 'web' alebo 'telegram'
             chatUnsubscribe: { type: Object }, // Pre uloženie onSnapshot listenera
+            _isHistoryLoaded: { type: Boolean, state: true },
+            _kickstartInProgress: { type: Boolean, state: true }
         };
     }
 
@@ -42,9 +49,16 @@ export class ChatPanel extends LitElement {
         this.type = 'professor';
         this.lessonId = null;
         this.currentUserData = null;
+
+        this.kickstartRole = null;
+        this.kickstartTopic = null;
+        this.missionStarted = false;
+
         this.chatHistory = []; // Bude obsahovať aj { sender: 'ai-typing' }
         this.currentSubView = 'web';
         this.chatUnsubscribe = null;
+        this._isHistoryLoaded = false;
+        this._kickstartInProgress = false;
     }
 
     // Vypnutie Shadow DOM
@@ -78,6 +92,11 @@ export class ChatPanel extends LitElement {
     updated(changedProperties) {
         if (changedProperties.has('currentUserData') || changedProperties.has('lessonId')) {
             this._loadChatHistory();
+        }
+
+        // Ready-First Protocol: Trigger AI Kickstart only when all data is ready
+        if (this.type === 'ai' && this.missionStarted) {
+            this._checkAndTriggerKickstart();
         }
     }
 
@@ -254,6 +273,7 @@ export class ChatPanel extends LitElement {
         // Pôvodná logika z `loadChatHistory`
         if (this.chatUnsubscribe) { // Zastavíme starý listener, ak existuje
             this.chatUnsubscribe();
+            this._isHistoryLoaded = false;
         }
 
         try {
@@ -267,6 +287,7 @@ export class ChatPanel extends LitElement {
             // Uložíme si unsubscribe funkciu
             this.chatUnsubscribe = onSnapshot(q, async (snapshot) => {
                 this.chatHistory = snapshot.docs.map(doc => doc.data());
+                this._isHistoryLoaded = true; // Mark history as loaded
                 
                 // Počkáme, kým Lit prekreslí DOM
                 await this.updateComplete; 
@@ -279,11 +300,13 @@ export class ChatPanel extends LitElement {
             }, (error) => {
                 console.error(`Error with ${this.type} chat listener:`, error);
                 showToast(translationService.t('student_dashboard.chat_error_load'), true);
+                this._isHistoryLoaded = true; // Prevent indefinite loading state
             });
 
         } catch (error) {
             console.error(`Error loading ${this.type} chat history:`, error);
             showToast(translationService.t('student_dashboard.chat_error_load'), true);
+            this._isHistoryLoaded = true;
         }
     }
 
@@ -293,13 +316,32 @@ export class ChatPanel extends LitElement {
         }
     }
 
-    async triggerAIKickstart(role, topic) {
-        if (!role || !topic) return;
+    async _checkAndTriggerKickstart() {
+        // Guard Clause: History must be loaded to ensure idempotency
+        if (!this._isHistoryLoaded) return;
 
-        console.log("Triggering AI Kickstart for role:", role, "topic:", topic);
+        // Idempotency: Do not trigger if chat history already exists
+        if (this.chatHistory.length > 0) return;
+
+        // Guard Clause: Prevent multiple parallel kickstarts
+        if (this._kickstartInProgress) return;
+
+        // Guard Clause: Data Integrity
+        // We use a safe accessor or fallback, but strict checks are better here.
+        if (!this.kickstartRole || !this.kickstartTopic || !this.currentUserData?.id || !this.lessonId) {
+            // Do not log error repeatedly, just wait for data
+            return;
+        }
+
+        console.log("Triggering AI Kickstart (Reactive) for role:", this.kickstartRole, "topic:", this.kickstartTopic);
+        this._kickstartInProgress = true;
+
         const language = translationService.currentLanguage === 'cs' ? 'Czech' : 'Portuguese';
 
-        const systemPrompt = `SYSTEM_EVENT: User has just accepted the role of ${role}. The mission context is ${topic}. ACT IMMEDIATELY as the [Mission Persona]. Introduce yourself briefly and give the user their first situational update or order based on their role. Ask them for a status report. Output in ${language}.`;
+        // Use generic fallback if topic is somehow missing but passed guard
+        const safeTopic = this.kickstartTopic || "Unknown Mission";
+
+        const systemPrompt = `SYSTEM_EVENT: User has just accepted the role of ${this.kickstartRole}. The mission context is ${safeTopic}. ACT IMMEDIATELY as the [Mission Persona]. Introduce yourself briefly and give the user their first situational update or order based on their role. Ask them for a status report. Output in ${language}.`;
 
         // Add hidden typing indicator
         this.chatHistory = [...this.chatHistory, { sender: 'ai-typing', text: 'píše...' }];
@@ -329,9 +371,17 @@ export class ChatPanel extends LitElement {
 
         } catch (e) {
             console.error("AI Kickstart failed:", e);
+            this._kickstartInProgress = false; // Allow retry on failure? Or better to stay failed to avoid loops?
+            // If we reset, it might loop. If we don't, it might never start.
+            // Better to reset and let the user retry by refreshing or manual message.
         } finally {
             // Remove typing indicator
              this.chatHistory = this.chatHistory.filter(m => m.sender !== 'ai-typing');
+             // Note: We do NOT reset _kickstartInProgress to false on success,
+             // because we want to ensure it runs only once per session/mount if history was empty.
+             // Actually, if we successfully saved to DB, the snapshot will update, chatHistory.length > 0,
+             // so the idempotency check will block future runs anyway.
+             // But let's keep it true to be safe in-memory.
         }
     }
 

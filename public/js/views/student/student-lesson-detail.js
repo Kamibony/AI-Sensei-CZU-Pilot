@@ -360,17 +360,9 @@ export class StudentLessonDetail extends LitElement {
             console.error("Error updating mission start status:", e);
         }
 
-        // 2. Trigger AI Kickstart
-        await this.updateComplete; // Wait for UI to update (render mission dashboard)
-
-        const missionDashboard = this.renderRoot.querySelector('mission-dashboard');
-        const chatPanel = missionDashboard?.querySelector('chat-panel');
-
-        if (chatPanel) {
-            chatPanel.triggerAIKickstart(this._assignedRoleData?.title, this.lessonData.title);
-        } else {
-            console.warn("Chat panel not found for AI Kickstart");
-        }
+        // 2. Trigger AI Kickstart (REMOVED - Now handled Reactively in ChatPanel)
+        // The update to 'has_started_mission' will propagate to MissionDashboard -> ChatPanel
+        // which will trigger the kickstart automatically via the Ready-First Protocol.
     }
 
     render() {
