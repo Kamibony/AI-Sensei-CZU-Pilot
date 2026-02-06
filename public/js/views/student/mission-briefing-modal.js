@@ -47,7 +47,7 @@ export class MissionBriefingModal extends LitElement {
                             </h2>
                         </div>
                         <div class="text-xs text-green-700 animate-pulse border border-green-900 px-2 py-1 rounded">
-                            ENCRYPTED::AES-256
+                            ${t('mission.onboarding.encrypted')}
                         </div>
                     </div>
 
@@ -74,7 +74,7 @@ export class MissionBriefingModal extends LitElement {
                                 <span>🎯</span> ${t('mission.onboarding.objective_label')}
                             </label>
                             <p class="text-white font-bold text-lg">
-                                ${this.roleData.secret_objective || this.roleData.secret_task || "---"}
+                                ${this.roleData.secret_objective || this.roleData.secret_task || t('mission.onboarding.no_objective')}
                             </p>
                         </div>
 

@@ -176,7 +176,7 @@ export class StudentLessonDetail extends LitElement {
             const currentLang = translationService.currentLanguage;
             if (this.lessonData.language !== currentLang) {
                  console.log(`[Localization] Enforcing lesson language: ${this.lessonData.language}`);
-                 translationService.setLanguage(this.lessonData.language);
+                 translationService.changeLanguage(this.lessonData.language);
             }
         }
 
@@ -349,6 +349,12 @@ export class StudentLessonDetail extends LitElement {
     async _handleMissionAccepted() {
         this._showBriefing = false;
 
+        // Optimistic UI Update
+        if (this._progress) {
+            this._progress = { ...this._progress, has_started_mission: true };
+            this.requestUpdate();
+        }
+
         const user = firebaseInit.auth.currentUser;
         if (!user || !this.lessonId) return;
 
@@ -489,14 +495,6 @@ export class StudentLessonDetail extends LitElement {
                     ${this._viewMode === 'study' ? this._renderContent() : this._renderMissionInterface()}
                 </div>
 
-                <!-- Briefing Modal -->
-                ${this._showBriefing ? html`
-                    <mission-briefing-modal
-                        .roleData=${this._assignedRoleData}
-                        @mission-accepted=${this._handleMissionAccepted}
-                    ></mission-briefing-modal>
-                ` : ''}
-
             </div>
         `;
     }
@@ -517,6 +515,17 @@ export class StudentLessonDetail extends LitElement {
     }
 
     _renderMissionInterface() {
+        const hasStarted = this._progress?.has_started_mission;
+
+        if (!hasStarted) {
+             return html`
+                <mission-briefing-modal
+                    .roleData=${this._assignedRoleData}
+                    @mission-accepted=${this._handleMissionAccepted}
+                ></mission-briefing-modal>
+            `;
+        }
+
         return html`
             <mission-dashboard
                 .lessonData=${this.lessonData}

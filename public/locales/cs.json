@@ -60,6 +60,27 @@
     "map_legend": "Úroveň Bloomovy taxonomie",
     "error_analysis": "Nepodařilo se analyzovat sylabus. Zkuste to prosím znovu."
   },
+  "chat": {
+    "select_communication_method": "Vyberte způsob komunikace",
+    "web_chat": "Web Chat",
+    "telegram_app": "Telegram App",
+    "error_code_not_found": "CHYBA: Kód nenalezen",
+    "communicate_via_telegram": "Komunikujte přes Telegram",
+    "telegram_instruction": "Pro jednodušší a rychlejší komunikaci v mobilu použijte našeho bota v aplikaci Telegram.",
+    "open_telegram_bot": "Otevřít Telegram Bota",
+    "send_code_instruction": "Po otevření pošlete botovi pro spárování tento kód:",
+    "professor_consultation": "Konzultace s profesorem",
+    "send_button": "Odeslat",
+    "placeholder_message": "Napište zprávu...",
+    "placeholder_professor": "Napište dotaz pro profesora...",
+    "ai_guide": "AI Průvodce",
+    "error_ai": "Chyba AI:",
+    "error_notify_prof": "Nepodařilo se odeslat notifikaci profesorovi.",
+    "typing": "píše...",
+    "system_sender": "Systém:",
+    "professor_sender": "Profesor:",
+    "error_send": "Nepodařilo se odeslat: "
+  },
   "auth": {
     "back_to_roles": "Zpět na výběr role",
     "branding_desc": "AI Sensei je inteligentní platforma spojující učitele a studenty. Vytvářejte interaktivní lekce, sledujte pokrok a využijte sílu AI.",
@@ -534,10 +555,10 @@
   "generate_presentation_first": "Nejprve vygenerujte prezentaci.",
   "mission": {
     "create_title": "Vytvořit Misi z podkladů",
-    "student_toggle_study": "Študovňa",
-    "student_toggle_mission": "Misia",
-    "status_active": "Misia je aktivní",
-    "professor_running": "Misia AI běží pro tuto lekci.",
+    "student_toggle_study": "Studovna",
+    "student_toggle_mission": "Mise",
+    "status_active": "Mise je aktivní",
+    "professor_running": "Mise AI běží pro tuto lekci.",
     "professor_create_desc": "Vytvořte interaktivní AI misi na základě vašich souborů.",
     "regenerate": "Přegenerovat Misi",
     "professor_active_desc": "Studenti uvidí přepínač Mise ve svém zobrazení.",
@@ -573,14 +594,18 @@
       "crisis_alert": "⚠️ KRIZE AKTIVNÍ",
       "phase_label": "Fáze",
       "no_role": "Pozorovatel",
-      "no_objective": "Žádný tajný cíl"
+      "no_objective": "Žádný tajný cíl",
+      "system_nominal": "SYSTEM NOMINAL",
+      "unknown": "Neznámý"
     },
     "onboarding": {
       "title": "🕵️‍♂️ PŘÍSNĚ TAJNÉ / MISSION BRIEFING",
-      "role_label": "Vaše přidělená identita:",
-      "objective_label": "Primární cíl:",
+      "role_label": "VAŠE KRYCÍ IDENTITA:",
+      "objective_label": "PRIMÁRNÍ OPERAČNÍ CÍL:",
       "accept_btn": "PŘIJMOUT MISI A SPOJIT SE S VELENÍM",
-      "loading": "Navazuji šifrované spojení..."
+      "loading": "Navazuji šifrované spojení...",
+      "encrypted": "ENCRYPTED::AES-256",
+      "no_objective": "---"
     },
     "crisis_started_toast": "Krize spuštěna: {name}",
     "crisis_resolved_toast": "Krize ukončena"

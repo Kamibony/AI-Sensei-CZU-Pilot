@@ -120,7 +120,7 @@ export class ChatPanel extends LitElement {
                         <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center font-bold text-xl text-[#56A0D3]">A</div>
                         <div class="ml-3">
                             <h3 class="font-semibold text-lg">${translationService.t('chat.ai_guide')}</h3>
-                            <p class="text-sm text-gray-200">Vyberte způsob komunikace</p>
+                            <p class="text-sm text-gray-200">${translationService.t('chat.select_communication_method')}</p>
                         </div>
                     </div>
 
@@ -140,14 +140,14 @@ export class ChatPanel extends LitElement {
                     data-chat-type="web" 
                     class="px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${this.currentSubView === 'web' ? 'border-[#56A0D3] text-[#56A0D3]' : 'border-transparent text-slate-500 hover:text-[#56A0D3]'}"
                     @click=${() => this.currentSubView = 'web'}>
-                    Web Chat
+                    ${translationService.t('chat.web_chat')}
                 </button>
                 <button 
                     id="ai-tab-telegram" 
                     data-chat-type="telegram" 
                     class="px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${this.currentSubView === 'telegram' ? 'border-[#56A0D3] text-[#56A0D3]' : 'border-transparent text-slate-500 hover:text-[#56A0D3]'}"
                     @click=${() => this.currentSubView = 'telegram'}>
-                    Telegram App
+                    ${translationService.t('chat.telegram_app')}
                 </button>
             </div>
         `;
@@ -172,16 +172,16 @@ export class ChatPanel extends LitElement {
             `;
         } else if (this.currentSubView === 'telegram') {
             // Pôvodná logika z `renderAITelegramLink`
-            const token = this.currentUserData?.telegramLinkToken || 'CHYBA: Kód nenalezen';
+            const token = this.currentUserData?.telegramLinkToken || translationService.t('chat.error_code_not_found');
             return html`
                 <div class="flex flex-col items-center justify-center p-8 text-center flex-grow">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-[#56A0D3] mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 17l-4 4-4-4"></path><path d="M13 19V5"></path><path d="M9 13l4-4 4 4"></path></svg>
-                    <h3 class="text-xl font-bold mb-2">Komunikujte přes Telegram</h3>
-                    <p class="text-slate-600 mb-4">Pro jednodušší a rychlejší komunikaci v mobilu použijte našeho bota v aplikaci Telegram.</p>
+                    <h3 class="text-xl font-bold mb-2">${translationService.t('chat.communicate_via_telegram')}</h3>
+                    <p class="text-slate-600 mb-4">${translationService.t('chat.telegram_instruction')}</p>
                     <a href="https://t.me/ai_sensei_czu_bot" target="_blank" class="bg-[#56A0D3] text-white font-bold py-3 px-6 rounded-full hover:bg-[#4396C8] transition-colors mb-4">
-                        Otevřít Telegram Bota
+                        ${translationService.t('chat.open_telegram_bot')}
                     </a>
-                    <p class="text-sm text-slate-500 mt-2">Po otevření pošlete botovi pro spárování tento kód:</p>
+                    <p class="text-sm text-slate-500 mt-2">${translationService.t('chat.send_code_instruction')}</p>
                     <strong class="block bg-gray-200 text-slate-800 p-2 rounded-lg text-lg select-all font-mono">${token}</strong>
                 </div>
             `;
@@ -194,13 +194,13 @@ export class ChatPanel extends LitElement {
         // Pôvodná logika z `renderProfessorChatView`
         return html`
             <div class="bg-white p-4 md:p-6 rounded-2xl shadow-lg flex flex-col h-[60vh] lg:h-[70vh]">
-                <h3 class="text-2xl font-bold mb-4">Konzultace s profesorem</h3>
+                <h3 class="text-2xl font-bold mb-4">${translationService.t('chat.professor_consultation')}</h3>
                 <div id="prof-chat-history" class="overflow-y-auto border p-3 rounded-lg bg-slate-50 mb-4 flex-grow">
                     ${this._renderChatHistory()}
                 </div>
                 <div class="flex gap-2 flex-shrink-0">
                     <input type="text" id="chat-input" placeholder="${translationService.t('chat.placeholder_professor')}" class="flex-grow p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" @keypress=${this._handleKeypress}>
-                    <button id="send-chat-btn" class="bg-slate-700 text-white font-bold py-3 px-5 rounded-lg hover:bg-slate-800 transition-colors" @click=${this._sendMessage}>Odeslat</button>
+                    <button id="send-chat-btn" class="bg-slate-700 text-white font-bold py-3 px-5 rounded-lg hover:bg-slate-800 transition-colors" @click=${this._sendMessage}>${translationService.t('chat.send_button')}</button>
                 </div>
             </div>
         `;
@@ -233,16 +233,16 @@ export class ChatPanel extends LitElement {
         } else if (data.sender === 'ai-typing') {
             alignmentClasses = 'mr-auto float-left';
             baseClasses += ` bg-gray-200 text-gray-500 italic ${alignmentClasses} rounded-tl-none ai-typing-indicator`;
-            content = translationService.t('student_dashboard.typing');
+            content = translationService.t('chat.typing');
         } else if (data.sender === 'system-error') {
             alignmentClasses = 'mx-auto';
             baseClasses += ` bg-red-100 text-red-700 text-center ${alignmentClasses}`;
-            senderPrefix = '<strong>Systém:</strong><br>';
+            senderPrefix = `<strong>${translationService.t('chat.system_sender')}</strong><br>`;
         } else { // ai, professor
             alignmentClasses = 'mr-auto float-left';
             baseClasses += ` ${isAI ? 'bg-white' : 'bg-gray-200'} text-slate-800 ${alignmentClasses} rounded-tl-none`;
             if (data.sender === 'ai') senderPrefix = `<strong>${translationService.t('chat.ai_guide')}:</strong><br>`;
-            if (data.sender === 'professor') senderPrefix = '<strong>Profesor:</strong><br>';
+            if (data.sender === 'professor') senderPrefix = `<strong>${translationService.t('chat.professor_sender')}</strong><br>`;
         }
         
         let timestampText = '';
@@ -344,7 +344,7 @@ export class ChatPanel extends LitElement {
         const systemPrompt = `SYSTEM_EVENT: User has just accepted the role of ${this.kickstartRole}. The mission context is ${safeTopic}. ACT IMMEDIATELY as the [Mission Persona]. Introduce yourself briefly and give the user their first situational update or order based on their role. Ask them for a status report. Output in ${language}.`;
 
         // Add hidden typing indicator
-        this.chatHistory = [...this.chatHistory, { sender: 'ai-typing', text: 'píše...' }];
+        this.chatHistory = [...this.chatHistory, { sender: 'ai-typing', text: translationService.t('chat.typing') }];
 
         try {
             const getAiAssistantResponse = httpsCallable(firebaseInit.functions, 'getAiAssistantResponse');
@@ -410,7 +410,7 @@ export class ChatPanel extends LitElement {
 
              if (this.type === 'ai') {
                 // Deklaratívne pridáme "typing" indikátor
-                this.chatHistory = [...this.chatHistory, { sender: 'ai-typing', text: 'píše...' }];
+                this.chatHistory = [...this.chatHistory, { sender: 'ai-typing', text: translationService.t('chat.typing') }];
 
                 try {
                     const getAiAssistantResponse = httpsCallable(firebaseInit.functions, 'getAiAssistantResponse');
