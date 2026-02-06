@@ -316,8 +316,11 @@ export class LessonEditor extends BaseView {
                return;
           }
 
-          const updatesToCommit = { ...this._pendingUpdates };
+          const rawUpdates = { ...this._pendingUpdates };
           this._pendingUpdates = {}; // Clear pending queue
+
+          // SANITIZATION FIX: Ensure no undefined values reach Firestore
+          const updatesToCommit = deepSanitize(rawUpdates);
 
           try {
               if (!this.lesson.id) {

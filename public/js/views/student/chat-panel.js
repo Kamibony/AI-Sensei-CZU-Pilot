@@ -386,6 +386,13 @@ export class ChatPanel extends LitElement {
     }
 
     async _sendMessage() {
+        // Guard Clause: Prevent identity loss crash
+        if (!this.currentUserData || !this.currentUserData.id) {
+            console.warn("ChatPanel: Cannot send message - Missing currentUserData identity.");
+            showToast(translationService.t('chat.error_identity_missing') || "Chyba identity: Zkuste obnovit stránku.", true);
+            return;
+        }
+
         // Pôvodná logika z `sendMessage`
         const inputEl = this.querySelector('#chat-input');
         if (!inputEl) return;
