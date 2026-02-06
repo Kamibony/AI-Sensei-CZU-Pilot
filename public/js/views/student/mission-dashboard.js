@@ -20,7 +20,7 @@ export class MissionDashboard extends LitElement {
         if (!this.lessonData) return html``;
 
         const isCrisisActive = this.lessonData.active_crisis || false;
-        const phase = this.lessonData.mission_config?.phase || 'Unknown';
+        const phase = this.lessonData.mission_config?.phase || translationService.t('mission.dashboard.unknown');
 
         const userRole = this.progress?.role || translationService.t('mission.dashboard.no_role');
         const secretObjective = this.progress?.secret_objective || translationService.t('mission.dashboard.no_objective');
@@ -98,7 +98,7 @@ export class MissionDashboard extends LitElement {
                         ` : html`
                             <div class="flex flex-col items-center text-center gap-2 text-emerald-400 font-bold opacity-80">
                                 <svg class="w-12 h-12 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                <span class="text-sm tracking-widest">SYSTEM NOMINAL</span>
+                                <span class="text-sm tracking-widest">${translationService.t('mission.dashboard.system_nominal')}</span>
                             </div>
                         `}
                     </div>
