@@ -169,6 +169,7 @@ export class StudentLessonDetail extends LitElement {
     }
 
     async updated(changedProperties) {
+        console.log("♻️ Lifecycle: updated() called. Changed props:", [...changedProperties.keys()]);
         super.updated(changedProperties);
 
         // ARCHITECTURAL CHANGE: Force UI Language based on Lesson settings
@@ -204,7 +205,19 @@ export class StudentLessonDetail extends LitElement {
              console.log("Lesson update received.");
              if (docSnap.exists()) {
                  console.log("Lesson data:", docSnap.data());
-                 this.lessonData = normalizeLessonData(docSnap.data());
+
+                 const oldData = this.lessonData;
+                 const newData = docSnap.data();
+                 if (oldData === newData) {
+                     console.log("⚠️ IDENTITY CHECK: Data objects are IDENTICAL.");
+                 } else {
+                     console.log("✅ IDENTITY CHECK: Data objects are DIFFERENT.");
+                 }
+
+                 this.lessonData = normalizeLessonData(newData);
+                 console.log("DATA RECEIVED. Calling requestUpdate() manually...");
+                 // this.requestUpdate();
+
                  if (!this.activeTabId) {
                      this.activeTabId = this._getDefaultTab();
                  }
