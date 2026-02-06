@@ -8,7 +8,9 @@ export class MissionDashboard extends LitElement {
             lessonData: { type: Object },
             progress: { type: Object },
             currentUserData: { type: Object },
-            lessonId: { type: String }
+            lessonId: { type: String },
+            isCrisisActive: { type: Boolean },
+            activeCrisis: { type: Object }
         };
     }
 
@@ -19,7 +21,7 @@ export class MissionDashboard extends LitElement {
     render() {
         if (!this.lessonData) return html``;
 
-        const isCrisisActive = this.lessonData.active_crisis || false;
+        const isCrisisActive = this.isCrisisActive || false;
         const phase = this.lessonData.mission_config?.phase || translationService.t('mission.dashboard.unknown');
 
         const userRole = this.progress?.role || translationService.t('mission.dashboard.no_role');
