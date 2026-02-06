@@ -10,19 +10,22 @@ def verify_dashboard():
         page.goto("http://localhost:3000/verify_dashboard.html")
 
         # Wait for the dashboards to render
-        # We look for the mission-dashboard-container
-        page.wait_for_selector(".mission-dashboard-container")
+        page.wait_for_selector("mission-dashboard")
 
-        # Check Normal Dashboard
-        # It should contain border-slate-700
-        normal_dashboard = page.locator("mission-dashboard").nth(0).locator(".mission-dashboard-container")
-        expect(normal_dashboard).to_have_class(re.compile(r"border-slate-700"))
+        # Allow some time for LitElement to update
+        page.wait_for_timeout(1000)
 
         # Check Crisis Dashboard
-        # It should contain border-red-500
-        crisis_dashboard = page.locator("mission-dashboard").nth(1).locator(".mission-dashboard-container")
-        expect(crisis_dashboard).to_have_class(re.compile(r"border-red-500"))
-        expect(crisis_dashboard).to_have_class(re.compile(r"animate-pulse-border"))
+        crisis_dashboard_host = page.locator("#crisis")
+
+        # Check for Title
+        expect(crisis_dashboard_host.locator("h4")).to_contain_text("Porucha filtrace")
+
+        # Check for Description
+        expect(crisis_dashboard_host.locator("p", has_text="Hladina CO2")).to_be_visible()
+
+        # Check for Call to Action
+        expect(crisis_dashboard_host.locator("text=Použijte chat k vyřešení situace!")).to_be_visible()
 
         # Take screenshot
         page.screenshot(path="verification/verification.png", full_page=True)

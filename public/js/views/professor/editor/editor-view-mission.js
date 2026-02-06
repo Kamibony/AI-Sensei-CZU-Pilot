@@ -437,12 +437,19 @@ export class EditorViewMission extends LitElement {
                                     <button
                                         @click=${() => this._handleTriggerCrisis(m.title)}
                                         ?disabled=${this._isCrisisTriggering}
-                                        class="w-full text-left px-3 py-2 rounded-lg hover:bg-red-50 text-slate-600 hover:text-red-700 text-sm transition-colors border border-transparent hover:border-red-100 group flex items-center gap-2">
-                                        ${this._isCrisisTriggering && this._triggeringCrisisTitle === m.title
-                                            ? html`<span class="animate-spin h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full"></span>`
-                                            : html`<span class="font-medium group-hover:underline">⚠ ${t('mission.crisis_trigger')}:</span>`
-                                        }
-                                        <span class="opacity-75">${m.title}</span>
+                                        class="w-full text-left px-3 py-3 rounded-lg hover:bg-red-50 text-slate-600 hover:text-red-700 text-sm transition-colors border border-transparent hover:border-red-100 group flex flex-col items-start gap-1">
+                                        <div class="flex items-center gap-2 w-full">
+                                            ${this._isCrisisTriggering && this._triggeringCrisisTitle === m.title
+                                                ? html`<span class="animate-spin h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full flex-shrink-0"></span>`
+                                                : html`<span class="font-medium group-hover:underline flex-shrink-0">⚠ ${t('mission.crisis_trigger')}:</span>`
+                                            }
+                                            <span class="font-bold">${m.title}</span>
+                                        </div>
+                                        ${m.description ? html`
+                                            <p class="text-xs text-slate-500 pl-6 group-hover:text-red-600/80 line-clamp-2">
+                                                ${m.description}
+                                            </p>
+                                        ` : ''}
                                     </button>
                                 `)}
                              </div>
