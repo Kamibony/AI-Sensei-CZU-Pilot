@@ -526,12 +526,22 @@ export class StudentLessonDetail extends LitElement {
             `;
         }
 
+        // ARCHITECTURAL FIX: Exploded State for Reactivity
+        // We explicitly calculate and pass these primitives to force Lit to detect changes,
+        // solving the deep object mutation issue where mission_config updates inside lessonData
+        // were not triggering re-renders in the child dashboard.
+        const missionConfig = this.lessonData.mission_config || {};
+        const isCrisisActive = !!missionConfig.active_crisis;
+        const activeCrisisData = missionConfig.active_crisis || null;
+
         return html`
             <mission-dashboard
                 .lessonData=${this.lessonData}
                 .progress=${this._progress}
                 .lessonId=${this.lessonId}
                 .currentUserData=${this.currentUserData}
+                .isCrisisActive=${isCrisisActive}
+                .activeCrisis=${activeCrisisData}
             ></mission-dashboard>
         `;
     }
