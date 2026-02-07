@@ -155,6 +155,20 @@ export class StudentLessonDetail extends LitElement {
     }
 
     willUpdate(changedProperties) {
+        // Ensure Identity is always present (Fix for MissionComms/ChatPanel)
+        if (!this.currentUserData) {
+             const user = firebaseInit.auth.currentUser;
+             if (user) {
+                 this.currentUserData = {
+                     id: user.uid,
+                     uid: user.uid,
+                     email: user.email,
+                     displayName: user.displayName,
+                     photoURL: user.photoURL
+                 };
+             }
+        }
+
         if (changedProperties.has('lessonData') && this.lessonData) {
             this.lessonData = normalizeLessonData(this.lessonData);
             this.isLoading = false;
