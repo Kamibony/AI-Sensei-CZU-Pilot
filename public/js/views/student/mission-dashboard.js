@@ -76,6 +76,7 @@ export class MissionDashboard extends LitElement {
                         <mission-comms
                             .lessonId=${this.lessonId}
                             .currentUserData=${this.currentUserData}
+                            .activeCrisis=${this.activeCrisis}
                             .role=${userRole}
                             .topic=${this.lessonData.title || 'Misia'}
                             .missionStarted=${this.progress?.has_started_mission || false}
