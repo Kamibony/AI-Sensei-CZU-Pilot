@@ -1314,7 +1314,7 @@ exports.getAiAssistantResponse = onCall({
     timeoutSeconds: 300, // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
     memory: "2GiB"
 }, async (request: CallableRequest) => {
-    const { lessonId, userQuestion } = request.data;
+    const { lessonId, userQuestion, mode, role } = request.data;
 
     // Only userQuestion is mandatory now
     if (!userQuestion) {
@@ -1327,64 +1327,112 @@ exports.getAiAssistantResponse = onCall({
 
     try {
         let prompt;
-        const systemContext = `You are a helpful AI Assistant for the 'AI Sensei' education platform.
-        Current User Role: ${userRole}.
-        Language: ${userLanguage === "cs" ? "Czech" : "English"}.
-        `;
 
-        // Special case for Guide Bot
-        if (lessonId === "guide-bot") {
-            prompt = `${systemContext}\n\nUser Question: ${userQuestion}`;
-        } else if (!lessonId || lessonId === "general") {
-             // FALLBACK: General Assistant Mode (No specific lesson context)
-             prompt = `${systemContext}
+        // --- MODE A: MISSION SIMULATION (Role-Play) ---
+        if (mode === "simulation") {
+            const simRole = role || "Unknown Agent";
+            const systemContext = `You are "Mission Control" (Game Master) for an immersive educational simulation.
+            Current User Identity: ${simRole}.
+            Language: ${userLanguage === "cs" ? "Czech" : "English"}.
 
-             INSTRUCTIONS:
-             You are a general educational assistant. Since no specific lesson context is provided, answer general questions about the platform or study tips.
+            MISSION PROTOCOL:
+            1. ACT IN CHARACTER: You are the HQ. Be professional, concise, and thematic (sci-fi/spy/corporate thriller tone depending on context).
+            2. DO NOT BREAK CHARACTER: Never say "I am an AI". You are Mission Control.
+            3. OBJECTIVE: Guide the user (Agent) through the mission. Give orders, hints, or feedback based on their input.
+            4. SAFETY: If the user deviates significantly, steer them back to the mission objectives.
+            `;
 
-             User Question: "${userQuestion}"`;
-        } else {
-            // 2. Context Awareness: Fetch Latest Lesson Data
-            const lessonRef = db.collection("lessons").doc(lessonId);
-            const lessonDoc = await lessonRef.get();
+             // Fetch Lesson Data for Context (Mission Config)
+             if (lessonId) {
+                const lessonRef = db.collection("lessons").doc(lessonId);
+                const lessonDoc = await lessonRef.get();
+                if (lessonDoc.exists) {
+                    const lessonData = lessonDoc.data();
+                    const missionConfig = lessonData?.mission_config || {};
+                    // Check top-level activeCrisis or legacy mission_config.active_crisis
+                    const activeCrisis = lessonData?.activeCrisis || missionConfig.active_crisis || null;
 
-            if (!lessonDoc.exists) {
-                throw new HttpsError("not-found", "Lesson not found");
+                    const contextData = {
+                        mission_title: lessonData?.title,
+                        mission_briefing: missionConfig.briefing || "Classified",
+                        user_role_details: missionConfig.roles && Array.isArray(missionConfig.roles) ? missionConfig.roles.find((r: any) => r.title === simRole) : null,
+                        active_crisis: activeCrisis
+                    };
+
+                    prompt = `${systemContext}
+
+                    MISSION CONTEXT (CLASSIFIED):
+                    ${JSON.stringify(contextData).substring(0, 10000)}
+
+                    INCOMING TRANSMISSION FROM AGENT: "${userQuestion}"`;
+                } else {
+                     prompt = `${systemContext}\n\nINCOMING TRANSMISSION: "${userQuestion}"`;
+                }
+             } else {
+                 prompt = `${systemContext}\n\nINCOMING TRANSMISSION: "${userQuestion}"`;
+             }
+        }
+        // --- MODE B: STANDARD ASSISTANT (Pedagogical) ---
+        else {
+            const systemContext = `You are a helpful AI Assistant for the 'AI Sensei' education platform.
+            Current User Role: ${userRole}.
+            Language: ${userLanguage === "cs" ? "Czech" : "English"}.
+            `;
+
+            // Special case for Guide Bot
+            if (lessonId === "guide-bot") {
+                prompt = `${systemContext}\n\nUser Question: ${userQuestion}`;
+            } else if (!lessonId || lessonId === "general") {
+                 // FALLBACK: General Assistant Mode (No specific lesson context)
+                 prompt = `${systemContext}
+
+                 INSTRUCTIONS:
+                 You are a general educational assistant. Since no specific lesson context is provided, answer general questions about the platform or study tips.
+
+                 User Question: "${userQuestion}"`;
+            } else {
+                // 2. Context Awareness: Fetch Latest Lesson Data
+                const lessonRef = db.collection("lessons").doc(lessonId);
+                const lessonDoc = await lessonRef.get();
+
+                if (!lessonDoc.exists) {
+                    throw new HttpsError("not-found", "Lesson not found");
+                }
+
+                const lessonData = lessonDoc.data();
+                const lessonTitle = lessonData?.title || "Untitled Lesson";
+
+                // Serialize content efficiently (avoid huge raw dumps if possible, but for now we include core fields)
+                // We include generated content if available
+                const contextData = {
+                    title: lessonTitle,
+                    topic: lessonData?.topic,
+                    text_content: lessonData?.text_content,
+                    podcast_script: lessonData?.podcast_script,
+                    quiz: lessonData?.quiz,
+                    test: lessonData?.test
+                };
+
+                const contextString = JSON.stringify(contextData).substring(0, 20000); // Limit context size
+
+                prompt = `${systemContext}
+
+                CONTEXT (Current Lesson Data):
+                ${contextString}
+
+                STRICT INSTRUCTIONS (Anti-Hallucination):
+                You are an educational assistant. You must answer strictly based ONLY on the provided Context Data.
+                Do not use outside knowledge to answer curriculum-specific questions.
+
+                LANGUAGE INSTRUCTION:
+                You must answer in the same language as the user's question.
+
+                Fallback Protocol:
+                If the answer is not found in the provided context, you must explicitly state:
+                "I cannot find this information in the current lesson materials. Please check with your professor."
+
+                User Question: "${userQuestion}"`;
             }
-
-            const lessonData = lessonDoc.data();
-            const lessonTitle = lessonData?.title || "Untitled Lesson";
-
-            // Serialize content efficiently (avoid huge raw dumps if possible, but for now we include core fields)
-            // We include generated content if available
-            const contextData = {
-                title: lessonTitle,
-                topic: lessonData?.topic,
-                text_content: lessonData?.text_content,
-                podcast_script: lessonData?.podcast_script,
-                quiz: lessonData?.quiz,
-                test: lessonData?.test
-            };
-
-            const contextString = JSON.stringify(contextData).substring(0, 20000); // Limit context size
-
-            prompt = `${systemContext}
-
-            CONTEXT (Current Lesson Data):
-            ${contextString}
-
-            STRICT INSTRUCTIONS (Anti-Hallucination):
-            You are an educational assistant. You must answer strictly based ONLY on the provided Context Data.
-            Do not use outside knowledge to answer curriculum-specific questions.
-
-            LANGUAGE INSTRUCTION:
-            You must answer in the same language as the user's question.
-
-            Fallback Protocol:
-            If the answer is not found in the provided context, you must explicitly state:
-            "I cannot find this information in the current lesson materials. Please check with your professor."
-
-            User Question: "${userQuestion}"`;
         }
 
 

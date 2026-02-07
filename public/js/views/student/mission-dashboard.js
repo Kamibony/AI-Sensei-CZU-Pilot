@@ -1,6 +1,6 @@
 import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { translationService } from '../../utils/translation-service.js';
-import './chat-panel.js';
+import './mission-comms.js';
 
 export class MissionDashboard extends LitElement {
     static get properties() {
@@ -31,7 +31,7 @@ export class MissionDashboard extends LitElement {
             <div class="mission-dashboard-container w-full h-[calc(100vh-140px)] bg-slate-900 rounded-3xl overflow-hidden flex flex-col md:flex-row shadow-2xl border-4 ${isCrisisActive ? 'border-red-500 animate-pulse-border' : 'border-slate-700'} transition-colors duration-500">
                 <style>
                     /* Custom styles for Mission Dashboard */
-                    .mission-dashboard-container chat-panel > div:first-child {
+                    .mission-dashboard-container mission-comms > div:first-child {
                         height: 100% !important;
                         border-radius: 0.75rem !important;
                         box-shadow: none !important;
@@ -73,15 +73,14 @@ export class MissionDashboard extends LitElement {
                 <div class="w-full md:w-1/2 bg-slate-100 flex flex-col relative">
                      <!-- Chat Panel takes full height of this container -->
                      <div class="absolute inset-0 p-2 md:p-3 bg-slate-900">
-                        <chat-panel
-                            type="ai"
+                        <mission-comms
                             .lessonId=${this.lessonId}
                             .currentUserData=${this.currentUserData}
-                            .kickstartRole=${userRole}
-                            .kickstartTopic=${this.lessonData.title || 'Misia'}
+                            .role=${userRole}
+                            .topic=${this.lessonData.title || 'Misia'}
                             .missionStarted=${this.progress?.has_started_mission || false}
                             class="h-full w-full block">
-                        </chat-panel>
+                        </mission-comms>
                      </div>
                 </div>
 
