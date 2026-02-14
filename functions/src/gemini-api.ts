@@ -33,7 +33,9 @@ function getGenerativeModel(systemInstruction?: string) {
     const defaultInstruction = `You are an expert educational content creator.
 Your goal is to extract ALL useful knowledge from the provided source text and transform it into a structured lesson, regardless of the explicit lesson title.
 If the source text is a manual or guide, teach the user HOW to use it.
-Do NOT refuse to generate content. Always find the most relevant educational value in the file.`;
+Do NOT refuse to generate content. Always find the most relevant educational value in the file.
+
+OUTPUT LANGUAGE: Czech (Čeština) by default for all educational content.`;
 
     return vertex_ai.getGenerativeModel({
         model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
@@ -609,7 +611,7 @@ async function generateJsonFromMultimodal(prompt: string, base64Data: string, mi
 }
 
 async function generateCompetencyGraph(text: string): Promise<any> {
-    const systemInstruction = "Analyze the provided syllabus text. Output a JSON object containing 'nodes' (id, label, bloom_level 1-6, eqf_level 1-8) and 'edges' (source, target) representing a dependency graph based on Bloom's Taxonomy and the European Qualifications Framework (EQF). For eqf_level, focus on autonomy and responsibility.";
+    const systemInstruction = "Analyze the provided syllabus text. Output a JSON object containing 'nodes' (id, label, bloom_level 1-6, eqf_level 1-8) and 'edges' (source, target) representing a dependency graph based on Bloom's Taxonomy and the European Qualifications Framework (EQF). For eqf_level, focus on autonomy and responsibility. OUTPUT LANGUAGE: Czech (Čeština).";
     return await generateJsonFromPrompt(text, systemInstruction);
 }
 
@@ -617,6 +619,8 @@ async function generateAudioAnalysis(base64Data: string, mimeType: string): Prom
     const prompt = `
     ROLE: You are an expert pedagogical supervisor (The Observer).
     TASK: Analyze the provided classroom audio recording.
+
+    OUTPUT LANGUAGE: Czech (Čeština).
 
     ANALYSIS DIMENSIONS:
     1. Talk Ratio: Estimate the percentage of time the Teacher speaks vs. Students.
@@ -695,19 +699,22 @@ async function generateProjectScaffolding(topic: string, duration: string, compl
     ROLE: You are an expert Project Manager & Curriculum Designer.
     TASK: Create a Project-Based Learning (PBL) scaffolding for the topic: "${topic}".
 
+    OUTPUT LANGUAGE: Czech (Čeština).
+
     PARAMETERS:
     - Duration: ${duration} (e.g., "4 weeks", "1 semester")
     - Complexity: ${complexity} (e.g., "Beginner", "Advanced")
 
     REQUIREMENTS:
     1. ROLES: Define 3-4 distinct Student Roles based on soft skills (e.g., "The Leader", "The Researcher", "The Designer").
-    2. MILESTONES: Create a linear timeline of milestones suitable for the duration.
-    3. TASKS: specific tasks for each role within each milestone.
+    2. SECRET TASK: For each role, include a "secret_task" (a hidden objective, bonus goal, or constraint). If not applicable, explicitly return null.
+    3. MILESTONES: Create a linear timeline of milestones suitable for the duration.
+    4. TASKS: specific tasks for each role within each milestone.
 
     OUTPUT FORMAT (JSON ONLY):
     {
       "roles": [
-        { "id": "r1", "title": "Role Title", "description": "Role description...", "skills": ["skill1", "skill2"] }
+        { "id": "r1", "title": "Role Title", "description": "Role description...", "skills": ["skill1", "skill2"], "secret_task": "String or null" }
       ],
       "milestones": [
         { "id": "m1", "title": "Milestone Title", "description": "Phase description..." }
@@ -751,6 +758,8 @@ async function generateCrisisScenario(topic: string, currentMilestone: string): 
     ROLE: You are a "Dungeon Master" or "Corporate Simulator" for a project-based learning course.
     TASK: Create a sudden, realistic CRISIS event for the project topic: "${topic}".
     CONTEXT: The team is currently working on the milestone: "${currentMilestone}".
+
+    OUTPUT LANGUAGE: Czech (Čeština).
 
     REQUIREMENTS:
     1. The crisis must be relevant to the topic and the current phase.

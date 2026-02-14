@@ -5,7 +5,7 @@ import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { collection, query, where, getDocs, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { functions, db, auth } from '../../firebase-init.js';
 import { showToast, getCollectionPath } from '../../utils/utils.js';
-import Chart from 'https://esm.sh/chart.js/auto';
+import Chart from 'https://cdn.jsdelivr.net/npm/chart.js/auto/+esm';
 
 export class ProfessorAnalyticsView extends Localized(LitElement) {
     static properties = {

@@ -1,6 +1,6 @@
 // Súbor: public/js/student/test-component.js
 
-import { LitElement, html } from 'https://cdn.skypack.dev/lit';
+import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { showToast } from '../../utils/utils.js';
 import * as firebaseInit from '../../firebase-init.js';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";

@@ -14,6 +14,8 @@ import './flashcards-component.js';
 import './mindmap-component.js';
 import './comic-component.js'; // Import Comic Component
 import './student-project-view.js';
+import './mission-dashboard.js'; // Import Mission Dashboard
+import './mission-briefing-modal.js';
 import '../../components/magic-board-view.js';
 
 function normalizeLessonData(rawData) {
@@ -40,7 +42,10 @@ export class StudentLessonDetail extends LitElement {
             lessonData: { type: Object },
             activeTabId: { type: String, state: true },
             isLoading: { type: Boolean, state: true },
-            _progress: { type: Object, state: true }
+            _progress: { type: Object, state: true },
+            _viewMode: { state: true },
+            _showBriefing: { state: true },
+            _assignedRoleData: { state: true }
         };
     }
 
@@ -53,7 +58,11 @@ export class StudentLessonDetail extends LitElement {
         this.isLoading = true;
         this._progress = { completedSections: [] };
         this._progressUnsubscribe = null;
+        this._lessonUnsubscribe = null;
         this._langUnsubscribe = null;
+        this._viewMode = 'study';
+        this._showBriefing = false;
+        this._assignedRoleData = null;
     }
 
     createRenderRoot() {
@@ -73,6 +82,9 @@ export class StudentLessonDetail extends LitElement {
         }
         if (this._progressUnsubscribe) {
             this._progressUnsubscribe();
+        }
+        if (this._lessonUnsubscribe) {
+            this._lessonUnsubscribe();
         }
     }
 
@@ -143,6 +155,20 @@ export class StudentLessonDetail extends LitElement {
     }
 
     willUpdate(changedProperties) {
+        // Ensure Identity is always present (Fix for MissionComms/ChatPanel)
+        if (!this.currentUserData) {
+             const user = firebaseInit.auth.currentUser;
+             if (user) {
+                 this.currentUserData = {
+                     id: user.uid,
+                     uid: user.uid,
+                     email: user.email,
+                     displayName: user.displayName,
+                     photoURL: user.photoURL
+                 };
+             }
+        }
+
         if (changedProperties.has('lessonData') && this.lessonData) {
             this.lessonData = normalizeLessonData(this.lessonData);
             this.isLoading = false;
@@ -157,6 +183,7 @@ export class StudentLessonDetail extends LitElement {
     }
 
     async updated(changedProperties) {
+        console.log("♻️ Lifecycle: updated() called. Changed props:", [...changedProperties.keys()]);
         super.updated(changedProperties);
 
         // ARCHITECTURAL CHANGE: Force UI Language based on Lesson settings
@@ -164,7 +191,7 @@ export class StudentLessonDetail extends LitElement {
             const currentLang = translationService.currentLanguage;
             if (this.lessonData.language !== currentLang) {
                  console.log(`[Localization] Enforcing lesson language: ${this.lessonData.language}`);
-                 translationService.setLanguage(this.lessonData.language);
+                 translationService.changeLanguage(this.lessonData.language);
             }
         }
 
@@ -178,35 +205,49 @@ export class StudentLessonDetail extends LitElement {
         }
     }
 
-    async _fetchLessonDetail() {
-        console.log("Fetching lesson detail for ID:", this.lessonId);
+    _fetchLessonDetail() {
+        console.log("Subscribing to lesson detail for ID:", this.lessonId);
         this.isLoading = true;
-        this.lessonData = null;
-        try {
-            const docRef = doc(firebaseInit.db, "lessons", this.lessonId);
-            console.log("Calling getDoc...");
-            const docSnap = await getDoc(docRef);
-            console.log("getDoc returned. Exists:", docSnap.exists());
 
-            if (docSnap.exists()) {
-                console.log("Lesson data:", docSnap.data());
-                this.lessonData = normalizeLessonData(docSnap.data());
-                if (!this.activeTabId) {
-                    this.activeTabId = this._getDefaultTab();
-                }
-            } else {
-                console.error("Lekce nenalezena!");
-            }
-        } catch (error) {
+        if (this._lessonUnsubscribe) {
+            this._lessonUnsubscribe();
+        }
+
+        const docRef = doc(firebaseInit.db, "lessons", this.lessonId);
+
+        this._lessonUnsubscribe = onSnapshot(docRef, (docSnap) => {
+             console.log("Lesson update received.");
+             if (docSnap.exists()) {
+                 console.log("Lesson data:", docSnap.data());
+
+                 const oldData = this.lessonData;
+                 const newData = docSnap.data();
+                 if (oldData === newData) {
+                     console.log("⚠️ IDENTITY CHECK: Data objects are IDENTICAL.");
+                 } else {
+                     console.log("✅ IDENTITY CHECK: Data objects are DIFFERENT.");
+                 }
+
+                 this.lessonData = normalizeLessonData(newData);
+                 console.log("DATA RECEIVED. Calling requestUpdate() manually...");
+                 // this.requestUpdate();
+
+                 if (!this.activeTabId) {
+                     this.activeTabId = this._getDefaultTab();
+                 }
+             } else {
+                 console.error("Lekce nenalezena!");
+                 this.lessonData = null;
+             }
+             this.isLoading = false;
+        }, (error) => {
             console.error("Error fetching lesson detail:", error);
             // Verify permissions error
             if (error.code === 'permission-denied') {
                  console.error("PERMISSION DENIED. Check Security Rules.");
             }
-        } finally {
-            console.log("Fetch finished. isLoading = false");
             this.isLoading = false;
-        }
+        });
     }
 
     _getDefaultTab() {
@@ -276,6 +317,87 @@ export class StudentLessonDetail extends LitElement {
         return tabs;
     }
 
+    _sanitizeRoleAssignment(role) {
+        // DATA NORMALIZATION GATEKEEPER
+        // Ensures that no matter what the AI outputs (or omits),
+        // we always write valid, safe data to Firestore.
+        return {
+            role: role.title || "Unknown Role",
+            // Explicitly handle undefined/missing secret_task by converting to null
+            secret_objective: role.secret_task || null
+        };
+    }
+
+    async _ensureMissionState() {
+        let roleTitle = this._progress?.role;
+        let roleData = null;
+        const user = firebaseInit.auth.currentUser;
+
+        // 1. Assign Role if missing
+        if (!roleTitle) {
+            if (!this.lessonData?.mission_config?.roles || !Array.isArray(this.lessonData.mission_config.roles) || this.lessonData.mission_config.roles.length === 0) {
+                console.warn("No roles defined in mission_config. Cannot assign role.");
+                return;
+            }
+
+            const roles = this.lessonData.mission_config.roles;
+            roleData = roles[Math.floor(Math.random() * roles.length)];
+
+            // --- LAYER B: FRONTEND DATA SANITIZATION ---
+            const sanitizedData = this._sanitizeRoleAssignment(roleData);
+            // -------------------------------------------
+
+            if (user && this.lessonId) {
+                const path = `students/${user.uid}/progress/${this.lessonId}`;
+                const progressRef = doc(firebaseInit.db, path);
+                try {
+                    await setDoc(progressRef, sanitizedData, { merge: true });
+                    console.log("Role assigned:", sanitizedData.role);
+                } catch (e) {
+                    console.error("Error saving mission role:", e);
+                }
+            }
+        } else {
+             // Find existing role data
+             roleData = this.lessonData.mission_config.roles.find(r => r.title === roleTitle);
+        }
+
+        // 2. Check Onboarding
+        if (!this._progress?.has_started_mission) {
+             this._assignedRoleData = roleData || {
+                 title: roleTitle,
+                 description: "",
+                 secret_objective: this._progress?.secret_objective
+             };
+             this._showBriefing = true;
+        }
+    }
+
+    async _handleMissionAccepted() {
+        this._showBriefing = false;
+
+        // Optimistic UI Update
+        if (this._progress) {
+            this._progress = { ...this._progress, has_started_mission: true };
+            this.requestUpdate();
+        }
+
+        const user = firebaseInit.auth.currentUser;
+        if (!user || !this.lessonId) return;
+
+        // 1. Update Firestore
+        const path = `students/${user.uid}/progress/${this.lessonId}`;
+        try {
+            await setDoc(doc(firebaseInit.db, path), { has_started_mission: true }, { merge: true });
+        } catch (e) {
+            console.error("Error updating mission start status:", e);
+        }
+
+        // 2. Trigger AI Kickstart (REMOVED - Now handled Reactively in ChatPanel)
+        // The update to 'has_started_mission' will propagate to MissionDashboard -> ChatPanel
+        // which will trigger the kickstart automatically via the Ready-First Protocol.
+    }
+
     render() {
         if (this.isLoading) {
             return html`
@@ -318,6 +440,7 @@ export class StudentLessonDetail extends LitElement {
         }
 
         const tabs = this._getTabs();
+        const hasMission = this.lessonData.mission_config && this.lessonData.mission_config.active;
 
         return html`
             <div class="min-h-screen bg-slate-50 flex flex-col">
@@ -337,60 +460,118 @@ export class StudentLessonDetail extends LitElement {
                                 </div>
                             </div>
 
-                            <!-- Desktop Tabs -->
-                            <div class="hidden md:flex space-x-1 overflow-x-auto custom-scrollbar">
-                                ${tabs.map(tab => {
-                                    const isActive = this.activeTabId === tab.id;
-                                    const isCompleted = this._progress?.completedSections?.includes(tab.id);
+                            <!-- Mission Toggle -->
+                            ${hasMission ? this._renderMissionToggle() : ''}
 
-                                    return html`
-                                        <button @click=${() => this._switchTab(tab.id)}
-                                            class="px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap
-                                            ${isActive
-                                                ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 shadow-sm'
-                                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}">
-                                            <span>${tab.icon}</span>
-                                            <span>${tab.label}</span>
-                                            ${isCompleted ? html`<span class="text-green-500 text-xs ml-1">✓</span>` : ''}
-                                        </button>
-                                    `;
-                                })}
-                            </div>
+                            <!-- Desktop Tabs (Only in Study Mode) -->
+                            ${this._viewMode === 'study' ? html`
+                                <div class="hidden md:flex space-x-1 overflow-x-auto custom-scrollbar">
+                                    ${tabs.map(tab => {
+                                        const isActive = this.activeTabId === tab.id;
+                                        const isCompleted = this._progress?.completedSections?.includes(tab.id);
 
-                            <!-- Mobile Menu Button -->
-                            <div class="md:hidden flex items-center">
-                                <span class="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
-                                    ${tabs.find(t => t.id === this.activeTabId)?.label}
-                                </span>
-                            </div>
+                                        return html`
+                                            <button @click=${() => this._switchTab(tab.id)}
+                                                class="px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap
+                                                ${isActive
+                                                    ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 shadow-sm'
+                                                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}">
+                                                <span>${tab.icon}</span>
+                                                <span>${tab.label}</span>
+                                                ${isCompleted ? html`<span class="text-green-500 text-xs ml-1">✓</span>` : ''}
+                                            </button>
+                                        `;
+                                    })}
+                                </div>
+                            ` : ''}
+
+                            <!-- Mobile Menu Button (Only in Study Mode) -->
+                            ${this._viewMode === 'study' ? html`
+                                <div class="md:hidden flex items-center">
+                                    <span class="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                                        ${tabs.find(t => t.id === this.activeTabId)?.label}
+                                    </span>
+                                </div>
+                            ` : ''}
 
                         </div>
                     </div>
 
-                    <!-- Mobile Tabs Scrollable Strip -->
-                    <div class="md:hidden border-t border-slate-100 overflow-x-auto custom-scrollbar py-2 px-4 flex gap-2">
-                        ${tabs.map(tab => {
-                             const isActive = this.activeTabId === tab.id;
-                             return html`
-                                <button @click=${() => this._switchTab(tab.id)}
-                                    class="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 flex items-center gap-1.5
-                                    ${isActive
-                                        ? 'bg-indigo-600 text-white shadow-md'
-                                        : 'bg-white border border-slate-200 text-slate-600'}">
-                                    <span>${tab.icon}</span>
-                                    <span>${tab.label}</span>
-                                </button>
-                             `;
-                        })}
-                    </div>
+                    <!-- Mobile Tabs Scrollable Strip (Only in Study Mode) -->
+                    ${this._viewMode === 'study' ? html`
+                        <div class="md:hidden border-t border-slate-100 overflow-x-auto custom-scrollbar py-2 px-4 flex gap-2">
+                            ${tabs.map(tab => {
+                                 const isActive = this.activeTabId === tab.id;
+                                 return html`
+                                    <button @click=${() => this._switchTab(tab.id)}
+                                        class="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 flex items-center gap-1.5
+                                        ${isActive
+                                            ? 'bg-indigo-600 text-white shadow-md'
+                                            : 'bg-white border border-slate-200 text-slate-600'}">
+                                        <span>${tab.icon}</span>
+                                        <span>${tab.label}</span>
+                                    </button>
+                                 `;
+                            })}
+                        </div>
+                    ` : ''}
                 </div>
 
                 <!-- Main Content Area -->
                 <div class="flex-grow max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 animate-fade-in-up">
-                    ${this._renderContent()}
+                    ${this._viewMode === 'study' ? this._renderContent() : this._renderMissionInterface()}
                 </div>
 
             </div>
+        `;
+    }
+
+    _renderMissionToggle() {
+        return html`
+            <div class="flex bg-slate-100 p-1 rounded-lg mx-4">
+                <button @click="${() => this._viewMode = 'study'}"
+                    class="px-4 py-1.5 rounded-md text-sm font-bold transition-all ${this._viewMode === 'study' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}">
+                    ${translationService.t('mission.student_toggle_study')}
+                </button>
+                <button @click="${() => { this._viewMode = 'mission'; this._ensureMissionState(); }}"
+                    class="px-4 py-1.5 rounded-md text-sm font-bold transition-all ${this._viewMode === 'mission' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}">
+                    ${translationService.t('mission.student_toggle_mission')}
+                </button>
+            </div>
+        `;
+    }
+
+    _renderMissionInterface() {
+        const hasStarted = this._progress?.has_started_mission;
+
+        if (!hasStarted) {
+             return html`
+                <mission-briefing-modal
+                    .roleData=${this._assignedRoleData}
+                    @mission-accepted=${this._handleMissionAccepted}
+                ></mission-briefing-modal>
+            `;
+        }
+
+        // ARCHITECTURAL FIX: Exploded State for Reactivity
+        // We explicitly calculate and pass these primitives to force Lit to detect changes,
+        // solving the deep object mutation issue where mission_config updates inside lessonData
+        // were not triggering re-renders in the child dashboard.
+        const missionConfig = this.lessonData.mission_config || {};
+
+        // Use top-level activeCrisis from lessonData, fallback to mission_config if legacy
+        const activeCrisisData = this.lessonData.activeCrisis || missionConfig.active_crisis || null;
+        const isCrisisActive = !!activeCrisisData;
+
+        return html`
+            <mission-dashboard
+                .lessonData=${this.lessonData}
+                .progress=${this._progress}
+                .lessonId=${this.lessonId}
+                .currentUserData=${this.currentUserData}
+                .isCrisisActive=${isCrisisActive}
+                .activeCrisis=${activeCrisisData}
+            ></mission-dashboard>
         `;
     }
 

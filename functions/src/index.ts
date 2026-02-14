@@ -801,7 +801,7 @@ Fail to follow this, and the generation is considered incorrect.
 *************************************
 `;
 
-        const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap", "podcast", "audio"].includes(contentType);
+        const isJson = ["presentation", "quiz", "test", "post", "comic", "flashcards", "mindmap", "podcast", "audio", "mission"].includes(contentType);
 
         // Append instruction for non-JSON cases (Text) immediately.
         // For JSON cases, we will append it inside the switch to ensure correct placement.
@@ -1001,6 +1001,43 @@ FORMAT: JSON
 }
 Each script object must have: 'speaker' ("Host" or "Guest"), 'text' (string).`;
                     }
+                    finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
+                    finalPrompt += JSON_SAFEGUARD;
+                    break;
+                }
+
+                case "mission": {
+                    finalPrompt = `
+    ROLE: You are an expert Curriculum Architect and Project Manager.
+    TASK: Analyze the provided content to create a comprehensive "Mission" structure for a Project-Based Learning course.
+
+    OUTPUT LANGUAGE: ${targetLanguage}.
+
+    REQUIREMENTS:
+    1. **Knowledge Graph**: Extract key concepts and their dependencies.
+       - Nodes: id, label, bloom_level (1-6), eqf_level (1-8).
+       - Edges: source, target.
+    2. **Project Scaffolding**: Define the team structure and timeline.
+       - Roles: 3-4 distinct student roles (e.g., "Analyst", "Builder").
+       - Secret Tasks: Assign a "secret_task" to each role (hidden objective). Use null if not applicable.
+       - Milestones: 3-4 phases of the project.
+       - Role Tasks: Specific tasks for each role in each milestone.
+
+    OUTPUT FORMAT (JSON ONLY):
+    {
+      "graph": {
+        "nodes": [ { "id": "n1", "label": "String", "bloom_level": 1, "eqf_level": 3 } ],
+        "edges": [ { "source": "n1", "target": "n2" } ]
+      },
+      "mission": {
+        "roles": [ { "id": "r1", "title": "String", "description": "String", "skills": ["String"], "secret_task": "String or null" } ],
+        "milestones": [ { "id": "m1", "title": "String", "description": "String" } ],
+        "role_tasks": {
+           "m1": { "r1": ["Task..."], "r2": ["Task..."] }
+        }
+      }
+    }
+    `;
                     finalPrompt += `\n${SYSTEM_LANGUAGE_INSTRUCTION}`;
                     finalPrompt += JSON_SAFEGUARD;
                     break;
@@ -1277,7 +1314,7 @@ exports.getAiAssistantResponse = onCall({
     timeoutSeconds: 300, // <-- ZMENENÉ (5 minút) - AI volanie môže byť pomalé
     memory: "2GiB"
 }, async (request: CallableRequest) => {
-    const { lessonId, userQuestion } = request.data;
+    const { lessonId, userQuestion, mode, role } = request.data;
 
     // Only userQuestion is mandatory now
     if (!userQuestion) {
@@ -1290,64 +1327,112 @@ exports.getAiAssistantResponse = onCall({
 
     try {
         let prompt;
-        const systemContext = `You are a helpful AI Assistant for the 'AI Sensei' education platform.
-        Current User Role: ${userRole}.
-        Language: ${userLanguage === "cs" ? "Czech" : "English"}.
-        `;
 
-        // Special case for Guide Bot
-        if (lessonId === "guide-bot") {
-            prompt = `${systemContext}\n\nUser Question: ${userQuestion}`;
-        } else if (!lessonId || lessonId === "general") {
-             // FALLBACK: General Assistant Mode (No specific lesson context)
-             prompt = `${systemContext}
+        // --- MODE A: MISSION SIMULATION (Role-Play) ---
+        if (mode === "simulation") {
+            const simRole = role || "Unknown Agent";
+            const systemContext = `You are "Mission Control" (Game Master) for an immersive educational simulation.
+            Current User Identity: ${simRole}.
+            Language: ${userLanguage === "cs" ? "Czech" : "English"}.
 
-             INSTRUCTIONS:
-             You are a general educational assistant. Since no specific lesson context is provided, answer general questions about the platform or study tips.
+            MISSION PROTOCOL:
+            1. ACT IN CHARACTER: You are the HQ. Be professional, concise, and thematic (sci-fi/spy/corporate thriller tone depending on context).
+            2. DO NOT BREAK CHARACTER: Never say "I am an AI". You are Mission Control.
+            3. OBJECTIVE: Guide the user (Agent) through the mission. Give orders, hints, or feedback based on their input.
+            4. SAFETY: If the user deviates significantly, steer them back to the mission objectives.
+            `;
 
-             User Question: "${userQuestion}"`;
-        } else {
-            // 2. Context Awareness: Fetch Latest Lesson Data
-            const lessonRef = db.collection("lessons").doc(lessonId);
-            const lessonDoc = await lessonRef.get();
+             // Fetch Lesson Data for Context (Mission Config)
+             if (lessonId) {
+                const lessonRef = db.collection("lessons").doc(lessonId);
+                const lessonDoc = await lessonRef.get();
+                if (lessonDoc.exists) {
+                    const lessonData = lessonDoc.data();
+                    const missionConfig = lessonData?.mission_config || {};
+                    // Check top-level activeCrisis or legacy mission_config.active_crisis
+                    const activeCrisis = lessonData?.activeCrisis || missionConfig.active_crisis || null;
 
-            if (!lessonDoc.exists) {
-                throw new HttpsError("not-found", "Lesson not found");
+                    const contextData = {
+                        mission_title: lessonData?.title,
+                        mission_briefing: missionConfig.briefing || "Classified",
+                        user_role_details: missionConfig.roles && Array.isArray(missionConfig.roles) ? missionConfig.roles.find((r: any) => r.title === simRole) : null,
+                        active_crisis: activeCrisis
+                    };
+
+                    prompt = `${systemContext}
+
+                    MISSION CONTEXT (CLASSIFIED):
+                    ${JSON.stringify(contextData).substring(0, 10000)}
+
+                    INCOMING TRANSMISSION FROM AGENT: "${userQuestion}"`;
+                } else {
+                     prompt = `${systemContext}\n\nINCOMING TRANSMISSION: "${userQuestion}"`;
+                }
+             } else {
+                 prompt = `${systemContext}\n\nINCOMING TRANSMISSION: "${userQuestion}"`;
+             }
+        }
+        // --- MODE B: STANDARD ASSISTANT (Pedagogical) ---
+        else {
+            const systemContext = `You are a helpful AI Assistant for the 'AI Sensei' education platform.
+            Current User Role: ${userRole}.
+            Language: ${userLanguage === "cs" ? "Czech" : "English"}.
+            `;
+
+            // Special case for Guide Bot
+            if (lessonId === "guide-bot") {
+                prompt = `${systemContext}\n\nUser Question: ${userQuestion}`;
+            } else if (!lessonId || lessonId === "general") {
+                 // FALLBACK: General Assistant Mode (No specific lesson context)
+                 prompt = `${systemContext}
+
+                 INSTRUCTIONS:
+                 You are a general educational assistant. Since no specific lesson context is provided, answer general questions about the platform or study tips.
+
+                 User Question: "${userQuestion}"`;
+            } else {
+                // 2. Context Awareness: Fetch Latest Lesson Data
+                const lessonRef = db.collection("lessons").doc(lessonId);
+                const lessonDoc = await lessonRef.get();
+
+                if (!lessonDoc.exists) {
+                    throw new HttpsError("not-found", "Lesson not found");
+                }
+
+                const lessonData = lessonDoc.data();
+                const lessonTitle = lessonData?.title || "Untitled Lesson";
+
+                // Serialize content efficiently (avoid huge raw dumps if possible, but for now we include core fields)
+                // We include generated content if available
+                const contextData = {
+                    title: lessonTitle,
+                    topic: lessonData?.topic,
+                    text_content: lessonData?.text_content,
+                    podcast_script: lessonData?.podcast_script,
+                    quiz: lessonData?.quiz,
+                    test: lessonData?.test
+                };
+
+                const contextString = JSON.stringify(contextData).substring(0, 20000); // Limit context size
+
+                prompt = `${systemContext}
+
+                CONTEXT (Current Lesson Data):
+                ${contextString}
+
+                STRICT INSTRUCTIONS (Anti-Hallucination):
+                You are an educational assistant. You must answer strictly based ONLY on the provided Context Data.
+                Do not use outside knowledge to answer curriculum-specific questions.
+
+                LANGUAGE INSTRUCTION:
+                You must answer in the same language as the user's question.
+
+                Fallback Protocol:
+                If the answer is not found in the provided context, you must explicitly state:
+                "I cannot find this information in the current lesson materials. Please check with your professor."
+
+                User Question: "${userQuestion}"`;
             }
-
-            const lessonData = lessonDoc.data();
-            const lessonTitle = lessonData?.title || "Untitled Lesson";
-
-            // Serialize content efficiently (avoid huge raw dumps if possible, but for now we include core fields)
-            // We include generated content if available
-            const contextData = {
-                title: lessonTitle,
-                topic: lessonData?.topic,
-                text_content: lessonData?.text_content,
-                podcast_script: lessonData?.podcast_script,
-                quiz: lessonData?.quiz,
-                test: lessonData?.test
-            };
-
-            const contextString = JSON.stringify(contextData).substring(0, 20000); // Limit context size
-
-            prompt = `${systemContext}
-
-            CONTEXT (Current Lesson Data):
-            ${contextString}
-
-            STRICT INSTRUCTIONS (Anti-Hallucination):
-            You are an educational assistant. You must answer strictly based ONLY on the provided Context Data.
-            Do not use outside knowledge to answer curriculum-specific questions.
-
-            LANGUAGE INSTRUCTION:
-            You must answer in the same language as the user's question.
-
-            Fallback Protocol:
-            If the answer is not found in the provided context, you must explicitly state:
-            "I cannot find this information in the current lesson materials. Please check with your professor."
-
-            User Question: "${userQuestion}"`;
         }
 
 

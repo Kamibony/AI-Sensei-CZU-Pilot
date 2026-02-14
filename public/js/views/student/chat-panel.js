@@ -1,6 +1,6 @@
 // Súbor: public/js/student/chat-panel.js
 
-import { LitElement, html } from 'https://cdn.skypack.dev/lit';
+import { LitElement, html } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { showToast } from '../../utils/utils.js';
@@ -31,9 +31,16 @@ export class ChatPanel extends LitElement {
             lessonId: { type: String },
             currentUserData: { type: Object },
             
+            // Reactive props for Kickstart (Ready-First Protocol)
+            kickstartRole: { type: String },
+            kickstartTopic: { type: String },
+            missionStarted: { type: Boolean },
+
             chatHistory: { type: Array, state: true },
             currentSubView: { type: String, state: true }, // Len pre 'ai' typ: 'web' alebo 'telegram'
             chatUnsubscribe: { type: Object }, // Pre uloženie onSnapshot listenera
+            _isHistoryLoaded: { type: Boolean, state: true },
+            _kickstartInProgress: { type: Boolean, state: true }
         };
     }
 
@@ -42,9 +49,16 @@ export class ChatPanel extends LitElement {
         this.type = 'professor';
         this.lessonId = null;
         this.currentUserData = null;
+
+        this.kickstartRole = null;
+        this.kickstartTopic = null;
+        this.missionStarted = false;
+
         this.chatHistory = []; // Bude obsahovať aj { sender: 'ai-typing' }
         this.currentSubView = 'web';
         this.chatUnsubscribe = null;
+        this._isHistoryLoaded = false;
+        this._kickstartInProgress = false;
     }
 
     // Vypnutie Shadow DOM
@@ -79,6 +93,11 @@ export class ChatPanel extends LitElement {
         if (changedProperties.has('currentUserData') || changedProperties.has('lessonId')) {
             this._loadChatHistory();
         }
+
+        // Ready-First Protocol: Trigger AI Kickstart only when all data is ready
+        if (this.type === 'ai' && this.missionStarted) {
+            this._checkAndTriggerKickstart();
+        }
     }
 
     // Hlavná renderovacia metóda
@@ -101,7 +120,7 @@ export class ChatPanel extends LitElement {
                         <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center font-bold text-xl text-[#56A0D3]">A</div>
                         <div class="ml-3">
                             <h3 class="font-semibold text-lg">${translationService.t('chat.ai_guide')}</h3>
-                            <p class="text-sm text-gray-200">Vyberte způsob komunikace</p>
+                            <p class="text-sm text-gray-200">${translationService.t('chat.select_communication_method')}</p>
                         </div>
                     </div>
 
@@ -121,14 +140,14 @@ export class ChatPanel extends LitElement {
                     data-chat-type="web" 
                     class="px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${this.currentSubView === 'web' ? 'border-[#56A0D3] text-[#56A0D3]' : 'border-transparent text-slate-500 hover:text-[#56A0D3]'}"
                     @click=${() => this.currentSubView = 'web'}>
-                    Web Chat
+                    ${translationService.t('chat.web_chat')}
                 </button>
                 <button 
                     id="ai-tab-telegram" 
                     data-chat-type="telegram" 
                     class="px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${this.currentSubView === 'telegram' ? 'border-[#56A0D3] text-[#56A0D3]' : 'border-transparent text-slate-500 hover:text-[#56A0D3]'}"
                     @click=${() => this.currentSubView = 'telegram'}>
-                    Telegram App
+                    ${translationService.t('chat.telegram_app')}
                 </button>
             </div>
         `;
@@ -153,16 +172,16 @@ export class ChatPanel extends LitElement {
             `;
         } else if (this.currentSubView === 'telegram') {
             // Pôvodná logika z `renderAITelegramLink`
-            const token = this.currentUserData?.telegramLinkToken || 'CHYBA: Kód nenalezen';
+            const token = this.currentUserData?.telegramLinkToken || translationService.t('chat.error_code_not_found');
             return html`
                 <div class="flex flex-col items-center justify-center p-8 text-center flex-grow">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-[#56A0D3] mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 17l-4 4-4-4"></path><path d="M13 19V5"></path><path d="M9 13l4-4 4 4"></path></svg>
-                    <h3 class="text-xl font-bold mb-2">Komunikujte přes Telegram</h3>
-                    <p class="text-slate-600 mb-4">Pro jednodušší a rychlejší komunikaci v mobilu použijte našeho bota v aplikaci Telegram.</p>
+                    <h3 class="text-xl font-bold mb-2">${translationService.t('chat.communicate_via_telegram')}</h3>
+                    <p class="text-slate-600 mb-4">${translationService.t('chat.telegram_instruction')}</p>
                     <a href="https://t.me/ai_sensei_czu_bot" target="_blank" class="bg-[#56A0D3] text-white font-bold py-3 px-6 rounded-full hover:bg-[#4396C8] transition-colors mb-4">
-                        Otevřít Telegram Bota
+                        ${translationService.t('chat.open_telegram_bot')}
                     </a>
-                    <p class="text-sm text-slate-500 mt-2">Po otevření pošlete botovi pro spárování tento kód:</p>
+                    <p class="text-sm text-slate-500 mt-2">${translationService.t('chat.send_code_instruction')}</p>
                     <strong class="block bg-gray-200 text-slate-800 p-2 rounded-lg text-lg select-all font-mono">${token}</strong>
                 </div>
             `;
@@ -175,13 +194,13 @@ export class ChatPanel extends LitElement {
         // Pôvodná logika z `renderProfessorChatView`
         return html`
             <div class="bg-white p-4 md:p-6 rounded-2xl shadow-lg flex flex-col h-[60vh] lg:h-[70vh]">
-                <h3 class="text-2xl font-bold mb-4">Konzultace s profesorem</h3>
+                <h3 class="text-2xl font-bold mb-4">${translationService.t('chat.professor_consultation')}</h3>
                 <div id="prof-chat-history" class="overflow-y-auto border p-3 rounded-lg bg-slate-50 mb-4 flex-grow">
                     ${this._renderChatHistory()}
                 </div>
                 <div class="flex gap-2 flex-shrink-0">
                     <input type="text" id="chat-input" placeholder="${translationService.t('chat.placeholder_professor')}" class="flex-grow p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" @keypress=${this._handleKeypress}>
-                    <button id="send-chat-btn" class="bg-slate-700 text-white font-bold py-3 px-5 rounded-lg hover:bg-slate-800 transition-colors" @click=${this._sendMessage}>Odeslat</button>
+                    <button id="send-chat-btn" class="bg-slate-700 text-white font-bold py-3 px-5 rounded-lg hover:bg-slate-800 transition-colors" @click=${this._sendMessage}>${translationService.t('chat.send_button')}</button>
                 </div>
             </div>
         `;
@@ -214,16 +233,16 @@ export class ChatPanel extends LitElement {
         } else if (data.sender === 'ai-typing') {
             alignmentClasses = 'mr-auto float-left';
             baseClasses += ` bg-gray-200 text-gray-500 italic ${alignmentClasses} rounded-tl-none ai-typing-indicator`;
-            content = translationService.t('student_dashboard.typing');
+            content = translationService.t('chat.typing');
         } else if (data.sender === 'system-error') {
             alignmentClasses = 'mx-auto';
             baseClasses += ` bg-red-100 text-red-700 text-center ${alignmentClasses}`;
-            senderPrefix = '<strong>Systém:</strong><br>';
+            senderPrefix = `<strong>${translationService.t('chat.system_sender')}</strong><br>`;
         } else { // ai, professor
             alignmentClasses = 'mr-auto float-left';
             baseClasses += ` ${isAI ? 'bg-white' : 'bg-gray-200'} text-slate-800 ${alignmentClasses} rounded-tl-none`;
             if (data.sender === 'ai') senderPrefix = `<strong>${translationService.t('chat.ai_guide')}:</strong><br>`;
-            if (data.sender === 'professor') senderPrefix = '<strong>Profesor:</strong><br>';
+            if (data.sender === 'professor') senderPrefix = `<strong>${translationService.t('chat.professor_sender')}</strong><br>`;
         }
         
         let timestampText = '';
@@ -254,6 +273,7 @@ export class ChatPanel extends LitElement {
         // Pôvodná logika z `loadChatHistory`
         if (this.chatUnsubscribe) { // Zastavíme starý listener, ak existuje
             this.chatUnsubscribe();
+            this._isHistoryLoaded = false;
         }
 
         try {
@@ -267,6 +287,7 @@ export class ChatPanel extends LitElement {
             // Uložíme si unsubscribe funkciu
             this.chatUnsubscribe = onSnapshot(q, async (snapshot) => {
                 this.chatHistory = snapshot.docs.map(doc => doc.data());
+                this._isHistoryLoaded = true; // Mark history as loaded
                 
                 // Počkáme, kým Lit prekreslí DOM
                 await this.updateComplete; 
@@ -279,11 +300,13 @@ export class ChatPanel extends LitElement {
             }, (error) => {
                 console.error(`Error with ${this.type} chat listener:`, error);
                 showToast(translationService.t('student_dashboard.chat_error_load'), true);
+                this._isHistoryLoaded = true; // Prevent indefinite loading state
             });
 
         } catch (error) {
             console.error(`Error loading ${this.type} chat history:`, error);
             showToast(translationService.t('student_dashboard.chat_error_load'), true);
+            this._isHistoryLoaded = true;
         }
     }
 
@@ -293,7 +316,83 @@ export class ChatPanel extends LitElement {
         }
     }
 
+    async _checkAndTriggerKickstart() {
+        // Guard Clause: History must be loaded to ensure idempotency
+        if (!this._isHistoryLoaded) return;
+
+        // Idempotency: Do not trigger if chat history already exists
+        if (this.chatHistory.length > 0) return;
+
+        // Guard Clause: Prevent multiple parallel kickstarts
+        if (this._kickstartInProgress) return;
+
+        // Guard Clause: Data Integrity
+        // We use a safe accessor or fallback, but strict checks are better here.
+        if (!this.kickstartRole || !this.kickstartTopic || !this.currentUserData?.id || !this.lessonId) {
+            // Do not log error repeatedly, just wait for data
+            return;
+        }
+
+        console.log("Triggering AI Kickstart (Reactive) for role:", this.kickstartRole, "topic:", this.kickstartTopic);
+        this._kickstartInProgress = true;
+
+        const language = translationService.currentLanguage === 'cs' ? 'Czech' : 'Portuguese';
+
+        // Use generic fallback if topic is somehow missing but passed guard
+        const safeTopic = this.kickstartTopic || "Unknown Mission";
+
+        const systemPrompt = `SYSTEM_EVENT: User has just accepted the role of ${this.kickstartRole}. The mission context is ${safeTopic}. ACT IMMEDIATELY as the [Mission Persona]. Introduce yourself briefly and give the user their first situational update or order based on their role. Ask them for a status report. Output in ${language}.`;
+
+        // Add hidden typing indicator
+        this.chatHistory = [...this.chatHistory, { sender: 'ai-typing', text: translationService.t('chat.typing') }];
+
+        try {
+            const getAiAssistantResponse = httpsCallable(firebaseInit.functions, 'getAiAssistantResponse');
+            const result = await getAiAssistantResponse({
+                lessonId: this.lessonId,
+                userQuestion: systemPrompt // Sending system prompt as user question, but NOT saving it to DB
+            });
+            const response = result.data;
+
+            let aiResponseText = response.error
+                ? `${translationService.t('chat.error_ai')} ${response.error}`
+                : (response.answer || translationService.t('guide_bot.error_response'));
+
+            // Save AI response to DB so it appears in chat
+            const messageRef = collection(firebaseInit.db, `conversations/${this.currentUserData.id}/messages`);
+            await addDoc(messageRef, {
+                 lessonId: this.lessonId,
+                 text: aiResponseText,
+                 sender: 'ai',
+                 type: 'ai',
+                 timestamp: serverTimestamp()
+            });
+            console.log("AI Kickstart response saved.");
+
+        } catch (e) {
+            console.error("AI Kickstart failed:", e);
+            this._kickstartInProgress = false; // Allow retry on failure? Or better to stay failed to avoid loops?
+            // If we reset, it might loop. If we don't, it might never start.
+            // Better to reset and let the user retry by refreshing or manual message.
+        } finally {
+            // Remove typing indicator
+             this.chatHistory = this.chatHistory.filter(m => m.sender !== 'ai-typing');
+             // Note: We do NOT reset _kickstartInProgress to false on success,
+             // because we want to ensure it runs only once per session/mount if history was empty.
+             // Actually, if we successfully saved to DB, the snapshot will update, chatHistory.length > 0,
+             // so the idempotency check will block future runs anyway.
+             // But let's keep it true to be safe in-memory.
+        }
+    }
+
     async _sendMessage() {
+        // Guard Clause: Prevent identity loss crash
+        if (!this.currentUserData || !this.currentUserData.id) {
+            console.warn("ChatPanel: Cannot send message - Missing currentUserData identity.");
+            showToast(translationService.t('chat.error_identity_missing') || "Chyba identity: Zkuste obnovit stránku.", true);
+            return;
+        }
+
         // Pôvodná logika z `sendMessage`
         const inputEl = this.querySelector('#chat-input');
         if (!inputEl) return;
@@ -318,7 +417,7 @@ export class ChatPanel extends LitElement {
 
              if (this.type === 'ai') {
                 // Deklaratívne pridáme "typing" indikátor
-                this.chatHistory = [...this.chatHistory, { sender: 'ai-typing', text: 'píše...' }];
+                this.chatHistory = [...this.chatHistory, { sender: 'ai-typing', text: translationService.t('chat.typing') }];
 
                 try {
                     const getAiAssistantResponse = httpsCallable(firebaseInit.functions, 'getAiAssistantResponse');
